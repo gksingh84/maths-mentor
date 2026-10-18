@@ -42,6 +42,9 @@ model Teacher {
   worksheetPapers WorksheetPaper[]
   chatMessages    ChatMessage[]
   calendarEvents  CalendarEvent[]
+  attendances     StudentAttendance[]
+  fees            StudentFee[]
+  scoreRecords    StudentScoreRecord[]
 }
 
 model Student {
@@ -54,10 +57,14 @@ model Student {
   active               Boolean               @default(true)
   teacherId            String?
   teacher              Teacher?              @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  joiningDate          DateTime?             @default(now())
   createdAt            DateTime              @default(now())
   attempts             Attempt[]
   worksheetSubmissions WorksheetSubmission[]
   chatMessages         ChatMessage[]
+  attendances          StudentAttendance[]
+  fees                 StudentFee[]
+  scoreRecords         StudentScoreRecord[]
 }
 
 model Quiz {
@@ -258,4 +265,73 @@ model CalendarEvent {
 
   @@index([teacherId, date])
 }
+
+model StudentAttendance {
+  id           String   @id @default(cuid())
+  studentId    String
+  teacherId    String?
+  date         String   // "YYYY-MM-DD"
+  status       String   @default("PRESENT") // "PRESENT" | "ABSENT" | "LATE" | "EXCUSED"
+  remarks      String?
+  academicYear String   // e.g. "2026-2027" (April to March)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  student      Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  teacher      Teacher? @relation(fields: [teacherId], references: [id], onDelete: SetNull)
+
+  @@unique([studentId, date])
+  @@index([studentId, academicYear])
+  @@index([teacherId, date])
+}
+
+model StudentFee {
+  id           String    @id @default(cuid())
+  studentId    String
+  teacherId    String?
+  academicYear String    // "2026-2027"
+  month        String    // "April", "May", "June", ... "March"
+  amountDue    Float     @default(0)
+  amountPaid   Float     @default(0)
+  status       String    @default("PENDING") // "PAID" | "PENDING" | "PARTIAL" | "OVERDUE"
+  paidAt       DateTime?
+  paymentMode  String?   // "CASH" | "UPI" | "BANK_TRANSFER" | "CHEQUE" | "OTHER"
+  receiptNo    String?
+  notes        String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  student      Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  teacher      Teacher?  @relation(fields: [teacherId], references: [id], onDelete: SetNull)
+
+  @@unique([studentId, academicYear, month])
+  @@index([studentId, academicYear])
+  @@index([teacherId, academicYear, month])
+}
+
+model StudentScoreRecord {
+  id           String   @id @default(cuid())
+  studentId    String
+  teacherId    String?
+  title        String   // Quiz or Question Paper Title
+  itemType     String   // "QUIZ" | "QUESTION_PAPER"
+  score        Float?
+  totalMarks   Float    @default(0)
+  percentage   Float?
+  grade        String?
+  subject      String?  @default("Mathematics")
+  academicYear String   // "2026-2027" (April to March)
+  completedAt  DateTime @default(now())
+  remarks      String?
+  quizId       String?  // Original quiz ID (NO cascade constraint, keeps record even if deleted)
+  paperId      String?  // Original paper ID (NO cascade constraint, keeps record even if deleted)
+  createdAt    DateTime @default(now())
+
+  student      Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  teacher      Teacher? @relation(fields: [teacherId], references: [id], onDelete: SetNull)
+
+  @@index([studentId, academicYear])
+  @@index([teacherId, academicYear])
+}
+
 

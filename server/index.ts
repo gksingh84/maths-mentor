@@ -90,6 +90,19 @@ async function clearTeacherChatMessages(teacherId: string) {
 }
 
 
+const teacherActiveCache = new Map<string, { time: number; active: boolean }>();
+const studentActiveCache = new Map<string, { time: number; active: boolean }>();
+
+export function invalidateAuthCache(id?: string) {
+  if (id) {
+    teacherActiveCache.delete(id);
+    studentActiveCache.delete(id);
+  } else {
+    teacherActiveCache.clear();
+    studentActiveCache.clear();
+  }
+}
+
 const authenticate = (allowedRoles?: Role | Role[]) => async (req: AuthRequest, res: Response, next: NextFunction) => {
   const token = req.cookies[sessionCookie] as string | undefined;
   try {
@@ -106,11 +119,23 @@ const authenticate = (allowedRoles?: Role | Role[]) => async (req: AuthRequest, 
     }
     req.session = { id: payload.id, role: payload.role, username: payload.username, email: payload.email, name: payload.name };
     if (payload.role === 'student') {
-      const student = await prisma.student.findUnique({ where: { id: payload.id }, select: { active: true } });
-      if (!student?.active) return res.status(401).json({ error: 'This student passkey has been disabled.' });
+      const cached = studentActiveCache.get(payload.id);
+      let isActive = cached && (Date.now() - cached.time < 60000) ? cached.active : null;
+      if (isActive === null) {
+        const student = await prisma.student.findUnique({ where: { id: payload.id }, select: { active: true } });
+        isActive = Boolean(student?.active);
+        studentActiveCache.set(payload.id, { time: Date.now(), active: isActive });
+      }
+      if (!isActive) return res.status(401).json({ error: 'This student passkey has been disabled.' });
     } else if (payload.role === 'teacher') {
-      const teacher = await db.teacher.findUnique({ where: { id: payload.id }, select: { active: true } });
-      if (!teacher?.active) return res.status(403).json({ error: 'This teacher account is pending activation by the Administrator.' });
+      const cached = teacherActiveCache.get(payload.id);
+      let isActive = cached && (Date.now() - cached.time < 60000) ? cached.active : null;
+      if (isActive === null) {
+        const teacher = await db.teacher.findUnique({ where: { id: payload.id }, select: { active: true } });
+        isActive = Boolean(teacher?.active);
+        teacherActiveCache.set(payload.id, { time: Date.now(), active: isActive });
+      }
+      if (!isActive) return res.status(403).json({ error: 'This teacher account is pending activation by the Administrator.' });
     }
     next();
   } catch {
@@ -147,11 +172,186 @@ const errorResponse = (res: Response, error: unknown) => {
   return res.status(500).json({ error: 'Something went wrong. Please try again.' });
 };
 
+export function getAcademicYear(dateInput: Date | string = new Date()): string {
+  const d = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
+  const month = d.getMonth() + 1; // 1 = Jan, 4 = Apr, 12 = Dec
+  const year = d.getFullYear();
+  if (month >= 4) {
+    return `${year}-${year + 1}`;
+  } else {
+    return `${year - 1}-${year}`;
+  }
+}
+
+export const ACADEMIC_MONTHS = [
+  'April', 'May', 'June', 'July', 'August', 'September',
+  'October', 'November', 'December', 'January', 'February', 'March'
+];
+
+export function getCalendarYearMonth(academicYear: string, monthName: string): { year: number; month: number; yearMonth: string } {
+  const parts = academicYear.split('-');
+  const startYear = parseInt(parts[0], 10);
+  const endYear = parseInt(parts[1], 10) || startYear + 1;
+  const monthIdx = ACADEMIC_MONTHS.findIndex((m) => m.toLowerCase() === monthName.toLowerCase());
+  if (monthIdx === -1) {
+    return { year: startYear, month: 4, yearMonth: `${startYear}-04` };
+  }
+  let calYear = startYear;
+  let calMonth = monthIdx + 4; // Apr=4 ... Dec=12
+  if (monthIdx >= 9) { // Jan=1, Feb=2, Mar=3
+    calYear = endYear;
+    calMonth = monthIdx - 8;
+  }
+  const monthStr = String(calMonth).padStart(2, '0');
+  return { year: calYear, month: calMonth, yearMonth: `${calYear}-${monthStr}` };
+}
+
+export function getStudentJoiningDate(student: any): { joiningDate: string; joiningYearMonth: string } {
+  let joiningDateStr = '2000-01-01';
+  if (student?.joiningDate) {
+    try {
+      joiningDateStr = new Date(student.joiningDate).toISOString().slice(0, 10);
+    } catch {
+      joiningDateStr = '2000-01-01';
+    }
+  } else if (student?.createdAt) {
+    try {
+      joiningDateStr = new Date(student.createdAt).toISOString().slice(0, 10);
+    } catch {
+      joiningDateStr = '2000-01-01';
+    }
+  }
+  return {
+    joiningDate: joiningDateStr,
+    joiningYearMonth: joiningDateStr.slice(0, 7),
+  };
+}
+
+// In-memory cache for fast student progress report retrieval (10s TTL)
+export const progressReportCache = new Map<string, { time: number; data: any }>();
+
+export function invalidateProgressCache(studentId?: string) {
+  if (studentId) {
+    for (const key of progressReportCache.keys()) {
+      if (key.startsWith(`${studentId}:`)) {
+        progressReportCache.delete(key);
+      }
+    }
+  } else {
+    progressReportCache.clear();
+  }
+}
+
+async function recordScoreRecord(data: {
+  studentId: string;
+  teacherId?: string | null;
+  title: string;
+  itemType: 'QUIZ' | 'QUESTION_PAPER';
+  score: number | null;
+  totalMarks: number;
+  percentage?: number | null;
+  grade?: string | null;
+  subject?: string | null;
+  academicYear?: string;
+  completedAt?: Date;
+  remarks?: string | null;
+  quizId?: string | null;
+  paperId?: string | null;
+}) {
+  try {
+    const completedAt = data.completedAt || new Date();
+    const academicYear = data.academicYear || getAcademicYear(completedAt);
+    const scoreVal = data.score !== null && data.score !== undefined ? Number(data.score) : null;
+    const totalMarks = Math.max(1, Number(data.totalMarks) || 1);
+    const percentage = scoreVal !== null ? Math.round((scoreVal / totalMarks) * 100 * 10) / 10 : null;
+
+    let existing: any = null;
+    if (data.quizId) {
+      existing = await (prisma as any).studentScoreRecord.findFirst({
+        where: { studentId: data.studentId, quizId: data.quizId }
+      });
+    } else if (data.paperId) {
+      existing = await (prisma as any).studentScoreRecord.findFirst({
+        where: { studentId: data.studentId, paperId: data.paperId }
+      });
+    }
+
+    let recordResult: any = null;
+    if (existing) {
+      recordResult = await (prisma as any).studentScoreRecord.update({
+        where: { id: existing.id },
+        data: {
+          title: data.title,
+          score: scoreVal,
+          totalMarks: Number(data.totalMarks),
+          percentage,
+          grade: data.grade || existing.grade,
+          subject: data.subject || existing.subject || 'Mathematics',
+          academicYear,
+          completedAt,
+          remarks: data.remarks || existing.remarks,
+        }
+      });
+    } else {
+      recordResult = await (prisma as any).studentScoreRecord.create({
+        data: {
+          studentId: data.studentId,
+          teacherId: data.teacherId || null,
+          title: data.title,
+          itemType: data.itemType,
+          score: scoreVal,
+          totalMarks: Number(data.totalMarks),
+          percentage,
+          grade: data.grade || null,
+          subject: data.subject || 'Mathematics',
+          academicYear,
+          completedAt,
+          remarks: data.remarks || null,
+          quizId: data.quizId || null,
+          paperId: data.paperId || null,
+        }
+      });
+    }
+
+    invalidateProgressCache(data.studentId);
+    return recordResult;
+  } catch (err) {
+    console.error('⚠️ Failed to record student score history:', err);
+    return null;
+  }
+}
+
 async function scoreAttempt(attemptId: string) {
-  const attempt = await prisma.attempt.findUnique({ where: { id: attemptId }, include: { answers: { include: { option: true, question: true } } } });
+  const attempt = await prisma.attempt.findUnique({
+    where: { id: attemptId },
+    include: {
+      answers: { include: { option: true, question: true } },
+      quiz: { include: { questions: { select: { marks: true } } } },
+      student: { select: { id: true, name: true, grade: true } }
+    }
+  });
   if (!attempt) return null;
   const score = attempt.answers.reduce((total, answer) => total + (answer.option.isCorrect ? answer.question.marks : 0), 0);
-  return prisma.attempt.update({ where: { id: attemptId }, data: { score, status: 'SUBMITTED', submittedAt: attempt.submittedAt ?? new Date() } });
+  const totalMarks = attempt.quiz ? attempt.quiz.questions.reduce((sum, q) => sum + (q.marks || 1), 0) : 20;
+  const submittedAt = attempt.submittedAt ?? new Date();
+  const updated = await prisma.attempt.update({ where: { id: attemptId }, data: { score, status: 'SUBMITTED', submittedAt } });
+
+  if (attempt.quiz) {
+    void recordScoreRecord({
+      studentId: attempt.studentId,
+      teacherId: attempt.quiz.teacherId,
+      title: attempt.quiz.title,
+      itemType: 'QUIZ',
+      score,
+      totalMarks,
+      grade: attempt.quiz.grade || attempt.student?.grade,
+      subject: 'Mathematics',
+      completedAt: submittedAt,
+      quizId: attempt.quizId,
+    });
+  }
+
+  return updated;
 }
 
 async function finishExpiredAttempts() {
@@ -1917,6 +2117,29 @@ app.patch('/api/quizzes/:id/mode', adminOnly, async (req: Request, res: Response
 app.delete('/api/quizzes/:id', adminOnly, async (req: Request, res: Response) => {
   try {
     const id = parse(objectId, req.params.id);
+    const quiz = await prisma.quiz.findUnique({
+      where: { id },
+      include: {
+        questions: { select: { marks: true } },
+        attempts: { where: { status: 'SUBMITTED', score: { not: null } } }
+      }
+    });
+    if (quiz) {
+      const totalMarks = quiz.questions.reduce((sum, q) => sum + (q.marks || 1), 0);
+      for (const a of quiz.attempts) {
+        await recordScoreRecord({
+          studentId: a.studentId,
+          teacherId: quiz.teacherId,
+          title: quiz.title,
+          itemType: 'QUIZ',
+          score: a.score,
+          totalMarks,
+          grade: quiz.grade,
+          completedAt: a.submittedAt || new Date(),
+          quizId: quiz.id,
+        });
+      }
+    }
     await prisma.quiz.delete({ where: { id } });
     res.json({ ok: true });
   } catch (error) { errorResponse(res, error); }
@@ -1924,17 +2147,22 @@ app.delete('/api/quizzes/:id', adminOnly, async (req: Request, res: Response) =>
 app.patch('/api/quizzes/:id/status', adminOnly, async (req: Request, res: Response) => {
   try {
     const id = parse(objectId, req.params.id);
-    const { action } = parse(z.object({ action: z.enum(['start', 'stop']) }), req.body);
+    const { action } = parse(z.object({ action: z.enum(['start', 'stop', 'reopen']) }), req.body);
     const quiz = await prisma.quiz.findUnique({ where: { id } });
     if (!quiz) return res.status(404).json({ error: 'Quiz not found.' });
-    if (quiz.mode !== 'SELF_PACED') return res.status(400).json({ error: 'Use live controls for a classroom quiz.' });
-    if (action === 'start' && quiz.status !== 'DRAFT') return res.status(409).json({ error: 'Only a draft quiz can be opened.' });
-    if (action === 'stop' && quiz.status !== 'ACTIVE') return res.status(409).json({ error: 'This quiz is not open.' });
-    await prisma.quiz.update({ where: { id }, data: { status: action === 'start' ? 'ACTIVE' : 'CLOSED' } });
-    if (action === 'stop') {
+
+    if (action === 'start') {
+      if (quiz.mode !== 'SELF_PACED') return res.status(400).json({ error: 'Use live controls for a classroom quiz.' });
+      if (quiz.status !== 'DRAFT') return res.status(409).json({ error: 'Only a draft quiz can be opened.' });
+      await prisma.quiz.update({ where: { id }, data: { status: 'ACTIVE' } });
+    } else if (action === 'stop') {
+      await prisma.quiz.update({ where: { id }, data: { status: 'CLOSED' } });
       const attempts = await prisma.attempt.findMany({ where: { quizId: id, status: 'IN_PROGRESS' }, select: { id: true } });
       for (const attempt of attempts) await scoreAttempt(attempt.id);
+    } else if (action === 'reopen') {
+      await prisma.quiz.update({ where: { id }, data: { status: 'DRAFT', currentQuestionIndex: 0, currentAnswerRevealed: false } });
     }
+
     res.json({ ok: true });
     void publishQuizState(id);
   } catch (error) { errorResponse(res, error); }
@@ -2023,7 +2251,20 @@ function generateShortPasskey(): string {
 app.get('/api/students', adminOnly, async (req: AuthRequest, res: Response) => {
   const teacherId = req.session!.id;
   const where: any = req.session?.role === 'superadmin' ? {} : { teacherId };
-  const students: any[] = await (prisma.student as any).findMany({ where, orderBy: { name: 'asc' }, select: { id: true, name: true, grade: true, passkey: true, active: true, createdAt: true, _count: { select: { attempts: true } } } });
+  const students: any[] = await (prisma.student as any).findMany({
+    where,
+    orderBy: { name: 'asc' },
+    select: {
+      id: true,
+      name: true,
+      grade: true,
+      passkey: true,
+      active: true,
+      joiningDate: true,
+      createdAt: true,
+      _count: { select: { attempts: true } }
+    }
+  });
   for (const student of students) {
     if (!student.passkey) {
       const passkey = generateShortPasskey();
@@ -2041,19 +2282,22 @@ app.post('/api/students', adminOnly, async (req: AuthRequest, res: Response) => 
     const data = parse(z.object({
       name: z.string().trim().min(1).max(100),
       grade: z.string().trim().min(1).max(50).optional().default('Grade 6'),
+      joiningDate: z.string().optional(),
     }), req.body);
     const passkey = generateShortPasskey();
     const teacherId = req.session!.id;
+    const joiningDate = data.joiningDate ? new Date(data.joiningDate) : new Date();
     const student = await (prisma.student as any).create({
       data: {
         name: data.name,
         grade: data.grade || 'Grade 6',
+        joiningDate,
         passkey,
         passkeyHash: await bcrypt.hash(passkey, 12),
         passkeyLookup: passkeyLookup(passkey),
         teacherId,
       },
-      select: { id: true, name: true, grade: true, passkey: true, active: true }
+      select: { id: true, name: true, grade: true, passkey: true, active: true, joiningDate: true, createdAt: true }
     });
     res.status(201).json({ student, passkey });
   } catch (error) { errorResponse(res, error); }
@@ -2065,6 +2309,7 @@ app.patch('/api/students/:id', adminOnly, async (req: AuthRequest, res: Response
       active: z.boolean().optional(),
       name: z.string().trim().min(1).max(100).optional(),
       grade: z.string().trim().min(1).max(50).optional(),
+      joiningDate: z.string().optional().nullable(),
       resetPasskey: z.boolean().optional(),
     }), req.body);
     const passkey = data.resetPasskey ? generateShortPasskey() : null;
@@ -2078,10 +2323,12 @@ app.patch('/api/students/:id', adminOnly, async (req: AuthRequest, res: Response
         active: data.active,
         name: data.name,
         grade: data.grade,
+        ...(data.joiningDate !== undefined ? { joiningDate: data.joiningDate ? new Date(data.joiningDate) : null } : {}),
         ...(passkey ? { passkey, passkeyHash: await bcrypt.hash(passkey, 12), passkeyLookup: passkeyLookup(passkey) } : {})
       },
-      select: { id: true, name: true, grade: true, passkey: true, active: true }
+      select: { id: true, name: true, grade: true, passkey: true, active: true, joiningDate: true, createdAt: true }
     });
+    invalidateProgressCache(id);
     res.json({ student, ...(passkey ? { passkey } : {}) });
   } catch (error) { errorResponse(res, error); }
 });
@@ -2866,7 +3113,7 @@ app.get('/api/worksheets', authenticate(), async (req: AuthRequest, res: Respons
     const worksheets = await prisma.worksheetPaper.findMany({
       where: {
         ...teacherFilter,
-        status: 'PUBLISHED',
+        status: { in: ['PUBLISHED', 'ARCHIVED'] },
         OR: [
           { grade: null },
           { grade: '' },
@@ -3107,6 +3354,32 @@ app.patch('/api/worksheets/:id', adminOnly, async (req: Request, res: Response) 
 app.delete('/api/worksheets/:id', adminOnly, async (req: Request, res: Response) => {
   try {
     const id = req.params.id as string;
+    const paper = await prisma.worksheetPaper.findUnique({
+      where: { id },
+      include: {
+        submissions: {
+          where: { score: { not: null } },
+          include: { student: { select: { grade: true } } }
+        }
+      }
+    });
+    if (paper) {
+      for (const s of paper.submissions) {
+        await recordScoreRecord({
+          studentId: s.studentId,
+          teacherId: paper.teacherId,
+          title: paper.title,
+          itemType: 'QUESTION_PAPER',
+          score: s.score,
+          totalMarks: paper.totalMarks,
+          grade: paper.grade || s.student?.grade,
+          subject: paper.subject || 'Mathematics',
+          completedAt: s.gradedAt || s.submittedAt || new Date(),
+          remarks: s.remarks,
+          paperId: paper.id,
+        });
+      }
+    }
     await prisma.worksheetPaper.delete({ where: { id } });
     res.json({ ok: true });
   } catch (error) { errorResponse(res, error); }
@@ -3162,8 +3435,27 @@ app.patch('/api/worksheets/submissions/:submissionId/grade', adminOnly, async (r
         status: 'GRADED',
         gradedAt: new Date(),
       },
-      include: { student: { select: { id: true, name: true } } },
+      include: {
+        student: { select: { id: true, name: true, grade: true } },
+        paper: true
+      },
     });
+
+    if (submission.paper) {
+      void recordScoreRecord({
+        studentId: submission.studentId,
+        teacherId: submission.paper.teacherId,
+        title: submission.paper.title,
+        itemType: 'QUESTION_PAPER',
+        score: data.score,
+        totalMarks: submission.paper.totalMarks,
+        grade: submission.paper.grade || submission.student?.grade,
+        subject: submission.paper.subject || 'Mathematics',
+        completedAt: submission.gradedAt || new Date(),
+        remarks: data.remarks ?? null,
+        paperId: submission.paperId,
+      });
+    }
 
     res.json({ submission });
   } catch (error) { errorResponse(res, error); }
@@ -3375,6 +3667,718 @@ app.post('/api/study-materials/upload', superAdminOnly, async (req: Request, res
   } catch (error) { errorResponse(res, error); }
 });
 
+/* ==========================================================================
+   ATTENDANCE, FEES & STUDENT PROGRESS REPORT MODULES
+   ========================================================================== */
+
+// 1. Attendance - Fetch daily attendance sheet
+app.get('/api/attendance', adminOnly, async (req: AuthRequest, res: Response) => {
+  try {
+    const teacherId = req.session!.id;
+    const date = typeof req.query.date === 'string' && req.query.date ? req.query.date : new Date().toISOString().slice(0, 10);
+    const grade = typeof req.query.grade === 'string' && req.query.grade ? req.query.grade : 'ALL';
+
+    const studentWhere: any = { active: true };
+    if (req.session?.role !== 'superadmin') {
+      studentWhere.teacherId = teacherId;
+    }
+    if (grade !== 'ALL' && grade !== 'All Grades') {
+      studentWhere.grade = grade;
+    }
+
+    const students: any[] = await (prisma.student as any).findMany({
+      where: studentWhere,
+      select: { id: true, name: true, grade: true, joiningDate: true, createdAt: true },
+      orderBy: { name: 'asc' },
+    });
+
+    // Exclude students who joined after this date
+    const eligibleStudents = students.filter((s: any) => {
+      const { joiningDate: jDate } = getStudentJoiningDate(s);
+      return date >= jDate;
+    });
+
+    const studentIds = eligibleStudents.map((s) => s.id);
+    const existingRecords = await (prisma as any).studentAttendance.findMany({
+      where: {
+        studentId: { in: studentIds },
+        date,
+      },
+    });
+
+    const recordMap = new Map<string, any>(existingRecords.map((r: any) => [r.studentId, r]));
+
+    const records = eligibleStudents.map((s) => {
+      const rec = recordMap.get(s.id);
+      return {
+        studentId: s.id,
+        name: s.name,
+        grade: s.grade || 'Grade 6',
+        status: rec ? rec.status : 'PRESENT',
+        hasRecord: Boolean(rec),
+        remarks: rec?.remarks || '',
+        updatedAt: rec?.updatedAt || null,
+      };
+    });
+
+    const presentCount = records.filter((r) => r.status === 'PRESENT').length;
+    const absentCount = records.filter((r) => r.status === 'ABSENT').length;
+    const lateCount = records.filter((r) => r.status === 'LATE').length;
+    const excusedCount = records.filter((r) => r.status === 'EXCUSED').length;
+    const rate = records.length > 0 ? Math.round((presentCount / records.length) * 100) : 0;
+
+    res.json({
+      date,
+      academicYear: getAcademicYear(date),
+      records,
+      summary: {
+        total: records.length,
+        present: presentCount,
+        absent: absentCount,
+        late: lateCount,
+        excused: excusedCount,
+        attendanceRate: rate,
+      },
+    });
+  } catch (error) { errorResponse(res, error); }
+});
+
+// 2. Attendance - Save/Batch update daily attendance
+app.post('/api/attendance', adminOnly, async (req: AuthRequest, res: Response) => {
+  try {
+    const teacherId = req.session!.id;
+    const schema = z.object({
+      date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format'),
+      records: z.array(z.object({
+        studentId: z.string().min(1),
+        status: z.enum(['PRESENT', 'ABSENT', 'LATE', 'EXCUSED']).default('PRESENT'),
+        remarks: z.string().max(250).optional().nullable(),
+      })).min(1),
+    });
+    const { date, records } = parse(schema, req.body);
+    const academicYear = getAcademicYear(date);
+
+    await (prisma as any).$transaction(
+      records.map((r) =>
+        (prisma as any).studentAttendance.upsert({
+          where: { studentId_date: { studentId: r.studentId, date } },
+          update: {
+            status: r.status,
+            remarks: r.remarks || null,
+            academicYear,
+          },
+          create: {
+            studentId: r.studentId,
+            teacherId,
+            date,
+            status: r.status,
+            remarks: r.remarks || null,
+            academicYear,
+          },
+        })
+      )
+    );
+
+    invalidateProgressCache();
+
+    res.json({ ok: true, savedCount: records.length, date });
+  } catch (error) { errorResponse(res, error); }
+});
+
+// 3. Attendance - Monthly grid view
+app.get('/api/attendance/monthly', adminOnly, async (req: AuthRequest, res: Response) => {
+  try {
+    const teacherId = req.session!.id;
+    const yearMonth = typeof req.query.yearMonth === 'string' && req.query.yearMonth ? req.query.yearMonth : new Date().toISOString().slice(0, 7);
+    const grade = typeof req.query.grade === 'string' && req.query.grade ? req.query.grade : 'ALL';
+
+    const studentWhere: any = { active: true };
+    if (req.session?.role !== 'superadmin') studentWhere.teacherId = teacherId;
+    if (grade !== 'ALL' && grade !== 'All Grades') studentWhere.grade = grade;
+
+    const students: any[] = await (prisma.student as any).findMany({
+      where: studentWhere,
+      select: { id: true, name: true, grade: true, joiningDate: true, createdAt: true },
+      orderBy: { name: 'asc' },
+    });
+
+    // Exclude students who joined after this month
+    const eligibleStudents = students.filter((s: any) => {
+      const { joiningYearMonth: jYearMonth } = getStudentJoiningDate(s);
+      return yearMonth >= jYearMonth;
+    });
+
+    const studentIds = eligibleStudents.map((s) => s.id);
+    const monthRecords = await (prisma as any).studentAttendance.findMany({
+      where: {
+        studentId: { in: studentIds },
+        date: { startsWith: yearMonth },
+      },
+      orderBy: { date: 'asc' },
+    });
+
+    const [yearStr, monthStr] = yearMonth.split('-');
+    const year = parseInt(yearStr, 10);
+    const month = parseInt(monthStr, 10);
+    const daysInMonth = new Date(year, month, 0).getDate();
+
+    const monthlyStudents = eligibleStudents.map((st) => {
+      const studentRecs = monthRecords.filter((r: any) => r.studentId === st.id);
+      const days: Record<string, string> = {};
+      studentRecs.forEach((r: any) => {
+        const day = String(parseInt(r.date.slice(8, 10), 10));
+        days[day] = r.status;
+      });
+      const presentCount = studentRecs.filter((r: any) => r.status === 'PRESENT').length;
+      const absentCount = studentRecs.filter((r: any) => r.status === 'ABSENT').length;
+      const lateCount = studentRecs.filter((r: any) => r.status === 'LATE').length;
+      const excusedCount = studentRecs.filter((r: any) => r.status === 'EXCUSED').length;
+      const totalMarked = studentRecs.length;
+      const attendanceRate = totalMarked > 0 ? Math.round((presentCount / totalMarked) * 100) : 100;
+
+      return {
+        studentId: st.id,
+        name: st.name,
+        grade: st.grade,
+        days,
+        presentCount,
+        absentCount,
+        lateCount,
+        excusedCount,
+        totalMarked,
+        attendanceRate,
+      };
+    });
+
+    res.json({ yearMonth, daysInMonth, students: monthlyStudents, records: monthRecords });
+  } catch (error) { errorResponse(res, error); }
+});
+
+// 4. Monthly Fees - Fetch monthly fee register
+app.get('/api/fees', adminOnly, async (req: AuthRequest, res: Response) => {
+  try {
+    const teacherId = req.session!.id;
+    const currentYear = getAcademicYear();
+    const academicYear = typeof req.query.academicYear === 'string' && req.query.academicYear ? req.query.academicYear : currentYear;
+
+    const d = new Date();
+    const curMonthIdx = (d.getMonth() + 9) % 12; // Apr=0, May=1, ... Mar=11
+    const defaultMonth = ACADEMIC_MONTHS[curMonthIdx] || 'April';
+    const month = typeof req.query.month === 'string' && req.query.month ? req.query.month : defaultMonth;
+    const grade = typeof req.query.grade === 'string' && req.query.grade ? req.query.grade : 'ALL';
+
+    const studentWhere: any = { active: true };
+    if (req.session?.role !== 'superadmin') studentWhere.teacherId = teacherId;
+    if (grade !== 'ALL' && grade !== 'All Grades') studentWhere.grade = grade;
+
+    const targetYM = getCalendarYearMonth(academicYear, month).yearMonth;
+
+    const students: any[] = await (prisma.student as any).findMany({
+      where: studentWhere,
+      select: { id: true, name: true, grade: true, joiningDate: true, createdAt: true },
+      orderBy: { name: 'asc' },
+    });
+
+    // Only show students who joined in or before this month
+    const eligibleStudents = students.filter((s: any) => {
+      const { joiningYearMonth: jYearMonth } = getStudentJoiningDate(s);
+      return targetYM >= jYearMonth;
+    });
+
+    const studentIds = eligibleStudents.map((s) => s.id);
+    const feeRecords = await (prisma as any).studentFee.findMany({
+      where: {
+        studentId: { in: studentIds },
+        academicYear,
+        month,
+      },
+    });
+
+    const feeMap = new Map<string, any>(feeRecords.map((f: any) => [f.studentId, f]));
+
+    const fees = eligibleStudents.map((s) => {
+      const f = feeMap.get(s.id);
+      const amountDue = f ? f.amountDue : 1500;
+      const amountPaid = f ? f.amountPaid : 0;
+      const status = f ? f.status : 'PENDING';
+      return {
+        id: f?.id || null,
+        studentId: s.id,
+        name: s.name,
+        grade: s.grade || 'Grade 6',
+        academicYear,
+        month,
+        amountDue,
+        amountPaid,
+        status,
+        paidAt: f?.paidAt || null,
+        paymentMode: f?.paymentMode || null,
+        receiptNo: f?.receiptNo || null,
+        notes: f?.notes || '',
+      };
+    });
+
+    const totalDue = fees.reduce((sum, f) => sum + f.amountDue, 0);
+    const totalCollected = fees.reduce((sum, f) => sum + f.amountPaid, 0);
+    const totalPending = Math.max(0, totalDue - totalCollected);
+    const paidCount = fees.filter((f) => f.status === 'PAID').length;
+    const pendingCount = fees.filter((f) => f.status === 'PENDING' || f.status === 'OVERDUE').length;
+    const partialCount = fees.filter((f) => f.status === 'PARTIAL').length;
+    const collectionRate = totalDue > 0 ? Math.round((totalCollected / totalDue) * 100) : 0;
+
+    res.json({
+      academicYear,
+      month,
+      records: fees,
+      fees,
+      summary: {
+        totalStudents: eligibleStudents.length,
+        totalDue,
+        totalCollected,
+        totalPending,
+        paidCount,
+        pendingCount,
+        partialCount,
+        collectionRate,
+      },
+    });
+  } catch (error) { errorResponse(res, error); }
+});
+
+// 5. Monthly Fees - Record or update payment
+app.patch('/api/fees/:studentId', adminOnly, async (req: AuthRequest, res: Response) => {
+  try {
+    const studentId = req.params.studentId as string;
+    const teacherId = req.session!.id;
+    const schema = z.object({
+      academicYear: z.string().default(() => getAcademicYear()),
+      month: z.string().min(1),
+      amountDue: z.number().min(0).optional(),
+      amountPaid: z.number().min(0).optional(),
+      status: z.enum(['PAID', 'PENDING', 'PARTIAL', 'OVERDUE']).optional(),
+      paidAt: z.string().optional().nullable(),
+      paymentMode: z.enum(['CASH', 'UPI', 'BANK_TRANSFER', 'CHEQUE', 'OTHER']).optional().nullable(),
+      receiptNo: z.string().max(100).optional().nullable(),
+      notes: z.string().max(300).optional().nullable(),
+    });
+    const data = parse(schema, req.body);
+
+    const due = data.amountDue !== undefined ? data.amountDue : 1500;
+    const paid = data.amountPaid !== undefined ? data.amountPaid : 0;
+    let computedStatus = data.status;
+    if (!computedStatus) {
+      if (paid >= due && due > 0) computedStatus = 'PAID';
+      else if (paid > 0 && paid < due) computedStatus = 'PARTIAL';
+      else computedStatus = 'PENDING';
+    }
+
+    const paidAtDate = data.paidAt ? new Date(data.paidAt) : (computedStatus === 'PAID' ? new Date() : null);
+
+    const fee = await (prisma as any).studentFee.upsert({
+      where: {
+        studentId_academicYear_month: {
+          studentId,
+          academicYear: data.academicYear,
+          month: data.month,
+        },
+      },
+      update: {
+        amountDue: due,
+        amountPaid: paid,
+        status: computedStatus,
+        paidAt: paidAtDate,
+        paymentMode: data.paymentMode || null,
+        receiptNo: data.receiptNo || null,
+        notes: data.notes || null,
+      },
+      create: {
+        studentId,
+        teacherId,
+        academicYear: data.academicYear,
+        month: data.month,
+        amountDue: due,
+        amountPaid: paid,
+        status: computedStatus,
+        paidAt: paidAtDate,
+        paymentMode: data.paymentMode || null,
+        receiptNo: data.receiptNo || null,
+        notes: data.notes || null,
+      },
+    });
+
+    invalidateProgressCache(studentId);
+
+    res.json({ ok: true, fee });
+  } catch (error) { errorResponse(res, error); }
+});
+
+// 6. Monthly Fees - Student 12-Month Academic Year Ledger
+app.get('/api/fees/student/:studentId', adminOnly, async (req: AuthRequest, res: Response) => {
+  try {
+    const studentId = req.params.studentId as string;
+    const academicYear = typeof req.query.academicYear === 'string' && req.query.academicYear ? req.query.academicYear : getAcademicYear();
+
+    const [student, records] = await Promise.all([
+      (prisma.student as any).findUnique({
+        where: { id: studentId },
+        select: { id: true, name: true, grade: true, joiningDate: true, createdAt: true },
+      }),
+      (prisma as any).studentFee.findMany({
+        where: { studentId, academicYear },
+        orderBy: { createdAt: 'asc' },
+      }),
+    ]);
+
+    if (!student) return res.status(404).json({ error: 'Student not found.' });
+
+    const { joiningDate: jDate, joiningYearMonth: jYearMonth } = getStudentJoiningDate(student);
+
+    const recMap = new Map<string, any>(records.map((r: any) => [r.month, r]));
+
+    const ledger = ACADEMIC_MONTHS.map((m) => {
+      const mYM = getCalendarYearMonth(academicYear, m).yearMonth;
+      const isEnrolled = mYM >= jYearMonth;
+      const rec = recMap.get(m);
+      const amountDue = !isEnrolled ? 0 : (rec ? rec.amountDue : 1500);
+      const amountPaid = rec ? rec.amountPaid : 0;
+      const balance = Math.max(0, amountDue - amountPaid);
+      const status = !isEnrolled ? ('EXEMPT' as any) : (rec ? rec.status : 'PENDING');
+      return {
+        month: m,
+        amountDue,
+        amountPaid,
+        balance,
+        status,
+        isEnrolled,
+        paidAt: rec?.paidAt || null,
+        paymentMode: rec?.paymentMode || null,
+        receiptNo: rec?.receiptNo || null,
+        notes: rec?.notes || (!isEnrolled ? `Joined in ${new Date(jDate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}` : ''),
+      };
+    });
+
+    const enrolledLedger = ledger.filter((item) => item.isEnrolled);
+    const totalDue = enrolledLedger.reduce((sum, item) => sum + item.amountDue, 0);
+    const totalPaid = enrolledLedger.reduce((sum, item) => sum + item.amountPaid, 0);
+    const balance = Math.max(0, totalDue - totalPaid);
+    const paidMonths = enrolledLedger.filter((m) => m.status === 'PAID').length;
+    const pendingMonths = enrolledLedger.filter((m) => m.status !== 'PAID').length;
+
+    res.json({
+      student,
+      academicYear,
+      months: ledger,
+      ledger,
+      summary: {
+        totalDue,
+        totalPaid,
+        totalPending: balance,
+        balance,
+        paidMonths,
+        pendingMonths,
+        isFullyPaid: balance === 0,
+      },
+    });
+  } catch (error) { errorResponse(res, error); }
+});
+
+// 7. Student Progress Report - Scores History & Analytics (April to March)
+app.get('/api/students/:id/progress-report', adminOnly, async (req: AuthRequest, res: Response) => {
+  try {
+    const studentId = req.params.id as string;
+    const academicYear = typeof req.query.academicYear === 'string' && req.query.academicYear ? req.query.academicYear : getAcademicYear();
+    const cacheKey = `${studentId}:${academicYear}`;
+
+    // Return instant cached response if within 10 seconds
+    const cached = progressReportCache.get(cacheKey);
+    if (cached && (Date.now() - cached.time) < 10000) {
+      return res.json(cached.data);
+    }
+
+    // Run student lookup, score records, attendance, and fees in parallel (1 single network roundtrip)
+    const [student, scoreRecords, attendanceRecords, feeRecords] = await Promise.all([
+      (prisma.student as any).findUnique({
+        where: { id: studentId },
+        select: { id: true, name: true, grade: true, passkey: true, joiningDate: true, createdAt: true, active: true },
+      }),
+      (prisma as any).studentScoreRecord.findMany({
+        where: {
+          studentId,
+          academicYear,
+        },
+        select: {
+          id: true,
+          title: true,
+          itemType: true,
+          score: true,
+          totalMarks: true,
+          percentage: true,
+          grade: true,
+          subject: true,
+          academicYear: true,
+          completedAt: true,
+          remarks: true,
+          quizId: true,
+          paperId: true,
+        },
+        orderBy: { completedAt: 'desc' },
+      }),
+      (prisma as any).studentAttendance.findMany({
+        where: {
+          studentId,
+          academicYear,
+        },
+        select: { status: true, date: true },
+      }),
+      (prisma as any).studentFee.findMany({
+        where: {
+          studentId,
+          academicYear,
+        },
+        select: { amountDue: true, amountPaid: true, status: true, month: true },
+      }),
+    ]);
+
+    if (!student) return res.status(404).json({ error: 'Student not found.' });
+
+    const { joiningDate: jDate, joiningYearMonth: jYearMonth } = getStudentJoiningDate(student);
+
+    // Only count attendances on or after joining date
+    const eligibleAttendance = attendanceRecords.filter((a: any) => !a.date || a.date >= jDate);
+    const totalSessions = eligibleAttendance.length;
+    const presentCount = eligibleAttendance.filter((a: any) => a.status === 'PRESENT').length;
+    const absentCount = eligibleAttendance.filter((a: any) => a.status === 'ABSENT').length;
+    const lateCount = eligibleAttendance.filter((a: any) => a.status === 'LATE').length;
+    const excusedCount = eligibleAttendance.filter((a: any) => a.status === 'EXCUSED').length;
+    const attendanceRate = totalSessions > 0 ? Math.round((presentCount / totalSessions) * 100) : 100;
+
+    // Only count fees for months on or after joining month
+    const eligibleFees = feeRecords.filter((f: any) => {
+      if (!f.month) return true;
+      const mYM = getCalendarYearMonth(academicYear, f.month).yearMonth;
+      return mYM >= jYearMonth;
+    });
+
+    const feeDue = eligibleFees.reduce((sum: number, f: any) => sum + (f.amountDue || 0), 0);
+    const feePaid = eligibleFees.reduce((sum: number, f: any) => sum + (f.amountPaid || 0), 0);
+
+    // Only query specific quiz and paper IDs present in scoreRecords to avoid scanning entire DB!
+    const quizIds = Array.from(new Set(scoreRecords.map((r: any) => r.quizId).filter(Boolean)));
+    const paperIds = Array.from(new Set(scoreRecords.map((r: any) => r.paperId).filter(Boolean)));
+
+    const [existingQuizzes, existingPapers] = await Promise.all([
+      quizIds.length > 0 ? prisma.quiz.findMany({ where: { id: { in: quizIds as string[] } }, select: { id: true } }) : Promise.resolve([]),
+      paperIds.length > 0 ? prisma.worksheetPaper.findMany({ where: { id: { in: paperIds as string[] } }, select: { id: true } }) : Promise.resolve([]),
+    ]);
+
+    const activeQuizIdSet = new Set(existingQuizzes.map((q: any) => q.id));
+    const activePaperIdSet = new Set(existingPapers.map((p: any) => p.id));
+
+    let deletedPreservedCount = 0;
+    const enrichedScores = scoreRecords.map((r: any) => {
+      let isSourceDeleted = false;
+      let sourceStatus = 'ACTIVE';
+      if (r.quizId && !activeQuizIdSet.has(r.quizId)) {
+        isSourceDeleted = true;
+        sourceStatus = 'DELETED';
+      } else if (r.paperId && !activePaperIdSet.has(r.paperId)) {
+        isSourceDeleted = true;
+        sourceStatus = 'DELETED';
+      }
+      if (isSourceDeleted) deletedPreservedCount++;
+      return {
+        ...r,
+        isSourceDeleted,
+        sourceStatus,
+      };
+    });
+
+    const quizScores = enrichedScores.filter((r: any) => r.itemType === 'QUIZ');
+    const paperScores = enrichedScores.filter((r: any) => r.itemType === 'QUESTION_PAPER');
+
+    const totalEvaluations = enrichedScores.length;
+    const totalPossibleMarks = enrichedScores.reduce((sum: number, r: any) => sum + (r.totalMarks || 0), 0);
+    const totalObtainedMarks = enrichedScores.reduce((sum: number, r: any) => sum + (r.score || 0), 0);
+
+    const overallPercentage = totalPossibleMarks > 0
+      ? Math.round((totalObtainedMarks / totalPossibleMarks) * 100 * 10) / 10
+      : 0;
+
+    const quizAvg = quizScores.length > 0
+      ? Math.round((quizScores.reduce((sum: number, r: any) => sum + (r.percentage || 0), 0) / quizScores.length) * 10) / 10
+      : null;
+
+    const paperAvg = paperScores.length > 0
+      ? Math.round((paperScores.reduce((sum: number, r: any) => sum + (r.percentage || 0), 0) / paperScores.length) * 10) / 10
+      : null;
+
+    let gradeLetter = 'A+';
+    if (overallPercentage >= 90) gradeLetter = 'A+';
+    else if (overallPercentage >= 80) gradeLetter = 'A';
+    else if (overallPercentage >= 70) gradeLetter = 'B+';
+    else if (overallPercentage >= 60) gradeLetter = 'B';
+    else if (overallPercentage >= 50) gradeLetter = 'C';
+    else if (overallPercentage > 0) gradeLetter = 'D';
+    else gradeLetter = '—';
+
+    const pcts = enrichedScores.map((s: any) => s.percentage || 0);
+    const highestPercentage = pcts.length > 0 ? Math.max(...pcts) : 0;
+    const lowestPercentage = pcts.length > 0 ? Math.min(...pcts) : 0;
+
+    const statsObj = {
+      totalAssessments: totalEvaluations,
+      totalEvaluations,
+      quizzesCount: quizScores.length,
+      quizzesTaken: quizScores.length,
+      questionPapersCount: paperScores.length,
+      papersSubmitted: paperScores.length,
+      totalPossibleMarks,
+      totalObtainedMarks,
+      averagePercentage: overallPercentage,
+      overallPercentage,
+      highestPercentage,
+      lowestPercentage,
+      quizAverage: quizAvg,
+      paperAverage: paperAvg,
+      overallGrade: gradeLetter,
+      performanceGrade: gradeLetter,
+      deletedItemsPreservedCount: deletedPreservedCount,
+    };
+
+    const feePending = Math.max(0, feeDue - feePaid);
+    const pendingMonthsCount = eligibleFees.filter((f: any) => f.status !== 'PAID').length;
+
+    const responsePayload = {
+      student,
+      academicYear,
+      availableYears: ['2026-2027', '2025-2026', '2024-2025', '2027-2028'],
+      statistics: statsObj,
+      summary: statsObj,
+      scores: enrichedScores,
+      attendance: {
+        totalDays: totalSessions,
+        totalSessions,
+        present: presentCount,
+        presentCount,
+        absent: absentCount,
+        absentCount,
+        late: lateCount,
+        lateCount,
+        excused: excusedCount,
+        excusedCount,
+        rate: attendanceRate,
+        attendanceRate,
+      },
+      fees: {
+        totalDue: feeDue,
+        totalPaid: feePaid,
+        totalPending: feePending,
+        balance: feePending,
+        pendingMonths: pendingMonthsCount,
+        status: (feePaid >= feeDue && feeDue > 0) ? 'PAID' : (feePaid > 0 ? 'PARTIAL' : 'PENDING'),
+      },
+    };
+
+    // Cache the prepared response for 10 seconds
+    progressReportCache.set(cacheKey, { time: Date.now(), data: responsePayload });
+
+    res.json(responsePayload);
+  } catch (error) { errorResponse(res, error); }
+});
+
+// 8. Custom score entry for offline tests / school exams
+app.post('/api/students/:id/score-records', adminOnly, async (req: AuthRequest, res: Response) => {
+  try {
+    const studentId = req.params.id as string;
+    const teacherId = req.session!.id;
+    const schema = z.object({
+      title: z.string().trim().min(1).max(150),
+      itemType: z.enum(['QUIZ', 'QUESTION_PAPER']).default('QUIZ'),
+      score: z.number().min(0),
+      totalMarks: z.number().min(1),
+      grade: z.string().optional(),
+      subject: z.string().default('Mathematics'),
+      academicYear: z.string().default(() => getAcademicYear()),
+      completedAt: z.string().optional(),
+      remarks: z.string().max(500).optional().nullable(),
+    });
+    const data = parse(schema, req.body);
+
+    const record = await recordScoreRecord({
+      studentId,
+      teacherId,
+      title: data.title,
+      itemType: data.itemType,
+      score: data.score,
+      totalMarks: data.totalMarks,
+      grade: data.grade,
+      subject: data.subject,
+      academicYear: data.academicYear,
+      completedAt: data.completedAt ? new Date(data.completedAt) : new Date(),
+      remarks: data.remarks,
+    });
+
+    res.status(201).json({ ok: true, record });
+  } catch (error) { errorResponse(res, error); }
+});
+
+// Sync past attempts and graded worksheets to persistent score records on startup
+async function syncExistingScoreRecords() {
+  try {
+    const attempts = await prisma.attempt.findMany({
+      where: { status: 'SUBMITTED', score: { not: null } },
+      include: {
+        quiz: { include: { questions: { select: { marks: true } } } },
+        student: { select: { id: true, grade: true } },
+      },
+    });
+
+    for (const a of attempts) {
+      if (!a.quiz) continue;
+      const totalMarks = a.quiz.questions.reduce((sum, q) => sum + (q.marks || 1), 0);
+      await recordScoreRecord({
+        studentId: a.studentId,
+        teacherId: a.quiz.teacherId,
+        title: a.quiz.title,
+        itemType: 'QUIZ',
+        score: a.score,
+        totalMarks: totalMarks || 20,
+        grade: a.quiz.grade || a.student?.grade,
+        completedAt: a.submittedAt || new Date(),
+        quizId: a.quizId,
+      });
+    }
+
+    const submissions = await prisma.worksheetSubmission.findMany({
+      where: { score: { not: null } },
+      include: {
+        paper: true,
+        student: { select: { id: true, grade: true } },
+      },
+    });
+
+    for (const s of submissions) {
+      if (!s.paper) continue;
+      await recordScoreRecord({
+        studentId: s.studentId,
+        teacherId: s.paper.teacherId,
+        title: s.paper.title,
+        itemType: 'QUESTION_PAPER',
+        score: s.score,
+        totalMarks: s.paper.totalMarks || 100,
+        grade: s.paper.grade || s.student?.grade,
+        subject: s.paper.subject || 'Mathematics',
+        completedAt: s.gradedAt || s.submittedAt || new Date(),
+        remarks: s.remarks,
+        paperId: s.paperId,
+      });
+    }
+    console.log('✅ Student historical scores verified in persistent score records.');
+  } catch (err) {
+    console.warn('⚠️ syncExistingScoreRecords warning:', err);
+  }
+}
+
 // Ensure public/uploads exists and serve statically
 const uploadsDir = resolve('public/uploads');
 if (!existsSync(uploadsDir)) {
@@ -3418,6 +4422,10 @@ async function startServer() {
   } catch (err) {
     console.error('⚠️ Account initialization check skipped:', err);
   }
-  httpServer.listen(port, '0.0.0.0', () => console.log(`EduAshram server listening on port ${port}`));
+  httpServer.listen(port, '0.0.0.0', () => {
+    console.log(`EduAshram server listening on port ${port}`);
+    // Run score sync non-blocking in background
+    void syncExistingScoreRecords().catch((err) => console.warn('⚠️ Score sync background warning:', err));
+  });
 }
 void startServer();

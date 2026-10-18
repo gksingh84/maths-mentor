@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { io, type Socket } from 'socket.io-client';
-import { AppWindow, ArrowLeft, ArrowRight, BarChart3, BookOpen, BookOpenCheck, Calculator, Calendar, Check, CheckCircle2, CheckSquare, ChevronDown, ChevronUp, CircleHelp, Clock3, Copy, Download, ExternalLink, Eye, FileText, KeyRound, ListChecks, Lock, LogOut, Maximize2, Minimize2, Paperclip, Pencil, PenTool, Plus, Printer, Radio, RefreshCw, RotateCcw, Save, Send, ShieldCheck, Sparkles, Trash2, Type, UploadCloud, UserCheck, Users, UserX, X } from 'lucide-react';
+import { AppWindow, Archive, ArrowLeft, ArrowRight, Award, BarChart3, BookOpen, BookOpenCheck, Calculator, Calendar, CalendarCheck, Check, CheckCircle2, CheckCheck, CheckSquare, ChevronDown, ChevronUp, CircleHelp, Clock3, Copy, CreditCard, Download, ExternalLink, Eye, FileSpreadsheet, FileText, Filter, KeyRound, ListChecks, Lock, LogOut, Maximize2, Minimize2, Paperclip, Pencil, PenTool, Plus, Printer, Radio, RefreshCw, RotateCcw, Save, Search, Send, ShieldCheck, Sparkles, Trash2, TrendingUp, Type, UploadCloud, UserCheck, Users, UserX, X } from 'lucide-react';
 import { PublicPortal } from './components/PublicPortal';
 import { AuthModal, type AuthMode } from './components/AuthModal';
 import { SuperAdminConsole } from './components/SuperAdminConsole';
@@ -14,7 +14,7 @@ type Status = 'DRAFT' | 'ACTIVE' | 'CLOSED';
 type Option = { id?: string; text: string; isCorrect?: boolean; correct?: boolean };
 type Question = { id?: string; prompt: string; marks: number; imageUrl?: string | null; type?: QuestionType; options: Option[] };
 type Quiz = { id: string; title: string; grade?: string | null; mode: Mode; status: Status; timeLimitSeconds: number | null; showResults: boolean; currentQuestionIndex: number; currentAnswerRevealed: boolean; questions?: Question[]; _count?: { questions: number; attempts: number } };
-type Student = { id: string; name: string; grade?: string | null; passkey?: string | null; active: boolean; _count: { attempts: number } };
+type Student = { id: string; name: string; grade?: string | null; passkey?: string | null; active: boolean; joiningDate?: string | null; createdAt?: string; _count: { attempts: number } };
 type User = { id?: string; role: 'admin' | 'teacher' | 'superadmin' | 'student'; name?: string; email?: string; username?: string; hasApiKey?: boolean; grade?: string | null; teacherId?: string | null; teacherName?: string | null };
 type QuizDraft = { title: string; grade?: string; mode: Mode; hasTimer: boolean; minutes: number; showResults: boolean; questions: Question[] };
 const ALL_STUDENT_GRADES = ['Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12'];
@@ -51,6 +51,168 @@ type WorksheetPaper = {
   submission?: WorksheetSubmission | null;
   submissions?: WorksheetSubmission[];
 };
+
+type AttendanceStatus = 'PRESENT' | 'ABSENT' | 'LATE' | 'EXCUSED';
+
+export type AttendanceRecord = {
+  studentId: string;
+  name: string;
+  grade?: string;
+  status: AttendanceStatus | '';
+  remarks?: string;
+  updatedAt?: string;
+};
+
+type AttendanceSummary = {
+  total: number;
+  present: number;
+  absent: number;
+  late: number;
+  excused: number;
+  attendanceRate: number;
+};
+
+type MonthlyAttendanceStudent = {
+  studentId: string;
+  name: string;
+  grade?: string;
+  days: Record<string, AttendanceStatus>;
+  presentCount: number;
+  absentCount: number;
+  totalMarked: number;
+  attendanceRate: number;
+};
+
+type FeeStatus = 'PAID' | 'PENDING' | 'PARTIAL' | 'OVERDUE' | 'EXEMPT';
+type PaymentMode = 'CASH' | 'UPI' | 'BANK_TRANSFER' | 'CHEQUE' | 'OTHER';
+
+type StudentFeeRecord = {
+  feeId?: string;
+  studentId: string;
+  name: string;
+  grade?: string;
+  amountDue: number;
+  amountPaid: number;
+  status: FeeStatus;
+  paidAt?: string | null;
+  paymentMode?: PaymentMode | string;
+  receiptNo?: string | null;
+  notes?: string | null;
+};
+
+type FeeSummary = {
+  totalStudents: number;
+  totalDue: number;
+  totalCollected: number;
+  totalPending: number;
+  collectionRate: number;
+  paidCount: number;
+  pendingCount: number;
+  partialCount?: number;
+};
+
+type StudentFeeLedgerMonth = {
+  month: string;
+  status: FeeStatus;
+  amountDue: number;
+  amountPaid: number;
+  balance: number;
+  paidAt?: string | null;
+  receiptNo?: string | null;
+  paymentMode?: PaymentMode | string;
+  notes?: string | null;
+};
+
+type StudentFeeLedger = {
+  student: { id: string; name: string; grade?: string };
+  academicYear: string;
+  months: StudentFeeLedgerMonth[];
+  summary: {
+    totalDue: number;
+    totalPaid: number;
+    totalPending: number;
+    paidMonths: number;
+    pendingMonths: number;
+  };
+};
+
+type ScoreRecordItem = {
+  id: string;
+  title: string;
+  itemType: 'QUIZ' | 'QUESTION_PAPER';
+  score: number;
+  totalMarks: number;
+  percentage: number;
+  grade: string;
+  subject?: string;
+  academicYear: string;
+  completedAt: string;
+  remarks?: string | null;
+  isSourceDeleted: boolean;
+  sourceStatus?: 'ACTIVE' | 'ARCHIVED' | 'DELETED';
+};
+
+type StudentProgressReportData = {
+  student: { id: string; name: string; grade?: string; active: boolean; joiningDate?: string | null };
+  academicYear: string;
+  availableYears: string[];
+  attendance: {
+    present: number;
+    absent: number;
+    late: number;
+    excused: number;
+    totalDays: number;
+    rate: number;
+  };
+  fees: {
+    totalDue: number;
+    totalPaid: number;
+    totalPending: number;
+    pendingMonths: number;
+    status: FeeStatus;
+  };
+  scores: ScoreRecordItem[];
+  statistics: {
+    totalAssessments: number;
+    quizzesCount: number;
+    questionPapersCount: number;
+    averagePercentage: number;
+    highestPercentage: number;
+    lowestPercentage: number;
+    overallGrade: string;
+    deletedItemsPreservedCount: number;
+  };
+};
+
+const ACADEMIC_MONTHS = [
+  'April', 'May', 'June', 'July', 'August', 'September',
+  'October', 'November', 'December', 'January', 'February', 'March'
+];
+
+function getCurrentAcademicYear(date = new Date()): string {
+  const year = date.getFullYear();
+  const month = date.getMonth(); // 0-indexed: April is 3
+  return month >= 3 ? `${year}-${year + 1}` : `${year - 1}-${year}`;
+}
+
+function getCalendarYearMonth(academicYear: string, monthName: string): { year: number; month: number; yearMonth: string } {
+  const parts = academicYear.split('-');
+  const startYear = parseInt(parts[0], 10);
+  const endYear = parseInt(parts[1], 10) || startYear + 1;
+  const monthIdx = ACADEMIC_MONTHS.findIndex((m) => m.toLowerCase() === monthName.toLowerCase());
+  if (monthIdx === -1) {
+    return { year: startYear, month: 4, yearMonth: `${startYear}-04` };
+  }
+  let calYear = startYear;
+  let calMonth = monthIdx + 4; // Apr=4 ... Dec=12
+  if (monthIdx >= 9) { // Jan=1, Feb=2, Mar=3
+    calYear = endYear;
+    calMonth = monthIdx - 8;
+  }
+  const monthStr = String(calMonth).padStart(2, '0');
+  return { year: calYear, month: calMonth, yearMonth: `${calYear}-${monthStr}` };
+}
+
 
 const emptyQuestion = (type: QuestionType = 'MCQ'): Question => {
   if (type === 'TRUE_FALSE') {
@@ -344,13 +506,13 @@ export function Login({ mode, onSubmit, error }: { mode: 'admin' | 'student'; on
 }
 
 function TeacherApp({ user, onSignOut, notice, setNotice, onViewPortal }: { user: User; onSignOut: () => void; notice: string; setNotice: (text: string) => void; onViewPortal?: () => void }) {
-  const [tab, setTabState] = useState<'overview' | 'quizzes' | 'worksheets' | 'calendar' | 'whiteboard' | 'students' | 'results' | 'ai_settings'>(() => {
+  const [tab, setTabState] = useState<'overview' | 'quizzes' | 'worksheets' | 'archive' | 'calendar' | 'whiteboard' | 'students' | 'results' | 'ai_settings'>(() => {
     const saved = localStorage.getItem('teacher_active_tab') as any;
-    const validTabs = ['overview', 'quizzes', 'worksheets', 'calendar', 'whiteboard', 'students', 'results', 'ai_settings'];
+    const validTabs = ['overview', 'quizzes', 'worksheets', 'archive', 'calendar', 'whiteboard', 'students', 'results', 'ai_settings'];
     return validTabs.includes(saved) ? saved : 'overview';
   });
 
-  const setTab = (newTab: 'overview' | 'quizzes' | 'worksheets' | 'calendar' | 'whiteboard' | 'students' | 'results' | 'ai_settings') => {
+  const setTab = (newTab: 'overview' | 'quizzes' | 'worksheets' | 'archive' | 'calendar' | 'whiteboard' | 'students' | 'results' | 'ai_settings') => {
     setTabState(newTab);
     localStorage.setItem('teacher_active_tab', newTab);
   };
@@ -361,6 +523,11 @@ function TeacherApp({ user, onSignOut, notice, setNotice, onViewPortal }: { user
   const [results, setResults] = useState<Result[]>([]);
   const [distribution, setDistribution] = useState<{ question: string; options: { text: string; correct: boolean; count: number }[] }[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+
+  const archivedQuizzes = quizzes.filter((q) => q.status === 'CLOSED');
+  const activeQuizzes = quizzes.filter((q) => q.status !== 'CLOSED');
+  const archivedWorksheets = worksheets.filter((w) => w.status === 'ARCHIVED');
+  const activeWorksheets = worksheets.filter((w) => w.status !== 'ARCHIVED');
 
   async function refresh() {
     setRefreshing(true);
@@ -373,7 +540,12 @@ function TeacherApp({ user, onSignOut, notice, setNotice, onViewPortal }: { user
       setQuizzes(quizData.quizzes);
       setStudents(studentData.students);
       setWorksheets(worksheetData.worksheets || []);
-      if (!selectedQuiz && quizData.quizzes[0]) setSelectedQuiz(quizData.quizzes[0].id);
+      const activeLive = (quizData.quizzes || []).find((q: Quiz) => q.status === 'ACTIVE');
+      if (activeLive) {
+        setSelectedQuiz(activeLive.id);
+      } else if (!quizData.quizzes?.some((q: Quiz) => q.id === selectedQuiz && q.status === 'ACTIVE')) {
+        setSelectedQuiz('');
+      }
     } catch (cause) { setNotice(cause instanceof Error ? cause.message : 'Unable to load your dashboard.'); }
     finally { setRefreshing(false); }
   }
@@ -402,7 +574,7 @@ function TeacherApp({ user, onSignOut, notice, setNotice, onViewPortal }: { user
   }, [notice]);
 
   const totalAttempts = quizzes.reduce((sum, quiz) => sum + (quiz._count?.attempts ?? 0), 0);
-  const liveQuiz = quizzes.find((quiz) => quiz.id === selectedQuiz);
+  const liveQuiz = quizzes.find((quiz) => quiz.id === selectedQuiz && quiz.status === 'ACTIVE');
 
   function exportCsv() {
     const lines = [['Student', 'Status', 'Score', 'Out of', 'Submitted at'], ...results.map((result) => [result.name, result.status, result.score ?? '', result.totalMarks, result.submittedAt ? new Date(result.submittedAt).toLocaleString() : ''])];
@@ -437,8 +609,9 @@ function TeacherApp({ user, onSignOut, notice, setNotice, onViewPortal }: { user
         <NavItem active={tab === 'overview'} icon={<BarChart3 size={17} />} label="Overview" onClick={() => setTab('overview')} />
         <NavItem active={tab === 'calendar'} icon={<Calendar size={17} />} label="Calendar & Reminders" onClick={() => setTab('calendar')} />
         <NavItem active={tab === 'whiteboard'} icon={<PenTool size={17} />} label="Whiteboard" onClick={() => setTab('whiteboard')} />
-        <NavItem active={tab === 'quizzes'} icon={<BookOpenCheck size={17} />} label="Quizzes and Worksheets" count={quizzes.length} onClick={() => setTab('quizzes')} />
-        <NavItem active={tab === 'worksheets'} icon={<FileText size={17} />} label="Question Papers" count={worksheets.length} onClick={() => setTab('worksheets')} />
+        <NavItem active={tab === 'quizzes'} icon={<BookOpenCheck size={17} />} label="Quizzes and Worksheets" count={activeQuizzes.length} onClick={() => setTab('quizzes')} />
+        <NavItem active={tab === 'worksheets'} icon={<FileText size={17} />} label="Question Papers" count={activeWorksheets.length} onClick={() => setTab('worksheets')} />
+        <NavItem active={tab === 'archive'} icon={<Archive size={17} />} label="Archive" count={archivedQuizzes.length + archivedWorksheets.length} onClick={() => setTab('archive')} />
         <NavItem active={tab === 'students'} icon={<Users size={17} />} label="Students" count={students.length} onClick={() => setTab('students')} />
         <NavItem active={tab === 'results'} icon={<CheckCircle2 size={17} />} label="Results" onClick={() => setTab('results')} />
         <NavItem active={tab === 'ai_settings'} icon={<Sparkles size={17} />} label="AI Settings" onClick={() => setTab('ai_settings')} />
@@ -565,8 +738,9 @@ function TeacherApp({ user, onSignOut, notice, setNotice, onViewPortal }: { user
             </section>
           );
         })()}
-        {tab === 'quizzes' && <QuizManager quizzes={quizzes} selectedQuiz={selectedQuiz} setSelectedQuiz={setSelectedQuiz} liveQuiz={liveQuiz} refresh={refresh} setNotice={setNotice} onNavigateToAISettings={() => setTab('ai_settings')} />}
-        {tab === 'worksheets' && <WorksheetsPanel setNotice={setNotice} onNavigateToAISettings={() => setTab('ai_settings')} />}
+        {tab === 'quizzes' && <QuizManager quizzes={quizzes} selectedQuiz={selectedQuiz} setSelectedQuiz={setSelectedQuiz} liveQuiz={liveQuiz} refresh={refresh} setNotice={setNotice} onNavigateToAISettings={() => setTab('ai_settings')} onNavigateToArchive={() => setTab('archive')} />}
+        {tab === 'worksheets' && <WorksheetsPanel setNotice={setNotice} onNavigateToAISettings={() => setTab('ai_settings')} onNavigateToArchive={() => setTab('archive')} />}
+        {tab === 'archive' && <TeacherArchivePanel quizzes={quizzes} worksheets={worksheets} refresh={refresh} setNotice={setNotice} onOpenResults={(quizId) => { setSelectedQuiz(quizId); setTab('results'); }} />}
         {tab === 'calendar' && <ClassroomCalendar user={user} readOnly={false} />}
         {tab === 'whiteboard' && <TeacherWhiteboard setNotice={setNotice} />}
         {tab === 'students' && <StudentManager students={students} refresh={refresh} setNotice={setNotice} onBackToClassroom={() => setTab('overview')} />}
@@ -860,7 +1034,7 @@ function TeacherWhiteboard({ setNotice }: { setNotice: (msg: string) => void }) 
   );
 }
 
-function tabLabel(tab: string) { return ({ overview: 'Overview', calendar: 'Calendar & Reminders', whiteboard: 'Online Whiteboard', quizzes: 'Quizzes and Worksheets', worksheets: 'Question Papers', students: 'Students', results: 'Results', ai_settings: 'AI Settings' } as Record<string, string>)[tab] ?? tab; }
+function tabLabel(tab: string) { return ({ overview: 'Overview', calendar: 'Calendar & Reminders', whiteboard: 'Online Whiteboard', quizzes: 'Quizzes and Worksheets', worksheets: 'Question Papers', archive: 'Archive', students: 'Students', results: 'Results', ai_settings: 'AI Settings' } as Record<string, string>)[tab] ?? tab; }
 function NavItem({ active, icon, label, count, onClick }: { active: boolean; icon: React.ReactNode; label: string; count?: number; onClick: () => void }) { return <button className={`nav-item ${active ? 'active' : ''}`} onClick={onClick}>{icon}<span>{label}</span>{count !== undefined && <small>{count}</small>}</button>; }
 function Metric({ label, value, icon, tint }: { label: string; value: number | string; icon: React.ReactNode; tint: string }) { return <div className="metric"><div className={`metric-icon ${tint}`}>{icon}</div><div><span>{label}</span><strong>{value}</strong></div><div className="metric-trend">↗</div></div>; }
 
@@ -1384,7 +1558,7 @@ function QuizList({ quizzes, onEdit, onSelect, onOpenAI, onRefresh, setNotice, o
 }
 function StatusPill({ status }: { status: Status }) { return <span className={`status-pill status-${status.toLowerCase()}`}><i />{status === 'ACTIVE' ? 'Live' : status === 'CLOSED' ? 'Finished' : 'Draft'}</span>; }
 
-function QuizManager({ quizzes, selectedQuiz, setSelectedQuiz, liveQuiz, refresh, setNotice, initialOpenAI, onNavigateToAISettings }: { quizzes: Quiz[]; selectedQuiz: string; setSelectedQuiz: (id: string) => void; liveQuiz?: Quiz; refresh: () => Promise<void>; setNotice: (text: string) => void; initialOpenAI?: boolean; onNavigateToAISettings?: () => void }) {
+function QuizManager({ quizzes, selectedQuiz, setSelectedQuiz, liveQuiz, refresh, setNotice, initialOpenAI, onNavigateToAISettings, onNavigateToArchive }: { quizzes: Quiz[]; selectedQuiz: string; setSelectedQuiz: (id: string) => void; liveQuiz?: Quiz; refresh: () => Promise<void>; setNotice: (text: string) => void; initialOpenAI?: boolean; onNavigateToAISettings?: () => void; onNavigateToArchive?: () => void }) {
   const [draft, setDraft] = useState<QuizDraft | null>(null);
   const [editingId, setEditingId] = useState('');
   const [saving, setSaving] = useState(false);
@@ -1392,6 +1566,9 @@ function QuizManager({ quizzes, selectedQuiz, setSelectedQuiz, liveQuiz, refresh
   const [stats, setStats] = useState<LiveStats>({ answered: 0, participants: 0, distribution: [], responses: [] });
   const socketRef = useRef<Socket | null>(null);
   const [liveState, setLiveState] = useState<{ status: Status; currentQuestionIndex: number; currentAnswerRevealed: boolean; questionCount: number; question: Question | null } | null>(null);
+
+  const activeQuizzes = quizzes.filter((quiz) => quiz.status !== 'CLOSED');
+  const archivedQuizzes = quizzes.filter((quiz) => quiz.status === 'CLOSED');
 
   useEffect(() => {
     if (!liveQuiz || liveQuiz.mode !== 'LIVE' || liveQuiz.status !== 'ACTIVE') { setLiveState(null); return; }
@@ -1445,21 +1622,39 @@ function QuizManager({ quizzes, selectedQuiz, setSelectedQuiz, liveQuiz, refresh
     finally { setSaving(false); }
   }
 
-  async function control(action: 'start' | 'next' | 'reveal' | 'stop') {
-    if (!liveQuiz) return;
+  async function control(action: 'start' | 'next' | 'reveal' | 'stop', quizId?: string) {
+    const targetQuiz = quizId ? quizzes.find((q) => q.id === quizId) : liveQuiz;
+    if (!targetQuiz) return;
     try {
       if (action === 'reveal') {
         setLiveState((prev) => prev ? { ...prev, currentAnswerRevealed: true } : prev);
       } else if (action === 'next') {
         setLiveState((prev) => prev ? { ...prev, currentQuestionIndex: prev.currentQuestionIndex + 1, currentAnswerRevealed: false } : prev);
       }
-      await api(`/api/quizzes/${liveQuiz.id}/control`, { method: 'PATCH', body: JSON.stringify({ action }) });
-      void refresh();
+      await api(`/api/quizzes/${targetQuiz.id}/control`, { method: 'PATCH', body: JSON.stringify({ action }) });
+      if (action === 'stop') {
+        setSelectedQuiz('');
+        setNotice(`✓ "${targetQuiz.title}" finished and safely moved to Archive.`);
+      } else if (action === 'start') {
+        setSelectedQuiz(targetQuiz.id);
+        setNotice(`🚀 "${targetQuiz.title}" is now LIVE! Classroom monitor active.`);
+      }
+      await refresh();
     } catch (cause) { setNotice(cause instanceof Error ? cause.message : 'Unable to update this quiz.'); }
   }
 
   async function setTimedStatus(quiz: Quiz, action: 'start' | 'stop') {
-    try { await api(`/api/quizzes/${quiz.id}/status`, { method: 'PATCH', body: JSON.stringify({ action }) }); await refresh(); setNotice(action === 'start' ? 'Practice quiz is open.' : 'Practice quiz closed.'); }
+    try {
+      await api(`/api/quizzes/${quiz.id}/status`, { method: 'PATCH', body: JSON.stringify({ action }) });
+      if (action === 'stop') {
+        setSelectedQuiz('');
+        setNotice(`✓ "${quiz.title}" practice quiz closed and safely moved to Archive.`);
+      } else {
+        setSelectedQuiz(quiz.id);
+        setNotice(`🚀 "${quiz.title}" practice quiz is now open.`);
+      }
+      await refresh();
+    }
     catch (cause) { setNotice(cause instanceof Error ? cause.message : 'Unable to update this quiz.'); }
   }
 
@@ -1616,10 +1811,15 @@ function QuizManager({ quizzes, selectedQuiz, setSelectedQuiz, liveQuiz, refresh
           <button className="button button-secondary" onClick={() => void startEdit()}>
             <Plus size={17} /> Create manually
           </button>
+          {onNavigateToArchive && (
+            <button className="button button-secondary" onClick={onNavigateToArchive}>
+              <Archive size={16} /> View Archive
+            </button>
+          )}
         </div>
       </div>
 
-      {liveQuiz && (
+      {liveQuiz && liveQuiz.status === 'ACTIVE' && (
         <div className="live-panel live-panel-fullwidth" style={{ marginBottom: '24px' }}>
           <div className="live-panel-head">
             <span className="overline">Classroom monitor · {liveQuiz.title}</span>
@@ -1652,104 +1852,81 @@ function QuizManager({ quizzes, selectedQuiz, setSelectedQuiz, liveQuiz, refresh
                 <h3>
                   {liveState?.question?.prompt ??
                     liveQuiz.questions?.[liveQuiz.currentQuestionIndex]?.prompt ??
-                    (liveQuiz.status === 'DRAFT'
-                      ? 'Start the quiz to reveal question one.'
-                      : liveQuiz.status === 'ACTIVE'
-                        ? 'Loading question...'
-                        : 'The quiz is complete.')}
+                    'Loading question...'}
                 </h3>
               </div>
-              {liveQuiz.status === 'ACTIVE' && (
-                <div className="teacher-options-list">
-                  {(liveState?.question?.options ?? liveQuiz.questions?.[liveQuiz.currentQuestionIndex]?.options ?? []).map(
-                    (option, index) => {
-                      const count = stats.distribution.find((entry) => entry.optionId === option.id)?.count ?? 0;
-                      const total = stats.answered;
-                      const percent = total > 0 ? Math.round((count / total) * 100) : 0;
-                      const isCorrectOption = Boolean(option.isCorrect);
-                      return (
-                        <div
-                          className={`teacher-option-card ${liveState?.currentAnswerRevealed && isCorrectOption ? 'is-correct' : ''}`}
-                          key={option.id ?? index}
-                        >
-                          <div className="teacher-option-header">
-                            <span className="student-option-letter">{String.fromCharCode(65 + index)}</span>
-                            <span className="teacher-option-text">{option.text}</span>
-                            <span className="teacher-option-count">
-                              {count} ({percent}%)
+              <div className="teacher-options-list">
+                {(liveState?.question?.options ?? liveQuiz.questions?.[liveQuiz.currentQuestionIndex]?.options ?? []).map(
+                  (option, index) => {
+                    const count = stats.distribution.find((entry) => entry.optionId === option.id)?.count ?? 0;
+                    const total = stats.answered;
+                    const percent = total > 0 ? Math.round((count / total) * 100) : 0;
+                    const isCorrectOption = Boolean(option.isCorrect);
+                    return (
+                      <div
+                        className={`teacher-option-card ${liveState?.currentAnswerRevealed && isCorrectOption ? 'is-correct' : ''}`}
+                        key={option.id ?? index}
+                      >
+                        <div className="teacher-option-header">
+                          <span className="student-option-letter">{String.fromCharCode(65 + index)}</span>
+                          <span className="teacher-option-text">{option.text}</span>
+                          <span className="teacher-option-count">
+                            {count} ({percent}%)
+                          </span>
+                          {liveState?.currentAnswerRevealed && isCorrectOption && (
+                            <span className="correct-label">
+                              <Check size={14} /> Correct
                             </span>
-                            {liveState?.currentAnswerRevealed && isCorrectOption && (
-                              <span className="correct-label">
-                                <Check size={14} /> Correct
-                              </span>
-                            )}
-                          </div>
-                          <div className="teacher-bar-track">
-                            <div className="teacher-bar-fill" style={{ width: `${percent}%` }} />
-                          </div>
+                          )}
                         </div>
-                      );
-                    }
-                  )}
-                  {stats.responses.length > 0 && (
-                    <div className="live-responses">
-                      <span className="live-responses-title">Student responses</span>
-                      {[...stats.responses]
-                        .reverse()
-                        .slice(0, 6)
-                        .map((response, index) => (
-                          <div className="live-response" key={`${response.name}-${index}`}>
-                            <strong>{response.name}</strong>
-                            <span>{response.text}</span>
-                          </div>
-                        ))}
-                    </div>
-                  )}
-                  {liveState?.currentAnswerRevealed && (
-                    <div className="reveal-note">
-                      <CheckCircle2 size={16} /> Correct answer is revealed on student screens
-                    </div>
-                  )}
-                </div>
-              )}
-              <div className="monitor-actions">
-                {liveQuiz.status === 'DRAFT' ? (
-                  <button className="button button-primary button-wide" onClick={() => void control('start')}>
-                    <Radio size={16} /> Start live quiz
-                  </button>
-                ) : liveQuiz.status === 'ACTIVE' ? (
-                  <>
-                    <button
-                      className="button button-primary"
-                      onClick={() => void control(liveState?.currentAnswerRevealed ? 'next' : 'reveal')}
-                    >
-                      {liveState?.currentAnswerRevealed ? (
-                        <>
-                          <ArrowRight size={17} /> Next question
-                        </>
-                      ) : (
-                        <>
-                          <Eye size={17} /> Reveal answer
-                        </>
-                      )}
-                    </button>
-                    <button className="button button-quiet" onClick={() => void control('stop')}>
-                      <X size={17} /> End quiz
-                    </button>
-                    <button className="button button-quiet" title="Restart quiz for students who have not submitted" onClick={() => void restartQuiz(liveQuiz)}>
-                      <RotateCcw size={16} /> Restart quiz
-                    </button>
-                  </>
-                ) : (
-                  <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
-                    <div className="finished-note">
-                      <CheckCircle2 size={16} /> This live quiz has finished
-                    </div>
-                    <button className="button button-secondary" title="Restart quiz for students who have not submitted" onClick={() => void restartQuiz(liveQuiz)}>
-                      <RotateCcw size={16} /> Restart quiz
-                    </button>
+                        <div className="teacher-bar-track">
+                          <div className="teacher-bar-fill" style={{ width: `${percent}%` }} />
+                        </div>
+                      </div>
+                    );
+                  }
+                )}
+                {stats.responses.length > 0 && (
+                  <div className="live-responses">
+                    <span className="live-responses-title">Student responses</span>
+                    {[...stats.responses]
+                      .reverse()
+                      .slice(0, 6)
+                      .map((response, index) => (
+                        <div className="live-response" key={`${response.name}-${index}`}>
+                          <strong>{response.name}</strong>
+                          <span>{response.text}</span>
+                        </div>
+                      ))}
                   </div>
                 )}
+                {liveState?.currentAnswerRevealed && (
+                  <div className="reveal-note">
+                    <CheckCircle2 size={16} /> Correct answer is revealed on student screens
+                  </div>
+                )}
+              </div>
+              <div className="monitor-actions">
+                <button
+                  className="button button-primary"
+                  onClick={() => void control(liveState?.currentAnswerRevealed ? 'next' : 'reveal')}
+                >
+                  {liveState?.currentAnswerRevealed ? (
+                    <>
+                      <ArrowRight size={17} /> Next question
+                    </>
+                  ) : (
+                    <>
+                      <Eye size={17} /> Reveal answer
+                    </>
+                  )}
+                </button>
+                <button className="button button-quiet" onClick={() => void control('stop')}>
+                  <X size={17} /> End quiz
+                </button>
+                <button className="button button-quiet" title="Restart quiz for students who have not submitted" onClick={() => void restartQuiz(liveQuiz)}>
+                  <RotateCcw size={16} /> Restart quiz
+                </button>
               </div>
             </>
           ) : (
@@ -1763,29 +1940,14 @@ function QuizManager({ quizzes, selectedQuiz, setSelectedQuiz, liveQuiz, refresh
                   ? `${Math.round((liveQuiz.timeLimitSeconds ?? 0) / 60)} minutes`
                   : 'Self-Paced (No time limit)'} · {liveQuiz._count?.questions ?? 0} questions
               </p>
-              {liveQuiz.status === 'DRAFT' ? (
-                <button className="button button-primary button-wide" onClick={() => void setTimedStatus(liveQuiz, 'start')}>
-                  <BookOpenCheck size={16} /> Open practice quiz
+              <div style={{ display: 'flex', gap: '10px', width: '100%', flexWrap: 'wrap' }}>
+                <button className="button button-quiet" style={{ flex: 1 }} onClick={() => void setTimedStatus(liveQuiz, 'stop')}>
+                  <X size={16} /> Close quiz
                 </button>
-              ) : liveQuiz.status === 'ACTIVE' ? (
-                <div style={{ display: 'flex', gap: '10px', width: '100%', flexWrap: 'wrap' }}>
-                  <button className="button button-quiet" style={{ flex: 1 }} onClick={() => void setTimedStatus(liveQuiz, 'stop')}>
-                    <X size={16} /> Close quiz
-                  </button>
-                  <button className="button button-secondary" title="Restart quiz for students who have not submitted" onClick={() => void restartQuiz(liveQuiz)}>
-                    <RotateCcw size={16} /> Restart
-                  </button>
-                </div>
-              ) : (
-                <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-                  <span className="finished-note">
-                    <CheckCircle2 size={16} /> Practice quiz closed
-                  </span>
-                  <button className="button button-secondary" title="Restart quiz for students who have not submitted" onClick={() => void restartQuiz(liveQuiz)}>
-                    <RotateCcw size={16} /> Restart quiz
-                  </button>
-                </div>
-              )}
+                <button className="button button-secondary" title="Restart quiz for students who have not submitted" onClick={() => void restartQuiz(liveQuiz)}>
+                  <RotateCcw size={16} /> Restart
+                </button>
+              </div>
               <button
                 className="text-button monitor-results"
                 onClick={() => document.dispatchEvent(new CustomEvent('open-results', { detail: liveQuiz.id }))}
@@ -1797,12 +1959,15 @@ function QuizManager({ quizzes, selectedQuiz, setSelectedQuiz, liveQuiz, refresh
         </div>
       )}
 
-      {quizzes.length === 0 ? (
-        <div className="empty-state" style={{ minHeight: '120px', padding: '16px 20px' }}>
+      {activeQuizzes.length === 0 ? (
+        <div className="empty-state" style={{ minHeight: '120px', padding: '24px 20px' }}>
           <span className="empty-icon" style={{ width: '38px', height: '38px', marginBottom: '6px' }}>
             <Sparkles size={20} color="#0284c7" />
           </span>
-          <h3 style={{ fontSize: '16px', margin: '0 0 10px' }}>No Quizzes created yet.</h3>
+          <h3 style={{ fontSize: '16px', margin: '0 0 8px' }}>No Active or Draft Quizzes.</h3>
+          <p style={{ margin: '0 0 16px', color: '#64748b', fontSize: '13.5px' }}>
+            {archivedQuizzes.length > 0 ? 'All finished quizzes are safely preserved in your Archive.' : 'Create a quiz manually or generate one instantly with AI.'}
+          </p>
           <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', justifyContent: 'center' }}>
             <button className="button button-primary" style={{ minHeight: '38px', fontSize: '14px', padding: '0 16px' }} onClick={() => setShowAIModal(true)}>
               <Sparkles size={15} /> Generate with AI
@@ -1810,11 +1975,16 @@ function QuizManager({ quizzes, selectedQuiz, setSelectedQuiz, liveQuiz, refresh
             <button className="button button-secondary" style={{ minHeight: '38px', fontSize: '14px', padding: '0 16px' }} onClick={() => void startEdit()}>
               <Plus size={15} /> Create manually
             </button>
+            {onNavigateToArchive && (
+              <button className="button button-secondary" style={{ minHeight: '38px', fontSize: '14px', padding: '0 16px' }} onClick={onNavigateToArchive}>
+                <Archive size={15} /> View Archive
+              </button>
+            )}
           </div>
         </div>
       ) : (
         <div className="worksheet-grid">
-          {quizzes.map((quiz) => (
+          {activeQuizzes.map((quiz) => (
             <div className="worksheet-card" key={quiz.id} style={{ border: selectedQuiz === quiz.id ? '2px solid #0284c7' : undefined }}>
               <div>
                 <div className="worksheet-card-meta">
@@ -1865,14 +2035,31 @@ function QuizManager({ quizzes, selectedQuiz, setSelectedQuiz, liveQuiz, refresh
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '14px' }}>
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                  <button
-                    className="button button-primary"
-                    style={{ fontSize: '12.5px', padding: '6px 10px', flex: 1 }}
-                    title="Open Live Monitor for this quiz"
-                    onClick={() => setSelectedQuiz(quiz.id)}
-                  >
-                    {quiz.mode === 'LIVE' ? <Radio size={13} /> : <Clock3 size={13} />} {selectedQuiz === quiz.id ? 'Monitoring' : 'Open Monitor'}
-                  </button>
+                  {quiz.status === 'ACTIVE' ? (
+                    <button
+                      className="button button-primary"
+                      style={{ fontSize: '12.5px', padding: '6px 10px', flex: 1, background: '#0284c7' }}
+                      title="View live classroom monitor for this quiz"
+                      onClick={() => setSelectedQuiz(quiz.id)}
+                    >
+                      <Radio size={13} /> {selectedQuiz === quiz.id ? 'Monitoring Live' : 'Open Monitor'}
+                    </button>
+                  ) : (
+                    <button
+                      className="button button-primary"
+                      style={{ fontSize: '12.5px', padding: '6px 10px', flex: 1 }}
+                      title={quiz.mode === 'LIVE' ? 'Start live classroom quiz' : 'Open practice quiz for students'}
+                      onClick={() => {
+                        if (quiz.mode === 'LIVE') {
+                          void control('start', quiz.id);
+                        } else {
+                          void setTimedStatus(quiz, 'start');
+                        }
+                      }}
+                    >
+                      {quiz.mode === 'LIVE' ? <Radio size={13} /> : <BookOpenCheck size={13} />} {quiz.mode === 'LIVE' ? 'Start Live Quiz' : 'Open Practice Quiz'}
+                    </button>
+                  )}
                   <button
                     className="button button-secondary"
                     style={{ fontSize: '12.5px', padding: '6px 10px' }}
@@ -1896,6 +2083,27 @@ function QuizManager({ quizzes, selectedQuiz, setSelectedQuiz, liveQuiz, refresh
                   >
                     <BarChart3 size={13} /> Results ({quiz._count?.attempts ?? 0})
                   </button>
+
+                  {quiz.status === 'ACTIVE' && (
+                    <button
+                      type="button"
+                      className="button button-secondary"
+                      style={{ flex: '1 1 auto', fontSize: '12px', padding: '6px 8px', color: '#047857', borderColor: '#a7f3d0', background: '#ecfdf5', whiteSpace: 'nowrap' }}
+                      title="Finish quiz and move to Archive"
+                      onClick={async () => {
+                        if (!window.confirm(`Mark "${quiz.title}" as Finished? It will be moved to the Archive and student attempts will be finalized.`)) return;
+                        try {
+                          await api(`/api/quizzes/${quiz.id}/status`, { method: 'PATCH', body: JSON.stringify({ action: 'stop' }) });
+                          setNotice(`✓ "${quiz.title}" marked finished and moved to Archive.`);
+                          await refresh();
+                        } catch (err) {
+                          setNotice(err instanceof Error ? err.message : 'Unable to mark quiz finished');
+                        }
+                      }}
+                    >
+                      <CheckCircle2 size={13} color="#047857" /> Mark Finished
+                    </button>
+                  )}
 
                   <button
                     className="icon-button danger-hover"
@@ -1924,11 +2132,2831 @@ function QuizManager({ quizzes, selectedQuiz, setSelectedQuiz, liveQuiz, refresh
   );
 }
 
-function StudentManager({ students, refresh, setNotice, onBackToClassroom }: { students: Student[]; refresh: () => Promise<void>; setNotice: (text: string) => void; onBackToClassroom?: () => void }) {
+/* ==========================================================================
+   TEACHER ARCHIVE PANEL & QUIZ PREVIEW MODAL
+   ========================================================================== */
+
+function ArchivedQuizPreviewModal({
+  quiz,
+  fullData,
+  loading,
+  onClose,
+  onOpenResults,
+}: {
+  quiz: Quiz;
+  fullData: Quiz | null;
+  loading: boolean;
+  onClose: () => void;
+  onOpenResults: (quizId: string) => void;
+}) {
+  return (
+    <div className="modal-backdrop" onClick={onClose} style={{ zIndex: 1100 }}>
+      <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '800px', width: '92%', maxHeight: '85vh', display: 'flex', flexDirection: 'column' }}>
+        <div className="modal-header" style={{ padding: '16px 24px', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+              <span className="badge-finished worksheet-badge">✓ ARCHIVED QUIZ</span>
+              <span className="worksheet-badge badge-grade" style={{ background: '#f0fdf4', color: '#166534', border: '1px solid #bbf7d0' }}>
+                {quiz.grade || 'All Grades'}
+              </span>
+              <span className="worksheet-badge badge-subject">
+                {quiz.mode === 'LIVE' ? 'Live Classroom' : quiz.timeLimitSeconds !== null ? 'Timed Practice' : 'Self Paced'}
+              </span>
+            </div>
+            <h2 style={{ margin: 0, fontSize: '20px', color: '#0f172a' }}>{quiz.title}</h2>
+          </div>
+          <button className="icon-button" onClick={onClose} title="Close"><X size={18} /></button>
+        </div>
+
+        <div style={{ padding: '20px 24px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          {loading ? (
+            <div style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>
+              <RefreshCw size={24} className="spin" style={{ margin: '0 auto 12px' }} />
+              <div>Loading quiz questions...</div>
+            </div>
+          ) : !fullData || !fullData.questions || fullData.questions.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '30px', color: '#64748b' }}>
+              No questions recorded for this quiz.
+            </div>
+          ) : (
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#f8fafc', padding: '10px 16px', borderRadius: '10px', fontSize: '13.5px', color: '#475569' }}>
+                <span>Total Questions: <strong>{fullData.questions.length}</strong></span>
+                <span>Total Marks: <strong>{fullData.questions.reduce((sum, q) => sum + (q.marks ?? 1), 0)}</strong></span>
+                <span>Recorded Attempts: <strong>{quiz._count?.attempts ?? 0}</strong></span>
+              </div>
+
+              {fullData.questions.map((q, idx) => (
+                <div key={q.id || idx} style={{ border: '1px solid #e2e8f0', borderRadius: '12px', padding: '16px 18px', background: '#ffffff' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ fontWeight: 700, color: '#0284c7', fontSize: '14px' }}>Question {idx + 1}</span>
+                      <QuestionTypeBadge type={q.type} />
+                    </div>
+                    <span style={{ fontSize: '12.5px', fontWeight: 600, color: '#64748b', background: '#f1f5f9', padding: '2px 8px', borderRadius: '6px' }}>
+                      {q.marks} {q.marks === 1 ? 'Mark' : 'Marks'}
+                    </span>
+                  </div>
+
+                  <p style={{ margin: '0 0 12px', fontSize: '15px', fontWeight: 600, color: '#0f172a', lineHeight: 1.45 }}>
+                    {q.prompt}
+                  </p>
+
+                  {q.imageUrl && (
+                    <div style={{ marginBottom: '12px', borderRadius: '8px', overflow: 'hidden', border: '1px solid #e2e8f0', maxHeight: '200px' }}>
+                      <img src={q.imageUrl} alt="Question diagram" style={{ width: '100%', maxHeight: '200px', objectFit: 'contain' }} />
+                    </div>
+                  )}
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '8px' }}>
+                    {q.options.map((opt, optIdx) => (
+                      <div
+                        key={opt.id || optIdx}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '10px',
+                          padding: '8px 12px',
+                          borderRadius: '8px',
+                          border: opt.isCorrect ? '1.5px solid #22c55e' : '1px solid #e2e8f0',
+                          background: opt.isCorrect ? '#f0fdf4' : '#fafafa',
+                          fontSize: '13.5px',
+                          color: opt.isCorrect ? '#15803d' : '#334155',
+                          fontWeight: opt.isCorrect ? 600 : 400,
+                        }}
+                      >
+                        <span style={{ width: '22px', height: '22px', borderRadius: '50%', background: opt.isCorrect ? '#22c55e' : '#e2e8f0', color: opt.isCorrect ? '#fff' : '#475569', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 700, flexShrink: 0 }}>
+                          {String.fromCharCode(65 + optIdx)}
+                        </span>
+                        <span style={{ flex: 1 }}>{opt.text}</span>
+                        {opt.isCorrect && <Check size={14} color="#15803d" />}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </>
+          )}
+        </div>
+
+        <div className="modal-footer" style={{ padding: '14px 24px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <button
+            type="button"
+            className="button button-primary"
+            style={{ fontSize: '13px', padding: '6px 14px' }}
+            onClick={() => {
+              onClose();
+              onOpenResults(quiz.id);
+            }}
+          >
+            <BarChart3 size={14} /> View Student Results ({quiz._count?.attempts ?? 0})
+          </button>
+          <button type="button" className="button button-secondary" onClick={onClose}>
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TeacherArchivePanel({
+  quizzes,
+  worksheets,
+  refresh,
+  setNotice,
+  onOpenResults,
+}: {
+  quizzes: Quiz[];
+  worksheets: WorksheetPaper[];
+  refresh: () => Promise<void>;
+  setNotice: (text: string) => void;
+  onOpenResults: (quizId: string) => void;
+}) {
+  const [filterType, setFilterType] = useState<'all' | 'quizzes' | 'worksheets'>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [gradeFilter, setGradeFilter] = useState('ALL');
+  const [viewingPaper, setViewingPaper] = useState<WorksheetPaper | null>(null);
+  const [checkingSubmissions, setCheckingSubmissions] = useState<WorksheetPaper | null>(null);
+  const [previewingQuiz, setPreviewingQuiz] = useState<Quiz | null>(null);
+  const [previewQuizLoading, setPreviewQuizLoading] = useState(false);
+  const [fullQuizData, setFullQuizData] = useState<Quiz | null>(null);
+
+  const archivedQuizzes = quizzes.filter((q) => q.status === 'CLOSED');
+  const archivedWorksheets = worksheets.filter((w) => w.status === 'ARCHIVED');
+
+  const filteredQuizzes = archivedQuizzes.filter((q) => {
+    const matchesSearch = !searchQuery.trim() || q.title.toLowerCase().includes(searchQuery.toLowerCase()) || (q.grade || '').toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesGrade = gradeFilter === 'ALL' || q.grade === gradeFilter || (gradeFilter === 'All Grades' && (!q.grade || q.grade === 'All Grades'));
+    return matchesSearch && matchesGrade;
+  });
+
+  const filteredWorksheets = archivedWorksheets.filter((w) => {
+    const matchesSearch = !searchQuery.trim() || w.title.toLowerCase().includes(searchQuery.toLowerCase()) || (w.subject || '').toLowerCase().includes(searchQuery.toLowerCase()) || (w.grade || '').toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesGrade = gradeFilter === 'ALL' || w.grade === gradeFilter || (gradeFilter === 'All Grades' && (!w.grade || w.grade === 'All Grades'));
+    return matchesSearch && matchesGrade;
+  });
+
+  const totalArchivedCount = archivedQuizzes.length + archivedWorksheets.length;
+  const totalSubmissionsAndAttempts = archivedQuizzes.reduce((sum, q) => sum + (q._count?.attempts ?? 0), 0) + archivedWorksheets.reduce((sum, w) => sum + (w._count?.submissions ?? 0), 0);
+
+  async function handleReopenQuiz(quiz: Quiz) {
+    if (!window.confirm(`Re-open "${quiz.title}"? This will restore it back to Quizzes and Worksheets in Draft mode so you can modify or run it again.`)) return;
+    try {
+      await api(`/api/quizzes/${quiz.id}/status`, { method: 'PATCH', body: JSON.stringify({ action: 'reopen' }) });
+      setNotice(`✓ "${quiz.title}" restored to Quizzes & Worksheets in Draft mode.`);
+      await refresh();
+    } catch (cause) {
+      setNotice(cause instanceof Error ? cause.message : 'Unable to re-open quiz.');
+    }
+  }
+
+  async function handleDeleteQuiz(quiz: Quiz) {
+    if (!window.confirm(`Permanently delete "${quiz.title}" from Archive? All question records and student results will be permanently removed. This cannot be undone.`)) return;
+    try {
+      await api(`/api/quizzes/${quiz.id}`, { method: 'DELETE' });
+      setNotice(`✓ "${quiz.title}" permanently deleted.`);
+      await refresh();
+    } catch (cause) {
+      setNotice(cause instanceof Error ? cause.message : 'Unable to delete quiz.');
+    }
+  }
+
+  async function handleReopenWorksheet(paper: WorksheetPaper) {
+    if (!window.confirm(`Re-open "${paper.title}"? This will move it back to active Question Papers for students to submit answer sheets.`)) return;
+    try {
+      await api(`/api/worksheets/${paper.id}`, { method: 'PATCH', body: JSON.stringify({ status: 'PUBLISHED' }) });
+      setNotice(`✓ "${paper.title}" re-opened and restored to Question Papers.`);
+      await refresh();
+    } catch (cause) {
+      setNotice(cause instanceof Error ? cause.message : 'Unable to re-open question paper.');
+    }
+  }
+
+  async function handleDeleteWorksheet(paper: WorksheetPaper) {
+    if (!window.confirm(`Permanently delete "${paper.title}" from Archive? All paper contents and student submissions will be permanently removed. This cannot be undone.`)) return;
+    try {
+      await api(`/api/worksheets/${paper.id}`, { method: 'DELETE' });
+      setNotice(`✓ "${paper.title}" permanently deleted.`);
+      await refresh();
+    } catch (cause) {
+      setNotice(cause instanceof Error ? cause.message : 'Unable to delete question paper.');
+    }
+  }
+
+  async function handleInspectQuiz(quiz: Quiz) {
+    setPreviewingQuiz(quiz);
+    setPreviewQuizLoading(true);
+    try {
+      const data = await api<{ quiz: Quiz }>(`/api/quizzes/${quiz.id}/detail`);
+      setFullQuizData(data.quiz);
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : 'Unable to load quiz details.');
+    } finally {
+      setPreviewQuizLoading(false);
+    }
+  }
+
+  const showQuizzes = filterType === 'all' || filterType === 'quizzes';
+  const showWorksheets = filterType === 'all' || filterType === 'worksheets';
+  const displayedCount = (showQuizzes ? filteredQuizzes.length : 0) + (showWorksheets ? filteredWorksheets.length : 0);
+
+  return (
+    <section className="view-enter archive-container">
+      <div className="page-heading">
+        <div>
+          <span className="overline">Classroom Records</span>
+          <h1>Archive</h1>
+          <p style={{ margin: '4px 0 0', color: '#64748b', fontSize: '14px' }}>
+            All finished quizzes and completed question papers are stored here safely. Records remain preserved until you delete them.
+          </p>
+        </div>
+      </div>
+
+      <div className="archive-stats-row">
+        <div className="archive-stat-card">
+          <div className="archive-stat-icon" style={{ background: '#f0f9ff', color: '#0284c7' }}>
+            <Archive size={22} />
+          </div>
+          <div className="archive-stat-info">
+            <strong>{totalArchivedCount}</strong>
+            <span>Total in Archive</span>
+          </div>
+        </div>
+
+        <div className="archive-stat-card">
+          <div className="archive-stat-icon" style={{ background: '#ede9fe', color: '#7c3aed' }}>
+            <BookOpenCheck size={22} />
+          </div>
+          <div className="archive-stat-info">
+            <strong>{archivedQuizzes.length}</strong>
+            <span>Finished Quizzes</span>
+          </div>
+        </div>
+
+        <div className="archive-stat-card">
+          <div className="archive-stat-icon" style={{ background: '#ecfdf5', color: '#059669' }}>
+            <FileText size={22} />
+          </div>
+          <div className="archive-stat-info">
+            <strong>{archivedWorksheets.length}</strong>
+            <span>Completed Papers</span>
+          </div>
+        </div>
+
+        <div className="archive-stat-card">
+          <div className="archive-stat-icon" style={{ background: '#fef3c7', color: '#d97706' }}>
+            <Users size={22} />
+          </div>
+          <div className="archive-stat-info">
+            <strong>{totalSubmissionsAndAttempts}</strong>
+            <span>Recorded Responses</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="archive-filter-bar">
+        <div className="archive-nav-pills">
+          <button
+            type="button"
+            className={`archive-pill-btn ${filterType === 'all' ? 'active' : ''}`}
+            onClick={() => setFilterType('all')}
+          >
+            All Records <span className="archive-pill-count">{totalArchivedCount}</span>
+          </button>
+          <button
+            type="button"
+            className={`archive-pill-btn ${filterType === 'quizzes' ? 'active' : ''}`}
+            onClick={() => setFilterType('quizzes')}
+          >
+            Finished Quizzes <span className="archive-pill-count">{archivedQuizzes.length}</span>
+          </button>
+          <button
+            type="button"
+            className={`archive-pill-btn ${filterType === 'worksheets' ? 'active' : ''}`}
+            onClick={() => setFilterType('worksheets')}
+          >
+            Completed Question Papers <span className="archive-pill-count">{archivedWorksheets.length}</span>
+          </button>
+        </div>
+
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flex: '1 1 auto', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+          <div className="archive-search-box">
+            <Search size={15} />
+            <input
+              type="text"
+              placeholder="Search by title, subject, or grade..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+
+          <select
+            value={gradeFilter}
+            onChange={(e) => setGradeFilter(e.target.value)}
+            style={{ padding: '8px 12px', borderRadius: '10px', border: '1px solid #cbd5e1', background: '#fff', fontSize: '13.5px', height: '37px' }}
+          >
+            <option value="ALL">All Grades</option>
+            {ALL_STUDENT_GRADES.map((g) => (
+              <option key={g} value={g}>{g}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {totalArchivedCount === 0 ? (
+        <div className="empty-state" style={{ padding: '40px 20px', minHeight: '180px' }}>
+          <span className="empty-icon" style={{ width: '48px', height: '48px', marginBottom: '12px' }}>
+            <Archive size={26} color="#0284c7" />
+          </span>
+          <h3 style={{ fontSize: '18px', margin: '0 0 8px' }}>Your Archive is empty.</h3>
+          <p style={{ margin: 0, color: '#64748b', fontSize: '14px', maxWidth: '480px' }}>
+            When you mark quizzes as finished or question papers as complete, they are preserved safely here until you choose to delete them.
+          </p>
+        </div>
+      ) : displayedCount === 0 ? (
+        <div className="empty-state" style={{ padding: '36px 20px', minHeight: '160px' }}>
+          <span className="empty-icon" style={{ width: '44px', height: '44px', marginBottom: '10px' }}>
+            <Filter size={22} color="#64748b" />
+          </span>
+          <h3 style={{ fontSize: '16px', margin: '0 0 6px' }}>No records match your filter criteria.</h3>
+          <p style={{ margin: '0 0 14px', color: '#64748b', fontSize: '13.5px' }}>
+            Try clearing your search query or choosing another grade.
+          </p>
+          <button
+            type="button"
+            className="button button-secondary"
+            style={{ fontSize: '13px', padding: '6px 14px' }}
+            onClick={() => {
+              setSearchQuery('');
+              setGradeFilter('ALL');
+              setFilterType('all');
+            }}
+          >
+            Clear Filters
+          </button>
+        </div>
+      ) : (
+        <div className="worksheet-grid">
+          {/* 1. Finished Quizzes */}
+          {showQuizzes && filteredQuizzes.map((quiz) => (
+            <div className="archive-card" key={`quiz-${quiz.id}`}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                  <div className="worksheet-card-meta" style={{ margin: 0 }}>
+                    <span className="worksheet-badge badge-finished">
+                      ✓ FINISHED
+                    </span>
+                    <span className="worksheet-badge badge-grade" style={{ background: '#f0fdf4', color: '#166534', border: '1px solid #bbf7d0', fontWeight: 600 }}>
+                      {quiz.grade || 'All Grades'}
+                    </span>
+                    <span className="worksheet-badge badge-subject">
+                      {quiz.mode === 'LIVE' ? 'Live Classroom' : quiz.timeLimitSeconds !== null ? `${Math.round(quiz.timeLimitSeconds / 60)}m Timed` : 'Self Paced'}
+                    </span>
+                  </div>
+                  <span className="archive-card-archived-tag">
+                    <BookOpenCheck size={11} /> Quiz
+                  </span>
+                </div>
+
+                <h3 style={{ margin: '8px 0 12px', fontSize: '18px', fontWeight: 700, color: '#0f172a' }}>
+                  {quiz.title}
+                </h3>
+
+                <div className="worksheet-card-stats">
+                  <span>Questions: <strong>{quiz._count?.questions ?? 0}</strong></span>
+                  <span>Student Attempts: <strong>{quiz._count?.attempts ?? 0}</strong></span>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '14px' }}>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <button
+                    type="button"
+                    className="button button-primary"
+                    style={{ flex: 1, fontSize: '12.5px', padding: '6px 10px' }}
+                    title="View Student Results & Score Breakdown"
+                    onClick={() => onOpenResults(quiz.id)}
+                  >
+                    <BarChart3 size={13} /> View Results ({quiz._count?.attempts ?? 0})
+                  </button>
+
+                  <button
+                    type="button"
+                    className="button button-secondary"
+                    style={{ fontSize: '12.5px', padding: '6px 10px' }}
+                    title="Preview Quiz Questions and Answer Key"
+                    onClick={() => void handleInspectQuiz(quiz)}
+                  >
+                    <Eye size={13} /> Inspect
+                  </button>
+                </div>
+
+                <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'nowrap', width: '100%' }}>
+                  <button
+                    type="button"
+                    className="button button-secondary"
+                    style={{ flex: '1 1 auto', fontSize: '12px', padding: '6px 8px', whiteSpace: 'nowrap' }}
+                    title="Restore quiz to Quizzes & Worksheets in Draft mode"
+                    onClick={() => void handleReopenQuiz(quiz)}
+                  >
+                    <RotateCcw size={13} /> Re-open Quiz
+                  </button>
+
+                  <button
+                    type="button"
+                    className="icon-button danger-hover"
+                    title="Permanently Delete Quiz from Archive"
+                    style={{ padding: '6px 8px', height: '30px', minWidth: '32px', flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                    onClick={() => void handleDeleteQuiz(quiz)}
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+
+          {/* 2. Completed Question Papers */}
+          {showWorksheets && filteredWorksheets.map((paper) => (
+            <div className="archive-card" key={`paper-${paper.id}`}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                  <div className="worksheet-card-meta" style={{ margin: 0 }}>
+                    <span className="worksheet-badge badge-completed">
+                      ✓ COMPLETED
+                    </span>
+                    {paper.subject && <span className="worksheet-badge badge-subject">{paper.subject}</span>}
+                    {paper.grade && <span className="worksheet-badge badge-draft">{paper.grade}</span>}
+                  </div>
+                  <span className="archive-card-archived-tag">
+                    <FileText size={11} /> Paper
+                  </span>
+                </div>
+
+                <h3 style={{ margin: '8px 0 12px', fontSize: '18px', fontWeight: 700, color: '#0f172a' }}>
+                  {paper.title}
+                </h3>
+
+                <div className="worksheet-card-stats">
+                  <span>Marks: <strong>{paper.totalMarks}</strong></span>
+                  <span>Submissions: <strong>{paper._count?.submissions ?? 0}</strong></span>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '14px' }}>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <button
+                    type="button"
+                    className="button button-primary"
+                    style={{ flex: 1, fontSize: '12.5px', padding: '6px 10px' }}
+                    title="View Answer Sheet Submissions & Grades"
+                    onClick={async () => {
+                      const full = await api<{ worksheet: WorksheetPaper }>(`/api/worksheets/${paper.id}`);
+                      setCheckingSubmissions(full.worksheet);
+                    }}
+                  >
+                    <CheckSquare size={13} /> Submissions ({paper._count?.submissions ?? 0})
+                  </button>
+
+                  <button
+                    type="button"
+                    className="button button-secondary"
+                    style={{ fontSize: '12.5px', padding: '6px 10px' }}
+                    title="View & Print Question Paper"
+                    onClick={() => setViewingPaper(paper)}
+                  >
+                    <Eye size={13} /> View Paper
+                  </button>
+                </div>
+
+                <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'nowrap', width: '100%' }}>
+                  <button
+                    type="button"
+                    className="button button-secondary"
+                    style={{ flex: '1 1 auto', fontSize: '12px', padding: '6px 8px', whiteSpace: 'nowrap' }}
+                    title="Re-open submissions for students"
+                    onClick={() => void handleReopenWorksheet(paper)}
+                  >
+                    <RotateCcw size={13} /> Re-open Paper
+                  </button>
+
+                  <button
+                    type="button"
+                    className="icon-button danger-hover"
+                    title="Permanently Delete Question Paper from Archive"
+                    style={{ padding: '6px 8px', height: '30px', minWidth: '32px', flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                    onClick={() => void handleDeleteWorksheet(paper)}
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Modals */}
+      {previewingQuiz && (
+        <ArchivedQuizPreviewModal
+          quiz={previewingQuiz}
+          fullData={fullQuizData}
+          loading={previewQuizLoading}
+          onClose={() => {
+            setPreviewingQuiz(null);
+            setFullQuizData(null);
+          }}
+          onOpenResults={onOpenResults}
+        />
+      )}
+
+      {viewingPaper && (
+        <PaperPreviewModal
+          paper={viewingPaper}
+          onClose={() => setViewingPaper(null)}
+        />
+      )}
+
+      {checkingSubmissions && (
+        <WorksheetSubmissionsModal
+          paper={checkingSubmissions}
+          onClose={() => setCheckingSubmissions(null)}
+          onRefresh={async () => {
+            const full = await api<{ worksheet: WorksheetPaper }>(`/api/worksheets/${checkingSubmissions.id}`);
+            setCheckingSubmissions(full.worksheet);
+            await refresh();
+          }}
+          setNotice={setNotice}
+        />
+      )}
+    </section>
+  );
+}
+
+// ==========================================
+// 1. ATTENDANCE TRACKER PANEL
+// ==========================================
+function AttendanceTrackerPanel({ students, setNotice }: { students: Student[]; setNotice: (text: string) => void }) {
+  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [gradeFilter, setGradeFilter] = useState('ALL');
+  const [viewMode, setViewMode] = useState<'daily' | 'monthly'>('daily');
+  const [monthPicker, setMonthPicker] = useState(() => new Date().toISOString().slice(0, 7)); // YYYY-MM
+  const [records, setRecords] = useState<Record<string, { status: AttendanceStatus | ''; remarks: string; updatedAt?: string }>>({});
+  const [summary, setSummary] = useState<AttendanceSummary | null>(null);
+  const [monthlyData, setMonthlyData] = useState<{ yearMonth: string; daysInMonth: number; students: MonthlyAttendanceStudent[] } | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [isDirty, setIsDirty] = useState(false);
+
+  // Fetch daily attendance
+  const loadDailyAttendance = async (targetDate: string, grade: string) => {
+    setLoading(true);
+    try {
+      const data = await api<{
+        date: string;
+        records: { studentId: string; status: AttendanceStatus; remarks?: string; updatedAt?: string }[];
+        summary: AttendanceSummary;
+      }>(`/api/attendance?date=${targetDate}&grade=${grade}`);
+      
+      const map: Record<string, { status: AttendanceStatus | ''; remarks: string; updatedAt?: string }> = {};
+      data.records.forEach((r) => {
+        map[r.studentId] = { status: r.status, remarks: r.remarks || '', updatedAt: r.updatedAt };
+      });
+      setRecords(map);
+      setSummary(data.summary);
+      setIsDirty(false);
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : 'Failed to load attendance.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch monthly matrix
+  const loadMonthlyAttendance = async (yearMonth: string, grade: string) => {
+    setLoading(true);
+    try {
+      const data = await api<{
+        yearMonth: string;
+        daysInMonth?: number;
+        students: MonthlyAttendanceStudent[];
+        records?: { studentId: string; date: string; status: AttendanceStatus }[];
+      }>(`/api/attendance/monthly?yearMonth=${yearMonth}&grade=${grade}`);
+
+      const [yearStr, monthStr] = yearMonth.split('-');
+      const y = parseInt(yearStr, 10);
+      const m = parseInt(monthStr, 10);
+      const computedDays = new Date(y, m, 0).getDate();
+
+      const rawStudents = Array.isArray(data?.students) ? data.students : [];
+      const records = Array.isArray(data?.records) ? data.records : [];
+
+      const formattedStudents: MonthlyAttendanceStudent[] = rawStudents.map((st: any) => {
+        if (st.days && typeof st.presentCount === 'number') {
+          return st as MonthlyAttendanceStudent;
+        }
+        const studentRecs = records.filter((r) => r.studentId === (st.studentId || st.id));
+        const days: Record<string, AttendanceStatus> = {};
+        studentRecs.forEach((r) => {
+          const d = String(parseInt(r.date.slice(8, 10), 10));
+          days[d] = r.status;
+        });
+        const presentCount = studentRecs.filter((r) => r.status === 'PRESENT').length;
+        const absentCount = studentRecs.filter((r) => r.status === 'ABSENT').length;
+        const totalMarked = studentRecs.length;
+        const attendanceRate = totalMarked > 0 ? Math.round((presentCount / totalMarked) * 100) : 100;
+
+        return {
+          studentId: st.studentId || st.id,
+          name: st.name,
+          grade: st.grade,
+          days,
+          presentCount,
+          absentCount,
+          totalMarked,
+          attendanceRate,
+        };
+      });
+
+      setMonthlyData({
+        yearMonth,
+        daysInMonth: data?.daysInMonth || computedDays,
+        students: formattedStudents,
+      });
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : 'Failed to load monthly attendance.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (viewMode === 'daily') {
+      void loadDailyAttendance(date, gradeFilter);
+    } else {
+      void loadMonthlyAttendance(monthPicker, gradeFilter);
+    }
+  }, [date, gradeFilter, viewMode, monthPicker]);
+
+  const handleStatusChange = (studentId: string, status: AttendanceStatus) => {
+    setRecords((prev) => ({
+      ...prev,
+      [studentId]: {
+        ...(prev[studentId] || { remarks: '' }),
+        status: prev[studentId]?.status === status ? '' : status,
+      },
+    }));
+    setIsDirty(true);
+  };
+
+  const handleRemarkChange = (studentId: string, remarks: string) => {
+    setRecords((prev) => ({
+      ...prev,
+      [studentId]: {
+        ...(prev[studentId] || { status: 'PRESENT' }),
+        remarks,
+      },
+    }));
+    setIsDirty(true);
+  };
+
+  const markAll = (status: AttendanceStatus) => {
+    const next: Record<string, { status: AttendanceStatus | ''; remarks: string; updatedAt?: string }> = {};
+    const eligibleStudents = (gradeFilter === 'ALL' ? students : students.filter((s) => (s.grade || 'Grade 6') === gradeFilter))
+      .filter((st) => {
+        const jDate = st.joiningDate ? new Date(st.joiningDate).toISOString().slice(0, 10) : (st.createdAt ? new Date(st.createdAt).toISOString().slice(0, 10) : '2000-01-01');
+        return date >= jDate;
+      });
+    eligibleStudents.forEach((st) => {
+      next[st.id] = {
+        status,
+        remarks: records[st.id]?.remarks || '',
+        updatedAt: records[st.id]?.updatedAt,
+      };
+    });
+    setRecords((prev) => ({ ...prev, ...next }));
+    setIsDirty(true);
+  };
+
+  const saveDailyAttendance = async () => {
+    setSaving(true);
+    try {
+      const payload = Object.entries(records)
+        .filter(([_, v]) => Boolean(v.status))
+        .map(([studentId, v]) => ({
+          studentId,
+          status: v.status as AttendanceStatus,
+          remarks: v.remarks,
+        }));
+      await api('/api/attendance', {
+        method: 'POST',
+        body: JSON.stringify({ date, records: payload }),
+      });
+      setIsDirty(false);
+      setNotice(`Attendance saved for ${date}.`);
+      await loadDailyAttendance(date, gradeFilter);
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : 'Failed to save attendance.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const relevantStudents = (gradeFilter === 'ALL' ? students : students.filter((s) => (s.grade || 'Grade 6') === gradeFilter))
+    .filter((st) => {
+      const jDate = st.joiningDate ? new Date(st.joiningDate).toISOString().slice(0, 10) : (st.createdAt ? new Date(st.createdAt).toISOString().slice(0, 10) : '2000-01-01');
+      return date >= jDate;
+    });
+
+  // Quick date shifts
+  const shiftDate = (days: number) => {
+    const d = new Date(date);
+    d.setDate(d.getDate() + days);
+    setDate(d.toISOString().slice(0, 10));
+  };
+
+  return (
+    <div className="attendance-panel">
+      {/* Controls & Mode Bar */}
+      <div className="attendance-header-card">
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '14px' }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span className="overline" style={{ margin: 0 }}>Daily & Monthly Tracking</span>
+              <span className="academic-session-pill">Academic Year: {getCurrentAcademicYear(new Date(date))}</span>
+            </div>
+            <h2 style={{ margin: '4px 0 0 0', fontSize: '22px', fontWeight: 800, color: '#0f172a' }}>
+              Student Attendance Register
+            </h2>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+            {/* View Mode Toggle */}
+            <div className="segmented-control">
+              <button
+                type="button"
+                className={`segmented-btn ${viewMode === 'daily' ? 'active' : ''}`}
+                onClick={() => setViewMode('daily')}
+              >
+                <CalendarCheck size={15} /> Daily Sheet
+              </button>
+              <button
+                type="button"
+                className={`segmented-btn ${viewMode === 'monthly' ? 'active' : ''}`}
+                onClick={() => setViewMode('monthly')}
+              >
+                <FileSpreadsheet size={15} /> Monthly Matrix
+              </button>
+            </div>
+
+            {/* Grade Filter */}
+            <select
+              value={gradeFilter}
+              onChange={(e) => setGradeFilter(e.target.value)}
+              aria-label="Filter by grade"
+              className="styled-select"
+            >
+              <option value="ALL">All Grades ({students.length})</option>
+              {ALL_STUDENT_GRADES.map((g) => (
+                <option key={g} value={g}>{g}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Date Selector Row */}
+        {viewMode === 'daily' ? (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px', marginTop: '16px', paddingTop: '16px', borderTop: '1px solid #e2e8f0' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <button type="button" className="icon-button" title="Previous Day" onClick={() => shiftDate(-1)}>
+                <ArrowLeft size={16} />
+              </button>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 600, color: '#1e293b' }}>
+                <Calendar size={16} color="#0284c7" />
+                <input
+                  type="date"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                  className="styled-date-input"
+                />
+              </label>
+              <button type="button" className="icon-button" title="Next Day" onClick={() => shiftDate(1)}>
+                <ArrowRight size={16} />
+              </button>
+              <button
+                type="button"
+                className="button button-quiet"
+                style={{ fontSize: '12px', padding: '4px 10px' }}
+                onClick={() => setDate(new Date().toISOString().slice(0, 10))}
+              >
+                Today
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 600 }}>Quick Mark:</span>
+              <button
+                type="button"
+                className="button button-secondary"
+                style={{ fontSize: '12px', padding: '5px 10px', gap: '4px' }}
+                onClick={() => markAll('PRESENT')}
+              >
+                <CheckCheck size={14} color="#059669" /> All Present
+              </button>
+              <button
+                type="button"
+                className="button button-secondary"
+                style={{ fontSize: '12px', padding: '5px 10px', gap: '4px' }}
+                onClick={() => markAll('ABSENT')}
+              >
+                <X size={14} color="#e11d48" /> All Absent
+              </button>
+              <button
+                type="button"
+                className="button button-primary"
+                style={{ fontSize: '13px', padding: '6px 16px', gap: '6px' }}
+                disabled={saving}
+                onClick={() => void saveDailyAttendance()}
+              >
+                <Save size={15} /> {saving ? 'Saving...' : isDirty ? 'Save Attendance ●' : 'Save Attendance'}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px', marginTop: '16px', paddingTop: '16px', borderTop: '1px solid #e2e8f0' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <Calendar size={16} color="#0284c7" />
+              <label style={{ fontSize: '14px', fontWeight: 600, color: '#334155' }}>
+                Select Month:
+                <input
+                  type="month"
+                  value={monthPicker}
+                  onChange={(e) => setMonthPicker(e.target.value)}
+                  className="styled-date-input"
+                  style={{ marginLeft: '8px' }}
+                />
+              </label>
+            </div>
+            <span style={{ fontSize: '13px', color: '#64748b' }}>
+              Showing full month breakdown for CBSE / School Academic Session
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* Summary KPI Cards for Daily Sheet */}
+      {viewMode === 'daily' && summary && (
+        <div className="attendance-kpi-grid">
+          <div className="att-kpi-card att-kpi-total">
+            <span className="att-kpi-label">Total Enrolled</span>
+            <div className="att-kpi-val">{summary.total}</div>
+            <span className="att-kpi-sub">Students in view</span>
+          </div>
+          <div className="att-kpi-card att-kpi-present">
+            <span className="att-kpi-label">Present</span>
+            <div className="att-kpi-val" style={{ color: '#059669' }}>{summary.present}</div>
+            <span className="att-kpi-sub">Attendance Rate: {summary.attendanceRate}%</span>
+          </div>
+          <div className="att-kpi-card att-kpi-absent">
+            <span className="att-kpi-label">Absent</span>
+            <div className="att-kpi-val" style={{ color: '#e11d48' }}>{summary.absent}</div>
+            <span className="att-kpi-sub">Not in class</span>
+          </div>
+          <div className="att-kpi-card att-kpi-late">
+            <span className="att-kpi-label">Late / Excused</span>
+            <div className="att-kpi-val" style={{ color: '#d97706' }}>{summary.late + summary.excused}</div>
+            <span className="att-kpi-sub">{summary.late} Late · {summary.excused} Excused</span>
+          </div>
+        </div>
+      )}
+
+      {/* Daily Register List */}
+      {viewMode === 'daily' && (
+        <div className="attendance-table-container">
+          {loading ? (
+            <div style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>
+              <RefreshCw size={24} className="spin" style={{ marginBottom: '8px' }} />
+              <div>Loading attendance register for {date}...</div>
+            </div>
+          ) : relevantStudents.length === 0 ? (
+            <div style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>
+              No students found for {gradeFilter}.
+            </div>
+          ) : (
+            <table className="attendance-table">
+              <thead>
+                <tr>
+                  <th style={{ width: '40px' }}>#</th>
+                  <th>Student</th>
+                  <th>Class / Grade</th>
+                  <th style={{ minWidth: '280px' }}>Attendance Status</th>
+                  <th>Remarks / Reasons</th>
+                  <th style={{ textAlign: 'right', width: '120px' }}>Recorded</th>
+                </tr>
+              </thead>
+              <tbody>
+                {relevantStudents.map((st, idx) => {
+                  const current = records[st.id] || { status: '', remarks: '' };
+                  return (
+                    <tr key={st.id} className={current.status ? `row-status-${current.status.toLowerCase()}` : ''}>
+                      <td style={{ color: '#94a3b8', fontWeight: 600 }}>{idx + 1}</td>
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <div className={`avatar avatar-small avatar-color-${idx % 4}`}>
+                            {st.name.slice(0, 1).toUpperCase()}
+                          </div>
+                          <div>
+                            <strong style={{ color: '#0f172a', fontSize: '14px' }}>{st.name}</strong>
+                            {!st.active && <span style={{ marginLeft: '6px', fontSize: '11px', color: '#dc2626' }}>(Inactive)</span>}
+                          </div>
+                        </div>
+                      </td>
+                      <td>
+                        <span className="grade-badge">{st.grade || 'Grade 6'}</span>
+                      </td>
+                      <td>
+                        <div className="attendance-btn-group">
+                          <button
+                            type="button"
+                            className={`att-pill att-pill-present ${current.status === 'PRESENT' ? 'selected' : ''}`}
+                            onClick={() => handleStatusChange(st.id, 'PRESENT')}
+                            title="Mark Present"
+                          >
+                            <Check size={14} /> Present
+                          </button>
+                          <button
+                            type="button"
+                            className={`att-pill att-pill-absent ${current.status === 'ABSENT' ? 'selected' : ''}`}
+                            onClick={() => handleStatusChange(st.id, 'ABSENT')}
+                            title="Mark Absent"
+                          >
+                            <X size={14} /> Absent
+                          </button>
+                          <button
+                            type="button"
+                            className={`att-pill att-pill-late ${current.status === 'LATE' ? 'selected' : ''}`}
+                            onClick={() => handleStatusChange(st.id, 'LATE')}
+                            title="Mark Late"
+                          >
+                            <Clock3 size={14} /> Late
+                          </button>
+                          <button
+                            type="button"
+                            className={`att-pill att-pill-excused ${current.status === 'EXCUSED' ? 'selected' : ''}`}
+                            onClick={() => handleStatusChange(st.id, 'EXCUSED')}
+                            title="Mark Excused"
+                          >
+                            <ShieldCheck size={14} /> Excused
+                          </button>
+                        </div>
+                      </td>
+                      <td>
+                        <input
+                          type="text"
+                          value={current.remarks}
+                          onChange={(e) => handleRemarkChange(st.id, e.target.value)}
+                          placeholder="e.g. Doctor visit, sick leave..."
+                          className="att-remark-input"
+                        />
+                      </td>
+                      <td style={{ textAlign: 'right', fontSize: '12px', color: '#94a3b8' }}>
+                        {current.updatedAt ? new Date(current.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
+
+      {/* Monthly Summary Grid */}
+      {viewMode === 'monthly' && (
+        <div className="monthly-matrix-wrapper">
+          {loading ? (
+            <div style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>
+              <RefreshCw size={24} className="spin" style={{ marginBottom: '8px' }} />
+              <div>Generating monthly attendance matrix...</div>
+            </div>
+          ) : !monthlyData || monthlyData.students.length === 0 ? (
+            <div style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>
+              No monthly attendance records for {monthPicker}.
+            </div>
+          ) : (
+            <div className="monthly-matrix-scroll">
+              <table className="monthly-matrix-table" style={{ textAlign: 'center' }}>
+                <thead>
+                  <tr>
+                    <th className="sticky-col first-col" style={{ textAlign: 'center' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', textAlign: 'center' }}>
+                        Student
+                      </div>
+                    </th>
+                    <th className="sticky-col second-col" style={{ textAlign: 'center' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', textAlign: 'center' }}>
+                        Grade
+                      </div>
+                    </th>
+                    {Array.from({ length: monthlyData.daysInMonth }, (_, i) => (
+                      <th key={i + 1} style={{ width: '28px', textAlign: 'center', fontSize: '11px', padding: '6px 2px' }}>
+                        {i + 1}
+                      </th>
+                    ))}
+                    <th style={{ width: '70px', textAlign: 'center' }}>Present</th>
+                    <th style={{ width: '70px', textAlign: 'center' }}>Absent</th>
+                    <th style={{ width: '80px', textAlign: 'center' }}>Rate</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {monthlyData.students.map((st) => (
+                    <tr key={st.studentId}>
+                      <td className="sticky-col first-col" style={{ textAlign: 'center' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', textAlign: 'center' }}>
+                          <strong style={{ fontSize: '13px', color: '#0f172a', textAlign: 'center' }}>{st.name}</strong>
+                        </div>
+                      </td>
+                      <td className="sticky-col second-col" style={{ textAlign: 'center' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', textAlign: 'center' }}>
+                          <span className="grade-badge" style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '6px', background: '#f1f5f9', color: '#334155', fontWeight: 600, display: 'inline-block', textAlign: 'center' }}>
+                            {st.grade || 'Grade 6'}
+                          </span>
+                        </div>
+                      </td>
+                      {Array.from({ length: monthlyData.daysInMonth }, (_, i) => {
+                        const dayNum = String(i + 1);
+                        const status = st.days[dayNum];
+                        let cellClass = 'cell-empty';
+                        let char = '·';
+                        if (status === 'PRESENT') { cellClass = 'cell-p'; char = 'P'; }
+                        else if (status === 'ABSENT') { cellClass = 'cell-a'; char = 'A'; }
+                        else if (status === 'LATE') { cellClass = 'cell-l'; char = 'L'; }
+                        else if (status === 'EXCUSED') { cellClass = 'cell-e'; char = 'E'; }
+
+                        return (
+                          <td key={i} className={`matrix-day-cell ${cellClass}`} style={{ textAlign: 'center' }} title={`Day ${dayNum}: ${status || 'Unrecorded'}`}>
+                            {char}
+                          </td>
+                        );
+                      })}
+                      <td style={{ textAlign: 'center', fontWeight: 700, color: '#059669' }}>{st.presentCount ?? 0}</td>
+                      <td style={{ textAlign: 'center', fontWeight: 700, color: '#e11d48' }}>{st.absentCount ?? 0}</td>
+                      <td style={{ textAlign: 'center' }}>
+                        <span className={`rate-pill ${(st.attendanceRate ?? 100) >= 75 ? 'rate-good' : 'rate-low'}`}>
+                          {st.attendanceRate ?? 100}%
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ==========================================
+// 2. MONTHLY FEES TRACKER PANEL
+// ==========================================
+function MonthlyFeesPanel({
+  students,
+  setNotice,
+  initialStudentId,
+}: {
+  students: Student[];
+  setNotice: (text: string) => void;
+  initialStudentId?: string | null;
+}) {
+  const [academicYear, setAcademicYear] = useState(() => getCurrentAcademicYear());
+  const [availableYears] = useState(['2026-2027', '2025-2026', '2024-2025', '2027-2028']);
+  const [month, setMonth] = useState(() => {
+    const curMonth = new Date().toLocaleString('en-US', { month: 'long' });
+    return ACADEMIC_MONTHS.includes(curMonth) ? curMonth : 'April';
+  });
+  const [gradeFilter, setGradeFilter] = useState('ALL');
+  const [viewMode, setViewMode] = useState<'register' | 'ledger'>(initialStudentId ? 'ledger' : 'register');
+  const [selectedStudentForLedger, setSelectedStudentForLedger] = useState<string>(initialStudentId || (students[0]?.id ?? ''));
+
+  const [feeRecords, setFeeRecords] = useState<StudentFeeRecord[]>([]);
+  const [summary, setSummary] = useState<FeeSummary | null>(null);
+  const [ledgerData, setLedgerData] = useState<StudentFeeLedger | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  // Payment Recording Modal State
+  const [paymentModal, setPaymentModal] = useState<{
+    studentId: string;
+    studentName: string;
+    grade?: string;
+    month: string;
+    amountDue: number;
+    amountPaid: number;
+    status: FeeStatus;
+    paymentMode: string;
+    receiptNo: string;
+    notes: string;
+  } | null>(null);
+  const [paymentSaving, setPaymentSaving] = useState(false);
+
+  useEffect(() => {
+    if (initialStudentId) {
+      setSelectedStudentForLedger(initialStudentId);
+      setViewMode('ledger');
+    }
+  }, [initialStudentId]);
+
+  const loadMonthlyFees = async (year: string, targetMonth: string, grade: string) => {
+    setLoading(true);
+    try {
+      const data = await api<{
+        academicYear?: string;
+        month?: string;
+        records?: StudentFeeRecord[];
+        fees?: StudentFeeRecord[];
+        summary?: FeeSummary;
+      }>(`/api/fees?academicYear=${year}&month=${targetMonth}&grade=${grade}`);
+      const list = Array.isArray(data?.records) ? data.records : (Array.isArray(data?.fees) ? data.fees : []);
+      setFeeRecords(list);
+      setSummary(data?.summary || null);
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : 'Failed to load fee register.');
+      setFeeRecords([]);
+      setSummary(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadStudentLedger = async (studentId: string, year: string) => {
+    if (!studentId) return;
+    setLoading(true);
+    try {
+      const data = await api<any>(`/api/fees/student/${studentId}?academicYear=${year}`);
+      if (data) {
+        const rawMonths = Array.isArray(data.months) ? data.months : (Array.isArray(data.ledger) ? data.ledger : []);
+        const safeMonths: StudentFeeLedgerMonth[] = rawMonths.map((m: any) => ({
+          month: m.month,
+          status: m.status || 'PENDING',
+          amountDue: m.amountDue ?? 1500,
+          amountPaid: m.amountPaid ?? 0,
+          balance: m.balance ?? Math.max(0, (m.amountDue ?? 1500) - (m.amountPaid ?? 0)),
+          paidAt: m.paidAt || null,
+          paymentMode: m.paymentMode || '',
+          receiptNo: m.receiptNo || '',
+          notes: m.notes || '',
+        }));
+
+        setLedgerData({
+          student: data.student || { id: studentId, name: 'Student', grade: 'Grade 6' },
+          academicYear: data.academicYear || year,
+          months: safeMonths,
+          summary: {
+            totalDue: data.summary?.totalDue ?? safeMonths.reduce((s, m) => s + m.amountDue, 0),
+            totalPaid: data.summary?.totalPaid ?? safeMonths.reduce((s, m) => s + m.amountPaid, 0),
+            totalPending: data.summary?.totalPending ?? data.summary?.balance ?? 0,
+            paidMonths: data.summary?.paidMonths ?? safeMonths.filter((m) => m.status === 'PAID').length,
+            pendingMonths: data.summary?.pendingMonths ?? safeMonths.filter((m) => m.status !== 'PAID').length,
+          },
+        });
+      } else {
+        setLedgerData(null);
+      }
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : 'Failed to load student fee ledger.');
+      setLedgerData(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (viewMode === 'register') {
+      void loadMonthlyFees(academicYear, month, gradeFilter);
+    } else if (selectedStudentForLedger) {
+      void loadStudentLedger(selectedStudentForLedger, academicYear);
+    }
+  }, [academicYear, month, gradeFilter, viewMode, selectedStudentForLedger]);
+
+  const openPaymentModal = (record: {
+    studentId: string;
+    name?: string;
+    grade?: string;
+    month?: string;
+    amountDue?: number;
+    amountPaid?: number;
+    status?: FeeStatus;
+    paymentMode?: string;
+    receiptNo?: string | null;
+    notes?: string | null;
+  }) => {
+    const student = students.find((s) => s.id === record.studentId);
+    const targetMonth = record.month || month;
+    const due = record.amountDue ?? 1500;
+    const paid = record.amountPaid ?? due;
+    const receipt = record.receiptNo || `REC-${academicYear.split('-')[0]}-${Math.floor(1000 + Math.random() * 9000)}`;
+
+    setPaymentModal({
+      studentId: record.studentId,
+      studentName: record.name || student?.name || 'Student',
+      grade: record.grade || student?.grade || 'Grade 6',
+      month: targetMonth,
+      amountDue: due,
+      amountPaid: paid,
+      status: (paid >= due ? 'PAID' : paid > 0 ? 'PARTIAL' : 'PENDING') as FeeStatus,
+      paymentMode: record.paymentMode || 'UPI',
+      receiptNo: receipt,
+      notes: record.notes || '',
+    });
+  };
+
+  const handleSavePayment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!paymentModal) return;
+    setPaymentSaving(true);
+    try {
+      await api(`/api/fees/${paymentModal.studentId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          academicYear,
+          month: paymentModal.month,
+          amountDue: paymentModal.amountDue,
+          amountPaid: paymentModal.amountPaid,
+          status: paymentModal.status,
+          paymentMode: paymentModal.paymentMode,
+          receiptNo: paymentModal.receiptNo,
+          notes: paymentModal.notes,
+        }),
+      });
+      setNotice(`Fee payment recorded for ${paymentModal.studentName} (${paymentModal.month}).`);
+      setPaymentModal(null);
+      if (viewMode === 'register') {
+        await loadMonthlyFees(academicYear, month, gradeFilter);
+      } else {
+        await loadStudentLedger(selectedStudentForLedger, academicYear);
+      }
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : 'Failed to update fee record.');
+    } finally {
+      setPaymentSaving(false);
+    }
+  };
+
+  // Inline change for Due Amount
+  const handleDueAmountChange = (studentId: string, newDue: number) => {
+    const val = isNaN(newDue) || newDue < 0 ? 0 : newDue;
+    setFeeRecords((prev) =>
+      prev.map((r) => {
+        if (r.studentId !== studentId) return r;
+        const paid = r.amountPaid ?? 0;
+        const status: FeeStatus = val === 0 && paid === 0 ? 'PENDING' : (paid >= val && val > 0 ? 'PAID' : paid > 0 ? 'PARTIAL' : 'PENDING');
+        return {
+          ...r,
+          amountDue: val,
+          status,
+        };
+      })
+    );
+  };
+
+  // Inline change for Paid Amount
+  const handlePaidAmountChange = (studentId: string, newPaid: number) => {
+    const val = isNaN(newPaid) || newPaid < 0 ? 0 : newPaid;
+    setFeeRecords((prev) =>
+      prev.map((r) => {
+        if (r.studentId !== studentId) return r;
+        const due = r.amountDue ?? 1500;
+        const status: FeeStatus = (val >= due && due > 0 ? 'PAID' : val > 0 ? 'PARTIAL' : 'PENDING');
+        return {
+          ...r,
+          amountPaid: val,
+          status,
+        };
+      })
+    );
+  };
+
+  // Save inline fee record to server on blur or enter
+  const handleSaveInlineFee = async (studentId: string) => {
+    const rec = feeRecords.find((r) => r.studentId === studentId);
+    if (!rec) return;
+
+    const due = rec.amountDue ?? 1500;
+    const paid = rec.amountPaid ?? 0;
+    const computedStatus: FeeStatus = (paid >= due && due > 0 ? 'PAID' : paid > 0 ? 'PARTIAL' : 'PENDING');
+
+    try {
+      await api(`/api/fees/${studentId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          academicYear,
+          month,
+          amountDue: due,
+          amountPaid: paid,
+          status: computedStatus,
+        }),
+      });
+
+      // Recalculate summary KPIs in real-time
+      setFeeRecords((current) => {
+        const totalDue = current.reduce((s, r) => s + (r.amountDue ?? 0), 0);
+        const totalCollected = current.reduce((s, r) => s + (r.amountPaid ?? 0), 0);
+        const totalPending = Math.max(0, totalDue - totalCollected);
+        const paidCount = current.filter((r) => (r.amountPaid ?? 0) >= (r.amountDue ?? 0) && (r.amountDue ?? 0) > 0).length;
+        const pendingCount = current.filter((r) => (r.amountPaid ?? 0) === 0).length;
+        const partialCount = current.filter((r) => (r.amountPaid ?? 0) > 0 && (r.amountPaid ?? 0) < (r.amountDue ?? 0)).length;
+        const collectionRate = totalDue > 0 ? Math.round((totalCollected / totalDue) * 100) : 0;
+
+        setSummary({
+          totalStudents: current.length,
+          totalDue,
+          totalCollected,
+          totalPending,
+          paidCount,
+          pendingCount,
+          partialCount,
+          collectionRate,
+        });
+
+        return current;
+      });
+
+      setNotice(`Updated fee record for ${rec.name || 'Student'}: Due ₹${due.toLocaleString()}, Paid ₹${paid.toLocaleString()}.`);
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : 'Failed to update fee record.');
+    }
+  };
+
+  return (
+    <div className="fees-panel">
+      {/* Header and Filter Controls */}
+      <div className="fees-header-card">
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '14px' }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span className="overline" style={{ margin: 0 }}>Financial Register</span>
+              <span className="academic-session-pill">Session: April to March</span>
+            </div>
+            <h2 style={{ margin: '4px 0 0 0', fontSize: '22px', fontWeight: 800, color: '#0f172a' }}>
+              Monthly Student Fees Tracking
+            </h2>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+            {/* Academic Year Selector */}
+            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: 700, color: '#334155' }}>
+              <span>Academic Year:</span>
+              <select
+                value={academicYear}
+                onChange={(e) => setAcademicYear(e.target.value)}
+                className="styled-select"
+              >
+                {availableYears.map((yr) => (
+                  <option key={yr} value={yr}>{yr} (Apr–Mar)</option>
+                ))}
+              </select>
+            </label>
+
+            {/* View Mode Toggle */}
+            <div className="segmented-control">
+              <button
+                type="button"
+                className={`segmented-btn ${viewMode === 'register' ? 'active' : ''}`}
+                onClick={() => setViewMode('register')}
+              >
+                <CreditCard size={15} /> Monthly Register
+              </button>
+              <button
+                type="button"
+                className={`segmented-btn ${viewMode === 'ledger' ? 'active' : ''}`}
+                onClick={() => setViewMode('ledger')}
+              >
+                <FileText size={15} /> Student 12M Ledger
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* 12-Month Academic Month Pills (April to March) */}
+        {viewMode === 'register' && (
+          <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid #e2e8f0' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px', marginBottom: '10px' }}>
+              <span style={{ fontSize: '12px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                Select Month (April – March Academic Session):
+              </span>
+              <select
+                value={gradeFilter}
+                onChange={(e) => setGradeFilter(e.target.value)}
+                className="styled-select"
+                style={{ fontSize: '12px', padding: '4px 8px' }}
+              >
+                <option value="ALL">All Grades</option>
+                {ALL_STUDENT_GRADES.map((g) => (
+                  <option key={g} value={g}>{g}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="fees-month-pills">
+              {ACADEMIC_MONTHS.map((m) => {
+                const isSelected = month === m;
+                return (
+                  <button
+                    key={m}
+                    type="button"
+                    className={`fee-month-pill ${isSelected ? 'selected' : ''}`}
+                    onClick={() => setMonth(m)}
+                  >
+                    <span className="month-name">{m}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {viewMode === 'ledger' && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '16px', paddingTop: '16px', borderTop: '1px solid #e2e8f0', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: '13px', fontWeight: 700, color: '#334155' }}>Select Student:</span>
+            <select
+              value={selectedStudentForLedger}
+              onChange={(e) => setSelectedStudentForLedger(e.target.value)}
+              className="styled-select"
+              style={{ minWidth: '220px' }}
+            >
+              {students.map((st) => (
+                <option key={st.id} value={st.id}>
+                  {st.name} ({st.grade || 'Grade 6'})
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+      </div>
+
+      {/* KPI Metrics Banner for Monthly Register */}
+      {viewMode === 'register' && summary && (
+        <div className="fees-kpi-grid">
+          <div className="fee-kpi-card" style={{ textAlign: 'center', alignItems: 'center' }}>
+            <span className="fee-kpi-label" style={{ textAlign: 'center' }}>Students In Month</span>
+            <div className="fee-kpi-val" style={{ textAlign: 'center' }}>{summary.totalStudents ?? 0}</div>
+            <span className="fee-kpi-sub" style={{ textAlign: 'center' }}>{month} {academicYear}</span>
+          </div>
+          <div className="fee-kpi-card" style={{ textAlign: 'center', alignItems: 'center' }}>
+            <span className="fee-kpi-label" style={{ textAlign: 'center' }}>Total Fees Due</span>
+            <div className="fee-kpi-val" style={{ color: '#0f172a', textAlign: 'center' }}>₹{(summary.totalDue || 0).toLocaleString()}</div>
+            <span className="fee-kpi-sub" style={{ textAlign: 'center' }}>
+              {summary.totalStudents > 0 ? `Avg ₹${Math.round((summary.totalDue || 0) / summary.totalStudents).toLocaleString()}/student` : 'Custom fee structure'}
+            </span>
+          </div>
+          <div className="fee-kpi-card" style={{ textAlign: 'center', alignItems: 'center' }}>
+            <span className="fee-kpi-label" style={{ textAlign: 'center' }}>Total Collected</span>
+            <div className="fee-kpi-val" style={{ color: '#059669', textAlign: 'center' }}>₹{(summary.totalCollected || 0).toLocaleString()}</div>
+            <span className="fee-kpi-sub" style={{ textAlign: 'center' }}>{summary.paidCount ?? 0} Students Paid</span>
+          </div>
+          <div className="fee-kpi-card" style={{ textAlign: 'center', alignItems: 'center' }}>
+            <span className="fee-kpi-label" style={{ textAlign: 'center' }}>Total Pending</span>
+            <div className="fee-kpi-val" style={{ color: '#e11d48', textAlign: 'center' }}>₹{(summary.totalPending || 0).toLocaleString()}</div>
+            <span className="fee-kpi-sub" style={{ textAlign: 'center' }}>{summary.pendingCount ?? 0} Pending</span>
+          </div>
+          <div className="fee-kpi-card" style={{ textAlign: 'center', alignItems: 'center' }}>
+            <span className="fee-kpi-label" style={{ textAlign: 'center' }}>Collection Rate</span>
+            <div className="fee-kpi-val" style={{ color: '#0284c7', textAlign: 'center' }}>{summary.collectionRate ?? 0}%</div>
+            <div className="kpi-mini-bar" style={{ margin: '8px auto 0 auto', width: '85%' }}>
+              <div className="kpi-mini-bar-fill" style={{ width: `${Math.min(100, Math.max(0, summary.collectionRate ?? 0))}%` }} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Monthly Register Table View */}
+      {viewMode === 'register' && (
+        <div className="fees-table-container">
+          {loading ? (
+            <div style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>
+              <RefreshCw size={24} className="spin" style={{ marginBottom: '8px' }} />
+              <div>Loading fee records for {month} {academicYear}...</div>
+            </div>
+          ) : (!feeRecords || feeRecords.length === 0) ? (
+            <div style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>
+              No students enrolled to track fees.
+            </div>
+          ) : (
+            <table className="fees-table" style={{ textAlign: 'center' }}>
+              <thead>
+                <tr>
+                  <th style={{ width: '40px', textAlign: 'center' }}>#</th>
+                  <th style={{ textAlign: 'center' }}>Student Name</th>
+                  <th style={{ textAlign: 'center' }}>Grade</th>
+                  <th style={{ textAlign: 'center' }}>Due Amount</th>
+                  <th style={{ textAlign: 'center' }}>Paid Amount</th>
+                  <th style={{ textAlign: 'center' }}>Balance</th>
+                  <th style={{ textAlign: 'center' }}>Payment Status</th>
+                  <th style={{ textAlign: 'center' }}>Mode & Receipt</th>
+                  <th style={{ textAlign: 'center' }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(feeRecords || []).map((rec, idx) => {
+                  const amountDue = rec.amountDue ?? 1500;
+                  const amountPaid = rec.amountPaid ?? 0;
+                  const balance = Math.max(0, amountDue - amountPaid);
+                  const status = rec.status || 'PENDING';
+                  return (
+                    <tr key={rec.studentId || idx}>
+                      <td style={{ color: '#94a3b8', fontWeight: 600, textAlign: 'center' }}>{idx + 1}</td>
+                      <td style={{ textAlign: 'center' }}>
+                        <strong style={{ color: '#0f172a', fontSize: '14px', textAlign: 'center' }}>{rec.name || 'Student'}</strong>
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        <span className="grade-badge" style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '6px', background: '#f1f5f9', color: '#334155', fontWeight: 600, display: 'inline-block' }}>
+                          {rec.grade || 'Grade 6'}
+                        </span>
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        <div className="fee-num-cell" title="Click to edit due amount for this student">
+                          <span className="fee-num-symbol">₹</span>
+                          <input
+                            type="number"
+                            min="0"
+                            step="50"
+                            value={amountDue}
+                            onChange={(e) => handleDueAmountChange(rec.studentId, Number(e.target.value))}
+                            onBlur={() => handleSaveInlineFee(rec.studentId)}
+                            onKeyDown={(e) => { if (e.key === 'Enter') handleSaveInlineFee(rec.studentId); }}
+                            className="fee-num-input"
+                            aria-label={`Due amount for ${rec.name}`}
+                          />
+                        </div>
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        <div className="fee-num-cell" title="Click to edit paid amount">
+                          <span className="fee-num-symbol" style={{ color: amountPaid > 0 ? '#059669' : '#64748b' }}>₹</span>
+                          <input
+                            type="number"
+                            min="0"
+                            step="50"
+                            value={amountPaid}
+                            onChange={(e) => handlePaidAmountChange(rec.studentId, Number(e.target.value))}
+                            onBlur={() => handleSaveInlineFee(rec.studentId)}
+                            onKeyDown={(e) => { if (e.key === 'Enter') handleSaveInlineFee(rec.studentId); }}
+                            className="fee-num-input"
+                            style={{ color: amountPaid > 0 ? '#059669' : '#64748b', fontWeight: 700 }}
+                            aria-label={`Paid amount for ${rec.name}`}
+                          />
+                        </div>
+                      </td>
+                      <td style={{ fontWeight: 700, color: balance > 0 ? '#e11d48' : '#059669', textAlign: 'center' }}>
+                        {balance === 0 ? '₹0' : `₹${balance.toLocaleString()}`}
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        <span className={`fee-status-badge badge-${status.toLowerCase()}`} style={{ display: 'inline-block' }}>
+                          {status}
+                        </span>
+                      </td>
+                      <td style={{ fontSize: '12px', textAlign: 'center' }}>
+                        {rec.paymentMode ? (
+                          <div style={{ textAlign: 'center' }}>
+                            <span style={{ fontWeight: 600, color: '#334155' }}>{rec.paymentMode}</span>
+                            {rec.receiptNo && <span style={{ color: '#64748b', marginLeft: '6px' }}>({rec.receiptNo})</span>}
+                          </div>
+                        ) : (
+                          <span style={{ color: '#94a3b8' }}>—</span>
+                        )}
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                          <button
+                            type="button"
+                            className="button button-secondary"
+                            style={{ fontSize: '12px', padding: '4px 10px', gap: '4px' }}
+                            onClick={() => openPaymentModal(rec)}
+                            title="Edit full payment details and receipt"
+                          >
+                            <CreditCard size={13} /> {status === 'PAID' ? 'Edit' : 'Pay'}
+                          </button>
+                          <button
+                            type="button"
+                            className="button button-quiet"
+                            style={{ fontSize: '12px', padding: '4px 8px' }}
+                            title="View student's 12-month ledger"
+                            onClick={() => {
+                              setSelectedStudentForLedger(rec.studentId);
+                              setViewMode('ledger');
+                            }}
+                          >
+                            Ledger
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
+
+      {/* Student 12-Month Ledger View */}
+      {viewMode === 'ledger' && (
+        <div className="student-ledger-wrapper">
+          {loading ? (
+            <div style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>
+              <RefreshCw size={24} className="spin" style={{ marginBottom: '8px' }} />
+              <div>Loading 12-month fee ledger...</div>
+            </div>
+          ) : !ledgerData ? (
+            <div style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>
+              Select a student to view their April–March fee ledger.
+            </div>
+          ) : (
+            <>
+              {/* Student Ledger Summary Profile */}
+              <div className="ledger-summary-card">
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '14px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                    <div className="avatar avatar-large avatar-color-0">
+                      {(ledgerData.student?.name || 'S').slice(0, 1).toUpperCase()}
+                    </div>
+                    <div>
+                      <h3 style={{ margin: 0, fontSize: '20px', fontWeight: 800, color: '#0f172a' }}>
+                        {ledgerData.student?.name || 'Student'}
+                      </h3>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
+                        <span className="grade-badge">{ledgerData.student?.grade || 'Grade 6'}</span>
+                        <span style={{ fontSize: '13px', color: '#64748b' }}>
+                          Academic Year: <strong>{ledgerData.academicYear}</strong> (April 1 to March 31)
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '20px', flexWrap: 'wrap' }}>
+                    <div style={{ textAlign: 'right' }}>
+                      <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 600 }}>Total Annual Fees</span>
+                      <div style={{ fontSize: '18px', fontWeight: 800, color: '#0f172a' }}>
+                        ₹{(ledgerData.summary?.totalDue || 0).toLocaleString()}
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 600 }}>Total Paid</span>
+                      <div style={{ fontSize: '18px', fontWeight: 800, color: '#059669' }}>
+                        ₹{(ledgerData.summary?.totalPaid || 0).toLocaleString()}
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 600 }}>Outstanding Balance</span>
+                      <div style={{ fontSize: '18px', fontWeight: 800, color: (ledgerData.summary?.totalPending || 0) > 0 ? '#e11d48' : '#059669' }}>
+                        ₹{(ledgerData.summary?.totalPending || 0).toLocaleString()}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* 12-Month Table */}
+              <div className="fees-table-container" style={{ marginTop: '16px' }}>
+                <table className="fees-table" style={{ textAlign: 'center' }}>
+                  <thead>
+                    <tr>
+                      <th style={{ width: '60px', textAlign: 'center' }}>Month #</th>
+                      <th style={{ textAlign: 'center' }}>Academic Month</th>
+                      <th style={{ textAlign: 'center' }}>Amount Due</th>
+                      <th style={{ textAlign: 'center' }}>Amount Paid</th>
+                      <th style={{ textAlign: 'center' }}>Balance</th>
+                      <th style={{ textAlign: 'center' }}>Status</th>
+                      <th style={{ textAlign: 'center' }}>Payment Mode</th>
+                      <th style={{ textAlign: 'center' }}>Receipt #</th>
+                      <th style={{ textAlign: 'center' }}>Payment Date</th>
+                      <th style={{ textAlign: 'center' }}>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(ledgerData.months || []).map((m, idx) => {
+                      const amountDue = m.amountDue ?? 1500;
+                      const amountPaid = m.amountPaid ?? 0;
+                      const balance = m.balance ?? Math.max(0, amountDue - amountPaid);
+                      const status = m.status || 'PENDING';
+                      return (
+                        <tr key={m.month || idx}>
+                          <td style={{ color: '#94a3b8', fontWeight: 700, textAlign: 'center' }}>{idx + 1}</td>
+                          <td style={{ textAlign: 'center' }}>
+                            <strong style={{ color: '#0f172a' }}>{m.month}</strong>
+                          </td>
+                          <td style={{ fontWeight: 600, textAlign: 'center' }}>₹{amountDue.toLocaleString()}</td>
+                          <td style={{ fontWeight: 700, color: amountPaid > 0 ? '#059669' : '#64748b', textAlign: 'center' }}>
+                            ₹{amountPaid.toLocaleString()}
+                          </td>
+                          <td style={{ fontWeight: 700, color: balance > 0 ? '#e11d48' : '#059669', textAlign: 'center' }}>
+                            {balance === 0 ? '₹0' : `₹${balance.toLocaleString()}`}
+                          </td>
+                          <td style={{ textAlign: 'center' }}>
+                            <span className={`fee-status-badge badge-${status.toLowerCase()}`} style={{ display: 'inline-block', ...(status === 'EXEMPT' ? { background: '#f1f5f9', color: '#64748b', border: '1px solid #cbd5e1' } : {}) }}>
+                              {status === 'EXEMPT' ? 'Not Enrolled' : status}
+                            </span>
+                          </td>
+                          <td style={{ fontSize: '13px', textAlign: 'center' }}>{m.paymentMode || '—'}</td>
+                          <td style={{ fontSize: '13px', fontFamily: 'monospace', textAlign: 'center' }}>{m.receiptNo || '—'}</td>
+                          <td style={{ fontSize: '12px', color: '#64748b', textAlign: 'center' }}>
+                            {m.paidAt ? new Date(m.paidAt).toLocaleDateString() : '—'}
+                          </td>
+                          <td style={{ textAlign: 'center' }}>
+                            <div style={{ display: 'flex', justifyContent: 'center' }}>
+                              {status === 'EXEMPT' ? (
+                                <span style={{ fontSize: '12px', color: '#94a3b8' }}>{m.notes || 'Not enrolled'}</span>
+                              ) : (
+                                <button
+                                  type="button"
+                                  className="button button-secondary"
+                                  style={{ fontSize: '12px', padding: '4px 10px', gap: '4px' }}
+                                  onClick={() =>
+                                    openPaymentModal({
+                                      studentId: ledgerData.student?.id || selectedStudentForLedger,
+                                      name: ledgerData.student?.name,
+                                      grade: ledgerData.student?.grade,
+                                      month: m.month,
+                                      amountDue,
+                                      amountPaid,
+                                      status: status as FeeStatus,
+                                      paymentMode: m.paymentMode,
+                                      receiptNo: m.receiptNo,
+                                      notes: m.notes,
+                                    })
+                                  }
+                                >
+                                  <CreditCard size={13} /> {status === 'PAID' ? 'Edit' : 'Pay'}
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Payment Recording Modal */}
+      {paymentModal && (
+        <div className="custom-modal-backdrop">
+          <div className="custom-modal-card" style={{ maxWidth: '480px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
+              <div>
+                <span className="overline" style={{ margin: 0 }}>Record Student Fee</span>
+                <h3 style={{ margin: '4px 0 0 0', fontSize: '18px', fontWeight: 800, color: '#0f172a' }}>
+                  {paymentModal.studentName} · {paymentModal.month}
+                </h3>
+              </div>
+              <button type="button" className="icon-button quiet" onClick={() => setPaymentModal(null)}>
+                <X size={16} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSavePayment} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <label className="field">
+                  <span>Amount Due (₹)</span>
+                  <input
+                    type="number"
+                    min="0"
+                    required
+                    value={paymentModal.amountDue}
+                    onChange={(e) => {
+                      const due = Number(e.target.value);
+                      const paid = paymentModal.amountPaid;
+                      setPaymentModal({
+                        ...paymentModal,
+                        amountDue: due,
+                        status: paid >= due ? 'PAID' : paid > 0 ? 'PARTIAL' : 'PENDING',
+                      });
+                    }}
+                  />
+                </label>
+                <label className="field">
+                  <span>Amount Paid (₹)</span>
+                  <input
+                    type="number"
+                    min="0"
+                    required
+                    value={paymentModal.amountPaid}
+                    onChange={(e) => {
+                      const paid = Number(e.target.value);
+                      const due = paymentModal.amountDue;
+                      setPaymentModal({
+                        ...paymentModal,
+                        amountPaid: paid,
+                        status: paid >= due ? 'PAID' : paid > 0 ? 'PARTIAL' : 'PENDING',
+                      });
+                    }}
+                  />
+                </label>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <label className="field">
+                  <span>Payment Status</span>
+                  <select
+                    value={paymentModal.status}
+                    onChange={(e) => setPaymentModal({ ...paymentModal, status: e.target.value as FeeStatus })}
+                    className="styled-select"
+                  >
+                    <option value="PAID">PAID</option>
+                    <option value="PARTIAL">PARTIAL</option>
+                    <option value="PENDING">PENDING</option>
+                    <option value="OVERDUE">OVERDUE</option>
+                  </select>
+                </label>
+                <label className="field">
+                  <span>Payment Mode</span>
+                  <select
+                    value={paymentModal.paymentMode}
+                    onChange={(e) => setPaymentModal({ ...paymentModal, paymentMode: e.target.value })}
+                    className="styled-select"
+                  >
+                    <option value="UPI">UPI / GPay / PhonePe</option>
+                    <option value="CASH">Cash</option>
+                    <option value="BANK_TRANSFER">Bank Transfer / NEFT</option>
+                    <option value="CHEQUE">Cheque</option>
+                    <option value="OTHER">Other</option>
+                  </select>
+                </label>
+              </div>
+
+              <label className="field">
+                <span>Receipt Number</span>
+                <input
+                  type="text"
+                  value={paymentModal.receiptNo}
+                  onChange={(e) => setPaymentModal({ ...paymentModal, receiptNo: e.target.value })}
+                  placeholder="e.g. REC-2026-1042"
+                />
+              </label>
+
+              <label className="field">
+                <span>Notes / Transaction Ref</span>
+                <input
+                  type="text"
+                  value={paymentModal.notes}
+                  onChange={(e) => setPaymentModal({ ...paymentModal, notes: e.target.value })}
+                  placeholder="e.g. Paid by parent via UPI Txn #..."
+                />
+              </label>
+
+              <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '12px' }}>
+                <button type="button" className="button button-secondary" onClick={() => setPaymentModal(null)}>
+                  Cancel
+                </button>
+                <button type="submit" className="button button-primary" disabled={paymentSaving}>
+                  {paymentSaving ? 'Saving...' : 'Save Payment'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ==========================================
+// 3. STUDENT PROGRESS REPORT PANEL
+// ==========================================
+const CALENDAR_MONTHS_NAMES = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December'
+];
+
+function getAssessmentMonthName(dateStr: string): string {
+  if (!dateStr) return '';
+  if (typeof dateStr === 'string' && /^\d{4}-\d{2}-\d{2}/.test(dateStr)) {
+    const parts = dateStr.slice(0, 10).split('-');
+    const monthNum = parseInt(parts[1], 10) - 1;
+    return CALENDAR_MONTHS_NAMES[monthNum] || '';
+  }
+  const d = new Date(dateStr);
+  return !isNaN(d.getTime()) ? d.toLocaleString('en-US', { month: 'long' }) : '';
+}
+
+function StudentProgressReportPanel({
+  students,
+  selectedStudentId,
+  onSelectStudent,
+  setNotice,
+}: {
+  students: Student[];
+  selectedStudentId: string | null;
+  onSelectStudent: (id: string) => void;
+  setNotice: (text: string) => void;
+}) {
+  const initialStudent = students.find((s) => s.id === selectedStudentId) || students[0];
+  const [selectedGrade, setSelectedGrade] = useState<string>(() => initialStudent?.grade || 'Grade 5');
+
+  const [academicYear, setAcademicYear] = useState(() => getCurrentAcademicYear());
+  const [selectedMonth, setSelectedMonth] = useState<string>(() => {
+    const curMonth = new Date().toLocaleString('en-US', { month: 'long' });
+    return ACADEMIC_MONTHS.includes(curMonth) ? curMonth : 'April';
+  });
+
+  // Filter students by selectedGrade
+  const gradeStudents = students.filter((s) => (s.grade || 'Grade 6') === selectedGrade);
+
+  // Filter students enrolled on or before selectedMonth according to Date of Joining
+  const eligibleGradeStudents = gradeStudents.filter((st) => {
+    if (selectedMonth === 'ALL') return true;
+    const targetYM = getCalendarYearMonth(academicYear, selectedMonth).yearMonth;
+    const jDate = st.joiningDate
+      ? new Date(st.joiningDate).toISOString().slice(0, 10)
+      : (st.createdAt ? new Date(st.createdAt).toISOString().slice(0, 10) : '2000-01-01');
+    const jYM = jDate.slice(0, 7);
+    return targetYM >= jYM;
+  });
+
+  const currentStudentId = (eligibleGradeStudents.length > 0 && selectedStudentId && eligibleGradeStudents.some((s) => s.id === selectedStudentId))
+    ? selectedStudentId
+    : (eligibleGradeStudents[0]?.id ?? '');
+
+  // Keep selectedGrade in sync if parent passed a student from another grade
+  useEffect(() => {
+    if (selectedStudentId) {
+      const st = students.find((s) => s.id === selectedStudentId);
+      if (st?.grade && st.grade !== selectedGrade) {
+        setSelectedGrade(st.grade);
+      }
+    }
+  }, [selectedStudentId, students]);
+
+  // Keep parent's selectedStudentId in sync when gradeStudents switch
+  useEffect(() => {
+    if (currentStudentId !== selectedStudentId) {
+      onSelectStudent(currentStudentId);
+    }
+  }, [currentStudentId, selectedStudentId]);
+
+  const handleGradeChange = (newGrade: string) => {
+    setSelectedGrade(newGrade);
+    const inGrade = students
+      .filter((s) => (s.grade || 'Grade 6') === newGrade)
+      .filter((st) => {
+        if (selectedMonth === 'ALL') return true;
+        const targetYM = getCalendarYearMonth(academicYear, selectedMonth).yearMonth;
+        const jDate = st.joiningDate
+          ? new Date(st.joiningDate).toISOString().slice(0, 10)
+          : (st.createdAt ? new Date(st.createdAt).toISOString().slice(0, 10) : '2000-01-01');
+        return targetYM >= jDate.slice(0, 7);
+      });
+    if (inGrade.length > 0) {
+      onSelectStudent(inGrade[0].id);
+    } else {
+      onSelectStudent('');
+      setReport(null);
+    }
+  };
+
+  const handleMonthChange = (newMonth: string) => {
+    setSelectedMonth(newMonth);
+    if (newMonth !== 'ALL') {
+      const targetYM = getCalendarYearMonth(academicYear, newMonth).yearMonth;
+      const valid = gradeStudents.filter((st) => {
+        const jDate = st.joiningDate
+          ? new Date(st.joiningDate).toISOString().slice(0, 10)
+          : (st.createdAt ? new Date(st.createdAt).toISOString().slice(0, 10) : '2000-01-01');
+        return targetYM >= jDate.slice(0, 7);
+      });
+      if (currentStudentId && !valid.some((st) => st.id === currentStudentId)) {
+        if (valid.length > 0) {
+          onSelectStudent(valid[0].id);
+        } else {
+          onSelectStudent('');
+          setReport(null);
+        }
+      }
+    }
+  };
+  const [report, setReport] = useState<StudentProgressReportData | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [typeFilter, setTypeFilter] = useState<'ALL' | 'QUIZ' | 'QUESTION_PAPER'>('ALL');
+
+  // Manual / Offline Score Entry Modal
+  const [showScoreModal, setShowScoreModal] = useState(false);
+  const [scoreDraft, setScoreDraft] = useState<{
+    title: string;
+    itemType: 'QUIZ' | 'QUESTION_PAPER';
+    score: number;
+    totalMarks: number;
+    subject: string;
+    grade: string;
+    completedAt: string;
+    remarks: string;
+  }>({
+    title: '',
+    itemType: 'QUIZ',
+    score: 20,
+    totalMarks: 25,
+    subject: 'Mathematics',
+    grade: 'A',
+    completedAt: new Date().toISOString().slice(0, 10),
+    remarks: 'Offline Class Assessment',
+  });
+  const [scoreSaving, setScoreSaving] = useState(false);
+
+  const loadProgressReport = async (studentId: string, year: string) => {
+    if (!studentId) {
+      setReport(null);
+      return;
+    }
+    setLoading(true);
+    try {
+      const data = await api<StudentProgressReportData>(`/api/students/${studentId}/progress-report?academicYear=${year}`);
+      setReport(data);
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : 'Failed to load progress report.');
+      setReport(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (currentStudentId) {
+      void loadProgressReport(currentStudentId, academicYear);
+    } else {
+      setReport(null);
+    }
+  }, [currentStudentId, academicYear]);
+
+  const handleSaveScoreRecord = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentStudentId) return;
+    setScoreSaving(true);
+    try {
+      await api(`/api/students/${currentStudentId}/score-records`, {
+        method: 'POST',
+        body: JSON.stringify({
+          ...scoreDraft,
+          academicYear,
+        }),
+      });
+      setNotice('Score entry added to student academic record.');
+      setShowScoreModal(false);
+      setScoreDraft({
+        title: '',
+        itemType: 'QUIZ',
+        score: 20,
+        totalMarks: 25,
+        subject: 'Mathematics',
+        grade: 'A',
+        completedAt: new Date().toISOString().slice(0, 10),
+        remarks: 'Offline Assessment',
+      });
+      await loadProgressReport(currentStudentId, academicYear);
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : 'Failed to record score.');
+    } finally {
+      setScoreSaving(false);
+    }
+  };
+
+  // Printable Report Card Generator
+  const printOfficialReportCard = () => {
+    if (!report) return;
+    const student = report.student;
+    const scores = Array.isArray(report.scores) ? report.scores : [];
+    const stats = report.statistics;
+    const att = report.attendance;
+    const fees = report.fees;
+
+    const scoresToPrint = selectedMonth === 'ALL'
+      ? scores
+      : scores.filter((s) => {
+          const m = getAssessmentMonthName(s.completedAt);
+          return m.toLowerCase() === selectedMonth.toLowerCase();
+        });
+
+    const scoresRows = scoresToPrint
+      .map(
+        (s, idx) => `
+        <tr>
+          <td style="text-align: center;">${idx + 1}</td>
+          <td>${new Date(s.completedAt).toLocaleDateString()}</td>
+          <td><strong>${s.title}</strong> ${s.isSourceDeleted ? '<span style="font-size:10px; color:#d97706; border:1px solid #fde68a; background:#fef3c7; padding:1px 4px; border-radius:4px;">Preserved</span>' : ''}</td>
+          <td>${s.itemType === 'QUIZ' ? 'Quiz / Test' : 'Question Paper'}</td>
+          <td>${s.subject || 'Mathematics'}</td>
+          <td style="text-align: center;">${s.totalMarks}</td>
+          <td style="text-align: center; font-weight: bold;">${s.score}</td>
+          <td style="text-align: center; font-weight: bold;">${s.percentage}%</td>
+          <td style="text-align: center; font-weight: bold; color: #0284c7;">${s.grade}</td>
+          <td>${s.remarks || '—'}</td>
+        </tr>`
+      )
+      .join('');
+
+    const html = `
+      <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 900px; margin: 0 auto; color: #0f172a;">
+        <div style="border-bottom: 3px double #0284c7; padding-bottom: 16px; margin-bottom: 20px; text-align: center;">
+          <h1 style="margin: 0; font-size: 26px; color: #0369a1; text-transform: uppercase; letter-spacing: 1px;">Maths Mentor Academy</h1>
+          <p style="margin: 4px 0 0 0; font-size: 14px; color: #64748b;">CBSE & Concept Coaching Centre · Learn · Practise · Excel</p>
+          <h2 style="margin: 12px 0 0 0; font-size: 18px; color: #0f172a; text-transform: uppercase; letter-spacing: 0.5px;">
+            Student Academic Progress Report (${report.academicYear}${selectedMonth !== 'ALL' ? ` · ${selectedMonth}` : ''})
+          </h2>
+          <p style="margin: 2px 0 0 0; font-size: 13px; color: #475569;">Annual Academic Session: April 1 to March 31</p>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 20px; margin-bottom: 20px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 18px;">
+          <div>
+            <p style="margin: 0 0 6px 0;"><strong>Student Name:</strong> ${student.name}</p>
+            <p style="margin: 0 0 6px 0;"><strong>Class / Grade:</strong> ${student.grade || 'Grade 6'}</p>
+            <p style="margin: 0 0 6px 0;"><strong>Date of Joining:</strong> ${report.student?.joiningDate ? new Date(report.student.joiningDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : 'N/A'}</p>
+            <p style="margin: 0;"><strong>Academic Session:</strong> April 1, ${report.academicYear.split('-')[0]} – March 31, ${report.academicYear.split('-')[1]}</p>
+          </div>
+          <div style="text-align: right;">
+            <p style="margin: 0 0 6px 0;"><strong>Date of Report:</strong> ${new Date().toLocaleDateString()}</p>
+            <p style="margin: 0 0 6px 0;"><strong>Overall Grade:</strong> <span style="font-size: 18px; font-weight: bold; color: #0284c7;">${stats.overallGrade}</span></p>
+            <p style="margin: 0;"><strong>Attendance Rate:</strong> ${att.rate}% (${att.present}/${att.totalDays} Days)</p>
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 24px; text-align: center;">
+          <div style="border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px; background: #fff;">
+            <span style="font-size: 11px; text-transform: uppercase; color: #64748b; font-weight: 600;">Average Score</span>
+            <div style="font-size: 20px; font-weight: bold; color: #0369a1; margin-top: 4px;">${stats.averagePercentage}%</div>
+          </div>
+          <div style="border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px; background: #fff;">
+            <span style="font-size: 11px; text-transform: uppercase; color: #64748b; font-weight: 600;">Assessments Taken</span>
+            <div style="font-size: 20px; font-weight: bold; color: #0f172a; margin-top: 4px;">${stats.totalAssessments} Tests</div>
+          </div>
+          <div style="border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px; background: #fff;">
+            <span style="font-size: 11px; text-transform: uppercase; color: #64748b; font-weight: 600;">Highest / Lowest</span>
+            <div style="font-size: 16px; font-weight: bold; color: #059669; margin-top: 6px;">${stats.highestPercentage}% / ${stats.lowestPercentage}%</div>
+          </div>
+          <div style="border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px; background: #fff;">
+            <span style="font-size: 11px; text-transform: uppercase; color: #64748b; font-weight: 600;">Fee Clearance</span>
+            <div style="font-size: 16px; font-weight: bold; color: ${fees.status === 'PAID' ? '#059669' : '#e11d48'}; margin-top: 6px;">${fees.status === 'PAID' ? 'Cleared' : `₹${fees.totalPending} Due`}</div>
+          </div>
+        </div>
+
+        <h3 style="font-size: 16px; color: #0f172a; margin-bottom: 8px; border-bottom: 2px solid #e2e8f0; padding-bottom: 6px;">
+          Academic Score History (Quizzes & Question Papers)
+        </h3>
+        <table style="width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 30px;">
+          <thead>
+            <tr style="background: #f1f5f9; color: #334155; border-bottom: 2px solid #cbd5e1;">
+              <th style="padding: 8px; text-align: center;">#</th>
+              <th style="padding: 8px; text-align: left;">Date</th>
+              <th style="padding: 8px; text-align: left;">Assessment Title</th>
+              <th style="padding: 8px; text-align: left;">Type</th>
+              <th style="padding: 8px; text-align: left;">Subject</th>
+              <th style="padding: 8px; text-align: center;">Max</th>
+              <th style="padding: 8px; text-align: center;">Scored</th>
+              <th style="padding: 8px; text-align: center;">%</th>
+              <th style="padding: 8px; text-align: center;">Grade</th>
+              <th style="padding: 8px; text-align: left;">Remarks</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${scoresRows || '<tr><td colspan="10" style="text-align:center; padding:16px; color:#64748b;">No scores recorded for this session.</td></tr>'}
+          </tbody>
+        </table>
+
+        <div style="margin-top: 40px; display: flex; justify-content: space-between; padding-top: 20px; border-top: 1px solid #cbd5e1;">
+          <div style="text-align: center; width: 200px;">
+            <div style="border-bottom: 1px solid #475569; margin-bottom: 6px; height: 30px;"></div>
+            <span style="font-size: 12px; font-weight: 600; color: #475569;">Teacher's Signature</span>
+          </div>
+          <div style="text-align: center; width: 200px;">
+            <div style="border-bottom: 1px solid #475569; margin-bottom: 6px; height: 30px;"></div>
+            <span style="font-size: 12px; font-weight: 600; color: #475569;">Principal / Centre Head</span>
+          </div>
+        </div>
+
+        <div style="margin-top: 30px; font-size: 10px; color: #94a3b8; text-align: center;">
+          * Grading Scale: A+ (90-100%), A (80-89%), B (70-79%), C (60-69%), D (50-59%), F (Below 50%).
+          Permanent academic archive record.
+        </div>
+      </div>
+    `;
+
+    printHtmlContent(html);
+  };
+
+  const stats = report?.statistics || (report as any)?.summary || {
+    totalAssessments: 0,
+    quizzesCount: 0,
+    questionPapersCount: 0,
+    averagePercentage: 0,
+    highestPercentage: 0,
+    lowestPercentage: 0,
+    overallGrade: '—',
+    deletedItemsPreservedCount: 0,
+  };
+  const att = report?.attendance || {
+    present: 0,
+    absent: 0,
+    late: 0,
+    excused: 0,
+    totalDays: 0,
+    rate: 100,
+  };
+  const fees = report?.fees || {
+    totalDue: 0,
+    totalPaid: 0,
+    totalPending: 0,
+    pendingMonths: 0,
+    status: 'PAID' as FeeStatus,
+  };
+  const scores = Array.isArray(report?.scores) ? report.scores : [];
+
+  // Filter by selected month first
+  const monthScores = (selectedMonth === 'ALL'
+    ? scores
+    : scores.filter((s) => {
+        const m = getAssessmentMonthName(s.completedAt);
+        return m.toLowerCase() === selectedMonth.toLowerCase();
+      })
+  );
+
+  // Then filter by type (ALL, QUIZ, QUESTION_PAPER)
+  const filteredScores = monthScores.filter((s) => {
+    if (typeFilter === 'QUIZ') return s.itemType === 'QUIZ';
+    if (typeFilter === 'QUESTION_PAPER') return s.itemType === 'QUESTION_PAPER';
+    return true;
+  });
+
+  const quizzesInMonthCount = monthScores.filter((s) => s.itemType === 'QUIZ').length;
+  const papersInMonthCount = monthScores.filter((s) => s.itemType === 'QUESTION_PAPER').length;
+
+  return (
+    <div className="progress-report-panel">
+      {/* Top Header Card */}
+      <div className="report-header-card">
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '14px', marginBottom: '16px' }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span className="overline" style={{ margin: 0 }}>Academic Year Report</span>
+              <span className="academic-session-pill">Session: April to March</span>
+            </div>
+            <h2 style={{ margin: '4px 0 0 0', fontSize: '22px', fontWeight: 800, color: '#0f172a' }}>
+              Student Progress & Assessment History
+            </h2>
+          </div>
+        </div>
+
+        {/* Toolbar: All dropdowns and buttons in the exact same line */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          flexWrap: 'nowrap',
+          overflowX: 'auto',
+          paddingBottom: '4px',
+          marginBottom: '14px',
+        }}>
+          {/* Grade Selector Dropdown */}
+          <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '13px', fontWeight: 700, color: '#334155', flexShrink: 0 }}>
+            <span>Grade:</span>
+            <select
+              value={selectedGrade}
+              onChange={(e) => handleGradeChange(e.target.value)}
+              className="styled-select"
+              style={{ minWidth: '95px', padding: '6px 10px', fontSize: '13px' }}
+            >
+              {ALL_STUDENT_GRADES.map((g) => {
+                const count = students.filter((s) => (s.grade || 'Grade 6') === g).length;
+                return (
+                  <option key={g} value={g}>
+                    {g}{count > 0 ? ` (${count})` : ''}
+                  </option>
+                );
+              })}
+            </select>
+          </label>
+
+          {/* Student Selector (Only students of selected Grade, without grade in brackets) */}
+          <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '13px', fontWeight: 700, color: '#334155', flexShrink: 0 }}>
+            <span>Student:</span>
+            <select
+              value={currentStudentId}
+              onChange={(e) => onSelectStudent(e.target.value)}
+              className="styled-select"
+              style={{ minWidth: '120px', maxWidth: '160px', padding: '6px 10px', fontSize: '13px' }}
+              disabled={eligibleGradeStudents.length === 0}
+            >
+              {eligibleGradeStudents.length === 0 ? (
+                <option value="">No students in {selectedGrade}</option>
+              ) : (
+                eligibleGradeStudents.map((st) => (
+                  <option key={st.id} value={st.id}>{st.name}</option>
+                ))
+              )}
+            </select>
+          </label>
+
+          {/* Academic Year Selector */}
+          <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '13px', fontWeight: 700, color: '#334155', flexShrink: 0 }}>
+            <span>Year:</span>
+            <select
+              value={academicYear}
+              onChange={(e) => setAcademicYear(e.target.value)}
+              className="styled-select"
+              style={{ minWidth: '105px', padding: '6px 10px', fontSize: '13px' }}
+            >
+              {['2026-2027', '2025-2026', '2024-2025', '2027-2028'].map((yr) => (
+                <option key={yr} value={yr}>{yr} (Apr–Mar)</option>
+              ))}
+            </select>
+          </label>
+
+          {/* Month Selector Dropdown */}
+          <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '13px', fontWeight: 700, color: '#334155', flexShrink: 0 }}>
+            <span>Month:</span>
+            <select
+              value={selectedMonth}
+              onChange={(e) => handleMonthChange(e.target.value)}
+              className="styled-select"
+              style={{ minWidth: '110px', padding: '6px 10px', fontSize: '13px' }}
+            >
+              <option value="ALL">All Months</option>
+              {ACADEMIC_MONTHS.map((m) => (
+                <option key={m} value={m}>{m}</option>
+              ))}
+            </select>
+          </label>
+
+          <button
+            type="button"
+            className="button button-secondary"
+            style={{ fontSize: '13px', padding: '6px 12px', gap: '6px', whiteSpace: 'nowrap', flexShrink: 0 }}
+            onClick={printOfficialReportCard}
+            disabled={eligibleGradeStudents.length === 0 || !currentStudentId || !report || filteredScores.length === 0}
+          >
+            <Printer size={15} /> Print Report Card
+          </button>
+
+          <button
+            type="button"
+            className="button button-primary"
+            style={{ fontSize: '13px', padding: '6px 14px', gap: '6px', whiteSpace: 'nowrap', flexShrink: 0 }}
+            onClick={() => setShowScoreModal(true)}
+            disabled={eligibleGradeStudents.length === 0 || !currentStudentId}
+          >
+            <Plus size={15} /> Add Offline Test
+          </button>
+        </div>
+
+        {/* Persistence Guarantee Banner */}
+        <div className="persistence-notice-banner">
+          <ShieldCheck size={20} color="#0284c7" style={{ flexShrink: 0 }} />
+          <div>
+            <strong>Permanent Score Preservation Guarantee:</strong> All quiz and question paper scores of this academic year (April to March) are permanently stored. Even if you delete a quiz or question paper later, the student&apos;s score, marks, percentage, and date will remain intact here.
+            {gradeStudents.length > 0 && report && stats.deletedItemsPreservedCount > 0 && (
+              <span style={{ display: 'block', marginTop: '4px', color: '#b45309', fontWeight: 600 }}>
+                📌 {stats.deletedItemsPreservedCount} score record(s) from deleted assessments are actively preserved and displayed below.
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {loading ? (
+        <div style={{ padding: '60px', textAlign: 'center', color: '#64748b' }}>
+          <RefreshCw size={26} className="spin" style={{ marginBottom: '10px' }} />
+          <div>Loading student academic progress report...</div>
+        </div>
+      ) : (!currentStudentId || eligibleGradeStudents.length === 0 || !report || (report.student?.grade && report.student.grade !== selectedGrade)) ? (
+        <div style={{
+          padding: '48px 24px',
+          textAlign: 'center',
+          background: '#fff',
+          borderRadius: '16px',
+          border: '1px dashed #cbd5e1',
+          margin: '20px 0',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
+        }}>
+          <div style={{
+            width: '56px',
+            height: '56px',
+            borderRadius: '50%',
+            background: '#f1f5f9',
+            color: '#64748b',
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            marginBottom: '14px'
+          }}>
+            <Award size={28} />
+          </div>
+          <h3 style={{ margin: '0 0 8px 0', fontSize: '18px', fontWeight: 700, color: '#0f172a' }}>
+            {gradeStudents.length === 0
+              ? `No Students Enrolled in ${selectedGrade}`
+              : eligibleGradeStudents.length === 0
+              ? `No Students Enrolled in ${selectedGrade} for ${selectedMonth}`
+              : 'No Student Selected'}
+          </h3>
+          <p style={{ margin: 0, fontSize: '14px', color: '#64748b', maxWidth: '440px', marginInline: 'auto' }}>
+            {gradeStudents.length === 0
+              ? `There are no students enrolled in ${selectedGrade}. Please select another grade from the Grade dropdown above.`
+              : eligibleGradeStudents.length === 0
+              ? `No students in ${selectedGrade} had joined on or before ${selectedMonth} (${academicYear}). Please select another month or grade.`
+              : 'Please select a student from the dropdown above to view their academic summary, assessment scores, and attendance record.'}
+          </p>
+        </div>
+      ) : (
+        <>
+          {/* Student Profile & KPI Performance Card */}
+          <div className="report-profile-card">
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                <div className="avatar avatar-large avatar-color-1">
+                  {(report.student?.name || 'S').slice(0, 1).toUpperCase()}
+                </div>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <h3 style={{ margin: 0, fontSize: '24px', fontWeight: 800, color: '#0f172a' }}>
+                      {report.student?.name || 'Student'}
+                    </h3>
+                    <span className="grade-badge" style={{ fontSize: '12px' }}>{report.student?.grade || 'Grade 6'}</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '6px', fontSize: '13px', color: '#64748b', flexWrap: 'wrap' }}>
+                    <span>Academic Session: <strong>April 1, {academicYear.split('-')[0]} – March 31, {academicYear.split('-')[1]}</strong></span>
+                    <span>·</span>
+                    <span>
+                      Date of Joining: <strong>{report.student?.joiningDate ? new Date(report.student.joiningDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}</strong>
+                    </span>
+                    <span>·</span>
+                    <span style={{ color: report.student?.active ? '#059669' : '#dc2626' }}>
+                      {report.student?.active ? '● Active Student' : '● Inactive'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Big Overall Grade Badge */}
+              <div className="overall-grade-pill">
+                <span style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 700, color: '#0369a1' }}>Overall Grade</span>
+                <div style={{ fontSize: '32px', fontWeight: 900, color: '#0284c7', lineHeight: 1 }}>{stats.overallGrade || '—'}</div>
+                <span style={{ fontSize: '11px', fontWeight: 600, color: '#64748b' }}>Avg {stats.averagePercentage || 0}%</span>
+              </div>
+            </div>
+
+            {/* Performance KPI Cards */}
+            <div className="report-kpi-grid">
+              <div className="report-kpi-item">
+                <span className="rep-kpi-icon"><TrendingUp size={16} /></span>
+                <div>
+                  <span className="rep-kpi-title">Average Score</span>
+                  <div className="rep-kpi-val">{stats.averagePercentage || 0}%</div>
+                  <span className="rep-kpi-sub">High: {stats.highestPercentage || 0}% · Low: {stats.lowestPercentage || 0}%</span>
+                </div>
+              </div>
+
+              <div className="report-kpi-item">
+                <span className="rep-kpi-icon"><Award size={16} /></span>
+                <div>
+                  <span className="rep-kpi-title">Assessments</span>
+                  <div className="rep-kpi-val">{stats.totalAssessments || 0} Total</div>
+                  <span className="rep-kpi-sub">{stats.quizzesCount || 0} Quizzes · {stats.questionPapersCount || 0} Papers</span>
+                </div>
+              </div>
+
+              <div className="report-kpi-item">
+                <span className="rep-kpi-icon"><CalendarCheck size={16} /></span>
+                <div>
+                  <span className="rep-kpi-title">Session Attendance</span>
+                  <div className="rep-kpi-val" style={{ color: (att.rate ?? 100) >= 75 ? '#059669' : '#e11d48' }}>
+                    {att.rate ?? 100}%
+                  </div>
+                  <span className="rep-kpi-sub">{att.present ?? 0} / {att.totalDays ?? 0} Days Present</span>
+                </div>
+              </div>
+
+              <div className="report-kpi-item">
+                <span className="rep-kpi-icon"><CreditCard size={16} /></span>
+                <div>
+                  <span className="rep-kpi-title">Fee Clearance</span>
+                  <div className="rep-kpi-val" style={{ color: fees.status === 'PAID' ? '#059669' : '#e11d48' }}>
+                    {fees.status === 'PAID' ? 'Fully Cleared' : `₹${fees.totalPending || 0} Due`}
+                  </div>
+                  <span className="rep-kpi-sub">
+                    {fees.status === 'PAID' ? 'All 12 Months Paid' : `${fees.pendingMonths || 0} Months Pending`}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Assessment Score History Section */}
+          <div className="score-history-card">
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px', marginBottom: '10px' }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                  <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 800, color: '#0f172a' }}>
+                    Complete Assessment & Test Score History
+                  </h3>
+                  <span
+                    className="academic-session-pill"
+                    style={{
+                      background: selectedMonth === 'ALL' ? '#f1f5f9' : '#e0f2fe',
+                      color: selectedMonth === 'ALL' ? '#475569' : '#0369a1',
+                      borderColor: selectedMonth === 'ALL' ? '#cbd5e1' : '#bae6fd',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                    }}
+                  >
+                    {selectedMonth === 'ALL' ? 'All Months (Apr–Mar)' : `Month: ${selectedMonth}`}
+                  </span>
+                </div>
+                <p style={{ margin: '2px 0 0 0', fontSize: '13px', color: '#64748b' }}>
+                  {selectedMonth === 'ALL'
+                    ? `Showing all quizzes, question papers & offline tests for session ${academicYear} (April to March)`
+                    : `Showing quizzes, question papers & offline tests completed in ${selectedMonth} (${academicYear})`}
+                </p>
+              </div>
+
+              {/* Assessment Type Filter */}
+              <div className="segmented-control">
+                <button
+                  type="button"
+                  className={`segmented-btn ${typeFilter === 'ALL' ? 'active' : ''}`}
+                  onClick={() => setTypeFilter('ALL')}
+                >
+                  All ({monthScores.length})
+                </button>
+                <button
+                  type="button"
+                  className={`segmented-btn ${typeFilter === 'QUIZ' ? 'active' : ''}`}
+                  onClick={() => setTypeFilter('QUIZ')}
+                >
+                  Quizzes ({quizzesInMonthCount})
+                </button>
+                <button
+                  type="button"
+                  className={`segmented-btn ${typeFilter === 'QUESTION_PAPER' ? 'active' : ''}`}
+                  onClick={() => setTypeFilter('QUESTION_PAPER')}
+                >
+                  Question Papers ({papersInMonthCount})
+                </button>
+              </div>
+            </div>
+
+            {filteredScores.length === 0 ? (
+              <div style={{ padding: '16px 20px 8px', textAlign: 'center', color: '#64748b' }}>
+                <p style={{ margin: '0 0 4px 0', fontSize: '14px', fontWeight: 600, color: '#334155' }}>
+                  No score records found for {selectedMonth === 'ALL' ? `session ${academicYear}` : `${selectedMonth} (${academicYear})`}
+                  {typeFilter !== 'ALL' ? ` under ${typeFilter === 'QUIZ' ? 'Quizzes' : 'Question Papers'}` : ''}.
+                </p>
+                {scores.length > 0 && selectedMonth !== 'ALL' ? (
+                  <p style={{ margin: 0, fontSize: '13px', color: '#64748b' }}>
+                    There are <strong>{scores.length}</strong> assessment records in other months of this session.{' '}
+                    <button
+                      type="button"
+                      className="button button-quiet"
+                      style={{
+                        display: 'inline-flex',
+                        padding: '2px 8px',
+                        fontSize: '12px',
+                        fontWeight: 700,
+                        color: '#0284c7',
+                        textDecoration: 'underline',
+                        cursor: 'pointer',
+                      }}
+                      onClick={() => setSelectedMonth('ALL')}
+                    >
+                      View All Months
+                    </button>
+                  </p>
+                ) : (
+                  <p style={{ margin: 0, fontSize: '12px', color: '#94a3b8' }}>
+                    Record marks using &ldquo;Add Offline Test&rdquo; or complete quizzes in Student Space.
+                  </p>
+                )}
+              </div>
+            ) : (
+              <div className="scores-table-container">
+                <table className="scores-table">
+                  <thead>
+                    <tr>
+                      <th style={{ width: '40px' }}>#</th>
+                      <th>Assessment Title</th>
+                      <th>Type</th>
+                      <th>Date Completed</th>
+                      <th>Marks Obtained</th>
+                      <th>Percentage</th>
+                      <th>Grade</th>
+                      <th>Status / Record Source</th>
+                      <th>Teacher Remarks</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredScores.map((score, idx) => (
+                      <tr key={score.id}>
+                        <td style={{ color: '#94a3b8', fontWeight: 600 }}>{idx + 1}</td>
+                        <td>
+                          <strong style={{ color: '#0f172a', fontSize: '14px' }}>{score.title}</strong>
+                          <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>
+                            {score.subject || 'Mathematics'}
+                          </div>
+                        </td>
+                        <td>
+                          <span className={`score-type-pill pill-${score.itemType.toLowerCase()}`}>
+                            {score.itemType === 'QUIZ' ? 'Quiz / Test' : 'Question Paper'}
+                          </span>
+                        </td>
+                        <td style={{ fontSize: '13px', color: '#475569' }}>
+                          {new Date(score.completedAt).toLocaleDateString(undefined, {
+                            year: 'numeric',
+                            month: 'short',
+                            day: 'numeric',
+                          })}
+                        </td>
+                        <td style={{ fontWeight: 800, fontSize: '15px' }}>
+                          <span style={{ color: '#0f172a' }}>{score.score}</span>
+                          <span style={{ color: '#94a3b8', fontSize: '13px' }}> / {score.totalMarks}</span>
+                        </td>
+                        <td>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <div className="score-pct-bar">
+                              <div
+                                className="score-pct-fill"
+                                style={{
+                                  width: `${Math.min(100, score.percentage)}%`,
+                                  background: score.percentage >= 80 ? '#059669' : score.percentage >= 60 ? '#0284c7' : '#e11d48',
+                                }}
+                              />
+                            </div>
+                            <strong style={{ fontSize: '13px', color: '#0f172a', width: '38px' }}>
+                              {score.percentage}%
+                            </strong>
+                          </div>
+                        </td>
+                        <td>
+                          <span className={`letter-grade-badge grade-${score.grade.charAt(0).toLowerCase()}`}>
+                            {score.grade}
+                          </span>
+                        </td>
+                        <td>
+                          {score.isSourceDeleted ? (
+                            <span className="source-preserved-badge" title="Parent quiz/paper was deleted, but student score is preserved!">
+                              <ShieldCheck size={12} /> Score Preserved
+                            </span>
+                          ) : score.sourceStatus === 'ARCHIVED' ? (
+                            <span className="source-archived-badge">
+                              <Archive size={12} /> Archived
+                            </span>
+                          ) : (
+                            <span className="source-active-badge">
+                              <CheckCircle2 size={12} /> Active
+                            </span>
+                          )}
+                        </td>
+                        <td style={{ fontSize: '13px', color: '#64748b' }}>
+                          {score.remarks || '—'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </>
+      )}
+
+      {/* Manual / Offline Test Score Entry Modal */}
+      {showScoreModal && (
+        <div className="custom-modal-backdrop">
+          <div className="custom-modal-card" style={{ maxWidth: '500px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
+              <div>
+                <span className="overline" style={{ margin: 0 }}>Manual Score Record</span>
+                <h3 style={{ margin: '4px 0 0 0', fontSize: '18px', fontWeight: 800, color: '#0f172a' }}>
+                  Add Offline Assessment Score
+                </h3>
+              </div>
+              <button type="button" className="icon-button quiet" onClick={() => setShowScoreModal(false)}>
+                <X size={16} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveScoreRecord} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <label className="field">
+                <span>Assessment Title</span>
+                <input
+                  required
+                  value={scoreDraft.title}
+                  onChange={(e) => setScoreDraft({ ...scoreDraft, title: e.target.value })}
+                  placeholder="e.g. Unit 3 Test: Fractions & Decimals"
+                />
+              </label>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <label className="field">
+                  <span>Assessment Type</span>
+                  <select
+                    value={scoreDraft.itemType}
+                    onChange={(e) => setScoreDraft({ ...scoreDraft, itemType: e.target.value as 'QUIZ' | 'QUESTION_PAPER' })}
+                    className="styled-select"
+                  >
+                    <option value="QUIZ">Quiz / Class Test</option>
+                    <option value="QUESTION_PAPER">Question Paper / Exam</option>
+                  </select>
+                </label>
+                <label className="field">
+                  <span>Subject</span>
+                  <input
+                    value={scoreDraft.subject}
+                    onChange={(e) => setScoreDraft({ ...scoreDraft, subject: e.target.value })}
+                    placeholder="Mathematics"
+                  />
+                </label>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
+                <label className="field">
+                  <span>Marks Obtained</span>
+                  <input
+                    type="number"
+                    min="0"
+                    required
+                    value={scoreDraft.score}
+                    onChange={(e) => setScoreDraft({ ...scoreDraft, score: Number(e.target.value) })}
+                  />
+                </label>
+                <label className="field">
+                  <span>Max Marks</span>
+                  <input
+                    type="number"
+                    min="1"
+                    required
+                    value={scoreDraft.totalMarks}
+                    onChange={(e) => setScoreDraft({ ...scoreDraft, totalMarks: Number(e.target.value) })}
+                  />
+                </label>
+                <label className="field">
+                  <span>Date Completed</span>
+                  <input
+                    type="date"
+                    required
+                    value={scoreDraft.completedAt}
+                    onChange={(e) => setScoreDraft({ ...scoreDraft, completedAt: e.target.value })}
+                  />
+                </label>
+              </div>
+
+              <label className="field">
+                <span>Teacher Remarks / Notes</span>
+                <input
+                  value={scoreDraft.remarks}
+                  onChange={(e) => setScoreDraft({ ...scoreDraft, remarks: e.target.value })}
+                  placeholder="e.g. Good problem solving on word problems"
+                />
+              </label>
+
+              <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '12px' }}>
+                <button type="button" className="button button-secondary" onClick={() => setShowScoreModal(false)}>
+                  Cancel
+                </button>
+                <button type="submit" className="button button-primary" disabled={scoreSaving}>
+                  {scoreSaving ? 'Saving...' : 'Add Score to Record'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ==========================================
+// 4. MAIN STUDENT MANAGER
+// ==========================================
+function StudentManager({
+  students,
+  refresh,
+  setNotice,
+  onBackToClassroom,
+}: {
+  students: Student[];
+  refresh: () => Promise<void>;
+  setNotice: (text: string) => void;
+  onBackToClassroom?: () => void;
+}) {
+  const [subTab, setSubTab] = useState<'roster' | 'attendance' | 'fees' | 'progress'>('roster');
+  const [selectedStudentForReport, setSelectedStudentForReport] = useState<string | null>(null);
+  const [selectedStudentForFees, setSelectedStudentForFees] = useState<string | null>(null);
+
+  // Roster Tab States
   const [name, setName] = useState('');
   const [grade, setGrade] = useState('Grade 6');
+  const [joiningDate, setJoiningDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [filterGrade, setFilterGrade] = useState('ALL');
-  const [editingStudent, setEditingStudent] = useState<{ id: string; name: string; grade: string } | null>(null);
+  const [editingStudent, setEditingStudent] = useState<{ id: string; name: string; grade: string; joiningDate: string } | null>(null);
   const [editingSaving, setEditingSaving] = useState(false);
   const [createdPasskey, setCreatedPasskey] = useState('');
   const [createdStudentName, setCreatedStudentName] = useState('');
@@ -1936,33 +4964,50 @@ function StudentManager({ students, refresh, setNotice, onBackToClassroom }: { s
   const [creating, setCreating] = useState(false);
 
   async function addStudent(event: React.FormEvent) {
-    event.preventDefault(); setCreating(true);
+    event.preventDefault();
+    setCreating(true);
     try {
-      const data = await api<{ student: { name: string; grade?: string }; passkey: string }>('/api/students', { method: 'POST', body: JSON.stringify({ name, grade }) });
+      const data = await api<{ student: { name: string; grade?: string; joiningDate?: string }; passkey: string }>('/api/students', {
+        method: 'POST',
+        body: JSON.stringify({ name, grade, joiningDate }),
+      });
       setCreatedPasskey(data.passkey);
       setCreatedStudentName(data.student.name || name);
       setName('');
       await refresh();
-    } catch (cause) { setNotice(cause instanceof Error ? cause.message : 'Unable to add student.'); }
-    finally { setCreating(false); }
+    } catch (cause) {
+      setNotice(cause instanceof Error ? cause.message : 'Unable to add student.');
+    } finally {
+      setCreating(false);
+    }
   }
 
   async function updateStudent(student: Student, action: 'disable' | 'enable' | 'reset') {
     try {
-      const data = await api<{ passkey?: string }>(`/api/students/${student.id}`, { method: 'PATCH', body: JSON.stringify(action === 'reset' ? { resetPasskey: true } : { active: action === 'enable' }) });
+      const data = await api<{ passkey?: string }>(`/api/students/${student.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(action === 'reset' ? { resetPasskey: true } : { active: action === 'enable' }),
+      });
       if (data.passkey) {
         setCreatedPasskey(data.passkey);
         setCreatedStudentName(student.name);
       }
       setNotice(action === 'reset' ? `New 6-character passkey created for ${student.name}.` : `Student ${action === 'disable' ? 'disabled' : 'enabled'}.`);
       await refresh();
-    } catch (cause) { setNotice(cause instanceof Error ? cause.message : 'Unable to update student.'); }
+    } catch (cause) {
+      setNotice(cause instanceof Error ? cause.message : 'Unable to update student.');
+    }
   }
 
   async function removeStudent(student: Student) {
-    if (!window.confirm(`Remove ${student.name} and their attempt history?`)) return;
-    try { await api(`/api/students/${student.id}`, { method: 'DELETE' }); await refresh(); setNotice('Student removed.'); }
-    catch (cause) { setNotice(cause instanceof Error ? cause.message : 'Unable to remove student.'); }
+    if (!window.confirm(`Remove ${student.name} and their attempt history? (Note: Historical April–March scores are safely preserved in student score records)`)) return;
+    try {
+      await api(`/api/students/${student.id}`, { method: 'DELETE' });
+      await refresh();
+      setNotice('Student removed.');
+    } catch (cause) {
+      setNotice(cause instanceof Error ? cause.message : 'Unable to remove student.');
+    }
   }
 
   async function togglePasskeyVisibility(student: Student) {
@@ -1978,150 +5023,291 @@ function StudentManager({ students, refresh, setNotice, onBackToClassroom }: { s
 
   return (
     <section className="view-enter">
+      {/* Top Heading */}
       <div className="page-heading">
         <div>
-          <span className="overline">Your people</span>
+          <span className="overline">Student Management</span>
           <h1>Students.</h1>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
           {onBackToClassroom && (
-            <button
-              className="button button-secondary"
-              onClick={onBackToClassroom}
-            >
+            <button className="button button-secondary" onClick={onBackToClassroom}>
               <ArrowLeft size={16} /> Back to Classroom
             </button>
           )}
-          <span className="student-total"><Users size={16} /> {students.length} students</span>
+          <span className="student-total">
+            <Users size={16} /> {students.length} students
+          </span>
         </div>
       </div>
-      <div className="student-layout">
-        <div className="roster-panel">
-          <div className="panel-heading">
-            <div>
-              <h2>List Of Students</h2>
-              <p>Manage student access, grades, and passkeys</p>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <select
-                value={filterGrade}
-                onChange={(e) => setFilterGrade(e.target.value)}
-                aria-label="Filter students by grade"
-                style={{ fontSize: '12px', padding: '5px 10px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#fff', fontWeight: 600, color: '#334155' }}
-              >
-                <option value="ALL">All Grades ({students.length})</option>
-                {ALL_STUDENT_GRADES.map((g) => {
-                  const count = students.filter((s) => (s.grade || 'Grade 6') === g).length;
-                  if (count === 0 && filterGrade !== g) return null;
-                  return <option key={g} value={g}>{g} ({count})</option>;
-                })}
-              </select>
-              <button className="icon-button" title="Refresh students" onClick={() => void refresh()}>
-                <RefreshCw size={16} />
-              </button>
-            </div>
-          </div>
-          {filteredStudents.length ? (
-            <div className="roster-list">
-              {filteredStudents.map((student, index) => {
-                const isShown = Boolean(visiblePasskeys[student.id]);
-                const passkeyVal = student.passkey || '';
-                return (
-                  <div className={`roster-row ${!student.active ? 'inactive-row' : ''}`} key={student.id}>
-                    <div className={`avatar avatar-roster avatar-color-${index % 4}`}>{student.name.slice(0, 1).toUpperCase()}</div>
-                    <div className="roster-name">
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                        <strong>{student.name}</strong>
-                        <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '10px', background: '#e0f2fe', color: '#0369a1', border: '1px solid #bae6fd' }}>
-                          {student.grade || 'Grade 6'}
-                        </span>
-                      </div>
-                      <span>{student._count.attempts} quiz attempts · {student.active ? 'Active' : 'Access paused'}</span>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px', fontSize: '13px' }}>
-                        <span className="muted">Passkey:</span>
-                        <code style={{ fontStyle: 'normal', fontWeight: 'bold', letterSpacing: isShown ? '2px' : '1px', background: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0', padding: '2px 8px', borderRadius: '6px' }}>
-                          {isShown ? (passkeyVal || '••••••') : '••••••'}
-                        </code>
-                        <button type="button" className="text-button" style={{ fontSize: '12px', padding: 0, color: '#047857' }} onClick={() => void togglePasskeyVisibility(student)}>
-                          {isShown ? 'Hide' : 'Show'}
-                        </button>
-                        <button type="button" className="text-button" style={{ fontSize: '12px', padding: 0, color: '#059669' }} onClick={async () => {
-                          let key = student.passkey;
-                          if (!key) {
-                            const data = await api<{ passkey?: string }>(`/api/students/${student.id}`, { method: 'PATCH', body: JSON.stringify({ resetPasskey: true }) });
-                            key = data.passkey || '';
-                            await refresh();
-                          }
-                          void navigator.clipboard?.writeText(key);
-                          setNotice(`Copied ${student.name}'s passkey.`);
-                        }}>
-                          <Copy size={12} /> Copy
-                        </button>
-                      </div>
-                    </div>
-                    <div className="roster-actions">
-                      <button className="icon-button" title="Edit student name & grade" aria-label={`Edit ${student.name}`} onClick={() => setEditingStudent({ id: student.id, name: student.name, grade: student.grade || 'Grade 6' })}><Pencil size={15} /></button>
-                      <button className="icon-button" title="Generate a new passkey" aria-label={`Reset ${student.name}'s passkey`} onClick={() => void updateStudent(student, 'reset')}><RefreshCw size={15} /></button>
-                      <button className="icon-button" title={student.active ? 'Pause access' : 'Restore access'} aria-label={`${student.active ? 'Disable' : 'Enable'} ${student.name}`} onClick={() => void updateStudent(student, student.active ? 'disable' : 'enable')}>{student.active ? <UserX size={15} /> : <UserCheck size={15} />}</button>
-                      <button className="icon-button danger-hover" title="Remove student" aria-label={`Delete ${student.name}`} onClick={() => void removeStudent(student)}><Trash2 size={15} /></button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="roster-empty">
-              {students.length ? `No students found in ${filterGrade}.` : 'No students yet. Add your first student to get started.'}
-            </div>
-          )}
-        </div>
-        <aside className="add-student-panel">
-          <span className="overline">Add to your class</span>
-          <h2>A name, grade & passkey.</h2>
-          <form onSubmit={addStudent} className="form-stack" style={{ marginBottom: '24px' }}>
-            <label className="field">
-              <span>Student name</span>
-              <input required maxLength={100} value={name} onChange={(event) => setName(event.target.value)} placeholder="e.g. Maya Chen" />
-            </label>
-            <label className="field">
-              <span>Grade / Class</span>
-              <select
-                value={grade}
-                onChange={(event) => setGrade(event.target.value)}
-                style={{ padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#fff', fontSize: '14px', width: '100%' }}
-              >
-                {ALL_STUDENT_GRADES.map((g) => (
-                  <option key={g} value={g}>{g}</option>
-                ))}
-              </select>
-            </label>
-            <button className="button button-primary button-wide" disabled={creating}>
-              {creating ? 'Creating...' : <><Plus size={16} /> Add student</>}
-            </button>
-          </form>
-          {createdPasskey && (
-            <div className="passkey-reveal" style={{ marginTop: '16px', marginBottom: '20px', width: '100%' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
-                <span>Passkey for <strong>{createdStudentName || 'Student'}</strong></span>
-                <button className="icon-button quiet" type="button" title="Dismiss" onClick={() => setCreatedPasskey('')}><X size={15} /></button>
+
+      {/* Segmented Sub-Navigation Tabs */}
+      <div className="student-subtabs-nav">
+        <button
+          type="button"
+          className={`student-subtab-btn ${subTab === 'roster' ? 'active' : ''}`}
+          onClick={() => setSubTab('roster')}
+        >
+          <Users size={16} />
+          <span>Student Directory</span>
+          <span className="subtab-count">{students.length}</span>
+        </button>
+        <button
+          type="button"
+          className={`student-subtab-btn ${subTab === 'attendance' ? 'active' : ''}`}
+          onClick={() => setSubTab('attendance')}
+        >
+          <CalendarCheck size={16} />
+          <span>Attendance Register</span>
+        </button>
+        <button
+          type="button"
+          className={`student-subtab-btn ${subTab === 'fees' ? 'active' : ''}`}
+          onClick={() => {
+            setSelectedStudentForFees(null);
+            setSubTab('fees');
+          }}
+        >
+          <CreditCard size={16} />
+          <span>Monthly Fees (Apr–Mar)</span>
+        </button>
+        <button
+          type="button"
+          className={`student-subtab-btn ${subTab === 'progress' ? 'active' : ''}`}
+          onClick={() => setSubTab('progress')}
+        >
+          <Award size={16} />
+          <span>Progress Reports</span>
+        </button>
+      </div>
+
+      {/* Sub-Tab 1: Student Directory / Roster */}
+      {subTab === 'roster' && (
+        <div className="student-layout">
+          <div className="roster-panel">
+            <div className="panel-heading">
+              <div>
+                <h2>List Of Students</h2>
+                <p>Manage student access, passkeys, and view records</p>
               </div>
-              <div style={{ marginTop: '6px', marginBottom: '4px' }}>
-                <strong style={{ fontSize: '28px', letterSpacing: '3px', fontFamily: 'monospace, sans-serif' }}>
-                  {createdPasskey}
-                </strong>
-              </div>
-              <small>Short 6-character passkey. Share it with the student.</small>
-              <div style={{ marginTop: '10px' }}>
-                <button type="button" className="text-button" onClick={() => { void navigator.clipboard?.writeText(createdPasskey); setNotice('Passkey copied.'); }}>
-                  <Copy size={14} /> Copy passkey
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <select
+                  value={filterGrade}
+                  onChange={(e) => setFilterGrade(e.target.value)}
+                  aria-label="Filter students by grade"
+                  style={{ fontSize: '12px', padding: '5px 10px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#fff', fontWeight: 600, color: '#334155' }}
+                >
+                  <option value="ALL">All Grades ({students.length})</option>
+                  {ALL_STUDENT_GRADES.map((g) => {
+                    const count = students.filter((s) => (s.grade || 'Grade 6') === g).length;
+                    if (count === 0 && filterGrade !== g) return null;
+                    return <option key={g} value={g}>{g} ({count})</option>;
+                  })}
+                </select>
+                <button className="icon-button" title="Refresh students" onClick={() => void refresh()}>
+                  <RefreshCw size={16} />
                 </button>
               </div>
             </div>
-          )}
-          <div className="privacy-callout"><ShieldCheck size={16} /><span>Passkeys are private to each student. Their answers are never shown to other students.</span></div>
-        </aside>
-      </div>
 
+            {filteredStudents.length ? (
+              <div className="roster-list">
+                {filteredStudents.map((student, index) => {
+                  const isShown = Boolean(visiblePasskeys[student.id]);
+                  const passkeyVal = student.passkey || '';
+                  return (
+                    <div className={`roster-row ${!student.active ? 'inactive-row' : ''}`} key={student.id}>
+                      <div className={`avatar avatar-roster avatar-color-${index % 4}`}>
+                        {student.name.slice(0, 1).toUpperCase()}
+                      </div>
+                      <div className="roster-name">
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                          <strong>{student.name}</strong>
+                          <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '10px', background: '#e0f2fe', color: '#0369a1', border: '1px solid #bae6fd' }}>
+                            {student.grade || 'Grade 6'}
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '3px', fontSize: '12px', color: '#64748b', flexWrap: 'wrap' }}>
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                            <Calendar size={13} color="#0284c7" />
+                            <strong>Date of Joining:</strong> {student.joiningDate ? new Date(student.joiningDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : (student.createdAt ? new Date(student.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—')}
+                          </span>
+                          <span>·</span>
+                          <span style={{ color: student.active ? '#059669' : '#dc2626', fontWeight: 600 }}>
+                            {student.active ? 'Active' : 'Access paused'}
+                          </span>
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px', fontSize: '13px' }}>
+                          <span className="muted">Passkey:</span>
+                          <code style={{ fontStyle: 'normal', fontWeight: 'bold', letterSpacing: isShown ? '2px' : '1px', background: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0', padding: '2px 8px', borderRadius: '6px' }}>
+                            {isShown ? (passkeyVal || '••••••') : '••••••'}
+                          </code>
+                          <button type="button" className="text-button" style={{ fontSize: '12px', padding: 0, color: '#047857' }} onClick={() => void togglePasskeyVisibility(student)}>
+                            {isShown ? 'Hide' : 'Show'}
+                          </button>
+                          <button
+                            type="button"
+                            className="text-button"
+                            style={{ fontSize: '12px', padding: 0, color: '#059669' }}
+                            onClick={async () => {
+                              let key = student.passkey;
+                              if (!key) {
+                                const data = await api<{ passkey?: string }>(`/api/students/${student.id}`, { method: 'PATCH', body: JSON.stringify({ resetPasskey: true }) });
+                                key = data.passkey || '';
+                                await refresh();
+                              }
+                              void navigator.clipboard?.writeText(key);
+                              setNotice(`Copied ${student.name}'s passkey.`);
+                            }}
+                          >
+                            <Copy size={12} /> Copy
+                          </button>
+                        </div>
+
+                        {/* Quick Action Navigation Buttons */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '10px', flexWrap: 'wrap' }}>
+                          <button
+                            type="button"
+                            className="button button-secondary"
+                            style={{ fontSize: '11px', padding: '3px 10px', minHeight: '26px', gap: '4px' }}
+                            onClick={() => {
+                              setSelectedStudentForReport(student.id);
+                              setSubTab('progress');
+                            }}
+                            title="View complete April–March score history & report card"
+                          >
+                            <Award size={13} color="#0284c7" /> Progress Report
+                          </button>
+                          <button
+                            type="button"
+                            className="button button-secondary"
+                            style={{ fontSize: '11px', padding: '3px 10px', minHeight: '26px', gap: '4px' }}
+                            onClick={() => {
+                              setSelectedStudentForFees(student.id);
+                              setSubTab('fees');
+                            }}
+                            title="View 12-month fee ledger"
+                          >
+                            <CreditCard size={13} color="#059669" /> Fees Ledger
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="roster-actions">
+                        <button
+                          className="icon-button"
+                          title="Edit student details & joining date"
+                          aria-label={`Edit ${student.name}`}
+                          onClick={() => setEditingStudent({
+                            id: student.id,
+                            name: student.name,
+                            grade: student.grade || 'Grade 6',
+                            joiningDate: student.joiningDate
+                              ? new Date(student.joiningDate).toISOString().slice(0, 10)
+                              : (student.createdAt ? new Date(student.createdAt).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10))
+                          })}
+                        >
+                          <Pencil size={15} />
+                        </button>
+                        <button className="icon-button" title="Generate a new passkey" aria-label={`Reset ${student.name}'s passkey`} onClick={() => void updateStudent(student, 'reset')}><RefreshCw size={15} /></button>
+                        <button className="icon-button" title={student.active ? 'Pause access' : 'Restore access'} aria-label={`${student.active ? 'Disable' : 'Enable'} ${student.name}`} onClick={() => void updateStudent(student, student.active ? 'disable' : 'enable')}>{student.active ? <UserX size={15} /> : <UserCheck size={15} />}</button>
+                        <button className="icon-button danger-hover" title="Remove student" aria-label={`Delete ${student.name}`} onClick={() => void removeStudent(student)}><Trash2 size={15} /></button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="roster-empty">
+                {students.length ? `No students found in ${filterGrade}.` : 'No students yet. Add your first student to get started.'}
+              </div>
+            )}
+          </div>
+
+          <aside className="add-student-panel">
+            <span className="overline">Add to your class</span>
+            <h2>A name, grade & passkey.</h2>
+            <form onSubmit={addStudent} className="form-stack" style={{ marginBottom: '24px' }}>
+              <label className="field">
+                <span>Student name</span>
+                <input required maxLength={100} value={name} onChange={(event) => setName(event.target.value)} placeholder="e.g. Maya Chen" />
+              </label>
+              <label className="field">
+                <span>Grade / Class</span>
+                <select
+                  value={grade}
+                  onChange={(event) => setGrade(event.target.value)}
+                  style={{ padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#fff', fontSize: '14px', width: '100%' }}
+                >
+                  {ALL_STUDENT_GRADES.map((g) => (
+                    <option key={g} value={g}>{g}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="field">
+                <span>Date of Joining</span>
+                <input
+                  type="date"
+                  required
+                  value={joiningDate}
+                  onChange={(event) => setJoiningDate(event.target.value)}
+                  style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#fff', fontSize: '14px', width: '100%' }}
+                />
+              </label>
+              <button className="button button-primary button-wide" disabled={creating}>
+                {creating ? 'Creating...' : <><Plus size={16} /> Add student</>}
+              </button>
+            </form>
+            {createdPasskey && (
+              <div className="passkey-reveal" style={{ marginTop: '16px', marginBottom: '20px', width: '100%' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                  <span>Passkey for <strong>{createdStudentName || 'Student'}</strong></span>
+                  <button className="icon-button quiet" type="button" title="Dismiss" onClick={() => setCreatedPasskey('')}><X size={15} /></button>
+                </div>
+                <div style={{ marginTop: '6px', marginBottom: '4px' }}>
+                  <strong style={{ fontSize: '28px', letterSpacing: '3px', fontFamily: 'monospace, sans-serif' }}>
+                    {createdPasskey}
+                  </strong>
+                </div>
+                <small>Short 6-character passkey. Share it with the student.</small>
+                <div style={{ marginTop: '10px' }}>
+                  <button type="button" className="text-button" onClick={() => { void navigator.clipboard?.writeText(createdPasskey); setNotice('Passkey copied.'); }}>
+                    <Copy size={14} /> Copy passkey
+                  </button>
+                </div>
+              </div>
+            )}
+            <div className="privacy-callout"><ShieldCheck size={16} /><span>Passkeys are private to each student. Their answers are never shown to other students.</span></div>
+          </aside>
+        </div>
+      )}
+
+      {/* Sub-Tab 2: Attendance Tracker */}
+      {subTab === 'attendance' && (
+        <AttendanceTrackerPanel students={students} setNotice={setNotice} />
+      )}
+
+      {/* Sub-Tab 3: Monthly Fees Tracker */}
+      {subTab === 'fees' && (
+        <MonthlyFeesPanel
+          students={students}
+          setNotice={setNotice}
+          initialStudentId={selectedStudentForFees}
+        />
+      )}
+
+      {/* Sub-Tab 4: Student Progress Reports */}
+      {subTab === 'progress' && (
+        <StudentProgressReportPanel
+          students={students}
+          selectedStudentId={selectedStudentForReport}
+          onSelectStudent={(id) => setSelectedStudentForReport(id)}
+          setNotice={setNotice}
+        />
+      )}
+
+      {/* Edit Student Modal */}
       {editingStudent && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.45)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '16px' }}>
           <div style={{ background: '#fff', borderRadius: '16px', padding: '24px', maxWidth: '420px', width: '100%', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)' }}>
@@ -2135,7 +5321,11 @@ function StudentManager({ students, refresh, setNotice, onBackToClassroom }: { s
               try {
                 await api(`/api/students/${editingStudent.id}`, {
                   method: 'PATCH',
-                  body: JSON.stringify({ name: editingStudent.name.trim(), grade: editingStudent.grade })
+                  body: JSON.stringify({
+                    name: editingStudent.name.trim(),
+                    grade: editingStudent.grade,
+                    joiningDate: editingStudent.joiningDate
+                  })
                 });
                 setEditingStudent(null);
                 await refresh();
@@ -2167,6 +5357,16 @@ function StudentManager({ students, refresh, setNotice, onBackToClassroom }: { s
                   ))}
                 </select>
               </label>
+              <label className="field">
+                <span>Date of Joining</span>
+                <input
+                  type="date"
+                  required
+                  value={editingStudent.joiningDate}
+                  onChange={(e) => setEditingStudent({ ...editingStudent, joiningDate: e.target.value })}
+                  style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#fff', fontSize: '14px' }}
+                />
+              </label>
               <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '12px' }}>
                 <button type="button" className="button button-secondary" onClick={() => setEditingStudent(null)}>Cancel</button>
                 <button type="submit" className="button button-primary" disabled={editingSaving}>
@@ -2180,6 +5380,7 @@ function StudentManager({ students, refresh, setNotice, onBackToClassroom }: { s
     </section>
   );
 }
+
 
 function ResultsPanel({ quizzes, selectedQuiz, setSelectedQuiz, results, distribution, onExport, onResetAttempt }: { quizzes: Quiz[]; selectedQuiz: string; setSelectedQuiz: (id: string) => void; results: Result[]; distribution: { question: string; options: { text: string; correct: boolean; count: number }[] }[]; onExport: () => void; onResetAttempt: (result: Result) => Promise<void> }) {
   const quiz = quizzes.find((entry) => entry.id === selectedQuiz);
@@ -2875,13 +6076,16 @@ function StudentApp({ user, onSignOut, notice, setNotice, onViewPortal }: { user
    WORKBOOK ANSWER SHEETS & QUESTION PAPERS COMPONENTS
    ========================================================================== */
 
-function WorksheetsPanel({ setNotice, onNavigateToAISettings }: { setNotice: (msg: string) => void; onNavigateToAISettings?: () => void }) {
+function WorksheetsPanel({ setNotice, onNavigateToAISettings, onNavigateToArchive }: { setNotice: (msg: string) => void; onNavigateToAISettings?: () => void; onNavigateToArchive?: () => void }) {
   const [worksheets, setWorksheets] = useState<WorksheetPaper[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingPaper, setEditingPaper] = useState<Partial<WorksheetPaper> | null>(null);
   const [viewingPaper, setViewingPaper] = useState<WorksheetPaper | null>(null);
   const [checkingSubmissions, setCheckingSubmissions] = useState<WorksheetPaper | null>(null);
   const [showAIModal, setShowAIModal] = useState(false);
+
+  const activeWorksheets = worksheets.filter((p) => p.status !== 'ARCHIVED');
+  const archivedWorksheets = worksheets.filter((p) => p.status === 'ARCHIVED');
 
   async function loadWorksheets() {
     setLoading(true);
@@ -3011,23 +6215,39 @@ function WorksheetsPanel({ setNotice, onNavigateToAISettings }: { setNotice: (ms
           >
             <Plus size={16} /> Create Word Paper
           </button>
+          {onNavigateToArchive && (
+            <button className="button button-secondary" onClick={onNavigateToArchive}>
+              <Archive size={16} /> View Archive
+            </button>
+          )}
         </div>
       </div>
 
       {loading ? (
         <div className="roster-empty">Loading question papers...</div>
-      ) : worksheets.length === 0 ? (
+      ) : activeWorksheets.length === 0 ? (
         <div className="empty-state">
           <span className="empty-icon"><FileText size={26} /></span>
-          <h3>No Question Papers created yet.</h3>
-          <p>Create Word-style question papers for students to solve on physical paper and upload answer sheets.</p>
-          <button className="button button-primary" onClick={() => setShowAIModal(true)}>
-            <Sparkles size={16} /> Generate with AI
-          </button>
+          <h3>No Active Question Papers.</h3>
+          <p style={{ margin: '0 0 16px', color: '#64748b' }}>
+            {archivedWorksheets.length > 0
+              ? 'All completed question papers are safely preserved in your Archive.'
+              : 'Create Word-style question papers for students to solve on physical paper and upload answer sheets.'}
+          </p>
+          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', justifyContent: 'center' }}>
+            <button className="button button-primary" onClick={() => setShowAIModal(true)}>
+              <Sparkles size={16} /> Generate with AI
+            </button>
+            {onNavigateToArchive && (
+              <button className="button button-secondary" onClick={onNavigateToArchive}>
+                <Archive size={15} /> View Archive
+              </button>
+            )}
+          </div>
         </div>
       ) : (
         <div className="worksheet-grid">
-          {worksheets.map((paper) => (
+          {activeWorksheets.map((paper) => (
             <div className="worksheet-card" key={paper.id}>
               <div>
                 <div className="worksheet-card-meta">
@@ -3088,7 +6308,7 @@ function WorksheetsPanel({ setNotice, onNavigateToAISettings }: { setNotice: (ms
                           method: 'PATCH',
                           body: JSON.stringify({ status: 'ARCHIVED' }),
                         });
-                        setNotice('✓ Submissions marked complete for this question paper.');
+                        setNotice('✓ Question paper marked complete and moved to Archive.');
                         await loadWorksheets();
                       }}
                     >
