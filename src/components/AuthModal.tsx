@@ -58,6 +58,9 @@ export function AuthModal({ mode: propMode, initialMode, onClose, onSuccess, onS
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'Invalid student passkey.');
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('eduashram_session_active', '1');
+      }
       onSuccess(data.user);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to sign in with passkey.');
@@ -89,11 +92,19 @@ export function AuthModal({ mode: propMode, initialMode, onClose, onSuccess, onS
           });
           const fbData = await fallbackRes.json().catch(() => ({}));
           if (fallbackRes.ok) {
+            if (typeof window !== 'undefined') {
+              sessionStorage.setItem('eduashram_session_active', '1');
+              localStorage.setItem('teacher_active_tab', 'overview');
+            }
             onSuccess(fbData.user);
             return;
           }
         }
         throw new Error(data.error || 'Failed to sign in. Please verify your teacher credentials.');
+      }
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('eduashram_session_active', '1');
+        localStorage.setItem('teacher_active_tab', 'overview');
       }
       onSuccess(data.user);
     } catch (err) {
@@ -143,6 +154,7 @@ export function AuthModal({ mode: propMode, initialMode, onClose, onSuccess, onS
 
       setSuccessMsg(data.message || 'Teacher registration submitted successfully! Your account will be activated once approved by the EduAshram Administrator.');
       localStorage.removeItem('livequiz_ai_key');
+      localStorage.setItem('teacher_active_tab', 'overview');
       setName('');
       setSignupEmail('');
       setSignupPassword('');

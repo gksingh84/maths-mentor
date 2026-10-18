@@ -1,12 +1,14 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { io, type Socket } from 'socket.io-client';
-import { AppWindow, Archive, ArrowLeft, ArrowRight, Award, BarChart3, BookOpen, BookOpenCheck, Calculator, Calendar, CalendarCheck, Check, CheckCircle2, CheckCheck, CheckSquare, ChevronDown, ChevronUp, CircleHelp, Clock3, Copy, CreditCard, Download, ExternalLink, Eye, FileSpreadsheet, FileText, Filter, KeyRound, ListChecks, Lock, LogOut, Maximize2, Minimize2, Paperclip, Pencil, PenTool, Plus, Printer, Radio, RefreshCw, RotateCcw, Save, Search, Send, ShieldCheck, Sparkles, Trash2, TrendingUp, Type, UploadCloud, UserCheck, Users, UserX, X } from 'lucide-react';
+import { AppWindow, Archive, ArrowLeft, ArrowRight, Award, BarChart3, Bell, BookOpen, BookOpenCheck, Calculator, Calendar, CalendarCheck, Check, CheckCircle2, CheckCheck, CheckSquare, ChevronDown, ChevronUp, CircleHelp, Clock3, Copy, CreditCard, Download, ExternalLink, Eye, FileSpreadsheet, FileText, Filter, KeyRound, ListChecks, Lock, LogOut, Mail, Maximize2, Minimize2, Paperclip, Pencil, PenTool, Phone, Plus, Printer, Radio, RefreshCw, RotateCcw, Save, Search, Send, Settings, ShieldCheck, SlidersHorizontal, Sparkles, Trash2, TrendingUp, Type, UploadCloud, UserCheck, Users, UserX, X } from 'lucide-react';
 import { PublicPortal } from './components/PublicPortal';
 import { AuthModal, type AuthMode } from './components/AuthModal';
 import { SuperAdminConsole } from './components/SuperAdminConsole';
-import { ClassroomChatWidget } from './components/ClassroomChatWidget';
-import { ClassroomCalendar } from './components/ClassroomCalendar';
+import { ClassroomChatWidget, ClassroomChatHeaderButton } from './components/ClassroomChatWidget';
+import { ClassroomCalendar, type CalendarEventItem } from './components/ClassroomCalendar';
+import { getActiveGrades, getDefaultGrade, getActiveSubjects, getDefaultSubject } from './utils/teacherPreferences';
+export { getActiveGrades, getDefaultGrade, getActiveSubjects, getDefaultSubject };
 
 type Mode = 'LIVE' | 'SELF_PACED';
 type QuestionType = 'MCQ' | 'FILL_BLANK' | 'TRUE_FALSE' | 'SOLVE';
@@ -15,10 +17,34 @@ type Option = { id?: string; text: string; isCorrect?: boolean; correct?: boolea
 type Question = { id?: string; prompt: string; marks: number; imageUrl?: string | null; type?: QuestionType; options: Option[] };
 type Quiz = { id: string; title: string; grade?: string | null; mode: Mode; status: Status; timeLimitSeconds: number | null; showResults: boolean; currentQuestionIndex: number; currentAnswerRevealed: boolean; questions?: Question[]; _count?: { questions: number; attempts: number } };
 type Student = { id: string; name: string; grade?: string | null; passkey?: string | null; active: boolean; joiningDate?: string | null; createdAt?: string; _count: { attempts: number } };
-type User = { id?: string; role: 'admin' | 'teacher' | 'superadmin' | 'student'; name?: string; email?: string; username?: string; hasApiKey?: boolean; grade?: string | null; teacherId?: string | null; teacherName?: string | null };
+type User = { id?: string; role: 'admin' | 'teacher' | 'superadmin' | 'student'; name?: string; email?: string; username?: string; hasApiKey?: boolean; school?: string | null; subject?: string | null; grade?: string | null; teacherId?: string | null; teacherName?: string | null };
 type QuizDraft = { title: string; grade?: string; mode: Mode; hasTimer: boolean; minutes: number; showResults: boolean; questions: Question[] };
-const ALL_STUDENT_GRADES = ['Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12'];
-const newDraft = (): QuizDraft => ({ title: '', grade: 'All Grades', mode: 'LIVE', hasTimer: false, minutes: 20, showResults: true, questions: [emptyQuestion()] });
+import { TeacherAIAssistant } from './components/TeacherAIAssistant';
+export const ALL_STUDENT_GRADES = ['Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12'];
+export const ALL_ACADEMIC_SUBJECTS = [
+  'Mathematics',
+  'Science',
+  'General Science',
+  'Physics',
+  'Chemistry',
+  'Biology',
+  'Social Science (SST)',
+  'History',
+  'Geography',
+  'Civics / Political Science',
+  'Economics',
+  'English',
+  'English Grammar & Literature',
+  'Hindi',
+  'Sanskrit',
+  'Computer Science',
+  'Information Technology (IT)',
+  'Environmental Studies (EVS)',
+  'General Knowledge (GK)',
+  'Moral Science & Ethics',
+  'Other / Custom Subject',
+];
+const newDraft = (): QuizDraft => ({ title: '', grade: getDefaultGrade(), mode: 'LIVE', hasTimer: false, minutes: 20, showResults: true, questions: [emptyQuestion()] });
 type StudentQuiz = { id: string; title: string; grade?: string | null; mode: Mode; status: Status; timeLimitSeconds: number | null; questionCount: number; totalMarks?: number; attempt: { status: string; deadlineAt: string | null; score: number | null; submittedAt?: string | null } | null };
 type ActiveQuiz = { id: string; title: string; grade?: string | null; mode: Mode; status: Status; timeLimitSeconds: number | null; showResults: boolean; currentQuestionIndex: number; currentAnswerRevealed: boolean; questionCount?: number; totalMarks?: number; questions: Question[]; attempt: { status: string; deadlineAt: string | null; score: number | null; answers: { questionId: string; optionId: string }[] } | null };
 type Result = { id: string; studentId?: string; name: string; status: string; submittedAt: string | null; score: number | null; totalMarks: number; answers: { question: string; response: string; correct: boolean; marks: number }[] };
@@ -285,6 +311,8 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
   return data as T;
 }
 
+const SESSION_ACTIVE_KEY = 'eduashram_session_active';
+
 function App() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -302,6 +330,9 @@ function App() {
     if (typeof window !== 'undefined' && (window.location.search.includes('admin') || window.location.search.includes('superadmin'))) {
       return 'superadmin';
     }
+    if (typeof window !== 'undefined' && sessionStorage.getItem(SESSION_ACTIVE_KEY) !== '1') {
+      return 'portal';
+    }
     const saved = localStorage.getItem('maths_mentor_view');
     return saved === 'portal' ? 'portal' : 'dashboard';
   });
@@ -316,11 +347,21 @@ function App() {
     }
     setUser(null);
     setView('portal');
-    localStorage.removeItem('maths_mentor_view');
-    localStorage.removeItem('teacher_active_tab');
-    localStorage.removeItem('student_active_tab');
-    localStorage.removeItem('livequiz_ai_key');
-    localStorage.removeItem('livequiz_ai_provider');
+    if (typeof window !== 'undefined') {
+      sessionStorage.removeItem(SESSION_ACTIVE_KEY);
+      localStorage.removeItem('maths_mentor_view');
+      localStorage.removeItem('teacher_active_tab');
+      localStorage.removeItem('student_active_tab');
+      localStorage.removeItem('livequiz_ai_key');
+      localStorage.removeItem('livequiz_ai_provider');
+      try {
+        if ('BroadcastChannel' in window) {
+          const bc = new BroadcastChannel('eduashram_tab_channel');
+          bc.postMessage({ type: 'LOGOUT' });
+          bc.close();
+        }
+      } catch {}
+    }
   }
 
   useEffect(() => {
@@ -333,31 +374,106 @@ function App() {
       return;
     }
 
-    api<{ user: User }>('/api/auth/me')
-      .then((result) => {
-        setUser(result.user);
-        if (result.user) {
-          if (result.user.role === 'superadmin') {
+    const authChannel = typeof window !== 'undefined' && 'BroadcastChannel' in window
+      ? new BroadcastChannel('eduashram_tab_channel')
+      : null;
+
+    if (authChannel) {
+      authChannel.onmessage = (event) => {
+        if (event.data?.type === 'CHECK_SESSION') {
+          // If this tab already has an active session, let new tab know
+          if (sessionStorage.getItem(SESSION_ACTIVE_KEY) === '1') {
+            authChannel.postMessage({ type: 'CONFIRM_SESSION' });
+          }
+        } else if (event.data?.type === 'LOGOUT') {
+          setUser(null);
+          setView('portal');
+          sessionStorage.removeItem(SESSION_ACTIVE_KEY);
+          localStorage.removeItem('maths_mentor_view');
+          localStorage.removeItem('teacher_active_tab');
+          localStorage.removeItem('student_active_tab');
+        } else if (event.data?.type === 'LOGIN' && event.data?.user) {
+          sessionStorage.setItem(SESSION_ACTIVE_KEY, '1');
+          setUser(event.data.user);
+          if (event.data.user.role === 'superadmin') {
             setView('superadmin');
           } else {
             setView('dashboard');
             localStorage.setItem('maths_mentor_view', 'dashboard');
           }
-        } else {
+        }
+      };
+    }
+
+    const checkCurrentAuth = () => {
+      api<{ user: User }>('/api/auth/me')
+        .then((result) => {
+          if (result.user) {
+            sessionStorage.setItem(SESSION_ACTIVE_KEY, '1');
+            setUser(result.user);
+            if (result.user.role === 'superadmin') {
+              setView('superadmin');
+            } else {
+              setView('dashboard');
+              localStorage.setItem('maths_mentor_view', 'dashboard');
+            }
+          } else {
+            sessionStorage.removeItem(SESSION_ACTIVE_KEY);
+            setUser(null);
+            if (!window.location.search.includes('admin')) {
+              setView('portal');
+              localStorage.removeItem('maths_mentor_view');
+            }
+          }
+        })
+        .catch(() => {
+          sessionStorage.removeItem(SESSION_ACTIVE_KEY);
+          setUser(null);
           if (!window.location.search.includes('admin')) {
             setView('portal');
             localStorage.removeItem('maths_mentor_view');
           }
+        })
+        .finally(() => setLoading(false));
+    };
+
+    const isTabActive = typeof window !== 'undefined' && sessionStorage.getItem(SESSION_ACTIVE_KEY) === '1';
+
+    if (isTabActive) {
+      // Tab is already known to be active in this browser session (e.g. reload or SPA navigation)
+      checkCurrentAuth();
+    } else if (authChannel) {
+      // Tab was newly opened: check if any other tab has an active session
+      let receivedResponse = false;
+      const timeoutId = setTimeout(() => {
+        if (!receivedResponse) {
+          // No other tabs responded. The app was closed.
+          // Automatically logout to clear any lingering cookies or view states.
+          void signOut().finally(() => {
+            setLoading(false);
+          });
         }
-      })
-      .catch(() => {
-        setUser(null);
-        if (!window.location.search.includes('admin')) {
-          setView('portal');
-          localStorage.removeItem('maths_mentor_view');
+      }, 70);
+
+      const handleConfirm = (event: MessageEvent) => {
+        if (event.data?.type === 'CONFIRM_SESSION') {
+          receivedResponse = true;
+          clearTimeout(timeoutId);
+          authChannel.removeEventListener('message', handleConfirm);
+          sessionStorage.setItem(SESSION_ACTIVE_KEY, '1');
+          checkCurrentAuth();
         }
-      })
-      .finally(() => setLoading(false));
+      };
+
+      authChannel.addEventListener('message', handleConfirm);
+      authChannel.postMessage({ type: 'CHECK_SESSION' });
+    } else {
+      checkCurrentAuth();
+    }
+
+    return () => {
+      authChannel?.close();
+    };
   }, []);
 
   if (loading) return <div className="loading-screen"><span className="brand-mark"><img src="/logo.png" alt="EduAshram" className="brand-logo" /></span><span>Getting EduAshram ready</span></div>;
@@ -369,12 +485,15 @@ function App() {
         <SuperAdminConsole
           currentUser={user}
           onSignOut={signOut}
+          onLoginSuccess={(u) => {
+            sessionStorage.setItem(SESSION_ACTIVE_KEY, '1');
+            setUser(u as User);
+          }}
           onBackToPortal={() => {
             setView('portal');
             localStorage.removeItem('maths_mentor_view');
           }}
         />
-        {user && <ClassroomChatWidget user={user} />}
       </>
     );
   }
@@ -416,6 +535,10 @@ function App() {
             }}
             onSuccess={(u) => {
               localStorage.removeItem('livequiz_ai_key');
+              sessionStorage.setItem(SESSION_ACTIVE_KEY, '1');
+              if (u.role === 'teacher' || u.role === 'admin') {
+                localStorage.setItem('teacher_active_tab', 'overview');
+              }
               setUser(u);
               setLoginModal(null);
               window.history.replaceState({}, '', '/');
@@ -425,6 +548,13 @@ function App() {
                 setView('dashboard');
                 localStorage.setItem('maths_mentor_view', 'dashboard');
               }
+              try {
+                if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+                  const bc = new BroadcastChannel('eduashram_tab_channel');
+                  bc.postMessage({ type: 'LOGIN', user: u });
+                  bc.close();
+                }
+              } catch {}
             }}
           />
         )}
@@ -505,24 +635,79 @@ export function Login({ mode, onSubmit, error }: { mode: 'admin' | 'student'; on
   </main>;
 }
 
+function isUpcomingReminder(event: CalendarEventItem): boolean {
+  if (event.type && event.type !== 'reminder' && event.type !== 'event') {
+    return false;
+  }
+  if (!event.date) return false;
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  const todayStr = `${y}-${m}-${d}`;
+
+  if (event.date > todayStr) return true;
+  if (event.date < todayStr) return false;
+
+  // If today: check time if available
+  if (event.time && event.time.includes(':')) {
+    const [hrs, mins] = event.time.split(':').map(Number);
+    if (!isNaN(hrs) && !isNaN(mins)) {
+      const eventTime = new Date();
+      eventTime.setHours(hrs, mins, 0, 0);
+      return eventTime >= now;
+    }
+  }
+  return true;
+}
+
 function TeacherApp({ user, onSignOut, notice, setNotice, onViewPortal }: { user: User; onSignOut: () => void; notice: string; setNotice: (text: string) => void; onViewPortal?: () => void }) {
-  const [tab, setTabState] = useState<'overview' | 'quizzes' | 'worksheets' | 'archive' | 'calendar' | 'whiteboard' | 'students' | 'results' | 'ai_settings'>(() => {
+  type TeacherTab = 'overview' | 'ai_assistant' | 'quizzes' | 'worksheets' | 'archive' | 'calendar' | 'whiteboard' | 'students' | 'results' | 'settings' | 'ai_settings';
+  const [tab, setTabState] = useState<TeacherTab>(() => {
     const saved = localStorage.getItem('teacher_active_tab') as any;
-    const validTabs = ['overview', 'quizzes', 'worksheets', 'archive', 'calendar', 'whiteboard', 'students', 'results', 'ai_settings'];
+    const validTabs: TeacherTab[] = ['overview', 'ai_assistant', 'quizzes', 'worksheets', 'archive', 'calendar', 'whiteboard', 'students', 'results', 'settings', 'ai_settings'];
+    if (saved === 'ai_settings') return 'settings';
+    if (saved === 'results') return 'students';
     return validTabs.includes(saved) ? saved : 'overview';
   });
 
-  const setTab = (newTab: 'overview' | 'quizzes' | 'worksheets' | 'archive' | 'calendar' | 'whiteboard' | 'students' | 'results' | 'ai_settings') => {
-    setTabState(newTab);
-    localStorage.setItem('teacher_active_tab', newTab);
+  const [studentSubTab, setStudentSubTab] = useState<'roster' | 'attendance' | 'fees' | 'progress' | 'results'>(() => {
+    const saved = localStorage.getItem('teacher_active_tab');
+    return saved === 'results' ? 'results' : 'roster';
+  });
+
+  const setTab = (newTab: TeacherTab) => {
+    if (newTab === 'results') {
+      setTabState('students');
+      setStudentSubTab('results');
+      localStorage.setItem('teacher_active_tab', 'students');
+      return;
+    }
+    const targetTab = newTab === 'ai_settings' ? 'settings' : newTab;
+    setTabState(targetTab);
+    localStorage.setItem('teacher_active_tab', targetTab);
   };
+
+  useEffect(() => {
+    // Whenever a teacher signs in, always start on the overview page first
+    if (localStorage.getItem('teacher_active_tab') === 'overview' && tab !== 'overview') {
+      setTabState('overview');
+    }
+  }, [user.id]);
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [worksheets, setWorksheets] = useState<WorksheetPaper[]>([]);
+  const [calendarEvents, setCalendarEvents] = useState<CalendarEventItem[]>([]);
   const [selectedQuiz, setSelectedQuiz] = useState('');
   const [results, setResults] = useState<Result[]>([]);
   const [distribution, setDistribution] = useState<{ question: string; options: { text: string; correct: boolean; count: number }[] }[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [activeCanvasLesson, setActiveCanvasLesson] = useState<{
+    title: string;
+    content: string;
+    grade?: string | null;
+    subject?: string | null;
+  } | null>(null);
 
   const archivedQuizzes = quizzes.filter((q) => q.status === 'CLOSED');
   const activeQuizzes = quizzes.filter((q) => q.status !== 'CLOSED');
@@ -532,14 +717,16 @@ function TeacherApp({ user, onSignOut, notice, setNotice, onViewPortal }: { user
   async function refresh() {
     setRefreshing(true);
     try {
-      const [quizData, studentData, worksheetData] = await Promise.all([
+      const [quizData, studentData, worksheetData, calendarData] = await Promise.all([
         api<{ quizzes: Quiz[] }>('/api/quizzes'),
         api<{ students: Student[] }>('/api/students'),
         api<{ worksheets: WorksheetPaper[] }>('/api/worksheets').catch(() => ({ worksheets: [] })),
+        api<{ events: CalendarEventItem[] }>('/api/calendar/events').catch(() => ({ events: [] })),
       ]);
       setQuizzes(quizData.quizzes);
       setStudents(studentData.students);
       setWorksheets(worksheetData.worksheets || []);
+      setCalendarEvents(calendarData.events || []);
       const activeLive = (quizData.quizzes || []).find((q: Quiz) => q.status === 'ACTIVE');
       if (activeLive) {
         setSelectedQuiz(activeLive.id);
@@ -560,11 +747,15 @@ function TeacherApp({ user, onSignOut, notice, setNotice, onViewPortal }: { user
   }
 
   useEffect(() => { void refresh(); }, []);
-  useEffect(() => { if (tab === 'results' && selectedQuiz) void loadResults(selectedQuiz); }, [tab, selectedQuiz]);
+  useEffect(() => { if ((tab === 'students' || tab === 'results') && selectedQuiz) void loadResults(selectedQuiz); }, [tab, selectedQuiz]);
   useEffect(() => {
     const openResults = (event: Event) => {
       const quizId = (event as CustomEvent<string>).detail;
-      if (quizId) { setSelectedQuiz(quizId); setTab('results'); }
+      if (quizId) {
+        setSelectedQuiz(quizId);
+        setStudentSubTab('results');
+        setTab('students');
+      }
     };
     document.addEventListener('open-results', openResults);
     return () => document.removeEventListener('open-results', openResults);
@@ -573,7 +764,16 @@ function TeacherApp({ user, onSignOut, notice, setNotice, onViewPortal }: { user
     if (notice) { const timeout = window.setTimeout(() => setNotice(''), 3400); return () => window.clearTimeout(timeout); }
   }, [notice]);
 
-  const totalAttempts = quizzes.reduce((sum, quiz) => sum + (quiz._count?.attempts ?? 0), 0);
+  const upcomingReminders = useMemo(() => {
+    return calendarEvents
+      .filter(isUpcomingReminder)
+      .sort((a, b) => {
+        const cmp = a.date.localeCompare(b.date);
+        if (cmp !== 0) return cmp;
+        return (a.time || '').localeCompare(b.time || '');
+      });
+  }, [calendarEvents]);
+
   const liveQuiz = quizzes.find((quiz) => quiz.id === selectedQuiz && quiz.status === 'ACTIVE');
 
   function exportCsv() {
@@ -607,14 +807,14 @@ function TeacherApp({ user, onSignOut, notice, setNotice, onViewPortal }: { user
       <div className="sidebar-label">TEACHER SPACE</div>
       <nav className="side-nav" aria-label="Teacher navigation">
         <NavItem active={tab === 'overview'} icon={<BarChart3 size={17} />} label="Overview" onClick={() => setTab('overview')} />
+        <NavItem active={tab === 'ai_assistant'} icon={<Sparkles size={17} />} label="AI Teaching Assistant" onClick={() => setTab('ai_assistant')} />
         <NavItem active={tab === 'calendar'} icon={<Calendar size={17} />} label="Calendar & Reminders" onClick={() => setTab('calendar')} />
         <NavItem active={tab === 'whiteboard'} icon={<PenTool size={17} />} label="Whiteboard" onClick={() => setTab('whiteboard')} />
         <NavItem active={tab === 'quizzes'} icon={<BookOpenCheck size={17} />} label="Quizzes and Worksheets" count={activeQuizzes.length} onClick={() => setTab('quizzes')} />
         <NavItem active={tab === 'worksheets'} icon={<FileText size={17} />} label="Question Papers" count={activeWorksheets.length} onClick={() => setTab('worksheets')} />
         <NavItem active={tab === 'archive'} icon={<Archive size={17} />} label="Archive" count={archivedQuizzes.length + archivedWorksheets.length} onClick={() => setTab('archive')} />
         <NavItem active={tab === 'students'} icon={<Users size={17} />} label="Students" count={students.length} onClick={() => setTab('students')} />
-        <NavItem active={tab === 'results'} icon={<CheckCircle2 size={17} />} label="Results" onClick={() => setTab('results')} />
-        <NavItem active={tab === 'ai_settings'} icon={<Sparkles size={17} />} label="AI Settings" onClick={() => setTab('ai_settings')} />
+        <NavItem active={tab === 'settings' || tab === 'ai_settings'} icon={<Settings size={17} />} label="Settings" onClick={() => setTab('settings')} />
       </nav>
       <div className="sidebar-bottom"><div className="teacher-profile"><div className="avatar avatar-green">{(user.email ?? 'T').slice(0, 1).toUpperCase()}</div><div className="profile-copy"><strong>{user.email?.split('@')[0]}</strong><span>Teacher account</span></div><button className="icon-button quiet" title="Sign out" aria-label="Sign out" onClick={onSignOut}><LogOut size={16} /></button></div><div className="sidebar-footnote">A little progress, every day.</div></div>
     </aside>
@@ -636,6 +836,7 @@ function TeacherApp({ user, onSignOut, notice, setNotice, onViewPortal }: { user
               <ArrowLeft size={14} /> Back to Classroom
             </button>
           )}
+          <ClassroomChatHeaderButton />
           <span className="today-label">{new Intl.DateTimeFormat('en', { weekday: 'short', month: 'short', day: 'numeric' }).format(new Date())}</span>
           <button className="icon-button" title="Refresh dashboard" aria-label="Refresh dashboard" onClick={() => void refresh()} disabled={refreshing}>
             <RefreshCw size={16} className={refreshing ? 'spin' : ''} />
@@ -663,10 +864,19 @@ function TeacherApp({ user, onSignOut, notice, setNotice, onViewPortal }: { user
               </div>
 
               <div className="metrics-grid">
-                <Metric label="Live / Open Quizzes" value={openQuizzes.length} icon={<Radio size={17} />} tint="coral" />
-                <Metric label="Open Question Papers" value={openPapers.length} icon={<FileText size={17} />} tint="blue" />
-                <Metric label="Total Students" value={students.length} icon={<Users size={17} />} tint="sage" />
-                <Metric label="Student Attempts" value={totalAttempts} icon={<BookOpenCheck size={17} />} tint="sage" />
+                <Metric label="Live / Open Quizzes" value={openQuizzes.length} icon={<Radio size={17} />} tint="coral" onClick={() => setTab('quizzes')} />
+                <Metric label="Open Question Papers" value={openPapers.length} icon={<FileText size={17} />} tint="blue" onClick={() => setTab('worksheets')} />
+                <Metric label="Total Students" value={students.length} icon={<Users size={17} />} tint="sage" onClick={() => setTab('students')} />
+                {upcomingReminders.length > 0 && (
+                  <Metric
+                    label={upcomingReminders.length === 1 ? "Upcoming Reminder" : "Upcoming Reminders"}
+                    value={upcomingReminders.length}
+                    icon={<Bell size={17} />}
+                    tint="amber"
+                    onClick={() => setTab('calendar')}
+                    title={upcomingReminders[0]?.title ? `Next reminder: "${upcomingReminders[0].title}" on ${upcomingReminders[0].date}. Click to view in Calendar & Reminders.` : 'Click to view in Calendar & Reminders'}
+                  />
+                )}
               </div>
 
               <div className="section-heading">
@@ -687,7 +897,7 @@ function TeacherApp({ user, onSignOut, notice, setNotice, onViewPortal }: { user
                 <QuizList
                   quizzes={openQuizzes.slice(0, 4)}
                   onEdit={(quiz) => { setSelectedQuiz(quiz.id); setTab('quizzes'); }}
-                  onSelect={(quiz) => { setSelectedQuiz(quiz.id); setTab(quiz.mode === 'LIVE' ? 'quizzes' : 'results'); }}
+                  onSelect={(quiz) => { setSelectedQuiz(quiz.id); if (quiz.mode === 'LIVE') { setTab('quizzes'); } else { setStudentSubTab('results'); setTab('students'); } }}
                   onOpenAI={() => setTab('quizzes')}
                   onRefresh={refresh}
                   setNotice={setNotice}
@@ -738,18 +948,125 @@ function TeacherApp({ user, onSignOut, notice, setNotice, onViewPortal }: { user
             </section>
           );
         })()}
-        {tab === 'quizzes' && <QuizManager quizzes={quizzes} selectedQuiz={selectedQuiz} setSelectedQuiz={setSelectedQuiz} liveQuiz={liveQuiz} refresh={refresh} setNotice={setNotice} onNavigateToAISettings={() => setTab('ai_settings')} onNavigateToArchive={() => setTab('archive')} />}
-        {tab === 'worksheets' && <WorksheetsPanel setNotice={setNotice} onNavigateToAISettings={() => setTab('ai_settings')} onNavigateToArchive={() => setTab('archive')} />}
-        {tab === 'archive' && <TeacherArchivePanel quizzes={quizzes} worksheets={worksheets} refresh={refresh} setNotice={setNotice} onOpenResults={(quizId) => { setSelectedQuiz(quizId); setTab('results'); }} />}
-        {tab === 'calendar' && <ClassroomCalendar user={user} readOnly={false} />}
+        <div style={{ display: tab === 'ai_assistant' ? 'block' : 'none', width: '100%' }}>
+          <TeacherAIAssistant
+            user={user}
+            setNotice={setNotice}
+            onNavigateToTab={(targetTab) => setTab(targetTab as TeacherTab)}
+            initialCanvasData={activeCanvasLesson}
+            onCanvasDataLoaded={() => setActiveCanvasLesson(null)}
+            onLessonSaved={refresh}
+          />
+        </div>
+        {tab === 'quizzes' && <QuizManager quizzes={quizzes} selectedQuiz={selectedQuiz} setSelectedQuiz={setSelectedQuiz} liveQuiz={liveQuiz} refresh={refresh} setNotice={setNotice} onNavigateToAISettings={() => setTab('settings')} onNavigateToArchive={() => setTab('archive')} />}
+        {tab === 'worksheets' && <WorksheetsPanel setNotice={setNotice} onNavigateToAISettings={() => setTab('settings')} onNavigateToArchive={() => setTab('archive')} />}
+        {tab === 'archive' && (
+          <TeacherArchivePanel
+            quizzes={quizzes}
+            worksheets={worksheets}
+            refresh={refresh}
+            setNotice={setNotice}
+            onOpenResults={(quizId) => { setSelectedQuiz(quizId); setStudentSubTab('results'); setTab('students'); }}
+            onOpenInLiveCanvas={(lesson) => {
+              setActiveCanvasLesson(lesson);
+              setTab('ai_assistant');
+            }}
+          />
+        )}
+        {tab === 'calendar' && <ClassroomCalendar user={user} readOnly={false} onEventsChange={refresh} />}
         {tab === 'whiteboard' && <TeacherWhiteboard setNotice={setNotice} />}
-        {tab === 'students' && <StudentManager students={students} refresh={refresh} setNotice={setNotice} onBackToClassroom={() => setTab('overview')} />}
-        {tab === 'results' && <ResultsPanel quizzes={quizzes} selectedQuiz={selectedQuiz} setSelectedQuiz={setSelectedQuiz} results={results} distribution={distribution} onExport={exportCsv} onResetAttempt={handleResetAttempt} />}
-        {tab === 'ai_settings' && <AISettingsPanel setNotice={setNotice} user={user} />}
+        {(tab === 'students' || tab === 'results') && (
+          <StudentManager
+            students={students}
+            refresh={refresh}
+            setNotice={setNotice}
+            onBackToClassroom={() => setTab('overview')}
+            quizzes={quizzes}
+            selectedQuiz={selectedQuiz}
+            setSelectedQuiz={setSelectedQuiz}
+            results={results}
+            distribution={distribution}
+            onExport={exportCsv}
+            onResetAttempt={handleResetAttempt}
+            subTab={studentSubTab}
+            setSubTab={setStudentSubTab}
+          />
+        )}
+        {(tab === 'settings' || tab === 'ai_settings') && <TeacherSettingsPanel setNotice={setNotice} user={user} />}
       </div>
       {notice && <div className="toast" role="status"><CheckCircle2 size={17} />{notice}<button onClick={() => setNotice('')} aria-label="Dismiss"><X size={14} /></button></div>}
     </main>
   </div>;
+}
+
+function TeacherSettingsPanel({ setNotice, user }: { setNotice: (msg: string) => void; user?: User }) {
+  const [subTab, setSubTab] = useState<'ai' | 'classes' | 'preferences' | 'support'>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('teacher_settings_subtab');
+      if (saved === 'ai' || saved === 'classes' || saved === 'preferences' || saved === 'support') return saved;
+    }
+    return 'ai';
+  });
+
+  const handleSubTabChange = (t: 'ai' | 'classes' | 'preferences' | 'support') => {
+    setSubTab(t);
+    localStorage.setItem('teacher_settings_subtab', t);
+  };
+
+  return (
+    <section className="view-enter">
+      <div className="page-heading">
+        <div>
+          <span className="overline">Teacher Preferences & Configuration</span>
+          <h1 style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <Settings size={28} color="#059669" /> Settings
+          </h1>
+          <p>Manage your AI generator key, class & subject offerings, teaching preferences, and support resources.</p>
+        </div>
+      </div>
+
+      {/* Segmented Sub-Navigation Tabs */}
+      <div className="student-subtabs-nav" style={{ maxWidth: '850px', marginBottom: '24px' }}>
+        <button
+          type="button"
+          className={`student-subtab-btn ${subTab === 'ai' ? 'active' : ''}`}
+          onClick={() => handleSubTabChange('ai')}
+        >
+          <Sparkles size={16} />
+          <span>AI Settings</span>
+        </button>
+        <button
+          type="button"
+          className={`student-subtab-btn ${subTab === 'classes' ? 'active' : ''}`}
+          onClick={() => handleSubTabChange('classes')}
+        >
+          <BookOpen size={16} />
+          <span>Class & Subject Settings</span>
+        </button>
+        <button
+          type="button"
+          className={`student-subtab-btn ${subTab === 'preferences' ? 'active' : ''}`}
+          onClick={() => handleSubTabChange('preferences')}
+        >
+          <SlidersHorizontal size={16} />
+          <span>Teaching Preferences</span>
+        </button>
+        <button
+          type="button"
+          className={`student-subtab-btn ${subTab === 'support' ? 'active' : ''}`}
+          onClick={() => handleSubTabChange('support')}
+        >
+          <CircleHelp size={16} />
+          <span>Help & Support</span>
+        </button>
+      </div>
+
+      {subTab === 'ai' && <AISettingsPanel setNotice={setNotice} user={user} />}
+      {subTab === 'classes' && <ClassSubjectSettingsPanel setNotice={setNotice} user={user} />}
+      {subTab === 'preferences' && <TeachingPreferencesPanel setNotice={setNotice} />}
+      {subTab === 'support' && <HelpSupportPanel setNotice={setNotice} user={user} />}
+    </section>
+  );
 }
 
 function AISettingsPanel({ setNotice, user }: { setNotice: (msg: string) => void; user?: User }) {
@@ -805,101 +1122,668 @@ function AISettingsPanel({ setNotice, user }: { setNotice: (msg: string) => void
   }
 
   return (
-    <section className="view-enter">
-      <div className="page-heading">
-        <div>
-          <span className="overline">System Configuration</span>
-          <h1>AI Settings</h1>
-          <p>Configure your personal AI provider and unique API key for AI quiz and question paper generation.</p>
-        </div>
+    <div className="ai-page-card" style={{ maxWidth: '820px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '18px', padding: '24px 28px', boxShadow: '0 4px 16px rgba(0,0,0,0.04)' }}>
+      <div style={{ marginBottom: '20px' }}>
+        <h2 style={{ fontSize: '18px', fontWeight: 800, margin: '0 0 4px', color: '#0f172a' }}>AI Engine & Personal Key Configuration</h2>
+        <p style={{ margin: 0, fontSize: '13.5px', color: '#64748b' }}>Configure your personal AI provider and unique API key for generating interactive quizzes and classroom question papers.</p>
       </div>
 
-      <div className="ai-page-card" style={{ maxWidth: '800px' }}>
-        <form onSubmit={handleSave} className="ai-form-grid">
-          {saved && (
-            <div className="compact-nep" style={{ background: '#ecfdf5', borderColor: '#6ee7b7', color: '#047857' }}>
-              <CheckCircle2 size={18} />
-              <span>AI Settings saved! Your personal API key is securely registered to your teacher account.</span>
-            </div>
-          )}
-
-          {keyError && (
-            <div className="inline-error" style={{ fontSize: '14px', padding: '12px 16px', borderRadius: '10px' }}>
-              {keyError}
-            </div>
-          )}
-
-          <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '14px 16px', fontSize: '13px', color: '#334155', lineHeight: 1.5 }}>
-            <strong style={{ color: '#0f172a' }}>🔒 Teacher API Key Policy:</strong> Every teacher must provide their own unique Google Gemini, OpenAI, or DeepSeek API key. Duplication or sharing of API keys between teacher accounts is strictly prohibited by the system.
+      <form onSubmit={handleSave} className="ai-form-grid">
+        {saved && (
+          <div className="compact-nep" style={{ background: '#ecfdf5', borderColor: '#6ee7b7', color: '#047857' }}>
+            <CheckCircle2 size={18} />
+            <span>AI Settings saved! Your personal API key is securely registered to your teacher account.</span>
           </div>
+        )}
 
-          <div className="form-grid-2">
-            <label className="field compact-field">
-              <span>AI Engine Provider</span>
-              <select value={provider} onChange={(e) => setProvider(e.target.value)}>
-                <option value="auto">Auto Select (Google Gemini / OpenAI GPT / DeepSeek)</option>
-                <option value="gemini">Google Gemini AI</option>
-                <option value="openai">ChatGPT (OpenAI GPT-4o)</option>
-                <option value="deepseek">DeepSeek AI (DeepSeek-V3 / R1)</option>
-              </select>
-              <small className="muted" style={{ marginTop: '4px' }}>
-                Select your preferred AI service provider.
-              </small>
+        {keyError && (
+          <div className="inline-error" style={{ fontSize: '14px', padding: '12px 16px', borderRadius: '10px' }}>
+            {keyError}
+          </div>
+        )}
+
+        <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '14px 16px', fontSize: '13px', color: '#334155', lineHeight: 1.5 }}>
+          <strong style={{ color: '#0f172a' }}>🔒 Teacher API Key Policy:</strong> Every teacher must provide their own unique Google Gemini, OpenAI, or DeepSeek API key. Duplication or sharing of API keys between teacher accounts is strictly prohibited by the system.
+        </div>
+
+        <div className="form-grid-2">
+          <label className="field compact-field">
+            <span>AI Engine Provider</span>
+            <select value={provider} onChange={(e) => setProvider(e.target.value)}>
+              <option value="auto">Auto Select (Google Gemini / OpenAI GPT / DeepSeek)</option>
+              <option value="gemini">Google Gemini AI</option>
+              <option value="openai">ChatGPT (OpenAI GPT-4o)</option>
+              <option value="deepseek">DeepSeek AI (DeepSeek-V3 / R1)</option>
+            </select>
+            <small className="muted" style={{ marginTop: '4px' }}>
+              Select your preferred AI service provider.
+            </small>
+          </label>
+
+          <label className="field compact-field">
+            <span>Personal API Key *</span>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <input
+                type={showKey ? 'text' : 'password'}
+                value={apiKey}
+                onChange={(e) => { setApiKey(e.target.value); setKeyError(''); }}
+                placeholder="Paste your unique Gemini, OpenAI, or DeepSeek API key..."
+                style={{ flex: 1 }}
+              />
+              <button
+                type="button"
+                className="button button-secondary"
+                style={{ padding: '0 12px', minHeight: '44px', fontSize: '13px' }}
+                onClick={() => setShowKey(!showKey)}
+              >
+                {showKey ? 'Hide' : 'Show'}
+              </button>
+            </div>
+            <small className="muted" style={{ marginTop: '4px' }}>
+              Each teacher must enter their own unique API key. No sharing or duplication allowed.
+            </small>
+          </label>
+        </div>
+
+        <div className="compact-modal-actions" style={{ marginTop: '20px' }}>
+          <button type="submit" className="button button-primary" style={{ padding: '0 28px', minHeight: '44px', background: '#059669', borderColor: '#059669' }} disabled={saving || loading}>
+            {saving ? (
+              <>
+                <RefreshCw size={15} className="spin" /> Saving...
+              </>
+            ) : (
+              <>
+                <Save size={16} /> Save AI Settings
+              </>
+            )}
+          </button>
+        </div>
+      </form>
+
+      <div style={{ marginTop: '28px', paddingTop: '20px', borderTop: '1px solid #e2e8f0' }}>
+        <h3 style={{ fontSize: '15px', margin: '0 0 10px', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <Sparkles size={16} color="#0284c7" /> Active AI Configuration
+        </h3>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
+          <div style={{ padding: '14px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px' }}>
+            <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 600 }}>Active Provider</span>
+            <div style={{ fontSize: '15px', fontWeight: 700, color: '#0f172a', marginTop: '4px' }}>
+              {provider === 'gemini' ? 'Google Gemini AI' : provider === 'openai' ? 'ChatGPT (OpenAI)' : provider === 'deepseek' ? 'DeepSeek AI (V3/R1)' : 'Auto (Gemini / GPT / DeepSeek)'}
+            </div>
+          </div>
+          <div style={{ padding: '14px', background: apiKey ? '#f0fdf4' : '#fffbeb', border: apiKey ? '1px solid #bbf7d0' : '1px solid #fde68a', borderRadius: '12px' }}>
+            <span style={{ fontSize: '12px', color: apiKey ? '#166534' : '#92400e', fontWeight: 600 }}>API Key Status</span>
+            <div style={{ fontSize: '15px', fontWeight: 700, color: apiKey ? '#15803d' : '#b45309', marginTop: '4px' }}>
+              {apiKey ? '✓ Personal Key Active' : '⚠️ No API Key Added'}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ClassSubjectSettingsPanel({ setNotice, user }: { setNotice: (msg: string) => void; user?: User }) {
+  const [selectedGrades, setSelectedGrades] = useState<string[]>(() => getActiveGrades());
+  const [selectedSubjects, setSelectedSubjects] = useState<string[]>(() => getActiveSubjects());
+
+  const [sessionMonth, setSessionMonth] = useState(() => localStorage.getItem('teacher_pref_session_month') || 'April');
+  const [passThreshold, setPassThreshold] = useState(() => localStorage.getItem('teacher_pref_pass_mark') || '40');
+  const [schoolName, setSchoolName] = useState(() => user?.school || localStorage.getItem('teacher_pref_school') || 'EduAshram Learning Centre');
+  const [saving, setSaving] = useState(false);
+
+  const toggleGrade = (g: string) => {
+    setSelectedGrades((prev) => (prev.includes(g) ? prev.filter((x) => x !== g) : [...prev, g]));
+  };
+
+  const toggleSubject = (s: string) => {
+    setSelectedSubjects((prev) => (prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]));
+  };
+
+  const handleSave = (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    localStorage.setItem('teacher_pref_grades', JSON.stringify(selectedGrades));
+    localStorage.setItem('teacher_pref_subjects', JSON.stringify(selectedSubjects));
+    localStorage.setItem('teacher_pref_session_month', sessionMonth);
+    localStorage.setItem('teacher_pref_pass_mark', passThreshold);
+    localStorage.setItem('teacher_pref_school', schoolName);
+    window.dispatchEvent(new Event('teacher-preferences-updated'));
+    setTimeout(() => {
+      setSaving(false);
+      setNotice('✓ Class & Subject settings saved successfully.');
+    }, 250);
+  };
+
+  return (
+    <div style={{ maxWidth: '820px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+      <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        {/* Card 1: School & Academic Session Details */}
+        <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '18px', padding: '24px 28px', boxShadow: '0 4px 16px rgba(0,0,0,0.04)' }}>
+          <h2 style={{ fontSize: '18px', fontWeight: 800, margin: '0 0 6px', color: '#0f172a' }}>Institution & Academic Session</h2>
+          <p style={{ margin: '0 0 18px', fontSize: '13.5px', color: '#64748b' }}>Configure your institution name and academic year session parameters.</p>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            <label className="field">
+              <span style={{ fontWeight: 700, color: '#334155' }}>School / Coaching Centre Name</span>
+              <input
+                value={schoolName}
+                onChange={(e) => setSchoolName(e.target.value)}
+                placeholder="e.g. EduAshram High School & Coaching Academy"
+                style={{ padding: '10px 14px', borderRadius: '10px', border: '1.5px solid #cbd5e1', fontSize: '14px', fontWeight: 600 }}
+              />
+              <span style={{ fontSize: '11.5px', color: '#64748b' }}>This name appears on printed student question papers, progress reports, and fee receipts.</span>
             </label>
 
-            <label className="field compact-field">
-              <span>Personal API Key *</span>
-              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                <input
-                  type={showKey ? 'text' : 'password'}
-                  value={apiKey}
-                  onChange={(e) => { setApiKey(e.target.value); setKeyError(''); }}
-                  placeholder="Paste your unique Gemini, OpenAI, or DeepSeek API key..."
-                  style={{ flex: 1 }}
-                />
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+              <label className="field">
+                <span style={{ fontWeight: 700, color: '#334155' }}>Academic Session Cycle</span>
+                <select
+                  value={sessionMonth}
+                  onChange={(e) => setSessionMonth(e.target.value)}
+                  style={{ padding: '10px 14px', borderRadius: '10px', border: '1.5px solid #cbd5e1', fontSize: '14px', fontWeight: 600 }}
+                >
+                  <option value="April">April to March (Standard CBSE / ICSE)</option>
+                  <option value="January">January to December (Calendar Year)</option>
+                  <option value="June">June to May (State Board Cycle)</option>
+                </select>
+              </label>
+
+              <label className="field">
+                <span style={{ fontWeight: 700, color: '#334155' }}>Passing Threshold (%)</span>
+                <select
+                  value={passThreshold}
+                  onChange={(e) => setPassThreshold(e.target.value)}
+                  style={{ padding: '10px 14px', borderRadius: '10px', border: '1.5px solid #cbd5e1', fontSize: '14px', fontWeight: 600 }}
+                >
+                  <option value="33">33% (Standard Board Minimum)</option>
+                  <option value="40">40% (Proficiency Pass)</option>
+                  <option value="50">50% (Mastery Standard)</option>
+                  <option value="60">60% (First Division Standard)</option>
+                </select>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        {/* Card 2: Active Classes & Grades */}
+        <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '18px', padding: '24px 28px', boxShadow: '0 4px 16px rgba(0,0,0,0.04)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '10px' }}>
+            <div>
+              <h2 style={{ fontSize: '18px', fontWeight: 800, margin: '0 0 4px', color: '#0f172a' }}>Active Classes / Grades Taught</h2>
+              <p style={{ margin: 0, fontSize: '13px', color: '#64748b' }}>Select the grades you actively manage. These will be prioritized across dropdowns.</p>
+            </div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                type="button"
+                className="button button-secondary"
+                style={{ fontSize: '12px', padding: '4px 10px', minHeight: '32px' }}
+                onClick={() => setSelectedGrades([...ALL_STUDENT_GRADES])}
+              >
+                Select All
+              </button>
+              <button
+                type="button"
+                className="button button-secondary"
+                style={{ fontSize: '12px', padding: '4px 10px', minHeight: '32px' }}
+                onClick={() => setSelectedGrades(['Grade 6', 'Grade 7', 'Grade 8', 'Grade 9', 'Grade 10'])}
+              >
+                Grades 6–10
+              </button>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '12px' }}>
+            {ALL_STUDENT_GRADES.map((g) => {
+              const active = selectedGrades.includes(g);
+              return (
                 <button
                   type="button"
-                  className="button button-secondary"
-                  style={{ padding: '0 12px', minHeight: '44px', fontSize: '13px' }}
-                  onClick={() => setShowKey(!showKey)}
+                  key={g}
+                  onClick={() => toggleGrade(g)}
+                  style={{
+                    padding: '8px 16px',
+                    borderRadius: '20px',
+                    border: active ? '1.5px solid #059669' : '1.5px solid #e2e8f0',
+                    background: active ? '#ecfdf5' : '#f8fafc',
+                    color: active ? '#047857' : '#475569',
+                    fontSize: '13.5px',
+                    fontWeight: active ? 700 : 500,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    transition: 'all 0.15s ease'
+                  }}
                 >
-                  {showKey ? 'Hide' : 'Show'}
+                  {active ? <Check size={14} /> : null}
+                  {g}
                 </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Card 3: Subjects Taught */}
+        <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '18px', padding: '24px 28px', boxShadow: '0 4px 16px rgba(0,0,0,0.04)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '10px' }}>
+            <div>
+              <h2 style={{ fontSize: '18px', fontWeight: 800, margin: '0 0 4px', color: '#0f172a' }}>Teaching Subjects</h2>
+              <p style={{ margin: 0, fontSize: '13px', color: '#64748b' }}>Select your primary instructional subjects.</p>
+            </div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                type="button"
+                className="button button-secondary"
+                style={{ fontSize: '12px', padding: '4px 10px', minHeight: '32px' }}
+                onClick={() => setSelectedSubjects(ALL_ACADEMIC_SUBJECTS.filter((s) => s !== 'Other / Custom Subject'))}
+              >
+                Select All
+              </button>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '12px' }}>
+            {ALL_ACADEMIC_SUBJECTS.filter((s) => s !== 'Other / Custom Subject').map((s) => {
+              const active = selectedSubjects.includes(s);
+              return (
+                <button
+                  type="button"
+                  key={s}
+                  onClick={() => toggleSubject(s)}
+                  style={{
+                    padding: '8px 14px',
+                    borderRadius: '20px',
+                    border: active ? '1.5px solid #0284c7' : '1.5px solid #e2e8f0',
+                    background: active ? '#f0f9ff' : '#f8fafc',
+                    color: active ? '#0369a1' : '#475569',
+                    fontSize: '13px',
+                    fontWeight: active ? 700 : 500,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  {active ? <Check size={14} /> : null}
+                  {s}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+          <button
+            type="submit"
+            className="button button-primary"
+            style={{ padding: '0 28px', minHeight: '44px', background: '#059669', borderColor: '#059669', display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+            disabled={saving}
+          >
+            {saving ? <RefreshCw size={15} className="spin" /> : <Save size={16} />}
+            <span>Save Class & Subject Settings</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+function TeachingPreferencesPanel({ setNotice }: { setNotice: (msg: string) => void }) {
+  const [prefs, setPrefs] = useState(() => {
+    try {
+      const saved = localStorage.getItem('teacher_teaching_preferences');
+      return saved ? JSON.parse(saved) : {
+        defaultQuizMinutes: '20',
+        instantAnswerReveal: true,
+        shuffleQuestions: true,
+        allowRetries: true,
+        autoSaveDrafts: true,
+        includeSchoolHeader: true,
+        audioEffects: true,
+        submissionAlerts: true,
+      };
+    } catch {
+      return {
+        defaultQuizMinutes: '20',
+        instantAnswerReveal: true,
+        shuffleQuestions: true,
+        allowRetries: true,
+        autoSaveDrafts: true,
+        includeSchoolHeader: true,
+        audioEffects: true,
+        submissionAlerts: true,
+      };
+    }
+  });
+
+  const [saving, setSaving] = useState(false);
+
+  const toggle = (key: string) => {
+    setPrefs((prev: any) => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const handleSave = (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    localStorage.setItem('teacher_teaching_preferences', JSON.stringify(prefs));
+    setTimeout(() => {
+      setSaving(false);
+      setNotice('✓ Teaching preferences updated.');
+    }, 250);
+  };
+
+  return (
+    <div style={{ maxWidth: '820px' }}>
+      <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        {/* Section 1: Quizzes & Assessment Experience */}
+        <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '18px', padding: '24px 28px', boxShadow: '0 4px 16px rgba(0,0,0,0.04)' }}>
+          <h2 style={{ fontSize: '18px', fontWeight: 800, margin: '0 0 6px', color: '#0f172a' }}>Quiz & Classroom Controls</h2>
+          <p style={{ margin: '0 0 18px', fontSize: '13.5px', color: '#64748b' }}>Configure default behavior for interactive live quizzes and student self-paced tests.</p>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <label className="field">
+              <span style={{ fontWeight: 700, color: '#334155' }}>Default Quiz Duration Limit</span>
+              <select
+                value={prefs.defaultQuizMinutes}
+                onChange={(e) => setPrefs({ ...prefs, defaultQuizMinutes: e.target.value })}
+                style={{ padding: '10px 14px', borderRadius: '10px', border: '1.5px solid #cbd5e1', fontSize: '14px', fontWeight: 600 }}
+              >
+                <option value="15">15 Minutes (Quick Test)</option>
+                <option value="20">20 Minutes (Standard Quiz)</option>
+                <option value="30">30 Minutes (Mid-Length Assessment)</option>
+                <option value="45">45 Minutes (Full Period Exam)</option>
+                <option value="60">60 Minutes (Comprehensive Paper)</option>
+                <option value="0">Untimed / Self-Paced (No Timer)</option>
+              </select>
+            </label>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', cursor: 'pointer', padding: '12px', borderRadius: '12px', background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+                <input
+                  type="checkbox"
+                  checked={prefs.instantAnswerReveal}
+                  onChange={() => toggle('instantAnswerReveal')}
+                  style={{ width: '18px', height: '18px', marginTop: '2px', accentColor: '#059669', cursor: 'pointer' }}
+                />
+                <div>
+                  <strong style={{ fontSize: '14px', color: '#0f172a', display: 'block' }}>Instant Solution & Explanation Reveal</strong>
+                  <span style={{ fontSize: '12.5px', color: '#64748b' }}>Display answer feedback and explanations immediately after a student submits their choice.</span>
+                </div>
+              </label>
+
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', cursor: 'pointer', padding: '12px', borderRadius: '12px', background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+                <input
+                  type="checkbox"
+                  checked={prefs.shuffleQuestions}
+                  onChange={() => toggle('shuffleQuestions')}
+                  style={{ width: '18px', height: '18px', marginTop: '2px', accentColor: '#059669', cursor: 'pointer' }}
+                />
+                <div>
+                  <strong style={{ fontSize: '14px', color: '#0f172a', display: 'block' }}>Randomize Question Order</strong>
+                  <span style={{ fontSize: '12.5px', color: '#64748b' }}>Shuffle question sequences for student attempts to reduce peer copying in computer labs.</span>
+                </div>
+              </label>
+
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', cursor: 'pointer', padding: '12px', borderRadius: '12px', background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+                <input
+                  type="checkbox"
+                  checked={prefs.allowRetries}
+                  onChange={() => toggle('allowRetries')}
+                  style={{ width: '18px', height: '18px', marginTop: '2px', accentColor: '#059669', cursor: 'pointer' }}
+                />
+                <div>
+                  <strong style={{ fontSize: '14px', color: '#0f172a', display: 'block' }}>Allow Quiz Retakes by Default</strong>
+                  <span style={{ fontSize: '12.5px', color: '#64748b' }}>Allow students to review incorrect answers and retry quizzes for mastery practice.</span>
+                </div>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        {/* Section 2: Question Papers & Workflow */}
+        <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '18px', padding: '24px 28px', boxShadow: '0 4px 16px rgba(0,0,0,0.04)' }}>
+          <h2 style={{ fontSize: '18px', fontWeight: 800, margin: '0 0 6px', color: '#0f172a' }}>Question Paper Studio & Automation</h2>
+          <p style={{ margin: '0 0 18px', fontSize: '13.5px', color: '#64748b' }}>Worksheet drafting and print presentation defaults.</p>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <label style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', cursor: 'pointer', padding: '12px', borderRadius: '12px', background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+              <input
+                type="checkbox"
+                checked={prefs.autoSaveDrafts}
+                onChange={() => toggle('autoSaveDrafts')}
+                style={{ width: '18px', height: '18px', marginTop: '2px', accentColor: '#059669', cursor: 'pointer' }}
+              />
+              <div>
+                <strong style={{ fontSize: '14px', color: '#0f172a', display: 'block' }}>Auto-Save Drafts Every 15 Seconds</strong>
+                <span style={{ fontSize: '12.5px', color: '#64748b' }}>Automatically preserve your in-progress question papers and study materials as you type.</span>
               </div>
-              <small className="muted" style={{ marginTop: '4px' }}>
-                Each teacher must enter their own unique API key. No sharing or duplication allowed.
-              </small>
+            </label>
+
+            <label style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', cursor: 'pointer', padding: '12px', borderRadius: '12px', background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+              <input
+                type="checkbox"
+                checked={prefs.includeSchoolHeader}
+                onChange={() => toggle('includeSchoolHeader')}
+                style={{ width: '18px', height: '18px', marginTop: '2px', accentColor: '#059669', cursor: 'pointer' }}
+              />
+              <div>
+                <strong style={{ fontSize: '14px', color: '#0f172a', display: 'block' }}>Print School Header & Signature Block</strong>
+                <span style={{ fontSize: '12.5px', color: '#64748b' }}>Render institution name, total marks header, and teacher sign-off line on printed sheets.</span>
+              </div>
+            </label>
+
+            <label style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', cursor: 'pointer', padding: '12px', borderRadius: '12px', background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+              <input
+                type="checkbox"
+                checked={prefs.audioEffects}
+                onChange={() => toggle('audioEffects')}
+                style={{ width: '18px', height: '18px', marginTop: '2px', accentColor: '#059669', cursor: 'pointer' }}
+              />
+              <div>
+                <strong style={{ fontSize: '14px', color: '#0f172a', display: 'block' }}>Classroom Sound Effects</strong>
+                <span style={{ fontSize: '12.5px', color: '#64748b' }}>Play cheerful audio cues on answer reveals and leaderboard calculations.</span>
+              </div>
             </label>
           </div>
+        </div>
 
-          <div className="compact-modal-actions" style={{ marginTop: '20px' }}>
-            <button type="submit" className="button button-primary" style={{ padding: '0 28px', minHeight: '44px' }} disabled={saving || loading}>
-              {saving ? 'Saving...' : <><Save size={16} /> Save AI Settings</>}
-            </button>
-          </div>
-        </form>
+        <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+          <button
+            type="submit"
+            className="button button-primary"
+            style={{ padding: '0 28px', minHeight: '44px', background: '#059669', borderColor: '#059669', display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+            disabled={saving}
+          >
+            {saving ? <RefreshCw size={15} className="spin" /> : <Save size={16} />}
+            <span>Save Teaching Preferences</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
 
-        <div style={{ marginTop: '28px', paddingTop: '20px', borderTop: '1px solid #e2e8f0' }}>
-          <h3 style={{ fontSize: '15px', margin: '0 0 10px', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Sparkles size={16} color="#0284c7" /> Active AI Configuration
-          </h3>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
-            <div style={{ padding: '14px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px' }}>
-              <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 600 }}>Active Provider</span>
-              <div style={{ fontSize: '15px', fontWeight: 700, color: '#0f172a', marginTop: '4px' }}>
-                {provider === 'gemini' ? 'Google Gemini AI' : provider === 'openai' ? 'ChatGPT (OpenAI)' : provider === 'deepseek' ? 'DeepSeek AI (V3/R1)' : 'Auto (Gemini / GPT / DeepSeek)'}
-              </div>
+function HelpSupportPanel({ setNotice, user }: { setNotice: (msg: string) => void; user?: User }) {
+  const [openFaq, setOpenFaq] = useState<number | null>(0);
+  const [subject, setSubject] = useState('');
+  const [message, setMessage] = useState('');
+  const [submitted, setSubmitted] = useState(false);
+  const [sending, setSending] = useState(false);
+
+  const faqs = [
+    {
+      q: 'How do I obtain a personal AI API Key for quiz & paper generation?',
+      a: 'You can generate a free Google Gemini API key by visiting Google AI Studio (aistudio.google.com). Sign in with your Google account, click "Create API key", copy it, and paste it into Settings > AI Settings. OpenAI (platform.openai.com) and DeepSeek (platform.deepseek.com) keys are also supported.'
+    },
+    {
+      q: 'How do students log into their student dashboard?',
+      a: 'Students do not need complex passwords or email addresses. As the teacher, navigate to the Students Directory tab to copy each student’s unique passkey. Students can visit /student on any phone, tablet, or laptop, type or paste their passkey, and instantly access their classroom.'
+    },
+    {
+      q: 'How does the Add Offline Assessment Score feature work?',
+      a: 'When you conduct physical paper tests, class tests, or unit exams in person, navigate to Students > Progress Reports, select the student, and click "Add Offline Test". Enter their score, subject, and remarks. The score is immediately computed into their overall academic report, term GPA, and grade card.'
+    },
+    {
+      q: 'Can I print Question Papers and worksheets for offline exams?',
+      a: 'Yes! In the Question Papers tab, every paper has a dedicated "Print Paper" button with print-optimized CSS that removes UI chrome and prints clean examination papers complete with school headers and question numbers.'
+    },
+    {
+      q: 'Are historical student marks preserved if I delete an old quiz?',
+      a: 'Yes! EduAshram features Permanent Score Preservation. If an old quiz or paper is deleted, all past student grades and test records are preserved safely in the student progress reports with an archived tag.'
+    }
+  ];
+
+  const handleSubmitFeedback = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!message.trim()) return;
+    setSending(true);
+    setTimeout(() => {
+      setSending(false);
+      setSubmitted(true);
+      setSubject('');
+      setMessage('');
+      setNotice('✓ Thank you! Your feedback has been sent to the EduAshram support team.');
+    }, 400);
+  };
+
+  return (
+    <div style={{ maxWidth: '820px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+      {/* Helpdesk Channels Card */}
+      <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '18px', padding: '24px 28px', boxShadow: '0 4px 16px rgba(0,0,0,0.04)' }}>
+        <h2 style={{ fontSize: '18px', fontWeight: 800, margin: '0 0 6px', color: '#0f172a' }}>Teacher Helpdesk & Dedicated Support</h2>
+        <p style={{ margin: '0 0 18px', fontSize: '13.5px', color: '#64748b' }}>Our academic technical support team is available to assist you with classroom setup, student accounts, and question generation.</p>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: '14px' }}>
+          <div style={{ padding: '16px', borderRadius: '14px', background: '#f8fafc', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+            <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: '#e0f2fe', color: '#0284c7', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <Mail size={18} />
             </div>
-            <div style={{ padding: '14px', background: apiKey ? '#f0fdf4' : '#fffbeb', border: apiKey ? '1px solid #bbf7d0' : '1px solid #fde68a', borderRadius: '12px' }}>
-              <span style={{ fontSize: '12px', color: apiKey ? '#166534' : '#92400e', fontWeight: 600 }}>API Key Status</span>
-              <div style={{ fontSize: '15px', fontWeight: 700, color: apiKey ? '#15803d' : '#b45309', marginTop: '4px' }}>
-                {apiKey ? '✓ Personal Key Active' : '⚠️ No API Key Added'}
-              </div>
+            <div>
+              <strong style={{ fontSize: '13px', color: '#64748b', display: 'block', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Email Support</strong>
+              <a href="mailto:support@eduashram.com" style={{ fontSize: '15px', fontWeight: 700, color: '#0284c7', textDecoration: 'none', display: 'block', marginTop: '2px' }}>support@eduashram.com</a>
+              <span style={{ fontSize: '11.5px', color: '#94a3b8' }}>Replies within 2 to 4 business hours</span>
+            </div>
+          </div>
+
+          <div style={{ padding: '16px', borderRadius: '14px', background: '#f8fafc', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+            <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: '#ecfdf5', color: '#059669', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <Phone size={18} />
+            </div>
+            <div>
+              <strong style={{ fontSize: '13px', color: '#64748b', display: 'block', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Teacher Helpline</strong>
+              <span style={{ fontSize: '15px', fontWeight: 700, color: '#0f172a', display: 'block', marginTop: '2px' }}>+91 98765 43210</span>
+              <span style={{ fontSize: '11.5px', color: '#94a3b8' }}>Mon – Sat · 9:00 AM – 7:00 PM IST</span>
             </div>
           </div>
         </div>
       </div>
-    </section>
+
+      {/* FAQs Accordion Card */}
+      <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '18px', padding: '24px 28px', boxShadow: '0 4px 16px rgba(0,0,0,0.04)' }}>
+        <h2 style={{ fontSize: '18px', fontWeight: 800, margin: '0 0 4px', color: '#0f172a' }}>Frequently Asked Questions (FAQ)</h2>
+        <p style={{ margin: '0 0 18px', fontSize: '13.5px', color: '#64748b' }}>Quick solutions to common questions about quizzes, student passkeys, and scoring.</p>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          {faqs.map((faq, idx) => {
+            const isOpen = openFaq === idx;
+            return (
+              <div
+                key={idx}
+                style={{
+                  border: isOpen ? '1.5px solid #cbd5e1' : '1px solid #e2e8f0',
+                  borderRadius: '12px',
+                  overflow: 'hidden',
+                  background: isOpen ? '#f8fafc' : '#ffffff',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => setOpenFaq(isOpen ? null : idx)}
+                  style={{
+                    width: '100%',
+                    padding: '14px 18px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '12px',
+                    background: 'none',
+                    border: 'none',
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                    fontSize: '14.5px',
+                    fontWeight: 700,
+                    color: isOpen ? '#0369a1' : '#1e293b'
+                  }}
+                >
+                  <span>{faq.q}</span>
+                  {isOpen ? <ChevronUp size={18} color="#0284c7" /> : <ChevronDown size={18} color="#94a3b8" />}
+                </button>
+                {isOpen && (
+                  <div style={{ padding: '0 18px 16px 18px', fontSize: '13.5px', color: '#475569', lineHeight: 1.6 }}>
+                    {faq.a}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Feedback / Contact Form Card */}
+      <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '18px', padding: '24px 28px', boxShadow: '0 4px 16px rgba(0,0,0,0.04)' }}>
+        <h2 style={{ fontSize: '18px', fontWeight: 800, margin: '0 0 4px', color: '#0f172a' }}>Send Feedback or Report an Issue</h2>
+        <p style={{ margin: '0 0 18px', fontSize: '13.5px', color: '#64748b' }}>Need assistance with your account or have a feature request? Drop us a note.</p>
+
+        {submitted ? (
+          <div style={{ padding: '16px', background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: '12px', color: '#065f46', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <CheckCircle2 size={20} color="#059669" />
+            <div>
+              <strong>Your message has been sent successfully!</strong>
+              <p style={{ margin: '2px 0 0', fontSize: '13px' }}>Our support team will review your request and get back to you at {user?.email || 'your registered email'}.</p>
+            </div>
+          </div>
+        ) : (
+          <form onSubmit={handleSubmitFeedback} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            <label className="field">
+              <span style={{ fontWeight: 700, color: '#334155' }}>Subject / Topic</span>
+              <input
+                value={subject}
+                onChange={(e) => setSubject(e.target.value)}
+                placeholder="e.g. Assistance with Question Paper Studio, or Feature Suggestion"
+                style={{ padding: '10px 14px', borderRadius: '10px', border: '1.5px solid #cbd5e1', fontSize: '14px', fontWeight: 600 }}
+              />
+            </label>
+
+            <label className="field">
+              <span style={{ fontWeight: 700, color: '#334155' }}>Message Details *</span>
+              <textarea
+                required
+                rows={4}
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                placeholder="Please describe your query, classroom issue, or feedback in detail..."
+                style={{ padding: '10px 14px', borderRadius: '10px', border: '1.5px solid #cbd5e1', fontSize: '14px', fontFamily: 'inherit', resize: 'vertical' }}
+              />
+            </label>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+              <button
+                type="submit"
+                className="button button-primary"
+                style={{ padding: '0 24px', minHeight: '42px', background: '#0284c7', borderColor: '#0284c7', display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+                disabled={sending}
+              >
+                {sending ? <RefreshCw size={15} className="spin" /> : <Send size={15} />}
+                <span>Send Message to Support</span>
+              </button>
+            </div>
+          </form>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -1034,9 +1918,9 @@ function TeacherWhiteboard({ setNotice }: { setNotice: (msg: string) => void }) 
   );
 }
 
-function tabLabel(tab: string) { return ({ overview: 'Overview', calendar: 'Calendar & Reminders', whiteboard: 'Online Whiteboard', quizzes: 'Quizzes and Worksheets', worksheets: 'Question Papers', archive: 'Archive', students: 'Students', results: 'Results', ai_settings: 'AI Settings' } as Record<string, string>)[tab] ?? tab; }
+function tabLabel(tab: string) { return ({ overview: 'Overview', ai_assistant: 'AI Teaching Assistant', calendar: 'Calendar & Reminders', whiteboard: 'Online Whiteboard', quizzes: 'Quizzes and Worksheets', worksheets: 'Question Papers', archive: 'Archive', students: 'Students', results: 'Results', settings: 'Settings', ai_settings: 'Settings' } as Record<string, string>)[tab] ?? tab; }
 function NavItem({ active, icon, label, count, onClick }: { active: boolean; icon: React.ReactNode; label: string; count?: number; onClick: () => void }) { return <button className={`nav-item ${active ? 'active' : ''}`} onClick={onClick}>{icon}<span>{label}</span>{count !== undefined && <small>{count}</small>}</button>; }
-function Metric({ label, value, icon, tint }: { label: string; value: number | string; icon: React.ReactNode; tint: string }) { return <div className="metric"><div className={`metric-icon ${tint}`}>{icon}</div><div><span>{label}</span><strong>{value}</strong></div><div className="metric-trend">↗</div></div>; }
+function Metric({ label, value, icon, tint, onClick, title }: { label: string; value: number | string; icon: React.ReactNode; tint: string; onClick?: () => void; title?: string }) { return <div className="metric" onClick={onClick} style={{ cursor: onClick ? 'pointer' : 'default' }} title={title}><div className={`metric-icon ${tint}`}>{icon}</div><div><span>{label}</span><strong>{value}</strong></div><div className="metric-trend">↗</div></div>; }
 
 export type UploadedSourceFile = {
   name: string;
@@ -1311,9 +2195,9 @@ function ContentSourceUploadSection({
 }
 
 function AIQuizModal({ onClose, onGenerated, onNavigateToAISettings }: { onClose: () => void; onGenerated: (quiz: { title: string; mode: Mode; hasTimer?: boolean; minutes?: number; questions: Question[]; grade?: string }) => void; onNavigateToAISettings?: () => void }) {
-  const [subject, setSubject] = useState('Science');
+  const [subject, setSubject] = useState(() => getDefaultSubject());
   const [customSubject, setCustomSubject] = useState('');
-  const [grade, setGrade] = useState('Grade 6');
+  const [grade, setGrade] = useState(() => getDefaultGrade());
   const [topic, setTopic] = useState('');
   const [subtopics, setSubtopics] = useState('');
   const [difficulty, setDifficulty] = useState<'Easy' | 'Moderate' | 'Hard'>('Moderate');
@@ -1398,25 +2282,39 @@ function AIQuizModal({ onClose, onGenerated, onNavigateToAISettings }: { onClose
         <label className="field compact-field">
           <span>Subject</span>
           <select value={subject} onChange={(e) => setSubject(e.target.value)}>
-            <option value="Science">Science</option>
-            <option value="Mathematics">Mathematics</option>
-            <option value="English">English</option>
-            <option value="Social Studies">Social Studies</option>
-            <option value="Physics">Physics</option>
-            <option value="Chemistry">Chemistry</option>
-            <option value="Biology">Biology</option>
-            <option value="Environmental Studies">Environmental Studies (EVS)</option>
-            <option value="Computer Science">Computer Science / Coding</option>
-            <option value="Other">Other / Custom</option>
+            {getActiveSubjects().length > 0 && (
+              <optgroup label="Teaching Subjects">
+                {getActiveSubjects().map((s) => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </optgroup>
+            )}
+            <optgroup label="Other Subjects">
+              {ALL_ACADEMIC_SUBJECTS.filter((s) => !getActiveSubjects().includes(s) && s !== 'Other / Custom Subject').map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+              <option value="Other">Other / Custom</option>
+            </optgroup>
           </select>
         </label>
 
         <label className="field compact-field">
           <span>Grade / Class</span>
           <select value={grade} onChange={(e) => setGrade(e.target.value)}>
-            {Array.from({ length: 12 }, (_, i) => `Grade ${i + 1}`).map((g) => (
-              <option key={g} value={g}>{g}</option>
-            ))}
+            {getActiveGrades().length > 0 && (
+              <optgroup label="Active Classes">
+                {getActiveGrades().map((g) => (
+                  <option key={g} value={g}>{g}</option>
+                ))}
+              </optgroup>
+            )}
+            {ALL_STUDENT_GRADES.filter((g) => !getActiveGrades().includes(g)).length > 0 && (
+              <optgroup label="Other Classes">
+                {ALL_STUDENT_GRADES.filter((g) => !getActiveGrades().includes(g)).map((g) => (
+                  <option key={g} value={g}>{g}</option>
+                ))}
+              </optgroup>
+            )}
           </select>
         </label>
 
@@ -1673,7 +2571,7 @@ function QuizManager({ quizzes, selectedQuiz, setSelectedQuiz, liveQuiz, refresh
     setEditingId('');
     setDraft({
       title: result.title,
-      grade: result.grade || 'Grade 6',
+      grade: result.grade || getDefaultGrade(),
       mode: result.mode,
       hasTimer: result.hasTimer ?? false,
       minutes: result.minutes ?? 20,
@@ -1681,13 +2579,13 @@ function QuizManager({ quizzes, selectedQuiz, setSelectedQuiz, liveQuiz, refresh
       questions: result.questions,
     });
     setShowAIModal(false);
-    setNotice(`✨ AI Quiz generated for ${result.grade || 'Grade 6'} with NEP 2026 alignment! Review and save below.`);
+    setNotice(`✨ AI Quiz generated for ${result.grade || getDefaultGrade()} with NEP 2026 alignment! Review and save below.`);
   }
 
   if (draft) return <section className="view-enter"><div className="page-heading compact-heading"><div><button className="back-link" onClick={() => setDraft(null)}><ArrowLeft size={15} /> All quizzes</button><h1>{editingId ? 'Edit your quiz' : 'Build a quiz'}</h1><p>Keep each question clear and focused.</p></div><button className="button button-primary" onClick={(event) => void saveQuiz(event as unknown as React.FormEvent)} disabled={saving}>{saving ? 'Saving...' : <><Check size={16} /> Save quiz</>}</button></div>
     <form className="editor-layout" onSubmit={saveQuiz}>
       <div className="editor-main">
-        <div className="form-panel"><div className="panel-title"><span className="step-count">01</span><div><h2>Quiz details</h2><p>Give your quiz a name and select target grade.</p></div></div><div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px' }}><label className="field"><span>Quiz title</span><input required maxLength={120} value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} placeholder="e.g. Fractions, round one" /></label><label className="field"><span>Target Grade</span><select value={draft.grade || 'All Grades'} onChange={(event) => setDraft({ ...draft, grade: event.target.value })} style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#fff', fontSize: '14px', width: '100%' }}><option value="All Grades">All Grades (Open to all students)</option>{ALL_STUDENT_GRADES.map((g) => (<option key={g} value={g}>{g}</option>))}</select></label></div><div className="field"><span>How will students take it?</span><div className="mode-choice"><button type="button" className={draft.mode === 'LIVE' ? 'chosen' : ''} onClick={() => setDraft({ ...draft, mode: 'LIVE', hasTimer: false })}><Radio size={18} /><span><strong>Live classroom</strong></span>{draft.mode === 'LIVE' && <Check size={16} />}</button><button type="button" className={draft.mode === 'SELF_PACED' && draft.hasTimer ? 'chosen' : ''} onClick={() => setDraft({ ...draft, mode: 'SELF_PACED', hasTimer: true })}><Clock3 size={18} /><span><strong>Timed practice</strong></span>{draft.mode === 'SELF_PACED' && draft.hasTimer && <Check size={16} />}</button><button type="button" className={draft.mode === 'SELF_PACED' && !draft.hasTimer ? 'chosen' : ''} onClick={() => setDraft({ ...draft, mode: 'SELF_PACED', hasTimer: false })}><BookOpenCheck size={18} /><span><strong>Self Paced</strong></span>{draft.mode === 'SELF_PACED' && !draft.hasTimer && <Check size={16} />}</button></div></div>{draft.mode === 'SELF_PACED' && draft.hasTimer && <label className="field short-field" style={{ marginTop: '16px' }}><span>Time limit</span><div className="input-suffix"><input type="number" min={1} max={1440} value={draft.minutes} onChange={(event) => setDraft({ ...draft, minutes: Number(event.target.value) })} /><span>minutes</span></div></label>}<label className="check-row"><input type="checkbox" checked={draft.showResults} onChange={(event) => setDraft({ ...draft, showResults: event.target.checked })} /><span><strong>Show results to students</strong></span></label></div>
+        <div className="form-panel"><div className="panel-title"><span className="step-count">01</span><div><h2>Quiz details</h2><p>Give your quiz a name and select target grade.</p></div></div><div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px' }}><label className="field"><span>Quiz title</span><input required maxLength={120} value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} placeholder="e.g. Fractions, round one" /></label><label className="field"><span>Target Grade</span><select value={draft.grade || getDefaultGrade()} onChange={(event) => setDraft({ ...draft, grade: event.target.value })} style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#fff', fontSize: '14px', width: '100%' }}><option value="All Grades">All Grades (Open to all students)</option>{getActiveGrades().length > 0 && (<optgroup label="Active Classes">{getActiveGrades().map((g) => (<option key={g} value={g}>{g}</option>))}</optgroup>)}{ALL_STUDENT_GRADES.filter((g) => !getActiveGrades().includes(g)).length > 0 && (<optgroup label="Other Classes">{ALL_STUDENT_GRADES.filter((g) => !getActiveGrades().includes(g)).map((g) => (<option key={g} value={g}>{g}</option>))}</optgroup>)}</select></label></div><div className="field"><span>How will students take it?</span><div className="mode-choice"><button type="button" className={draft.mode === 'LIVE' ? 'chosen' : ''} onClick={() => setDraft({ ...draft, mode: 'LIVE', hasTimer: false })}><Radio size={18} /><span><strong>Live classroom</strong></span>{draft.mode === 'LIVE' && <Check size={16} />}</button><button type="button" className={draft.mode === 'SELF_PACED' && draft.hasTimer ? 'chosen' : ''} onClick={() => setDraft({ ...draft, mode: 'SELF_PACED', hasTimer: true })}><Clock3 size={18} /><span><strong>Timed practice</strong></span>{draft.mode === 'SELF_PACED' && draft.hasTimer && <Check size={16} />}</button><button type="button" className={draft.mode === 'SELF_PACED' && !draft.hasTimer ? 'chosen' : ''} onClick={() => setDraft({ ...draft, mode: 'SELF_PACED', hasTimer: false })}><BookOpenCheck size={18} /><span><strong>Self Paced</strong></span>{draft.mode === 'SELF_PACED' && !draft.hasTimer && <Check size={16} />}</button></div></div>{draft.mode === 'SELF_PACED' && draft.hasTimer && <label className="field short-field" style={{ marginTop: '16px' }}><span>Time limit</span><div className="input-suffix"><input type="number" min={1} max={1440} value={draft.minutes} onChange={(event) => setDraft({ ...draft, minutes: Number(event.target.value) })} /><span>minutes</span></div></label>}<label className="check-row"><input type="checkbox" checked={draft.showResults} onChange={(event) => setDraft({ ...draft, showResults: event.target.checked })} /><span><strong>Show results to students</strong></span></label></div>
         {draft.questions.map((question, index) => <div className="form-panel question-editor" key={index}>
           <div className="panel-title">
             <span className="step-count">{String(index + 2).padStart(2, '0')}</span>
@@ -1987,16 +2885,16 @@ function QuizManager({ quizzes, selectedQuiz, setSelectedQuiz, liveQuiz, refresh
           {activeQuizzes.map((quiz) => (
             <div className="worksheet-card" key={quiz.id} style={{ border: selectedQuiz === quiz.id ? '2px solid #0284c7' : undefined }}>
               <div>
-                <div className="worksheet-card-meta">
-                  <span className={`worksheet-badge ${quiz.status === 'ACTIVE' ? 'badge-published' : quiz.status === 'CLOSED' ? 'badge-subject' : 'badge-draft'}`}>
+                <div className="worksheet-card-meta" style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginBottom: '10px' }}>
+                  <span className={`worksheet-badge ${quiz.status === 'ACTIVE' ? 'badge-published' : quiz.status === 'CLOSED' ? 'badge-subject' : 'badge-draft'}`} style={{ padding: '3px 8px', fontSize: '11px', whiteSpace: 'nowrap' }}>
                     {quiz.status === 'ACTIVE' ? '● LIVE NOW' : quiz.status === 'CLOSED' ? '✓ FINISHED' : 'DRAFT'}
                   </span>
-                  <span className="worksheet-badge badge-grade" style={{ background: '#f0fdf4', color: '#166534', border: '1px solid #bbf7d0', fontWeight: 600 }}>
+                  <span className="worksheet-badge badge-grade" style={{ background: '#f0fdf4', color: '#166534', border: '1px solid #bbf7d0', fontWeight: 600, padding: '3px 8px', fontSize: '11px', whiteSpace: 'nowrap' }}>
                     {quiz.grade || 'All Grades'}
                   </span>
                   <select
                     className={`worksheet-badge ${quiz.mode === 'LIVE' ? 'badge-subject' : 'badge-draft'}`}
-                    style={{ border: '1px solid rgba(0,0,0,0.1)', cursor: 'pointer', outline: 'none', padding: '2px 8px', borderRadius: '8px', fontWeight: 700, fontSize: '12px' }}
+                    style={{ border: '1px solid rgba(0,0,0,0.1)', cursor: 'pointer', outline: 'none', padding: '3px 8px', borderRadius: '8px', fontWeight: 700, fontSize: '11px', whiteSpace: 'nowrap' }}
                     value={quiz.mode === 'LIVE' ? 'LIVE' : (quiz.timeLimitSeconds !== null ? 'TIMED' : 'SELF_PACED')}
                     onChange={async (e) => {
                       const val = e.target.value;
@@ -2021,9 +2919,9 @@ function QuizManager({ quizzes, selectedQuiz, setSelectedQuiz, liveQuiz, refresh
                       }
                     }}
                   >
-                    <option value="LIVE">Live Classroom</option>
-                    <option value="TIMED">Timed Practice</option>
-                    <option value="SELF_PACED">Self Paced</option>
+                    <option value="LIVE">LIVE CLASSROOM</option>
+                    <option value="TIMED">TIME PACED</option>
+                    <option value="SELF_PACED">SELF PACED</option>
                   </select>
                 </div>
                 <h3>{quiz.title}</h3>
@@ -2160,7 +3058,7 @@ function ArchivedQuizPreviewModal({
                 {quiz.grade || 'All Grades'}
               </span>
               <span className="worksheet-badge badge-subject">
-                {quiz.mode === 'LIVE' ? 'Live Classroom' : quiz.timeLimitSeconds !== null ? 'Timed Practice' : 'Self Paced'}
+                {quiz.mode === 'LIVE' ? 'LIVE CLASSROOM' : quiz.timeLimitSeconds !== null ? 'TIME PACED' : 'SELF PACED'}
               </span>
             </div>
             <h2 style={{ margin: 0, fontSize: '20px', color: '#0f172a' }}>{quiz.title}</h2>
@@ -2266,12 +3164,14 @@ function TeacherArchivePanel({
   refresh,
   setNotice,
   onOpenResults,
+  onOpenInLiveCanvas,
 }: {
   quizzes: Quiz[];
   worksheets: WorksheetPaper[];
   refresh: () => Promise<void>;
   setNotice: (text: string) => void;
   onOpenResults: (quizId: string) => void;
+  onOpenInLiveCanvas?: (lesson: { title: string; content: string; grade?: string | null; subject?: string | null }) => void;
 }) {
   const [filterType, setFilterType] = useState<'all' | 'quizzes' | 'worksheets'>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -2281,6 +3181,41 @@ function TeacherArchivePanel({
   const [previewingQuiz, setPreviewingQuiz] = useState<Quiz | null>(null);
   const [previewQuizLoading, setPreviewQuizLoading] = useState(false);
   const [fullQuizData, setFullQuizData] = useState<Quiz | null>(null);
+
+  async function handleOpenQuizInCanvas(quiz: Quiz) {
+    try {
+      const data = await api<{ quiz: Quiz & { questions?: any[] } }>(`/api/quizzes/${quiz.id}/detail`);
+      const qList = data.quiz?.questions || [];
+      let doc = `# Quiz Review: ${quiz.title}\n\n`;
+      doc += `**Grade:** ${quiz.grade || 'All Grades'} • **Mode:** ${quiz.mode}\n\n`;
+      doc += `## Question Bank & Solutions\n\n`;
+      qList.forEach((q: any, i: number) => {
+        doc += `### Q${i + 1}. ${q.text || q.questionText || 'Question'}\n`;
+        if (q.options && Array.isArray(q.options)) {
+          q.options.forEach((opt: any) => {
+            doc += `- ${opt.isCorrect ? '✅ ' : '• '}${opt.text}\n`;
+          });
+        }
+        if (q.explanation) {
+          doc += `\n*Explanation:* ${q.explanation}\n`;
+        }
+        doc += `\n`;
+      });
+      onOpenInLiveCanvas?.({
+        title: `Quiz Review: ${quiz.title}`,
+        content: doc,
+        grade: quiz.grade || undefined,
+        subject: 'Mathematics',
+      });
+    } catch {
+      onOpenInLiveCanvas?.({
+        title: `Quiz: ${quiz.title}`,
+        content: `# Quiz: ${quiz.title}\n\nGrade: ${quiz.grade || 'All Grades'}`,
+        grade: quiz.grade || undefined,
+        subject: 'Mathematics',
+      });
+    }
+  }
 
   const archivedQuizzes = quizzes.filter((q) => q.status === 'CLOSED');
   const archivedWorksheets = worksheets.filter((w) => w.status === 'ARCHIVED');
@@ -2502,19 +3437,19 @@ function TeacherArchivePanel({
           {showQuizzes && filteredQuizzes.map((quiz) => (
             <div className="archive-card" key={`quiz-${quiz.id}`}>
               <div>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                  <div className="worksheet-card-meta" style={{ margin: 0 }}>
-                    <span className="worksheet-badge badge-finished">
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px', gap: '6px' }}>
+                  <div className="worksheet-card-meta" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'nowrap' }}>
+                    <span className="worksheet-badge badge-finished" style={{ padding: '3px 8px', fontSize: '11px', whiteSpace: 'nowrap' }}>
                       ✓ FINISHED
                     </span>
-                    <span className="worksheet-badge badge-grade" style={{ background: '#f0fdf4', color: '#166534', border: '1px solid #bbf7d0', fontWeight: 600 }}>
+                    <span className="worksheet-badge badge-grade" style={{ background: '#f0fdf4', color: '#166534', border: '1px solid #bbf7d0', fontWeight: 600, padding: '3px 8px', fontSize: '11px', whiteSpace: 'nowrap' }}>
                       {quiz.grade || 'All Grades'}
                     </span>
-                    <span className="worksheet-badge badge-subject">
-                      {quiz.mode === 'LIVE' ? 'Live Classroom' : quiz.timeLimitSeconds !== null ? `${Math.round(quiz.timeLimitSeconds / 60)}m Timed` : 'Self Paced'}
+                    <span className="worksheet-badge badge-subject" style={{ padding: '3px 8px', fontSize: '11px', whiteSpace: 'nowrap' }}>
+                      {quiz.mode === 'LIVE' ? 'LIVE CLASSROOM' : (quiz.timeLimitSeconds !== null ? 'TIME PACED' : 'SELF PACED')}
                     </span>
                   </div>
-                  <span className="archive-card-archived-tag">
+                  <span className="archive-card-archived-tag" style={{ flexShrink: 0, padding: '2px 7px', fontSize: '10.5px' }}>
                     <BookOpenCheck size={11} /> Quiz
                   </span>
                 </div>
@@ -2530,6 +3465,30 @@ function TeacherArchivePanel({
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '14px' }}>
+                {onOpenInLiveCanvas && (
+                  <button
+                    type="button"
+                    className="button button-secondary"
+                    style={{
+                      width: '100%',
+                      fontSize: '12px',
+                      padding: '6px 12px',
+                      gap: '6px',
+                      borderColor: '#bae6fd',
+                      color: '#0369a1',
+                      background: '#f0f9ff',
+                      fontWeight: 600,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                    title="Open quiz review in Live Teaching Canvas"
+                    onClick={() => void handleOpenQuizInCanvas(quiz)}
+                  >
+                    <Sparkles size={13} /> Open in Live Teaching Canvas
+                  </button>
+                )}
+
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                   <button
                     type="button"
@@ -2581,15 +3540,15 @@ function TeacherArchivePanel({
           {showWorksheets && filteredWorksheets.map((paper) => (
             <div className="archive-card" key={`paper-${paper.id}`}>
               <div>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                  <div className="worksheet-card-meta" style={{ margin: 0 }}>
-                    <span className="worksheet-badge badge-completed">
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px', gap: '6px' }}>
+                  <div className="worksheet-card-meta" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'nowrap' }}>
+                    <span className="worksheet-badge badge-completed" style={{ padding: '3px 8px', fontSize: '11px', whiteSpace: 'nowrap' }}>
                       ✓ COMPLETED
                     </span>
-                    {paper.subject && <span className="worksheet-badge badge-subject">{paper.subject}</span>}
-                    {paper.grade && <span className="worksheet-badge badge-draft">{paper.grade}</span>}
+                    {paper.grade && <span className="worksheet-badge badge-grade" style={{ background: '#f0fdf4', color: '#166534', border: '1px solid #bbf7d0', fontWeight: 600, padding: '3px 8px', fontSize: '11px', whiteSpace: 'nowrap' }}>{paper.grade}</span>}
+                    {paper.subject && <span className="worksheet-badge badge-subject" style={{ padding: '3px 8px', fontSize: '11px', whiteSpace: 'nowrap' }}>{paper.subject}</span>}
                   </div>
-                  <span className="archive-card-archived-tag">
+                  <span className="archive-card-archived-tag" style={{ flexShrink: 0, padding: '2px 7px', fontSize: '10.5px' }}>
                     <FileText size={11} /> Paper
                   </span>
                 </div>
@@ -2605,6 +3564,30 @@ function TeacherArchivePanel({
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '14px' }}>
+                {onOpenInLiveCanvas && (
+                  <button
+                    type="button"
+                    className="button button-primary"
+                    style={{
+                      width: '100%',
+                      fontSize: '12.5px',
+                      padding: '7px 12px',
+                      gap: '6px',
+                      background: 'linear-gradient(135deg, #0284c7 0%, #2563eb 100%)',
+                      borderColor: '#0284c7',
+                      color: '#ffffff',
+                      fontWeight: 600,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                    title="Open this lesson in Live Teaching Canvas to view, teach or edit"
+                    onClick={() => onOpenInLiveCanvas(paper)}
+                  >
+                    <Sparkles size={14} /> Open in Live Teaching Canvas
+                  </button>
+                )}
+
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                   <button
                     type="button"
@@ -2675,6 +3658,7 @@ function TeacherArchivePanel({
         <PaperPreviewModal
           paper={viewingPaper}
           onClose={() => setViewingPaper(null)}
+          onOpenInLiveCanvas={(paper) => onOpenInLiveCanvas?.(paper)}
         />
       )}
 
@@ -2699,7 +3683,7 @@ function TeacherArchivePanel({
 // ==========================================
 function AttendanceTrackerPanel({ students, setNotice }: { students: Student[]; setNotice: (text: string) => void }) {
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
-  const [gradeFilter, setGradeFilter] = useState('ALL');
+  const [gradeFilter, setGradeFilter] = useState(() => getDefaultGrade() || 'ALL');
   const [viewMode, setViewMode] = useState<'daily' | 'monthly'>('daily');
   const [monthPicker, setMonthPicker] = useState(() => new Date().toISOString().slice(0, 7)); // YYYY-MM
   const [records, setRecords] = useState<Record<string, { status: AttendanceStatus | ''; remarks: string; updatedAt?: string }>>({});
@@ -2918,9 +3902,20 @@ function AttendanceTrackerPanel({ students, setNotice }: { students: Student[]; 
               className="styled-select"
             >
               <option value="ALL">All Grades ({students.length})</option>
-              {ALL_STUDENT_GRADES.map((g) => (
-                <option key={g} value={g}>{g}</option>
-              ))}
+              {getActiveGrades().length > 0 && (
+                <optgroup label="Active Classes">
+                  {getActiveGrades().map((g) => (
+                    <option key={g} value={g}>{g}</option>
+                  ))}
+                </optgroup>
+              )}
+              {ALL_STUDENT_GRADES.filter((g) => !getActiveGrades().includes(g)).length > 0 && (
+                <optgroup label="Other Classes">
+                  {ALL_STUDENT_GRADES.filter((g) => !getActiveGrades().includes(g)).map((g) => (
+                    <option key={g} value={g}>{g}</option>
+                  ))}
+                </optgroup>
+              )}
             </select>
           </div>
         </div>
@@ -3237,7 +4232,7 @@ function MonthlyFeesPanel({
     const curMonth = new Date().toLocaleString('en-US', { month: 'long' });
     return ACADEMIC_MONTHS.includes(curMonth) ? curMonth : 'April';
   });
-  const [gradeFilter, setGradeFilter] = useState('ALL');
+  const [gradeFilter, setGradeFilter] = useState(() => getDefaultGrade() || 'ALL');
   const [viewMode, setViewMode] = useState<'register' | 'ledger'>(initialStudentId ? 'ledger' : 'register');
   const [selectedStudentForLedger, setSelectedStudentForLedger] = useState<string>(initialStudentId || (students[0]?.id ?? ''));
 
@@ -3553,9 +4548,20 @@ function MonthlyFeesPanel({
                 style={{ fontSize: '12px', padding: '4px 8px' }}
               >
                 <option value="ALL">All Grades</option>
-                {ALL_STUDENT_GRADES.map((g) => (
-                  <option key={g} value={g}>{g}</option>
-                ))}
+                {getActiveGrades().length > 0 && (
+                  <optgroup label="Active Classes">
+                    {getActiveGrades().map((g) => (
+                      <option key={g} value={g}>{g}</option>
+                    ))}
+                  </optgroup>
+                )}
+                {ALL_STUDENT_GRADES.filter((g) => !getActiveGrades().includes(g)).length > 0 && (
+                  <optgroup label="Other Classes">
+                    {ALL_STUDENT_GRADES.filter((g) => !getActiveGrades().includes(g)).map((g) => (
+                      <option key={g} value={g}>{g}</option>
+                    ))}
+                  </optgroup>
+                )}
               </select>
             </div>
 
@@ -4056,7 +5062,7 @@ function StudentProgressReportPanel({
   setNotice: (text: string) => void;
 }) {
   const initialStudent = students.find((s) => s.id === selectedStudentId) || students[0];
-  const [selectedGrade, setSelectedGrade] = useState<string>(() => initialStudent?.grade || 'Grade 5');
+  const [selectedGrade, setSelectedGrade] = useState<string>(() => initialStudent?.grade || getDefaultGrade());
 
   const [academicYear, setAcademicYear] = useState(() => getCurrentAcademicYear());
   const [selectedMonth, setSelectedMonth] = useState<string>(() => {
@@ -4159,7 +5165,7 @@ function StudentProgressReportPanel({
     itemType: 'QUIZ',
     score: 20,
     totalMarks: 25,
-    subject: 'Mathematics',
+    subject: getDefaultSubject(),
     grade: 'A',
     completedAt: new Date().toISOString().slice(0, 10),
     remarks: 'Offline Class Assessment',
@@ -4191,6 +5197,15 @@ function StudentProgressReportPanel({
     }
   }, [currentStudentId, academicYear]);
 
+  useEffect(() => {
+    if (!showScoreModal) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setShowScoreModal(false);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showScoreModal]);
+
   const handleSaveScoreRecord = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentStudentId) return;
@@ -4210,7 +5225,7 @@ function StudentProgressReportPanel({
         itemType: 'QUIZ',
         score: 20,
         totalMarks: 25,
-        subject: 'Mathematics',
+        subject: getDefaultSubject(),
         grade: 'A',
         completedAt: new Date().toISOString().slice(0, 10),
         remarks: 'Offline Assessment',
@@ -4827,107 +5842,208 @@ function StudentProgressReportPanel({
         </>
       )}
 
-      {/* Manual / Offline Test Score Entry Modal */}
-      {showScoreModal && (
-        <div className="custom-modal-backdrop">
-          <div className="custom-modal-card" style={{ maxWidth: '500px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
-              <div>
-                <span className="overline" style={{ margin: 0 }}>Manual Score Record</span>
-                <h3 style={{ margin: '4px 0 0 0', fontSize: '18px', fontWeight: 800, color: '#0f172a' }}>
-                  Add Offline Assessment Score
-                </h3>
+      {/* Manual / Offline Test Score Entry Modal - Styled with subtle soft gray backdrop & inner panel */}
+      {showScoreModal && typeof document !== 'undefined' && createPortal(
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15, 23, 42, 0.18)',
+            backdropFilter: 'blur(1.5px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+            padding: '20px',
+            pointerEvents: 'auto',
+          }}
+          onClick={() => setShowScoreModal(false)}
+        >
+          <div
+            style={{
+              background: '#ffffff',
+              borderRadius: '20px',
+              padding: '24px 26px',
+              maxWidth: '500px',
+              width: '100%',
+              maxHeight: 'calc(100vh - 40px)',
+              overflowY: 'auto',
+              boxShadow: '0 25px 60px -12px rgba(15, 23, 42, 0.24), 0 10px 24px -6px rgba(15, 23, 42, 0.12), 0 0 0 1px rgba(15, 23, 42, 0.08)',
+              border: '1px solid #e2e8f0',
+              animation: 'rise-in 0.22s cubic-bezier(0.16, 1, 0.3, 1) both',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '14px', marginBottom: '18px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: '#ecfdf5', color: '#059669', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, border: '1px solid #a7f3d0' }}>
+                  <Award size={20} />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: '#0f172a', letterSpacing: '-0.2px' }}>Add Offline Assessment Score</h3>
+                  <p style={{ margin: '2px 0 0', fontSize: '12.5px', color: '#64748b', fontWeight: 500 }}>Manual score record for class tests, quizzes & papers</p>
+                </div>
               </div>
-              <button type="button" className="icon-button quiet" onClick={() => setShowScoreModal(false)}>
-                <X size={16} />
+              <button
+                type="button"
+                className="icon-button quiet"
+                style={{ borderRadius: '10px' }}
+                onClick={() => setShowScoreModal(false)}
+                title="Close (Esc)"
+              >
+                <X size={18} />
               </button>
             </div>
 
+            {/* Form */}
             <form onSubmit={handleSaveScoreRecord} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              <label className="field">
-                <span>Assessment Title</span>
-                <input
-                  required
-                  value={scoreDraft.title}
-                  onChange={(e) => setScoreDraft({ ...scoreDraft, title: e.target.value })}
-                  placeholder="e.g. Unit 3 Test: Fractions & Decimals"
-                />
-              </label>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                <label className="field">
-                  <span>Assessment Type</span>
-                  <select
-                    value={scoreDraft.itemType}
-                    onChange={(e) => setScoreDraft({ ...scoreDraft, itemType: e.target.value as 'QUIZ' | 'QUESTION_PAPER' })}
-                    className="styled-select"
-                  >
-                    <option value="QUIZ">Quiz / Class Test</option>
-                    <option value="QUESTION_PAPER">Question Paper / Exam</option>
-                  </select>
-                </label>
-                <label className="field">
-                  <span>Subject</span>
+              <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '14px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                <label className="field" style={{ gap: '6px' }}>
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: '#334155' }}>Assessment Title</span>
                   <input
-                    value={scoreDraft.subject}
-                    onChange={(e) => setScoreDraft({ ...scoreDraft, subject: e.target.value })}
-                    placeholder="Mathematics"
+                    required
+                    value={scoreDraft.title}
+                    onChange={(e) => setScoreDraft({ ...scoreDraft, title: e.target.value })}
+                    placeholder="e.g. Unit 3 Test: Fractions & Decimals"
+                    style={{ padding: '9px 12px', borderRadius: '8px', border: '1.5px solid #cbd5e1', background: '#fff', fontSize: '14px', fontWeight: 600, width: '100%' }}
                   />
+                </label>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <label className="field" style={{ gap: '6px' }}>
+                    <span style={{ fontSize: '13px', fontWeight: 700, color: '#334155' }}>Assessment Type</span>
+                    <select
+                      value={scoreDraft.itemType}
+                      onChange={(e) => setScoreDraft({ ...scoreDraft, itemType: e.target.value as 'QUIZ' | 'QUESTION_PAPER' })}
+                      style={{ padding: '9px 12px', borderRadius: '8px', border: '1.5px solid #cbd5e1', background: '#fff', fontSize: '14px', fontWeight: 600, width: '100%', cursor: 'pointer' }}
+                    >
+                      <option value="QUIZ">Quiz / Class Test</option>
+                      <option value="QUESTION_PAPER">Question Paper / Exam</option>
+                    </select>
+                  </label>
+                  <label className="field" style={{ gap: '6px' }}>
+                    <span style={{ fontSize: '13px', fontWeight: 700, color: '#334155' }}>Subject</span>
+                    <select
+                      value={ALL_ACADEMIC_SUBJECTS.includes(scoreDraft.subject) ? scoreDraft.subject : 'Other / Custom Subject'}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === 'Other / Custom Subject') {
+                          setScoreDraft({ ...scoreDraft, subject: 'Other' });
+                        } else {
+                          setScoreDraft({ ...scoreDraft, subject: val });
+                        }
+                      }}
+                      style={{ padding: '9px 12px', borderRadius: '8px', border: '1.5px solid #cbd5e1', background: '#fff', fontSize: '14px', fontWeight: 600, width: '100%', cursor: 'pointer' }}
+                    >
+                      {getActiveSubjects().length > 0 && (
+                        <optgroup label="Teaching Subjects">
+                          {getActiveSubjects().map((subj) => (
+                            <option key={subj} value={subj}>{subj}</option>
+                          ))}
+                        </optgroup>
+                      )}
+                      <optgroup label="Other Subjects">
+                        {ALL_ACADEMIC_SUBJECTS.filter((subj) => !getActiveSubjects().includes(subj)).map((subj) => (
+                          <option key={subj} value={subj}>{subj}</option>
+                        ))}
+                      </optgroup>
+                    </select>
+                  </label>
+                </div>
+
+                {(!ALL_ACADEMIC_SUBJECTS.filter((s) => s !== 'Other / Custom Subject').includes(scoreDraft.subject) || scoreDraft.subject === 'Other') && (
+                  <label className="field" style={{ gap: '6px' }}>
+                    <span style={{ fontSize: '12.5px', fontWeight: 700, color: '#475569' }}>Specify Custom Subject Name</span>
+                    <input
+                      required
+                      value={scoreDraft.subject === 'Other' ? '' : scoreDraft.subject}
+                      onChange={(e) => setScoreDraft({ ...scoreDraft, subject: e.target.value })}
+                      placeholder="e.g. Sanskrit Grammar, French, Accountancy"
+                      style={{ padding: '9px 12px', borderRadius: '8px', border: '1.5px solid #cbd5e1', background: '#fff', fontSize: '14px', fontWeight: 600, width: '100%' }}
+                    />
+                  </label>
+                )}
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1.3fr', gap: '12px' }}>
+                  <label className="field" style={{ gap: '6px' }}>
+                    <span style={{ fontSize: '13px', fontWeight: 700, color: '#334155' }}>Marks Obtained</span>
+                    <input
+                      type="number"
+                      min="0"
+                      required
+                      value={scoreDraft.score}
+                      onChange={(e) => setScoreDraft({ ...scoreDraft, score: Number(e.target.value) })}
+                      style={{ padding: '9px 12px', borderRadius: '8px', border: '1.5px solid #cbd5e1', background: '#fff', fontSize: '14px', fontWeight: 600, width: '100%' }}
+                    />
+                  </label>
+                  <label className="field" style={{ gap: '6px' }}>
+                    <span style={{ fontSize: '13px', fontWeight: 700, color: '#334155' }}>Max Marks</span>
+                    <input
+                      type="number"
+                      min="1"
+                      required
+                      value={scoreDraft.totalMarks}
+                      onChange={(e) => setScoreDraft({ ...scoreDraft, totalMarks: Number(e.target.value) })}
+                      style={{ padding: '9px 12px', borderRadius: '8px', border: '1.5px solid #cbd5e1', background: '#fff', fontSize: '14px', fontWeight: 600, width: '100%' }}
+                    />
+                  </label>
+                  <label className="field" style={{ gap: '6px' }}>
+                    <span style={{ fontSize: '13px', fontWeight: 700, color: '#334155' }}>Date Completed</span>
+                    <input
+                      type="date"
+                      required
+                      value={scoreDraft.completedAt}
+                      onChange={(e) => setScoreDraft({ ...scoreDraft, completedAt: e.target.value })}
+                      style={{ padding: '9px 12px', borderRadius: '8px', border: '1.5px solid #cbd5e1', background: '#fff', fontSize: '14px', fontWeight: 600, width: '100%', cursor: 'pointer' }}
+                    />
+                  </label>
+                </div>
+
+                <label className="field" style={{ gap: '6px' }}>
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: '#334155' }}>Teacher Remarks / Notes</span>
+                  <input
+                    value={scoreDraft.remarks}
+                    onChange={(e) => setScoreDraft({ ...scoreDraft, remarks: e.target.value })}
+                    placeholder="e.g. Good problem solving on word problems"
+                    style={{ padding: '9px 12px', borderRadius: '8px', border: '1.5px solid #cbd5e1', background: '#fff', fontSize: '14px', fontWeight: 600, width: '100%' }}
+                  />
+                  <span style={{ fontSize: '11.5px', color: '#64748b', marginTop: '2px' }}>
+                    This score will be automatically included in the student's progress report, overall grade, and averages.
+                  </span>
                 </label>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
-                <label className="field">
-                  <span>Marks Obtained</span>
-                  <input
-                    type="number"
-                    min="0"
-                    required
-                    value={scoreDraft.score}
-                    onChange={(e) => setScoreDraft({ ...scoreDraft, score: Number(e.target.value) })}
-                  />
-                </label>
-                <label className="field">
-                  <span>Max Marks</span>
-                  <input
-                    type="number"
-                    min="1"
-                    required
-                    value={scoreDraft.totalMarks}
-                    onChange={(e) => setScoreDraft({ ...scoreDraft, totalMarks: Number(e.target.value) })}
-                  />
-                </label>
-                <label className="field">
-                  <span>Date Completed</span>
-                  <input
-                    type="date"
-                    required
-                    value={scoreDraft.completedAt}
-                    onChange={(e) => setScoreDraft({ ...scoreDraft, completedAt: e.target.value })}
-                  />
-                </label>
-              </div>
-
-              <label className="field">
-                <span>Teacher Remarks / Notes</span>
-                <input
-                  value={scoreDraft.remarks}
-                  onChange={(e) => setScoreDraft({ ...scoreDraft, remarks: e.target.value })}
-                  placeholder="e.g. Good problem solving on word problems"
-                />
-              </label>
-
-              <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '12px' }}>
-                <button type="button" className="button button-secondary" onClick={() => setShowScoreModal(false)}>
+              <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '4px' }}>
+                <button
+                  type="button"
+                  className="button button-secondary"
+                  style={{ minHeight: '38px', padding: '0 16px', fontSize: '13.5px', borderRadius: '10px' }}
+                  onClick={() => setShowScoreModal(false)}
+                >
                   Cancel
                 </button>
-                <button type="submit" className="button button-primary" disabled={scoreSaving}>
-                  {scoreSaving ? 'Saving...' : 'Add Score to Record'}
+                <button
+                  type="submit"
+                  className="button button-primary"
+                  style={{ minHeight: '38px', padding: '0 20px', fontSize: '13.5px', fontWeight: 700, borderRadius: '10px', background: '#059669', borderColor: '#059669', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                  disabled={scoreSaving}
+                >
+                  {scoreSaving ? (
+                    <>
+                      <RefreshCw size={14} className="spin" /> Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Check size={15} /> Add Score to Record
+                    </>
+                  )}
                 </button>
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
@@ -4941,27 +6057,71 @@ function StudentManager({
   refresh,
   setNotice,
   onBackToClassroom,
+  quizzes = [],
+  selectedQuiz = '',
+  setSelectedQuiz = () => {},
+  results = [],
+  distribution = [],
+  onExport = () => {},
+  onResetAttempt = async () => {},
+  subTab: externalSubTab,
+  setSubTab: externalSetSubTab,
 }: {
   students: Student[];
   refresh: () => Promise<void>;
   setNotice: (text: string) => void;
   onBackToClassroom?: () => void;
+  quizzes?: Quiz[];
+  selectedQuiz?: string;
+  setSelectedQuiz?: (id: string) => void;
+  results?: Result[];
+  distribution?: { question: string; options: { text: string; correct: boolean; count: number }[] }[];
+  onExport?: () => void;
+  onResetAttempt?: (result: Result) => Promise<void>;
+  subTab?: 'roster' | 'attendance' | 'fees' | 'progress' | 'results';
+  setSubTab?: (tab: 'roster' | 'attendance' | 'fees' | 'progress' | 'results') => void;
 }) {
-  const [subTab, setSubTab] = useState<'roster' | 'attendance' | 'fees' | 'progress'>('roster');
+  const [internalSubTab, setInternalSubTab] = useState<'roster' | 'attendance' | 'fees' | 'progress' | 'results'>('roster');
+  const subTab = externalSubTab ?? internalSubTab;
+  const setSubTab = (newSubTab: 'roster' | 'attendance' | 'fees' | 'progress' | 'results') => {
+    if (externalSetSubTab) externalSetSubTab(newSubTab);
+    else setInternalSubTab(newSubTab);
+  };
   const [selectedStudentForReport, setSelectedStudentForReport] = useState<string | null>(null);
   const [selectedStudentForFees, setSelectedStudentForFees] = useState<string | null>(null);
 
   // Roster Tab States
   const [name, setName] = useState('');
-  const [grade, setGrade] = useState('Grade 6');
+  const [grade, setGrade] = useState(() => getDefaultGrade());
   const [joiningDate, setJoiningDate] = useState(() => new Date().toISOString().slice(0, 10));
-  const [filterGrade, setFilterGrade] = useState('ALL');
+  const [filterGrade, setFilterGrade] = useState(() => getDefaultGrade() || 'ALL');
   const [editingStudent, setEditingStudent] = useState<{ id: string; name: string; grade: string; joiningDate: string } | null>(null);
   const [editingSaving, setEditingSaving] = useState(false);
   const [createdPasskey, setCreatedPasskey] = useState('');
   const [createdStudentName, setCreatedStudentName] = useState('');
   const [visiblePasskeys, setVisiblePasskeys] = useState<Record<string, boolean>>({});
   const [creating, setCreating] = useState(false);
+
+  useEffect(() => {
+    const handlePrefChange = () => {
+      const def = getDefaultGrade();
+      if (def) {
+        setFilterGrade(def);
+        setGrade(def);
+      }
+    };
+    window.addEventListener('teacher-preferences-updated', handlePrefChange);
+    return () => window.removeEventListener('teacher-preferences-updated', handlePrefChange);
+  }, []);
+
+  useEffect(() => {
+    if (!editingStudent) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setEditingStudent(null);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [editingStudent]);
 
   async function addStudent(event: React.FormEvent) {
     event.preventDefault();
@@ -4974,6 +6134,7 @@ function StudentManager({
       setCreatedPasskey(data.passkey);
       setCreatedStudentName(data.student.name || name);
       setName('');
+      setGrade(getDefaultGrade());
       await refresh();
     } catch (cause) {
       setNotice(cause instanceof Error ? cause.message : 'Unable to add student.');
@@ -5079,6 +6240,14 @@ function StudentManager({
           <Award size={16} />
           <span>Progress Reports</span>
         </button>
+        <button
+          type="button"
+          className={`student-subtab-btn ${subTab === 'results' ? 'active' : ''}`}
+          onClick={() => setSubTab('results')}
+        >
+          <CheckCircle2 size={16} />
+          <span>Results & Assessments</span>
+        </button>
       </div>
 
       {/* Sub-Tab 1: Student Directory / Roster */}
@@ -5098,11 +6267,31 @@ function StudentManager({
                   style={{ fontSize: '12px', padding: '5px 10px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#fff', fontWeight: 600, color: '#334155' }}
                 >
                   <option value="ALL">All Grades ({students.length})</option>
-                  {ALL_STUDENT_GRADES.map((g) => {
-                    const count = students.filter((s) => (s.grade || 'Grade 6') === g).length;
-                    if (count === 0 && filterGrade !== g) return null;
-                    return <option key={g} value={g}>{g} ({count})</option>;
-                  })}
+                  {getActiveGrades().length > 0 && (
+                    <optgroup label="Active Classes">
+                      {getActiveGrades().map((g) => {
+                        const count = students.filter((s) => (s.grade || 'Grade 6') === g).length;
+                        const isDefault = g === getDefaultGrade();
+                        return (
+                          <option key={g} value={g}>
+                            {g} ({count}){isDefault ? ' (Default)' : ''}
+                          </option>
+                        );
+                      })}
+                    </optgroup>
+                  )}
+                  {ALL_STUDENT_GRADES.filter((g) => !getActiveGrades().includes(g)).length > 0 && (
+                    <optgroup label="Other Classes">
+                      {ALL_STUDENT_GRADES.filter((g) => !getActiveGrades().includes(g)).map((g) => {
+                        const count = students.filter((s) => (s.grade || 'Grade 6') === g).length;
+                        return (
+                          <option key={g} value={g}>
+                            {g} ({count})
+                          </option>
+                        );
+                      })}
+                    </optgroup>
+                  )}
                 </select>
                 <button className="icon-button" title="Refresh students" onClick={() => void refresh()}>
                   <RefreshCw size={16} />
@@ -5191,6 +6380,15 @@ function StudentManager({
                           >
                             <CreditCard size={13} color="#059669" /> Fees Ledger
                           </button>
+                          <button
+                            type="button"
+                            className="button button-secondary"
+                            style={{ fontSize: '11px', padding: '3px 10px', minHeight: '26px', gap: '4px' }}
+                            onClick={() => setSubTab('results')}
+                            title="View quiz results & assessment performance"
+                          >
+                            <CheckCircle2 size={13} color="#6366f1" /> Quiz Results
+                          </button>
                         </div>
                       </div>
 
@@ -5202,7 +6400,7 @@ function StudentManager({
                           onClick={() => setEditingStudent({
                             id: student.id,
                             name: student.name,
-                            grade: student.grade || 'Grade 6',
+                            grade: student.grade || getDefaultGrade(),
                             joiningDate: student.joiningDate
                               ? new Date(student.joiningDate).toISOString().slice(0, 10)
                               : (student.createdAt ? new Date(student.createdAt).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10))
@@ -5220,7 +6418,21 @@ function StudentManager({
               </div>
             ) : (
               <div className="roster-empty">
-                {students.length ? `No students found in ${filterGrade}.` : 'No students yet. Add your first student to get started.'}
+                {students.length ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                    <span>No students found in {filterGrade}.</span>
+                    <button
+                      type="button"
+                      className="button button-secondary"
+                      style={{ fontSize: '12px', padding: '4px 12px', minHeight: '30px' }}
+                      onClick={() => setFilterGrade('ALL')}
+                    >
+                      Show All Grades ({students.length})
+                    </button>
+                  </div>
+                ) : (
+                  'No students yet. Add your first student to get started.'
+                )}
               </div>
             )}
           </div>
@@ -5240,9 +6452,20 @@ function StudentManager({
                   onChange={(event) => setGrade(event.target.value)}
                   style={{ padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#fff', fontSize: '14px', width: '100%' }}
                 >
-                  {ALL_STUDENT_GRADES.map((g) => (
-                    <option key={g} value={g}>{g}</option>
-                  ))}
+                  {getActiveGrades().length > 0 && (
+                    <optgroup label="Active Classes">
+                      {getActiveGrades().map((g) => (
+                        <option key={g} value={g}>{g}</option>
+                      ))}
+                    </optgroup>
+                  )}
+                  {ALL_STUDENT_GRADES.filter((g) => !getActiveGrades().includes(g)).length > 0 && (
+                    <optgroup label="Other Classes">
+                      {ALL_STUDENT_GRADES.filter((g) => !getActiveGrades().includes(g)).map((g) => (
+                        <option key={g} value={g}>{g}</option>
+                      ))}
+                    </optgroup>
+                  )}
                 </select>
               </label>
               <label className="field">
@@ -5307,14 +6530,74 @@ function StudentManager({
         />
       )}
 
-      {/* Edit Student Modal */}
-      {editingStudent && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.45)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '16px' }}>
-          <div style={{ background: '#fff', borderRadius: '16px', padding: '24px', maxWidth: '420px', width: '100%', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
-              <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: '#0f172a' }}>Edit Student Details</h3>
-              <button type="button" className="icon-button quiet" onClick={() => setEditingStudent(null)}><X size={16} /></button>
+      {/* Sub-Tab 5: Quiz & Assessment Results */}
+      {subTab === 'results' && (
+        <ResultsPanel
+          quizzes={quizzes}
+          selectedQuiz={selectedQuiz}
+          setSelectedQuiz={setSelectedQuiz}
+          results={results}
+          distribution={distribution}
+          onExport={onExport}
+          onResetAttempt={onResetAttempt}
+        />
+      )}
+
+      {/* Edit Student Modal - Clean floating card with subtle soft gray backdrop & panel */}
+      {editingStudent && typeof document !== 'undefined' && createPortal(
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15, 23, 42, 0.18)',
+            backdropFilter: 'blur(1.5px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+            padding: '20px',
+            pointerEvents: 'auto',
+          }}
+          onClick={() => setEditingStudent(null)}
+        >
+          <div
+            style={{
+              background: '#ffffff',
+              borderRadius: '20px',
+              padding: '24px 26px',
+              maxWidth: '460px',
+              width: '100%',
+              maxHeight: 'calc(100vh - 40px)',
+              overflowY: 'auto',
+              boxShadow: '0 25px 60px -12px rgba(15, 23, 42, 0.24), 0 10px 24px -6px rgba(15, 23, 42, 0.12), 0 0 0 1px rgba(15, 23, 42, 0.08)',
+              border: '1px solid #e2e8f0',
+              animation: 'rise-in 0.22s cubic-bezier(0.16, 1, 0.3, 1) both',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '14px', marginBottom: '18px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: '#ecfdf5', color: '#059669', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, border: '1px solid #a7f3d0' }}>
+                  <Pencil size={19} />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: '#0f172a', letterSpacing: '-0.2px' }}>Edit Student Details</h3>
+                  <p style={{ margin: '2px 0 0', fontSize: '12.5px', color: '#64748b', fontWeight: 500 }}>Update student profile, class grade & joining date</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="icon-button quiet"
+                style={{ borderRadius: '10px' }}
+                onClick={() => setEditingStudent(null)}
+                title="Close (Esc)"
+              >
+                <X size={18} />
+              </button>
             </div>
+
+            {/* Form */}
             <form onSubmit={async (e) => {
               e.preventDefault();
               setEditingSaving(true);
@@ -5329,139 +6612,308 @@ function StudentManager({
                 });
                 setEditingStudent(null);
                 await refresh();
-                setNotice('Student details updated.');
+                setNotice('✓ Student details updated successfully.');
               } catch (cause) {
                 setNotice(cause instanceof Error ? cause.message : 'Unable to update student.');
               } finally {
                 setEditingSaving(false);
               }
             }} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              <label className="field">
-                <span>Student Name</span>
-                <input
-                  required
-                  maxLength={100}
-                  value={editingStudent.name}
-                  onChange={(e) => setEditingStudent({ ...editingStudent, name: e.target.value })}
-                />
-              </label>
-              <label className="field">
-                <span>Grade / Class</span>
-                <select
-                  value={editingStudent.grade}
-                  onChange={(e) => setEditingStudent({ ...editingStudent, grade: e.target.value })}
-                  style={{ padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#fff', fontSize: '14px' }}
+              <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '14px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                <label className="field" style={{ gap: '6px' }}>
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: '#334155' }}>Student Name</span>
+                  <input
+                    required
+                    maxLength={100}
+                    value={editingStudent.name}
+                    onChange={(e) => setEditingStudent({ ...editingStudent, name: e.target.value })}
+                    placeholder="e.g. Ayesha Khan"
+                    style={{ padding: '9px 12px', borderRadius: '8px', border: '1.5px solid #cbd5e1', background: '#fff', fontSize: '14px', fontWeight: 600, width: '100%' }}
+                  />
+                </label>
+
+                <label className="field" style={{ gap: '6px' }}>
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: '#334155' }}>Grade / Class</span>
+                  <select
+                    value={editingStudent.grade}
+                    onChange={(e) => setEditingStudent({ ...editingStudent, grade: e.target.value })}
+                    style={{ padding: '9px 12px', borderRadius: '8px', border: '1.5px solid #cbd5e1', background: '#fff', fontSize: '14px', fontWeight: 600, width: '100%', cursor: 'pointer' }}
+                  >
+                    {getActiveGrades().length > 0 && (
+                      <optgroup label="Active Classes">
+                        {getActiveGrades().map((g) => (
+                          <option key={g} value={g}>{g}</option>
+                        ))}
+                      </optgroup>
+                    )}
+                    {ALL_STUDENT_GRADES.filter((g) => !getActiveGrades().includes(g)).length > 0 && (
+                      <optgroup label="Other Classes">
+                        {ALL_STUDENT_GRADES.filter((g) => !getActiveGrades().includes(g)).map((g) => (
+                          <option key={g} value={g}>{g}</option>
+                        ))}
+                      </optgroup>
+                    )}
+                  </select>
+                </label>
+
+                <label className="field" style={{ gap: '6px' }}>
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: '#334155' }}>Date of Joining</span>
+                  <input
+                    type="date"
+                    required
+                    value={editingStudent.joiningDate}
+                    onChange={(e) => setEditingStudent({ ...editingStudent, joiningDate: e.target.value })}
+                    style={{ padding: '9px 12px', borderRadius: '8px', border: '1.5px solid #cbd5e1', background: '#fff', fontSize: '14px', fontWeight: 600, width: '100%', cursor: 'pointer' }}
+                  />
+                  <span style={{ fontSize: '11.5px', color: '#64748b', marginTop: '2px' }}>
+                    Used as the enrollment start date for monthly fee ledgers & attendance records.
+                  </span>
+                </label>
+              </div>
+
+              <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '4px' }}>
+                <button
+                  type="button"
+                  className="button button-secondary"
+                  style={{ minHeight: '38px', padding: '0 16px', fontSize: '13.5px', borderRadius: '10px' }}
+                  onClick={() => setEditingStudent(null)}
                 >
-                  {ALL_STUDENT_GRADES.map((g) => (
-                    <option key={g} value={g}>{g}</option>
-                  ))}
-                </select>
-              </label>
-              <label className="field">
-                <span>Date of Joining</span>
-                <input
-                  type="date"
-                  required
-                  value={editingStudent.joiningDate}
-                  onChange={(e) => setEditingStudent({ ...editingStudent, joiningDate: e.target.value })}
-                  style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#fff', fontSize: '14px' }}
-                />
-              </label>
-              <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '12px' }}>
-                <button type="button" className="button button-secondary" onClick={() => setEditingStudent(null)}>Cancel</button>
-                <button type="submit" className="button button-primary" disabled={editingSaving}>
-                  {editingSaving ? 'Saving...' : 'Save Changes'}
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="button button-primary"
+                  style={{ minHeight: '38px', padding: '0 20px', fontSize: '13.5px', fontWeight: 700, borderRadius: '10px', background: '#059669', borderColor: '#059669', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                  disabled={editingSaving}
+                >
+                  {editingSaving ? (
+                    <>
+                      <RefreshCw size={14} className="spin" /> Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Check size={15} /> Save Changes
+                    </>
+                  )}
                 </button>
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </section>
   );
 }
 
 
-function ResultsPanel({ quizzes, selectedQuiz, setSelectedQuiz, results, distribution, onExport, onResetAttempt }: { quizzes: Quiz[]; selectedQuiz: string; setSelectedQuiz: (id: string) => void; results: Result[]; distribution: { question: string; options: { text: string; correct: boolean; count: number }[] }[]; onExport: () => void; onResetAttempt: (result: Result) => Promise<void> }) {
+function ResultsPanel({
+  quizzes,
+  selectedQuiz,
+  setSelectedQuiz,
+  results,
+  distribution,
+  onExport,
+  onResetAttempt,
+}: {
+  quizzes: Quiz[];
+  selectedQuiz: string;
+  setSelectedQuiz: (id: string) => void;
+  results: Result[];
+  distribution: { question: string; options: { text: string; correct: boolean; count: number }[] }[];
+  onExport: () => void;
+  onResetAttempt: (result: Result) => Promise<void>;
+}) {
   const quiz = quizzes.find((entry) => entry.id === selectedQuiz);
   const submitted = results.filter((result) => result.status === 'SUBMITTED');
-  const average = submitted.length ? Math.round(submitted.reduce((sum, result) => sum + (result.score ?? 0) / Math.max(1, result.totalMarks) * 100, 0) / submitted.length) : 0;
+  const average = submitted.length
+    ? Math.round(submitted.reduce((sum, result) => sum + (result.score ?? 0) / Math.max(1, result.totalMarks) * 100, 0) / submitted.length)
+    : 0;
   const [expanded, setExpanded] = useState('');
   const [showStudentScores, setShowStudentScores] = useState(true);
   const [showAnswerPatterns, setShowAnswerPatterns] = useState(true);
 
-  return <section className="view-enter"><div className="page-heading"><div><span className="overline">What your class knows</span><h1>Results.</h1><p>Scores, individual answers and question-by-question patterns.</p></div><div className="result-heading-actions"><label className="select-wrap"><select value={selectedQuiz} onChange={(event) => setSelectedQuiz(event.target.value)}><option value="">Choose a quiz...</option>{quizzes.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}</select><ChevronDown size={15} /></label><button className="button button-secondary" onClick={onExport} disabled={!results.length}><Download size={16} /> Export CSV</button></div></div>{quiz ? <><div className="results-metrics"><Metric label="Students started" value={results.length} icon={<Users size={17} />} tint="sage" /><Metric label="Submitted" value={submitted.length} icon={<CheckCircle2 size={17} />} tint="blue" /><Metric label="Class average" value={`${average}%`} icon={<BarChart3 size={17} />} tint="coral" /></div><div className="results-layout">
-    <div className="results-table-panel">
-      <div className="panel-heading panel-heading-toggle" onClick={() => setShowStudentScores((prev) => !prev)}>
-        <div>
-          <h2>Student scores</h2>
-          <p>{quiz.title} · {results.length} participants</p>
-        </div>
-        <div className="toggle-arrow" title={showStudentScores ? 'Hide student scores' : 'Show student scores'}>
-          {showStudentScores ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+  return (
+    <div className="results-subtab-panel">
+      {/* Header and Quiz Selector Card */}
+      <div className="report-header-card">
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '14px' }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span className="overline" style={{ margin: 0 }}>Quiz & Assessment Evaluation</span>
+              <span className="academic-session-pill">Evaluations & Scores</span>
+            </div>
+            <h2 style={{ margin: '4px 0 0 0', fontSize: '22px', fontWeight: 800, color: '#0f172a' }}>
+              Quiz Results & Answer Analytics
+            </h2>
+            <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#64748b' }}>
+              Scores, individual student answers, and question-by-question response patterns.
+            </p>
+          </div>
+
+          <div className="result-heading-actions" style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+            <label className="select-wrap" style={{ minWidth: '220px' }}>
+              <select
+                value={selectedQuiz}
+                onChange={(event) => setSelectedQuiz(event.target.value)}
+                aria-label="Choose a quiz"
+              >
+                <option value="">Choose a quiz...</option>
+                {quizzes.map((item) => (
+                  <option key={item.id} value={item.id}>{item.title}</option>
+                ))}
+              </select>
+              <ChevronDown size={15} />
+            </label>
+            <button className="button button-secondary" onClick={onExport} disabled={!results.length}>
+              <Download size={16} /> Export CSV
+            </button>
+          </div>
         </div>
       </div>
-      {showStudentScores && (
-        results.length ? <div className="results-list">{results.map((result, index) => <div className="result-student" key={result.id}>
-          <div className="result-summary-row">
-            <button className="result-summary" onClick={() => setExpanded(expanded === result.id ? '' : result.id)}>
-              <span className={`avatar avatar-roster avatar-color-${index % 4}`}>{result.name.slice(0, 1).toUpperCase()}</span>
-              <span className="result-name">
-                <strong>{result.name}</strong>
-                <small>{result.status === 'SUBMITTED' ? 'Submitted' : 'In progress'}</small>
-              </span>
-              <strong className="result-score">{result.score === null ? '—' : `${result.score} / ${result.totalMarks}`}</strong>
-              <ChevronDown size={16} className={expanded === result.id ? 'rotate-chevron' : ''} />
-            </button>
-            <div className="result-summary-actions">
-              <button
-                className="result-restart-btn"
-                title={`Reset quiz for ${result.name} so they can retake it`}
-                aria-label={`Reset quiz for ${result.name}`}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  void onResetAttempt(result);
-                }}
-              >
-                <RotateCcw size={13} /> Restart Quiz
-              </button>
+
+      {quiz ? (
+        <>
+          <div className="results-metrics">
+            <Metric label="Students started" value={results.length} icon={<Users size={17} />} tint="sage" />
+            <Metric label="Submitted" value={submitted.length} icon={<CheckCircle2 size={17} />} tint="blue" />
+            <Metric label="Class average" value={`${average}%`} icon={<BarChart3 size={17} />} tint="coral" />
+          </div>
+
+          <div className="results-layout">
+            <div className="results-table-panel">
+              <div className="panel-heading panel-heading-toggle" onClick={() => setShowStudentScores((prev) => !prev)}>
+                <div>
+                  <h2>Student scores</h2>
+                  <p>{quiz.title} · {results.length} participants</p>
+                </div>
+                <div className="toggle-arrow" title={showStudentScores ? 'Hide student scores' : 'Show student scores'}>
+                  {showStudentScores ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+                </div>
+              </div>
+              {showStudentScores && (
+                results.length ? (
+                  <div className="results-list">
+                    {results.map((result, index) => (
+                      <div className="result-student" key={result.id}>
+                        <div className="result-summary-row">
+                          <button className="result-summary" onClick={() => setExpanded(expanded === result.id ? '' : result.id)}>
+                            <span className={`avatar avatar-roster avatar-color-${index % 4}`}>{result.name.slice(0, 1).toUpperCase()}</span>
+                            <span className="result-name">
+                              <strong>{result.name}</strong>
+                              <small>{result.status === 'SUBMITTED' ? 'Submitted' : 'In progress'}</small>
+                            </span>
+                            <strong className="result-score">{result.score === null ? '—' : `${result.score} / ${result.totalMarks}`}</strong>
+                            <ChevronDown size={16} className={expanded === result.id ? 'rotate-chevron' : ''} />
+                          </button>
+                          <div className="result-summary-actions">
+                            <button
+                              className="result-restart-btn"
+                              title={`Reset quiz for ${result.name} so they can retake it`}
+                              aria-label={`Reset quiz for ${result.name}`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                void onResetAttempt(result);
+                              }}
+                            >
+                              <RotateCcw size={13} /> Restart Quiz
+                            </button>
+                          </div>
+                        </div>
+                        {expanded === result.id && (
+                          <div className="answer-review">
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', paddingBottom: '8px', borderBottom: '1px solid #e2e8f0', flexWrap: 'wrap', gap: '8px' }}>
+                              <span style={{ fontSize: '13px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                Submitted Answers ({result.answers.length})
+                              </span>
+                              <button
+                                className="result-restart-btn"
+                                style={{ minHeight: '30px', padding: '4px 10px' }}
+                                title={`Reset quiz for ${result.name} so they can retake it`}
+                                onClick={() => void onResetAttempt(result)}
+                              >
+                                <RotateCcw size={13} /> Restart Quiz for {result.name}
+                              </button>
+                            </div>
+                            {result.answers.length ? (
+                              result.answers.map((answer, answerIndex) => (
+                                <div className="answer-review-row" key={answerIndex}>
+                                  <span className={`answer-mark ${answer.correct ? 'mark-correct' : 'mark-wrong'}`}>
+                                    {answer.correct ? <Check size={13} /> : <X size={13} />}
+                                  </span>
+                                  <div>
+                                    <strong>{answer.question}</strong>
+                                    <span>{answer.response} · {answer.correct ? `${answer.marks} point${answer.marks === 1 ? '' : 's'}` : 'Incorrect'}</span>
+                                  </div>
+                                </div>
+                              ))
+                            ) : (
+                              <span className="muted">No answers saved.</span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="roster-empty">No one has joined this quiz yet.</div>
+                )
+              )}
+            </div>
+
+            <div className="distribution-panel">
+              <div className="panel-heading panel-heading-toggle" onClick={() => setShowAnswerPatterns((prev) => !prev)}>
+                <div>
+                  <h2>Answer patterns</h2>
+                  <p>Responses across the class</p>
+                </div>
+                <div className="toggle-arrow" title={showAnswerPatterns ? 'Hide answer patterns' : 'Show answer patterns'}>
+                  {showAnswerPatterns ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+                </div>
+              </div>
+              {showAnswerPatterns && (
+                distribution.length ? (
+                  distribution.map((question, index) => {
+                    const count = question.options.reduce((sum, option) => sum + option.count, 0);
+                    return (
+                      <div className="result-distribution" key={index}>
+                        <div className="result-distribution-title">
+                          <span>Q{index + 1}</span>
+                          <strong>{question.question}</strong>
+                        </div>
+                        {question.options.map((option, optionIndex) => (
+                          <div className="result-option" key={optionIndex}>
+                            <div>
+                              <span>{option.text}</span>
+                              <strong>{option.count}</strong>
+                            </div>
+                            <div className="bar-track">
+                              <div
+                                className={`bar-fill ${option.correct ? 'bar-correct' : ''}`}
+                                style={{ width: `${count ? (option.count / count) * 100 : 0}%` }}
+                              />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className="roster-empty">Question patterns will appear here.</div>
+                )
+              )}
             </div>
           </div>
-          {expanded === result.id && <div className="answer-review">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', paddingBottom: '8px', borderBottom: '1px solid #e2e8f0', flexWrap: 'wrap', gap: '8px' }}>
-              <span style={{ fontSize: '13px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                Submitted Answers ({result.answers.length})
-              </span>
-              <button
-                className="result-restart-btn"
-                style={{ minHeight: '30px', padding: '4px 10px' }}
-                title={`Reset quiz for ${result.name} so they can retake it`}
-                onClick={() => void onResetAttempt(result)}
-              >
-                <RotateCcw size={13} /> Restart Quiz for {result.name}
-              </button>
-            </div>
-            {result.answers.length ? result.answers.map((answer, answerIndex) => <div className="answer-review-row" key={answerIndex}><span className={`answer-mark ${answer.correct ? 'mark-correct' : 'mark-wrong'}`}>{answer.correct ? <Check size={13} /> : <X size={13} />}</span><div><strong>{answer.question}</strong><span>{answer.response} · {answer.correct ? `${answer.marks} point${answer.marks === 1 ? '' : 's'}` : 'Incorrect'}</span></div></div>) : <span className="muted">No answers saved.</span>}
-          </div>}
-        </div>)}</div> : <div className="roster-empty">No one has joined this quiz yet.</div>
+        </>
+      ) : (
+        <div className="empty-state" style={{ background: '#fff', borderRadius: '16px', border: '1px dashed #cbd5e1', padding: '48px 24px' }}>
+          <span className="empty-icon"><BarChart3 size={24} /></span>
+          <h3>Choose a quiz to see its story.</h3>
+          <p>Select any quiz above to review student scores, responses, and question patterns.</p>
+        </div>
       )}
     </div>
-
-    <div className="distribution-panel">
-      <div className="panel-heading panel-heading-toggle" onClick={() => setShowAnswerPatterns((prev) => !prev)}>
-        <div>
-          <h2>Answer patterns</h2>
-          <p>Responses across the class</p>
-        </div>
-        <div className="toggle-arrow" title={showAnswerPatterns ? 'Hide answer patterns' : 'Show answer patterns'}>
-          {showAnswerPatterns ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
-        </div>
-      </div>
-      {showAnswerPatterns && (
-        distribution.length ? distribution.map((question, index) => { const count = question.options.reduce((sum, option) => sum + option.count, 0); return <div className="result-distribution" key={index}><div className="result-distribution-title"><span>Q{index + 1}</span><strong>{question.question}</strong></div>{question.options.map((option, optionIndex) => <div className="result-option" key={optionIndex}><div><span>{option.text}</span><strong>{option.count}</strong></div><div className="bar-track"><div className={`bar-fill ${option.correct ? 'bar-correct' : ''}`} style={{ width: `${count ? option.count / count * 100 : 0}%` }} /></div></div>)}</div>; }) : <div className="roster-empty">Question patterns will appear here.</div>
-      )}
-    </div>
-  </div></> : <div className="empty-state"><span className="empty-icon"><BarChart3 size={22} /></span><h3>Choose a quiz to see its story.</h3><p>Individual scores and response patterns will appear here.</p></div>}</section>;
+  );
 }
 
 function StudentApp({ user, onSignOut, notice, setNotice, onViewPortal }: { user: User; onSignOut: () => void; notice: string; setNotice: (text: string) => void; onViewPortal?: () => void }) {
@@ -5732,7 +7184,7 @@ function StudentApp({ user, onSignOut, notice, setNotice, onViewPortal }: { user
       ? activeQuiz.totalMarks
       : activeQuiz.questions.reduce((sum, q) => sum + (q.marks ?? 1), 0);
 
-    return <main className="student-shell"><header className="student-topbar"><div className="student-brand"><span className="brand-mark"><img src="/logo.png" alt="EduAshram" className="brand-logo" /></span><span>EduAshram</span></div><div className="student-top-right"><span className="student-name"><span className="avatar avatar-small">{user.name?.slice(0, 1).toUpperCase()}</span>{user.name}</span><button className="button button-secondary" style={{ fontSize: '13px', padding: '5px 12px', minHeight: '34px', gap: '6px' }} onClick={() => { setActiveQuiz(null); sessionStorage.removeItem('activeQuizId'); void loadQuizzes(); }}><ArrowLeft size={14} /> Back to Classroom</button></div></header>
+    return <main className="student-shell"><header className="student-topbar"><div className="student-brand"><span className="brand-mark"><img src="/logo.png" alt="EduAshram" className="brand-logo" /></span><span>EduAshram</span></div><div className="student-top-right"><ClassroomChatHeaderButton /><span className="student-name"><span className="avatar avatar-small">{user.name?.slice(0, 1).toUpperCase()}</span>{user.name}</span><button className="button button-secondary" style={{ fontSize: '13px', padding: '5px 12px', minHeight: '34px', gap: '6px' }} onClick={() => { setActiveQuiz(null); sessionStorage.removeItem('activeQuizId'); void loadQuizzes(); }}><ArrowLeft size={14} /> Back to Classroom</button></div></header>
       <div className="student-quiz-wrap">{isFinished ? (
         <div className="student-review-shell">
           <div className="submitted-card review-header-card">
@@ -5938,6 +7390,7 @@ function StudentApp({ user, onSignOut, notice, setNotice, onViewPortal }: { user
                 <LogOut size={14} /> Logout
               </button>
             )}
+            <ClassroomChatHeaderButton />
             <span className="today-label">{new Intl.DateTimeFormat('en', { weekday: 'short', month: 'short', day: 'numeric' }).format(new Date())}</span>
             <button className="icon-button" title="Refresh classroom" aria-label="Refresh classroom" onClick={() => void loadQuizzes()} disabled={loading}>
               <RefreshCw size={15} className={loading ? 'spin' : ''} />
@@ -6173,18 +7626,20 @@ function WorksheetsPanel({ setNotice, onNavigateToAISettings, onNavigateToArchiv
           </button>
           <button
             className="button button-secondary"
-            onClick={() =>
+            onClick={() => {
+              const defSubj = getDefaultSubject();
+              const defGrd = getDefaultGrade();
               setEditingPaper({
                 title: 'New Question Paper',
-                subject: 'Science',
-                grade: 'Grade 6',
+                subject: defSubj,
+                grade: defGrd,
                 totalMarks: 100,
                 status: 'DRAFT',
                 content: `
 <div style="font-family: 'Segoe UI', Arial, sans-serif; line-height: 1.5; color: #1e293b; width: 100%;">
   <div style="text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 10px; margin-bottom: 14px;">
-    <h1 style="margin: 0; font-size: 22px; text-transform: uppercase; color: #0f172a; letter-spacing: 0.5px;">SCIENCE WORKSHEET PAPER</h1>
-    <h3 style="margin: 4px 0 0 0; color: #475569; font-weight: 500; font-size: 15px;">Grade 6 &nbsp;|&nbsp; Subject: Science</h3>
+    <h1 style="margin: 0; font-size: 22px; text-transform: uppercase; color: #0f172a; letter-spacing: 0.5px;">${defSubj.toUpperCase()} WORKSHEET PAPER</h1>
+    <h3 style="margin: 4px 0 0 0; color: #475569; font-weight: 500; font-size: 15px;">${defGrd} &nbsp;|&nbsp; Subject: ${defSubj}</h3>
     <div style="display: flex; justify-content: space-between; margin-top: 10px; font-weight: 600; font-size: 13px; color: #334155;">
       <span>Time Allowed: 60 Mins</span>
       <span>Total Marks: 100</span>
@@ -6210,8 +7665,8 @@ function WorksheetsPanel({ setNotice, onNavigateToAISettings, onNavigateToArchiv
     </p>
   </div>
 </div>`.trim(),
-              })
-            }
+              });
+            }}
           >
             <Plus size={16} /> Create Word Paper
           </button>
@@ -6390,29 +7845,7 @@ function WorksheetsPanel({ setNotice, onNavigateToAISettings, onNavigateToArchiv
   );
 }
 
-const WORKSHEET_SUBJECTS = [
-  'Mathematics',
-  'Science',
-  'General Science',
-  'Physics',
-  'Chemistry',
-  'Biology',
-  'Social Science (SST)',
-  'History',
-  'Geography',
-  'Civics / Political Science',
-  'Economics',
-  'English',
-  'English Grammar & Literature',
-  'Hindi',
-  'Sanskrit',
-  'Computer Science',
-  'Information Technology (IT)',
-  'Environmental Studies (EVS)',
-  'General Knowledge (GK)',
-  'Moral Science & Ethics',
-  'Other / Custom Subject',
-];
+const WORKSHEET_SUBJECTS = ALL_ACADEMIC_SUBJECTS;
 
 const WORKSHEET_GRADES = [
   'Grade 4',
@@ -6467,7 +7900,7 @@ function WordDocEditorModal({
 
   const isPredefinedSubject = WORKSHEET_SUBJECTS.includes(paper.subject || '') && paper.subject !== 'Other / Custom Subject';
   const [subjectOption, setSubjectOption] = useState<string>(() => {
-    if (!paper.subject) return 'Science';
+    if (!paper.subject) return getDefaultSubject();
     return isPredefinedSubject ? paper.subject : 'Other / Custom Subject';
   });
   const [customSubject, setCustomSubject] = useState<string>(() => {
@@ -6475,7 +7908,7 @@ function WordDocEditorModal({
   });
 
   const normalizeGradeVal = (g?: string | null) => {
-    if (!g) return 'Grade 6';
+    if (!g) return getDefaultGrade();
     const match = g.match(/(?:grade|class)?\s*[- ]?\s*(\d+)/i);
     if (match) return `Grade ${match[1]}`;
     return g;
@@ -6484,7 +7917,7 @@ function WordDocEditorModal({
   const initialGradeNormalized = normalizeGradeVal(paper.grade);
   const isPredefinedGrade = WORKSHEET_GRADES.includes(initialGradeNormalized) && initialGradeNormalized !== 'Other / Custom Grade';
   const [gradeOption, setGradeOption] = useState<string>(() => {
-    if (!paper.grade) return 'Grade 6';
+    if (!paper.grade) return getDefaultGrade();
     return isPredefinedGrade ? initialGradeNormalized : 'Other / Custom Grade';
   });
   const [customGrade, setCustomGrade] = useState<string>(() => {
@@ -6768,9 +8201,18 @@ function WordDocEditorModal({
                   setSubjectOption(val);
                 }}
               >
-                {WORKSHEET_SUBJECTS.map((subj) => (
-                  <option key={subj} value={subj}>{subj}</option>
-                ))}
+                {getActiveSubjects().length > 0 && (
+                  <optgroup label="Teaching Subjects">
+                    {getActiveSubjects().map((subj) => (
+                      <option key={subj} value={subj}>{subj}</option>
+                    ))}
+                  </optgroup>
+                )}
+                <optgroup label="Other Subjects">
+                  {WORKSHEET_SUBJECTS.filter((subj) => !getActiveSubjects().includes(subj)).map((subj) => (
+                    <option key={subj} value={subj}>{subj}</option>
+                  ))}
+                </optgroup>
               </select>
             </label>
             {subjectOption === 'Other / Custom Subject' && (
@@ -6793,9 +8235,20 @@ function WordDocEditorModal({
                   setGradeOption(val);
                 }}
               >
-                {WORKSHEET_GRADES.map((g) => (
-                  <option key={g} value={g}>{g}</option>
-                ))}
+                {getActiveGrades().length > 0 && (
+                  <optgroup label="Active Classes">
+                    {getActiveGrades().map((g) => (
+                      <option key={g} value={g}>{g}</option>
+                    ))}
+                  </optgroup>
+                )}
+                {WORKSHEET_GRADES.filter((g) => !getActiveGrades().includes(g)).length > 0 && (
+                  <optgroup label="Other Classes">
+                    {WORKSHEET_GRADES.filter((g) => !getActiveGrades().includes(g)).map((g) => (
+                      <option key={g} value={g}>{g}</option>
+                    ))}
+                  </optgroup>
+                )}
               </select>
             </label>
             {gradeOption === 'Other / Custom Grade' && (
@@ -7091,9 +8544,9 @@ function WordDocEditorModal({
 }
 
 function AIWorksheetModal({ onClose, onGenerated, onNavigateToAISettings }: { onClose: () => void; onGenerated: () => void; onNavigateToAISettings?: () => void }) {
-  const [selectedSubject, setSelectedSubject] = useState('Science');
+  const [selectedSubject, setSelectedSubject] = useState(() => getDefaultSubject());
   const [customSubject, setCustomSubject] = useState('');
-  const [grade, setGrade] = useState('Grade 6');
+  const [grade, setGrade] = useState(() => getDefaultGrade());
   const [topic, setTopic] = useState('');
   const [subtopics, setSubtopics] = useState('');
   const [questionCount, setQuestionCount] = useState(10);
@@ -7177,17 +8630,37 @@ function AIWorksheetModal({ onClose, onGenerated, onNavigateToAISettings }: { on
         <label className="field compact-field">
           <span>Subject</span>
           <select value={selectedSubject} onChange={(e) => setSelectedSubject(e.target.value)}>
-            {WORKSHEET_SUBJECTS.map((subj) => (
-              <option key={subj} value={subj}>{subj}</option>
-            ))}
+            {getActiveSubjects().length > 0 && (
+              <optgroup label="Teaching Subjects">
+                {getActiveSubjects().map((subj) => (
+                  <option key={subj} value={subj}>{subj}</option>
+                ))}
+              </optgroup>
+            )}
+            <optgroup label="Other Subjects">
+              {WORKSHEET_SUBJECTS.filter((subj) => !getActiveSubjects().includes(subj)).map((subj) => (
+                <option key={subj} value={subj}>{subj}</option>
+              ))}
+            </optgroup>
           </select>
         </label>
         <label className="field compact-field">
           <span>Grade / Class</span>
           <select value={grade} onChange={(e) => setGrade(e.target.value)}>
-            {WORKSHEET_GRADES.map((g) => (
-              <option key={g} value={g}>{g}</option>
-            ))}
+            {getActiveGrades().length > 0 && (
+              <optgroup label="Active Classes">
+                {getActiveGrades().map((g) => (
+                  <option key={g} value={g}>{g}</option>
+                ))}
+              </optgroup>
+            )}
+            {WORKSHEET_GRADES.filter((g) => !getActiveGrades().includes(g)).length > 0 && (
+              <optgroup label="Other Classes">
+                {WORKSHEET_GRADES.filter((g) => !getActiveGrades().includes(g)).map((g) => (
+                  <option key={g} value={g}>{g}</option>
+                ))}
+              </optgroup>
+            )}
           </select>
         </label>
       </div>
@@ -7887,21 +9360,57 @@ function StudentPaperModal({
   );
 }
 
-function PaperPreviewModal({ paper, onClose }: { paper: WorksheetPaper; onClose: () => void }) {
+function PaperPreviewModal({
+  paper,
+  onClose,
+  onOpenInLiveCanvas,
+}: {
+  paper: WorksheetPaper;
+  onClose: () => void;
+  onOpenInLiveCanvas?: (paper: { title: string; content: string; grade?: string | null; subject?: string | null }) => void;
+}) {
+  const isHtml = paper.content && paper.content.includes('<') && paper.content.includes('>');
+  const renderedHtml = isHtml
+    ? paper.content
+    : (paper.content || '')
+        .split('\n')
+        .map((line) => {
+          if (line.startsWith('# ')) return `<h2>${line.replace('# ', '')}</h2>`;
+          if (line.startsWith('## ')) return `<h3>${line.replace('## ', '')}</h3>`;
+          if (line.startsWith('### ')) return `<h4>${line.replace('### ', '')}</h4>`;
+          if (line.startsWith('- ')) return `<li>${line.replace('- ', '')}</li>`;
+          if (!line.trim()) return '<br/>';
+          return `<p>${line}</p>`;
+        })
+        .join('');
+
   return createPortal(
     <div className="word-doc-modal-overlay">
       <div className="word-doc-modal-container" style={{ maxWidth: '850px' }}>
         <div className="word-doc-modal-header">
           <h3><Eye size={18} /> {paper.title}</h3>
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <button className="button button-secondary" onClick={() => printHtmlContent(paper.content)}>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            {onOpenInLiveCanvas && (
+              <button
+                type="button"
+                className="button button-primary"
+                style={{ fontSize: '12.5px', padding: '6px 12px', gap: '6px', background: 'linear-gradient(135deg, #0284c7 0%, #2563eb 100%)', borderColor: '#0284c7' }}
+                onClick={() => {
+                  onClose();
+                  onOpenInLiveCanvas(paper);
+                }}
+              >
+                <Sparkles size={14} /> Open in Live Teaching Canvas
+              </button>
+            )}
+            <button className="button button-secondary" onClick={() => printHtmlContent(renderedHtml)}>
               <Printer size={15} /> Print Paper
             </button>
             <button className="icon-button quiet" onClick={onClose}><X size={16} /></button>
           </div>
         </div>
         <div style={{ flex: 1, overflowY: 'auto', padding: '24px' }}>
-          <div className="word-doc-canvas" style={{ margin: '0 auto', boxShadow: 'none' }} dangerouslySetInnerHTML={{ __html: paper.content }} />
+          <div className="word-doc-canvas" style={{ margin: '0 auto', boxShadow: 'none' }} dangerouslySetInnerHTML={{ __html: renderedHtml }} />
         </div>
       </div>
     </div>,

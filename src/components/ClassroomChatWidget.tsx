@@ -543,32 +543,39 @@ export function ClassroomChatWidget({ user }: ClassroomChatWidgetProps) {
   const totalUnread = unreadEveryone + unreadDirect;
   const teacherDisplayName = classroomTeacher?.name || user.teacherName || 'Teacher';
 
+  // Broadcast unread count to topbar button
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('classroom-chat-unread-change', { detail: totalUnread }));
+  }, [totalUnread]);
+
+  // Listen for open/toggle/close events from topbar button
+  useEffect(() => {
+    const handleOpen = () => {
+      setIsOpen(true);
+      setIsMinimized(false);
+    };
+    const handleToggle = () => {
+      setIsOpen((prev) => {
+        if (!prev) setIsMinimized(false);
+        return !prev;
+      });
+    };
+    const handleClose = () => {
+      setIsOpen(false);
+    };
+    window.addEventListener('open-classroom-chat', handleOpen);
+    window.addEventListener('toggle-classroom-chat', handleToggle);
+    window.addEventListener('close-classroom-chat', handleClose);
+    return () => {
+      window.removeEventListener('open-classroom-chat', handleOpen);
+      window.removeEventListener('toggle-classroom-chat', handleToggle);
+      window.removeEventListener('close-classroom-chat', handleClose);
+    };
+  }, []);
+
   return (
     <>
-      {/* Floating Chat Launcher Button (Bottom Right) */}
-      {!isOpen && (
-        <button
-          className="chat-fab-trigger"
-          onClick={() => {
-            setIsOpen(true);
-            setIsMinimized(false);
-          }}
-          title="Open Chatroom"
-          aria-label="Open Chatroom"
-        >
-          <div className="chat-fab-icon-wrap">
-            <MessageSquare size={22} className="chat-fab-icon" />
-            {totalUnread > 0 && (
-              <span className="chat-fab-badge" aria-label={`${totalUnread} unread messages`}>
-                {totalUnread > 99 ? '99+' : totalUnread}
-              </span>
-            )}
-          </div>
-          <span className="chat-fab-label">Chat</span>
-        </button>
-      )}
-
-      {/* Floating Chat Popup Card */}
+      {/* Floating Chat Popup Card (Only displayed when opened from topbar Chat button) */}
       {isOpen && (
         <div
           className={`chat-popup-card ${isMinimized ? 'chat-popup-card--minimized' : ''}`}
@@ -896,5 +903,43 @@ export function ClassroomChatWidget({ user }: ClassroomChatWidgetProps) {
         </div>
       )}
     </>
+  );
+}
+
+export function ClassroomChatHeaderButton({
+  className,
+  style,
+}: {
+  className?: string;
+  style?: React.CSSProperties;
+}) {
+  const [unread, setUnread] = useState(0);
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const count = (e as CustomEvent<number>).detail;
+      setUnread(typeof count === 'number' ? count : 0);
+    };
+    window.addEventListener('classroom-chat-unread-change', handler);
+    return () => window.removeEventListener('classroom-chat-unread-change', handler);
+  }, []);
+
+  return (
+    <button
+      type="button"
+      className={`topbar-chat-btn ${className || ''}`}
+      style={style}
+      onClick={() => window.dispatchEvent(new CustomEvent('toggle-classroom-chat'))}
+      title="Classroom Chatroom"
+      aria-label="Classroom Chatroom"
+    >
+      <div className="topbar-chat-icon-wrap">
+        <MessageSquare size={16} />
+        {unread > 0 && (
+          <span className="topbar-chat-badge">{unread > 99 ? '99+' : unread}</span>
+        )}
+      </div>
+      <span>Chat</span>
+    </button>
   );
 }

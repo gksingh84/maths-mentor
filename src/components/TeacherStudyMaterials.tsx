@@ -25,6 +25,7 @@ import {
   FileCheck,
 } from 'lucide-react';
 import { WorksheetQuestionBuilder } from './WorksheetQuestionBuilder';
+import { getDefaultGrade, getDefaultSubject } from '../utils/teacherPreferences';
 import {
   type StudyMaterial,
   type StudyMediaType,
@@ -256,8 +257,8 @@ function StudyMaterialEditorModal({
   });
   const wordCountTimerRef = useRef<any>(null);
 
-  const [grade, setGrade] = useState(initialData?.grade || 'Grade 6');
-  const [subject, setSubject] = useState(initialData?.subject || 'Mathematics');
+  const [grade, setGrade] = useState(() => initialData?.grade || getDefaultGrade());
+  const [subject, setSubject] = useState(() => initialData?.subject || getDefaultSubject());
   const [mediaType, setMediaType] = useState<StudyMediaType>(initialData?.mediaType || 'ARTICLE');
   const [videoUrl, setVideoUrl] = useState(initialData?.videoUrl || '');
   const [coverImage, setCoverImage] = useState(initialData?.coverImage || '');

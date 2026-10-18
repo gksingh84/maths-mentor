@@ -42,6 +42,7 @@ interface ClassroomCalendarProps {
     teacherName?: string | null;
   };
   readOnly?: boolean;
+  onEventsChange?: () => void;
 }
 
 export const EVENT_TYPES: Record<string, { label: string; color: string; bg: string; icon: any }> = {
@@ -62,7 +63,7 @@ function formatDateKey(date: Date): string {
   return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
 }
 
-export function ClassroomCalendar({ user, readOnly = false }: ClassroomCalendarProps) {
+export function ClassroomCalendar({ user, readOnly = false, onEventsChange }: ClassroomCalendarProps) {
   const [currentDate, setCurrentDate] = useState(() => new Date());
   const [events, setEvents] = useState<CalendarEventItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -255,6 +256,7 @@ export function ClassroomCalendar({ user, readOnly = false }: ClassroomCalendarP
         if (res.ok && data.event) {
           setEvents((prev) => prev.map((item) => (item.id === data.event.id ? data.event : item)));
           setIsFormOpen(false);
+          onEventsChange?.();
         } else {
           alert(data.error || 'Failed to update event.');
         }
@@ -269,6 +271,7 @@ export function ClassroomCalendar({ user, readOnly = false }: ClassroomCalendarP
         if (res.ok && data.event) {
           setEvents((prev) => [...prev, data.event]);
           setIsFormOpen(false);
+          onEventsChange?.();
         } else {
           alert(data.error || 'Failed to create event.');
         }
@@ -294,6 +297,7 @@ export function ClassroomCalendar({ user, readOnly = false }: ClassroomCalendarP
         setEvents((prev) => prev.filter((item) => item.id !== id));
         setSelectedEventDetail(null);
         setIsFormOpen(false);
+        onEventsChange?.();
       } else {
         const data = await res.json().catch(() => ({}));
         alert(data.error || 'Failed to delete event.');

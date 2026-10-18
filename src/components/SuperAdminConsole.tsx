@@ -47,10 +47,11 @@ interface SuperAdminUser {
 interface SuperAdminConsoleProps {
   currentUser: any;
   onSignOut: () => void;
+  onLoginSuccess?: (user: SuperAdminUser) => void;
   onBackToPortal: () => void;
 }
 
-export function SuperAdminConsole({ currentUser, onSignOut, onBackToPortal }: SuperAdminConsoleProps) {
+export function SuperAdminConsole({ currentUser, onSignOut, onLoginSuccess, onBackToPortal }: SuperAdminConsoleProps) {
   const [adminUser, setAdminUser] = useState<SuperAdminUser | null>(
     currentUser?.role === 'superadmin' ? currentUser : null
   );
@@ -136,7 +137,18 @@ export function SuperAdminConsole({ currentUser, onSignOut, onBackToPortal }: Su
         throw new Error(data.error || 'Super Admin authentication failed.');
       }
 
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('eduashram_session_active', '1');
+        try {
+          if ('BroadcastChannel' in window) {
+            const bc = new BroadcastChannel('eduashram_tab_channel');
+            bc.postMessage({ type: 'LOGIN', user: data.user });
+            bc.close();
+          }
+        } catch {}
+      }
       setAdminUser(data.user);
+      onLoginSuccess?.(data.user);
     } catch (err) {
       setLoginError(err instanceof Error ? err.message : 'Invalid Super Admin credentials or Secret Key.');
     } finally {

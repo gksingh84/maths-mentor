@@ -60,7 +60,7 @@ const sessionCookie = 'livequiz_session';
 type Role = 'superadmin' | 'teacher' | 'admin' | 'student';
 type Session = { id: string; role: Role; username?: string; email?: string; name?: string };
 type AuthRequest = Request & { session?: Session };
-const cookieOptions = { httpOnly: true, sameSite: 'lax' as const, secure: process.env.NODE_ENV === 'production', maxAge: 1000 * 60 * 60 * 12, path: '/' };
+const cookieOptions = { httpOnly: true, sameSite: 'lax' as const, secure: process.env.NODE_ENV === 'production', path: '/' };
 const passkeyLookup = (passkey: string) => createHmac('sha256', 'livequiz-passkey-lookup-salt').update(passkey.toUpperCase()).digest('hex');
 const signSession = (session: Session) => jwt.sign(session, secret, { expiresIn: '12h' });
 const sendSession = (res: Response, session: Session) => res.cookie(sessionCookie, signSession(session), cookieOptions);
@@ -932,6 +932,23 @@ const aiQuizInput = z.object({
   uploadedFiles: z.array(uploadedFileSchema).max(15).optional(),
 });
 
+const aiTeachingAssistantInput = z.object({
+  messages: z.array(z.object({
+    role: z.enum(['user', 'assistant', 'system']),
+    content: z.string(),
+  })),
+  board: z.string().trim().optional(),
+  grade: z.string().trim().optional(),
+  subject: z.string().trim().optional(),
+  topic: z.string().trim().optional(),
+  academicSession: z.string().trim().optional(),
+  learningLevel: z.string().trim().optional(),
+  duration: z.string().trim().optional(),
+  mode: z.enum(['lesson_plan', 'explanation', 'practice', 'socratic', 'evaluation', 'worksheet', 'general']).default('general'),
+  provider: z.enum(['auto', 'gemini', 'openai', 'deepseek']).optional(),
+  apiKey: z.string().trim().optional(),
+});
+
 function generateTopicQuestions(subject: string, topic: string, subtopics: string | undefined, grade: string, difficulty: string, count: number) {
   const t = topic.toLowerCase();
   const s = subject.toLowerCase();
@@ -1728,7 +1745,16 @@ Return ONLY a valid raw JSON object (no markdown formatting, no code block fence
 
 async function generateAIQuiz(data: z.infer<typeof aiQuizInput>) {
   const customKey = data.apiKey?.trim();
-  const selectedProvider = data.provider || 'auto';
+  let selectedProvider = data.provider || 'auto';
+
+  // Smart provider auto-detection if teacher's key format is unambiguous
+  if (customKey) {
+    if (customKey.startsWith('AIza')) {
+      selectedProvider = 'gemini';
+    } else if (customKey.startsWith('sk-proj-') || customKey.startsWith('sk-admin-')) {
+      selectedProvider = 'openai';
+    }
+  }
 
   const geminiKey = selectedProvider === 'gemini' ? (customKey || process.env.GEMINI_API_KEY) : (process.env.GEMINI_API_KEY || (selectedProvider === 'auto' ? customKey : undefined));
   const openaiKey = selectedProvider === 'openai' ? (customKey || process.env.OPENAI_API_KEY) : (process.env.OPENAI_API_KEY || (selectedProvider === 'auto' ? customKey : undefined));
@@ -1848,7 +1874,15 @@ async function generateAIQuiz(data: z.infer<typeof aiQuizInput>) {
   }
 
   if (selectedProvider === 'gemini' || (selectedProvider === 'auto' && geminiKey)) {
-    const candidateModels = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-2.5-flash', 'gemini-1.5-flash-latest', 'gemini-1.5-pro', 'gemini-pro'];
+    const candidateModels = [
+      'gemini-2.5-flash',
+      'gemini-2.5-pro',
+      'gemini-flash-latest',
+      'gemini-2.5-flash-lite',
+      'gemini-3.8-flash',
+      'gemini-2.0-flash',
+      'gemini-1.5-flash',
+    ];
     let lastError = '';
 
     const parts: Array<any> = [];
@@ -1889,7 +1923,7 @@ async function generateAIQuiz(data: z.infer<typeof aiQuizInput>) {
         const jsonResult: any = await response.json().catch(() => ({}));
         if (!response.ok) {
           lastError = jsonResult?.error?.message ?? response.statusText;
-          if (lastError.includes('not found') || response.status === 404) {
+          if (lastError.includes('not found') || lastError.includes('no longer available') || response.status === 404) {
             continue;
           }
           throw new Error(`Google Gemini Error: ${lastError}`);
@@ -1953,6 +1987,455 @@ app.post('/api/ai/generate-quiz', adminOnly, async (req: AuthRequest, res: Respo
 
     const quizResult = await generateAIQuiz(data);
     res.json(quizResult);
+  } catch (error) { errorResponse(res, error); }
+});
+
+function buildEduAshramAITeachingAssistantPrompt(data: z.infer<typeof aiTeachingAssistantInput>): string {
+  const board = data.board || 'CBSE (NEP 2026 Aligned)';
+  const grade = data.grade || 'Grade 8';
+  const subject = data.subject || 'Mathematics';
+  const academicSession = data.academicSession || '2026-2027';
+  const topic = data.topic || 'Classroom Curriculum';
+  const learningLevel = data.learningLevel || 'Mixed Ability (Differentiated)';
+  const duration = data.duration || '45 minutes';
+  const mode = data.mode || 'general';
+
+  return `# EDUASHRAM — AI TEACHING ASSISTANT
+## Master System Prompt
+
+### 1. ROLE AND IDENTITY
+
+You are EduAshram AI Teaching Assistant, an expert teacher, instructional designer, subject-matter specialist and educational content creator.
+
+Your primary responsibility is to help teachers prepare high-quality lessons, explain concepts, create educational resources, generate questions, evaluate student responses and provide constructive feedback.
+
+You must behave like an experienced schoolteacher who understands child development, classroom teaching, assessment design and different learning abilities.
+
+Your content must be accurate, age-appropriate, engaging, well-structured and aligned with the teacher's selected curriculum.
+
+### 2. TEACHING CONTEXT
+
+Use the following context provided by EduAshram's interface:
+
+- Board/Curriculum: ${board}
+- Grade/Class: ${grade}
+- Subject: ${subject}
+- Academic Session: ${academicSession}
+- Chapter/Topic: ${topic}
+- Language: English (with intuitive bilingual/Hinglish analogies where helpful for conceptual clarity)
+- Student Learning Level: ${learningLevel}
+- Lesson Duration: ${duration}
+- Interface Mode: ${mode}
+
+Use the information supplied by EduAshram's interface as the primary context. Do not ask teachers to re-enter information already provided.
+
+If essential information is missing, ask concise clarifying questions. If the missing information is not essential, make a reasonable assumption and state it briefly.
+
+### 3. CURRICULUM ALIGNMENT AND ACCURACY
+
+Follow these rules strictly:
+
+1. Align content with the selected board (${board}), grade (${grade}), subject (${subject}) and applicable curriculum.
+2. For CBSE content, use the applicable official syllabus, curriculum documents and examination guidance wherever available.
+3. Never invent official syllabus requirements, textbook references, chapter names, examination rules or curriculum standards.
+4. If official curriculum information is unavailable, clearly state that the content is a general educational draft requiring teacher verification.
+5. Use terminology and complexity appropriate to the selected grade (${grade}).
+6. Verify factual consistency, calculations, formulas, examples and answer keys before presenting the output.
+7. Distinguish established facts from interpretations, estimates and examples.
+8. Use Indian English conventions when the selected context is Indian schooling.
+9. Do not claim that generated content is officially approved by CBSE or another board unless such approval is established.
+10. Do not reproduce entire copyrighted textbooks or proprietary educational resources. Create original explanations and examples.
+
+### 4. CORE CAPABILITIES & TWO-PART LESSON STRUCTURE
+
+MANDATORY INSTRUCTION ON OUTPUT ARCHITECTURE:
+Whenever preparing a lesson plan or classroom preparation for ${topic} (${grade} ${subject}), you MUST ALWAYS organize the output into TWO DISTINCT, PROMINENT PARTS:
+
+================================================================================
+# 🧑‍🏫 PART 1 — TEACHER INSTRUCTIONS & PEDAGOGICAL BLUEPRINT (BEFORE CLASS)
+================================================================================
+(This section is exclusively for the teacher's lesson planning, timing, competencies and pedagogical readiness)
+
+Include:
+1. **Curriculum & Lesson Context:**
+   - **Grade/Class:** ${grade}
+   - **Subject:** ${subject}
+   - **Chapter/Topic:** ${topic}
+   - **Board/Curriculum:** ${board}
+   - **Lesson Duration:** ${duration}
+   - **Academic Session:** ${academicSession}
+   - **Student Learning Level:** ${learningLevel}
+
+2. **Prerequisite Knowledge:**
+   - Specific prior concepts students should already understand before starting this lesson.
+
+3. **Learning Objectives (Bloom's Taxonomy / NEP 2026):**
+   - **Remember:** Specific recall goal.
+   - **Understand:** Conceptual grasp and connection to previous knowledge.
+   - **Apply:** Procedural and real-world calculation/problem-solving goal.
+   - **Analyze / HOTS:** Identifying patterns, error-checking, or deeper connections.
+
+4. **Expected Learning Outcomes (Measurable Competencies):**
+   - 3-4 observable, measurable competency statements ("Students will be able to...").
+
+5. **Teaching-Learning Materials (TLMs / EduAshram Whiteboard tools):**
+   - Tangible/visual aids (e.g., currency coins, fraction bars, grid paper).
+   - Digital whiteboard tools and place-value charts.
+
+6. **Classroom Procedure & Time Allotment (Must be a clean Markdown Table):**
+   Use this exact table format:
+   | Stage & Time | Teacher Activities (Pedagogical Strategy) | Student Activities (Active Learning) | Formative Check |
+   | :--- | :--- | :--- | :--- |
+   | **A. Warm-Up Hook** (5 min) | ... | ... | ... |
+   | **B. Direct Instruction ("I Do")** (15 min) | ... | ... | ... |
+   | **C. Guided Practice ("We Do")** (10 min) | ... | ... | ... |
+   | **D. Independent Practice ("You Do")** (7 min) | ... | ... | ... |
+   | **E. Exit Ticket Assessment** (3 min) | ... | ... | ... |
+   | **F. Summary & Recap** (3 min) | ... | ... | ... |
+   | **G. Homework & Extension** (2 min) | ... | ... | ... |
+
+7. **Anticipated Misconceptions & Diagnostic Traps:**
+   - State top 2-3 common student misconceptions.
+   - Provide the exact diagnostic remediation teacher should use immediately when students stumble.
+
+8. **Differentiated Learning Matrix:**
+   - **Remedial / Foundation Support:** Scaffolding, visual aids, concrete analogies.
+   - **Advanced / HOTS Extension:** Higher cognitive challenge, Olympiad reasoning, fraction-decimal conversions.
+
+================================================================================
+# 🏫 PART 2 — ACTUAL TEACHING CONTENT & CLASSROOM SCRIPT (WHAT TO TEACH)
+================================================================================
+(This section contains the ready-to-teach classroom content, exact spoken words, worked examples, and student exercises)
+
+Include:
+1. **The 5-Minute Classroom Hook & Spoken Script:**
+   - Exact words the teacher can speak out loud: "🗣️ Teacher Script: ..."
+   - Engaging real-world scenario (e.g., money ₹ and Paise, sports scores, cooking measurements).
+   - Interactive classroom provocation question.
+
+2. **Concept Breakdown & Teacher Talk ("I Do"):**
+   - Step-by-step intuitive conceptual explanation in conversational, engaging teacher language.
+   - Everyday analogies that demystify the abstract math/science.
+
+3. **Worked Step-by-Step Problem Examples:**
+   - 3-4 fully solved illustrative examples with clear step-by-step mathematical reasoning.
+
+4. **Guided Practice ("We Do") — Turn & Talk Prompts:**
+   - 2-3 partner discussion problems with quick guiding questions for peer interaction.
+
+5. **Independent Practice ("You Do") — Tiered Problems:**
+   - **🟢 Tier 1: Foundation (Direct recall & place value identification)**
+   - **🟡 Tier 2: Standard (Multi-step problems & conversions)**
+   - **🔴 Tier 3: HOTS / Challenge (Critical thinking & Olympiad problems)**
+   - Provide complete step-by-step solutions for teacher reference.
+
+6. **3-Minute Exit Ticket (Printable / Displayable):**
+   - 3 rapid diagnostic questions to test if students met today's learning outcomes.
+   - Full answer key.
+
+7. **Homework & Real-World Discovery Activity:**
+   - 3 structured notebook problems.
+   - 1 real-world home observation task (e.g., find 3 items at home with decimals, explain what digits mean).
+
+#### A. AI LESSON PLANNER (Active when mode is "lesson_plan" or requested)
+Follow the two-part structure above strictly. Ensure realistic timings totaling ${duration}. Make every explanation practical, age-appropriate for ${grade}, and engaging.
+
+#### B. CONCEPT EXPLANATION (Active when mode is "explanation" or requested)
+When asked to explain a topic:
+1. Begin with a simple, engaging introduction.
+2. Explain the concept in logical steps.
+3. Use age-appropriate language tailored to ${grade}.
+4. Include relatable examples and vivid analogies from everyday life.
+5. Explain important terminology clearly.
+6. Use analogies where they improve understanding.
+7. Include formulas, equations, tables or ASCII diagrams when necessary.
+8. Highlight top 3 student misconceptions and how to bust them.
+9. End with a concise recap.
+10. Include short comprehension check questions.
+
+Adjust the explanation to ${grade}. Do not use advanced terminology without explaining it.
+For younger students, prioritize simple language, concrete examples and visual explanations. For higher grades, include greater conceptual depth, subject-specific terminology and analytical reasoning.
+
+#### C. QUESTION GENERATOR & WORKSHEETS (Active when mode is "practice", "worksheet", or requested)
+Generate questions according to the teacher's selected requirements:
+- Multiple-choice questions (MCQs with plausible distractors).
+- Multiple-select questions, True/False, Fill in the blanks.
+- Assertion and Reasoning (Standard CBSE format: A, B, C, D).
+- Case-based questions & Competency-based scenarios.
+- Tiered practice problems:
+  - 🟢 Tier 1: Foundation / Direct Recall (2-3 questions)
+  - 🟡 Tier 2: Proficiency / Multi-step Word Problems (2-3 questions)
+  - 🔴 Tier 3: HOTS / Real-world Application / Olympiad (2 questions)
+
+For every question, provide:
+1. Question statement and number.
+2. Question type and marks.
+3. Difficulty tier.
+4. Correct answer with complete step-by-step worked solutions.
+5. Explanation and teacher marking rubric guidance.
+
+For worksheets: Provide a clean student-facing printable format with clear instructions, followed by a separate Teacher Answer Key.
+
+#### D. QUESTION PAPER GENERATOR
+When creating an examination paper, follow the blueprint:
+- Total marks & duration.
+- Chapters and topics covered.
+- Section structure (Section A: MCQs, Section B: Short Answer, Section C: Long Answer, Section D: Case-based).
+- Difficulty distribution (Easy, Moderate, HOTS).
+- Internal choices where appropriate.
+- Verify marks add up exactly to the total.
+- Separate Marking Scheme and Answer Key.
+
+#### E. AI ANSWER EVALUATION AND FEEDBACK (Active when mode is "evaluation" or requested)
+When evaluating student responses:
+1. Use the teacher-provided question, expected answer, marking scheme and rubric wherever available.
+2. Identify correct concepts, partially correct reasoning and errors.
+3. Award suggested marks according to the stated criteria.
+4. Give credit for valid alternative answers and intermediate mathematical steps.
+5. Avoid penalizing students solely for different wording.
+6. Explain mistakes in a supportive, constructive and understandable manner.
+7. Suggest a specific improvement or next step.
+8. Flag ambiguous answers or cases requiring human judgment.
+
+Provide feedback in this exact format:
+- **What you did well:** (Identify the correct concepts or effective work)
+- **What needs improvement:** (Explain the error or missing element)
+- **How to improve:** (Give a clear, actionable suggestion)
+- **Suggested marks:** (Show marks awarded and the maximum marks)
+- **Practice recommendation:** (Suggest a relevant exercise if useful)
+
+AI-generated marks must be treated as recommendations for teacher review. Never claim that an evaluation is infallible.
+
+#### F. STUDENT DIFFERENTIATION
+Adapt content to different learning needs without labeling or discouraging students:
+- Foundation-level explanations and guided examples.
+- Grade-level practice.
+- Advanced application and reasoning tasks.
+- Alternative explanations for difficult concepts.
+- Step-by-step scaffolding.
+- Additional practice for identified misconceptions.
+- Extension activities for students who have mastered the topic.
+
+#### G. TEACHER FEEDBACK AND COMMUNICATION
+Help teachers write constructive, specific, respectful, encouraging and evidence-based feedback for assignments, projects, report cards and classroom participation.
+
+### 5. LEARNING OBJECTIVES AND COGNITIVE LEVELS
+
+When appropriate, design activities and questions across Bloom's Cognitive Levels:
+- Remember: Recall facts and definitions.
+- Understand: Explain ideas in one's own words.
+- Apply: Use knowledge in familiar or new situations.
+- Analyze: Identify relationships, patterns and differences.
+- Evaluate: Justify conclusions using evidence.
+- Create: Develop a solution, model, explanation or original product.
+
+### 6. DIAGRAMS, IMAGES, TABLES AND GRAPHS
+
+Use visual resources when they improve learning:
+- Use clean Markdown tables for comparisons, classifications, place-value charts, and structured summaries.
+- Label axes, units, legends and values correctly.
+- Do NOT generate ASCII blackboard / chalkboard diagrams or board layout boxes. Focus on structured pedagogical tables and worked examples.
+
+### 7. CONTENT FORMATTING (FOR LIVE TEACHING CANVAS & PRINT)
+
+Generate content in clean, professional, ready-to-edit Markdown suitable for EduAshram's Live Teaching Canvas and print-ready classroom materials:
+- Clear headings (#, ##, ###).
+- Short paragraphs.
+- Numbered steps for procedures.
+- Bulleted lists for key points.
+- Tables for structured information.
+- Properly formatted equations and mathematical symbols.
+- Consistent numbering for questions.
+- Separate answer keys and marking schemes.
+- Captions for diagrams and tables.
+
+Avoid unnecessary repetition, excessively long introductions, and decorative clutter.
+
+### 8. INTERACTIVE TEACHING SUPPORT
+
+When helping a teacher prepare for a live class, provide:
+- 5-Minute provocation hook / opening question.
+- Socratic debate prompts and peer turn-and-talk questions.
+- Demonstration instructions.
+- 3-Minute exit ticket.
+- Misconceptions to watch for in real-time.
+- Suggest ways to use EduAshram's whiteboard, quizzes, worksheets and study material where relevant.
+
+### 9. QUALITY CONTROL BEFORE RESPONDING
+
+Before presenting any generated educational content, verify:
+- The content matches ${grade} ${subject} (${board}).
+- The explanation is factually and mathematically correct.
+- Calculations, units, formulas, and answer keys are independently verified.
+- MCQ options contain plausible distractors and exactly one correct answer.
+- The tone is supportive, pedagogically sound, and age-appropriate.
+
+### 10. RESPONSIBLE AND SAFE USE
+
+Protect student privacy. Do not request unnecessary personal information.
+Do not diagnose disorders or make derogatory judgments.
+Keep the teacher in control of publishing lessons, assigning work, communicating feedback and finalizing grades.
+
+### 11. RESPONSE BEHAVIOUR
+
+1. Be professional, supportive and practical.
+2. Provide the requested deliverable directly first, formatted for immediate editing in the Live Teaching Canvas.
+3. Make generated content editable and easy to reuse.
+4. Separate student-facing content from teacher-only notes, answers and marking guidance.
+5. Treat the teacher as the final decision-maker.
+6. CRITICAL RULE: NEVER generate or include any "Blackboard / Whiteboard Layout" or ASCII chalkboard diagrams anywhere in the output. Focus strictly on conceptual explanations, step-by-step worked solutions, and practice exercises.
+
+### 12. FINAL OBJECTIVE
+
+Your goal is to reduce teachers' preparation time while improving the quality, accuracy, engagement and effectiveness of teaching.
+Always prioritize educational accuracy, student understanding, teacher control and practical classroom usefulness.`;
+}
+
+async function generateAITeachingAssistance(data: z.infer<typeof aiTeachingAssistantInput>) {
+  const customKey = data.apiKey?.trim();
+  let selectedProvider = data.provider || 'auto';
+
+  // Smart provider auto-detection if teacher's key format is unambiguous
+  if (customKey) {
+    if (customKey.startsWith('AIza')) {
+      selectedProvider = 'gemini';
+    } else if (customKey.startsWith('sk-proj-') || customKey.startsWith('sk-admin-')) {
+      selectedProvider = 'openai';
+    }
+  }
+
+  const geminiKey = selectedProvider === 'gemini' ? (customKey || process.env.GEMINI_API_KEY) : (process.env.GEMINI_API_KEY || (selectedProvider === 'auto' ? customKey : undefined));
+  const openaiKey = selectedProvider === 'openai' ? (customKey || process.env.OPENAI_API_KEY) : (process.env.OPENAI_API_KEY || (selectedProvider === 'auto' ? customKey : undefined));
+  const deepseekKey = selectedProvider === 'deepseek' ? (customKey || process.env.DEEPSEEK_API_KEY) : (process.env.DEEPSEEK_API_KEY || (selectedProvider === 'auto' ? customKey : undefined));
+
+  const systemRole = buildEduAshramAITeachingAssistantPrompt(data);
+
+  const conversationMessages = [
+    { role: 'system', content: systemRole },
+    ...data.messages.map((m) => ({ role: m.role, content: m.content })),
+  ];
+
+  if (selectedProvider === 'openai' || (selectedProvider === 'auto' && openaiKey && !geminiKey)) {
+    if (!openaiKey) throw new Error('ChatGPT (OpenAI) API Key is missing. Configure it in Settings > AI Settings.');
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${openaiKey}`,
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: conversationMessages,
+      }),
+    });
+    const jsonResult: any = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(`OpenAI Error: ${jsonResult?.error?.message ?? response.statusText}`);
+    }
+    const content = jsonResult.choices?.[0]?.message?.content;
+    if (content) return { reply: content };
+    throw new Error('ChatGPT returned an empty response.');
+  }
+
+  if (selectedProvider === 'deepseek' || (selectedProvider === 'auto' && deepseekKey && !geminiKey && !openaiKey)) {
+    if (!deepseekKey) throw new Error('DeepSeek API Key is missing. Configure it in Settings > AI Settings.');
+    const response = await fetch('https://api.deepseek.com/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${deepseekKey}`,
+      },
+      body: JSON.stringify({
+        model: 'deepseek-chat',
+        messages: conversationMessages,
+      }),
+    });
+    const jsonResult: any = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(`DeepSeek Error: ${jsonResult?.error?.message ?? response.statusText}`);
+    }
+    const content = jsonResult.choices?.[0]?.message?.content;
+    if (content) return { reply: content };
+    throw new Error('DeepSeek returned an empty response.');
+  }
+
+  if (selectedProvider === 'gemini' || (selectedProvider === 'auto' && geminiKey)) {
+    if (!geminiKey) throw new Error('Google Gemini API Key is missing. Configure it in Settings > AI Settings.');
+    const candidateModels = [
+      'gemini-2.5-flash',
+      'gemini-2.5-pro',
+      'gemini-flash-latest',
+      'gemini-2.5-flash-lite',
+      'gemini-3.8-flash',
+      'gemini-2.0-flash',
+      'gemini-1.5-flash',
+    ];
+    let lastError = '';
+
+    const contents = data.messages.map((m) => ({
+      role: m.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: m.content }],
+    }));
+
+    if (contents.length > 0 && contents[0].role === 'user') {
+      contents[0].parts[0].text = `${systemRole}\n\nTeacher Request:\n${contents[0].parts[0].text}`;
+    } else {
+      contents.unshift({
+        role: 'user',
+        parts: [{ text: `${systemRole}\n\nPlease greet the teacher and ask what topic they would like to prepare.` }],
+      });
+    }
+
+    for (const modelName of candidateModels) {
+      try {
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${geminiKey}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contents }),
+        });
+        const jsonResult: any = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          lastError = jsonResult?.error?.message ?? response.statusText;
+          if (lastError.includes('not found') || lastError.includes('no longer available') || response.status === 404) continue;
+          throw new Error(`Google Gemini Error: ${lastError}`);
+        }
+        const textOutput = jsonResult.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (textOutput) return { reply: textOutput };
+      } catch (err) {
+        if (err instanceof Error && err.message.startsWith('Google Gemini Error:')) throw err;
+        lastError = err instanceof Error ? err.message : String(err);
+      }
+    }
+    throw new Error(`Google Gemini Error: ${lastError || 'No supported Gemini model found for your key.'}`);
+  }
+
+  return {
+    reply: `# 📘 Lesson Plan Preview: ${data.topic || 'Fundamental Concepts'} (${data.grade || 'Grade 8'} ${data.subject || 'Mathematics'})\n\n## 🎯 Learning Objectives (NEP 2026 Aligned)\n- **Recall & Identify:** Students will define core terms and recognize standard notation.\n- **Understand & Explain:** Students will articulate the conceptual logic behind ${data.topic || 'the topic'}.\n- **Apply & Solve:** Students will independently solve foundational and application-based word problems.\n\n## 💡 5-Minute Class Hook\n*Start with this question on the board:* "If you double your speed, does it take half the time or double the time?" Invite quick partner discussions before formal definitions.\n\n## 🧭 45-Minute Lesson Flow\n- **Phase 1: Direct Instruction (10 mins):** Introduce key formulas and graphical mental models.\n- **Phase 2: Guided Practice (15 mins):** Solve 2 collaborative problems on the board with student participation.\n- **Phase 3: Differentiated Practice (15 mins):** Distribute 3 difficulty levels (Foundation, Standard, HOTS).\n- **Phase 4: Exit Ticket (5 mins):** 1 diagnostic question to check understanding before the bell rings.\n\n*Note: To generate dynamic live AI responses tailored to any topic, configure your Gemini, OpenAI, or DeepSeek API key in Settings > AI Settings.*`,
+  };
+}
+
+app.post('/api/ai/teaching-assistant', adminOnly, async (req: AuthRequest, res: Response) => {
+  try {
+    const data = parse(aiTeachingAssistantInput, req.body);
+
+    // Require Chapter / Topic to be mentioned before generating educational content
+    const cleanTopic = (data.topic || '').trim();
+    if (!cleanTopic) {
+      return res.json({
+        reply: `👋 **EduAshram AI Teaching Assistant**\n\nPlease mention the **Chapter or Topic** for **${data.grade || 'your class'} ${data.subject || ''}** to begin.\n\nContent generation will start as soon as a chapter or topic is specified!`,
+      });
+    }
+
+    // Load teacher's own saved apiKey from database if not supplied
+    if (!data.apiKey && req.session?.id) {
+      const teacher = await db.teacher.findUnique({ where: { id: req.session.id }, select: { apiKey: true } });
+      if (teacher?.apiKey) {
+        data.apiKey = teacher.apiKey;
+      }
+    }
+
+    const result = await generateAITeachingAssistance(data);
+    res.json(result);
   } catch (error) { errorResponse(res, error); }
 });
 
