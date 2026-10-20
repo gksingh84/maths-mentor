@@ -23,6 +23,7 @@ import {
   AlignCenter,
   AlignRight,
   FileCheck,
+  Type,
 } from 'lucide-react';
 import { WorksheetQuestionBuilder } from './WorksheetQuestionBuilder';
 import { getDefaultGrade, getDefaultSubject } from '../utils/teacherPreferences';
@@ -32,6 +33,9 @@ import {
   type MaterialStatus,
   STANDARD_GRADES,
   STANDARD_SUBJECTS,
+  FONT_FAMILY_OPTIONS,
+  FONT_SIZE_OPTIONS,
+  FONT_SIZE_STEPS,
 } from '../types/studyMaterial';
 
 interface TeacherStudyMaterialsProps {
@@ -280,6 +284,19 @@ function StudyMaterialEditorModal({
   const lastSelectedElementRef = useRef<HTMLElement | null>(null);
   const [editorMode, setEditorMode] = useState<'visual' | 'code'>('visual');
   const [uploadingArticleImg, setUploadingArticleImg] = useState(false);
+  const isDraggingColRef = useRef(false);
+
+  const [currentFontFamily, setCurrentFontFamily] = useState('Arial, sans-serif');
+  const [currentFontSize, setCurrentFontSize] = useState('16px');
+  const savedRangeRef = useRef<Range | null>(null);
+
+  const [selectedTableInfo, setSelectedTableInfo] = useState<{
+    table: HTMLTableElement;
+    cell: HTMLTableCellElement;
+    colIndex: number;
+    totalCols: number;
+    currentWidth: string;
+  } | null>(null);
 
   const [showDraftPrompt, setShowDraftPrompt] = useState(false);
   const [restoredDraftAvailable, setRestoredDraftAvailable] = useState(false);
@@ -342,6 +359,17 @@ function StudyMaterialEditorModal({
     }, 2000);
     return () => clearInterval(interval);
   }, [title, description, grade, subject, mediaType, videoUrl, coverImage, readTime, status, fileUrl, fileName, initialData, editorMode]);
+
+  useEffect(() => {
+    if (editorMode === 'visual' && visualEditorRef.current) {
+      try {
+        document.execCommand('defaultParagraphSeparator', false, 'p');
+        document.execCommand('styleWithCSS', false, 'false');
+      } catch {
+        // ignore
+      }
+    }
+  }, [editorMode]);
 
   function restoreLocalDraft() {
     try {
@@ -465,6 +493,7 @@ function StudyMaterialEditorModal({
     }
     if (visualEditorRef.current) {
       visualEditorRef.current.focus();
+      restoreSelection();
       try {
         document.execCommand('styleWithCSS', false, 'false');
         document.execCommand(command, false, value);
@@ -473,6 +502,118 @@ function StudyMaterialEditorModal({
       }
       handleVisualInput();
     }
+  }
+
+  function toggleList(e: React.MouseEvent, type: 'unordered' | 'ordered') {
+    e.preventDefault();
+    if (editorMode === 'code') {
+      insertTagInCode(type === 'unordered' ? 'insertUnorderedList' : 'insertOrderedList');
+      return;
+    }
+
+    const editor = visualEditorRef.current;
+    if (!editor) return;
+
+    editor.focus();
+    restoreSelection();
+
+    const command = type === 'unordered' ? 'insertUnorderedList' : 'insertOrderedList';
+    const tag = type === 'unordered' ? 'ul' : 'ol';
+
+    // 1. If editor is empty or contains only break/empty block, initialize with list item
+    const inner = editor.innerHTML.trim();
+    if (!inner || inner === '<br>' || inner === '<p><br></p>' || inner === '<p></p>') {
+      editor.innerHTML = `<${tag}><li><br></li></${tag}><p><br></p>`;
+      const li = editor.querySelector('li');
+      if (li) {
+        const range = document.createRange();
+        const sel = window.getSelection();
+        range.setStart(li, 0);
+        range.collapse(true);
+        sel?.removeAllRanges();
+        sel?.addRange(range);
+      }
+      handleVisualInput();
+      saveSelection();
+      setNotice(type === 'unordered' ? 'Bullet list created.' : 'Numbered list created.');
+      return;
+    }
+
+    // 2. Try standard execCommand
+    let success = false;
+    try {
+      document.execCommand('styleWithCSS', false, 'false');
+      success = document.execCommand(command, false, undefined);
+    } catch {
+      success = false;
+    }
+
+    // 3. Verify if selection is inside an li
+    const sel = window.getSelection();
+    let inList = false;
+    if (sel && sel.rangeCount > 0) {
+      let node: Node | null = sel.getRangeAt(0).commonAncestorContainer;
+      while (node && node !== editor) {
+        if (node.nodeName === 'LI' || node.nodeName === 'UL' || node.nodeName === 'OL') {
+          inList = true;
+          break;
+        }
+        node = node.parentNode;
+      }
+    }
+
+    // 4. Fallback if execCommand did not wrap into a list
+    if (!success || !inList) {
+      if (sel && sel.rangeCount > 0) {
+        const range = sel.getRangeAt(0);
+        if (range.collapsed) {
+          let block: HTMLElement | null = range.startContainer.nodeType === Node.ELEMENT_NODE
+            ? (range.startContainer as HTMLElement)
+            : range.startContainer.parentElement;
+
+          while (block && block.parentElement && block.parentElement !== editor) {
+            block = block.parentElement;
+          }
+
+          if (block && block !== editor && block.tagName !== 'TABLE' && !block.closest('table')) {
+            const content = block.innerHTML || '<br>';
+            const newList = document.createElement(tag);
+            newList.innerHTML = `<li>${content}</li>`;
+            block.parentNode?.replaceChild(newList, block);
+            const li = newList.querySelector('li');
+            if (li) {
+              const newRange = document.createRange();
+              newRange.selectNodeContents(li);
+              newRange.collapse(false);
+              sel.removeAllRanges();
+              sel.addRange(newRange);
+            }
+          } else {
+            const snippet = `<${tag}><li><br></li></${tag}><p><br></p>`;
+            try {
+              document.execCommand('insertHTML', false, snippet);
+            } catch {
+              editor.innerHTML += snippet;
+            }
+          }
+        } else {
+          const fragment = range.extractContents();
+          const newList = document.createElement(tag);
+          const li = document.createElement('li');
+          li.appendChild(fragment);
+          newList.appendChild(li);
+          range.insertNode(newList);
+          const newRange = document.createRange();
+          newRange.selectNodeContents(li);
+          sel.removeAllRanges();
+          sel.addRange(newRange);
+        }
+      }
+    }
+
+    handleVisualInput();
+    saveSelection();
+    setNotice(type === 'unordered' ? 'Bullet list toggled.' : 'Numbered list toggled.');
   }
 
   function insertTagInCode(command: string, value?: string) {
@@ -792,6 +933,121 @@ function StudyMaterialEditorModal({
     }
   }
 
+  const saveSelection = () => {
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0 && visualEditorRef.current) {
+      const range = sel.getRangeAt(0);
+      if (visualEditorRef.current.contains(range.commonAncestorContainer)) {
+        savedRangeRef.current = range.cloneRange();
+      }
+    }
+  };
+
+  const restoreSelection = () => {
+    if (visualEditorRef.current) {
+      visualEditorRef.current.focus();
+      if (savedRangeRef.current) {
+        const sel = window.getSelection();
+        if (sel) {
+          sel.removeAllRanges();
+          sel.addRange(savedRangeRef.current);
+        }
+      }
+    }
+  };
+
+  const applyFontFamily = (fontVal: string) => {
+    setCurrentFontFamily(fontVal);
+    if (editorMode === 'code') {
+      const textarea = codeEditorRef.current;
+      if (!textarea) return;
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const selected = textarea.value.substring(start, end) || 'Sample text';
+      const replacement = `<span style="font-family: ${fontVal};">${selected}</span>`;
+      const nextVal = textarea.value.substring(0, start) + replacement + textarea.value.substring(end);
+      setContent(nextVal);
+      contentRef.current = nextVal;
+      setTimeout(() => {
+        textarea.selectionStart = start;
+        textarea.selectionEnd = start + replacement.length;
+        textarea.focus();
+      }, 0);
+      return;
+    }
+
+    if (!visualEditorRef.current) return;
+    restoreSelection();
+    try {
+      document.execCommand('styleWithCSS', false, 'true');
+      document.execCommand('fontName', false, fontVal);
+      const targets = visualEditorRef.current.querySelectorAll(`font[face], font`);
+      targets.forEach((node) => {
+        const el = node as HTMLElement;
+        el.style.fontFamily = fontVal;
+        el.removeAttribute('face');
+      });
+    } catch {
+      // fallback
+    }
+    handleVisualInput();
+    saveSelection();
+  };
+
+  const applyFontSize = (sizeVal: string) => {
+    setCurrentFontSize(sizeVal);
+    if (editorMode === 'code') {
+      const textarea = codeEditorRef.current;
+      if (!textarea) return;
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const selected = textarea.value.substring(start, end) || 'Sample text';
+      const replacement = `<span style="font-size: ${sizeVal};">${selected}</span>`;
+      const nextVal = textarea.value.substring(0, start) + replacement + textarea.value.substring(end);
+      setContent(nextVal);
+      contentRef.current = nextVal;
+      setTimeout(() => {
+        textarea.selectionStart = start;
+        textarea.selectionEnd = start + replacement.length;
+        textarea.focus();
+      }, 0);
+      return;
+    }
+
+    if (!visualEditorRef.current) return;
+    restoreSelection();
+    try {
+      document.execCommand('styleWithCSS', false, 'false');
+      document.execCommand('fontSize', false, '7');
+      const targets = visualEditorRef.current.querySelectorAll('font[size="7"], [style*="-webkit-xxx-large"]');
+      targets.forEach((node) => {
+        const el = node as HTMLElement;
+        el.removeAttribute('size');
+        el.style.fontSize = sizeVal;
+        if (el.tagName.toLowerCase() === 'font') {
+          const span = document.createElement('span');
+          span.style.fontSize = sizeVal;
+          while (el.firstChild) {
+            span.appendChild(el.firstChild);
+          }
+          el.parentNode?.replaceChild(span, el);
+        }
+      });
+    } catch {
+      // fallback
+    }
+    handleVisualInput();
+    saveSelection();
+  };
+
+  const stepFontSize = (delta: number) => {
+    const idx = FONT_SIZE_STEPS.indexOf(currentFontSize);
+    let nextIdx = idx >= 0 ? idx + delta : delta > 0 ? 3 : 1;
+    if (nextIdx < 0) nextIdx = 0;
+    if (nextIdx >= FONT_SIZE_STEPS.length) nextIdx = FONT_SIZE_STEPS.length - 1;
+    applyFontSize(FONT_SIZE_STEPS[nextIdx]);
+  };
+
   function getActiveTableCell(): HTMLTableCellElement | null {
     const selection = window.getSelection();
     if (!selection || !selection.rangeCount) return null;
@@ -805,10 +1061,46 @@ function StudyMaterialEditorModal({
     return null;
   }
 
+  function updateTableSelection(cell: HTMLTableCellElement | null) {
+    if (!cell) {
+      if (visualEditorRef.current) {
+        visualEditorRef.current.querySelectorAll('.cell-active-col').forEach((c) => c.classList.remove('cell-active-col'));
+      }
+      setSelectedTableInfo(null);
+      return;
+    }
+    const table = cell.closest('table');
+    if (!table) return;
+
+    lastActiveCellRef.current = cell;
+    const row = cell.parentElement;
+    const colIndex = Array.from(row?.children || []).indexOf(cell);
+    const totalCols = row?.children.length || 0;
+    const widthStyle = cell.style.width || '';
+    const computedWidth = Math.round((cell.offsetWidth / (table.offsetWidth || 1)) * 100) + '%';
+
+    if (visualEditorRef.current) {
+      visualEditorRef.current.querySelectorAll('.cell-active-col').forEach((c) => c.classList.remove('cell-active-col'));
+      table.querySelectorAll('tr').forEach((r) => {
+        const c = r.children[colIndex];
+        if (c) c.classList.add('cell-active-col');
+      });
+    }
+
+    setSelectedTableInfo({
+      table,
+      cell,
+      colIndex: colIndex >= 0 ? colIndex : 0,
+      totalCols: totalCols || 1,
+      currentWidth: widthStyle || computedWidth,
+    });
+  }
+
   function handleEditorSelectionChange() {
+    saveSelection();
     const cell = getActiveTableCell();
     if (cell) {
-      lastActiveCellRef.current = cell;
+      updateTableSelection(cell);
     }
     const sel = window.getSelection();
     if (sel && sel.rangeCount > 0) {
@@ -822,15 +1114,98 @@ function StudyMaterialEditorModal({
     }
   }
 
+  function applyColWidth(widthVal: string) {
+    if (!selectedTableInfo) return;
+    const { table, colIndex } = selectedTableInfo;
+    let formatted = widthVal.trim();
+    if (formatted && !formatted.endsWith('%') && !formatted.endsWith('px') && formatted !== 'auto') {
+      const num = parseFloat(formatted);
+      if (!isNaN(num)) {
+        formatted = num <= 100 ? `${num}%` : `${num}px`;
+      }
+    }
+
+    table.style.tableLayout = 'fixed';
+    table.style.width = '100%';
+
+    table.querySelectorAll('tr').forEach((row) => {
+      const cell = row.children[colIndex] as HTMLElement | undefined;
+      if (cell) {
+        cell.style.width = formatted;
+      }
+    });
+
+    setSelectedTableInfo((prev) => prev ? { ...prev, currentWidth: formatted } : null);
+    handleVisualInput();
+    setNotice(`Column ${colIndex + 1} width set to ${formatted}.`);
+  }
+
+  function equalizeColWidths() {
+    if (!selectedTableInfo) return;
+    const { table } = selectedTableInfo;
+    const allRows = table.querySelectorAll('tr');
+    const maxCols = Math.max(...Array.from(allRows).map((r) => r.children.length), 1);
+    const eqWidth = (100 / maxCols).toFixed(2) + '%';
+
+    table.style.tableLayout = 'fixed';
+    table.style.width = '100%';
+
+    allRows.forEach((row) => {
+      Array.from(row.children).forEach((cell) => {
+        (cell as HTMLElement).style.width = eqWidth;
+      });
+    });
+
+    setSelectedTableInfo((prev) => prev ? { ...prev, currentWidth: eqWidth, totalCols: maxCols } : null);
+    handleVisualInput();
+    setNotice(`All ${maxCols} columns equalized to ${eqWidth}.`);
+  }
+
+  function stepColWidth(deltaPercent: number) {
+    if (!selectedTableInfo) return;
+    const current = selectedTableInfo.currentWidth;
+    let curPercent = 25;
+    if (current.endsWith('%')) {
+      curPercent = parseFloat(current) || 25;
+    } else if (current.endsWith('px')) {
+      const px = parseFloat(current) || 100;
+      const tWidth = selectedTableInfo.table.offsetWidth || 600;
+      curPercent = Math.round((px / tWidth) * 100);
+    }
+    const nextPercent = Math.max(5, Math.min(90, Math.round(curPercent + deltaPercent)));
+    applyColWidth(`${nextPercent}%`);
+  }
+
   function insertTable() {
+    const tableHtml =
+      '<table style="width: 100%; border-collapse: collapse; margin: 14px 0; border: 1px solid #cbd5e1; table-layout: fixed;">' +
+      '<thead>' +
+      '<tr style="background: #f1f5f9;">' +
+      '<th style="border: 1px solid #cbd5e1; padding: 8px 10px; text-align: left; width: 33.33%;">Concept</th>' +
+      '<th style="border: 1px solid #cbd5e1; padding: 8px 10px; text-align: left; width: 33.33%;">Formula / Definition</th>' +
+      '<th style="border: 1px solid #cbd5e1; padding: 8px 10px; text-align: left; width: 33.34%;">Example</th>' +
+      '</tr>' +
+      '</thead>' +
+      '<tbody>' +
+      '<tr>' +
+      '<td style="border: 1px solid #cbd5e1; padding: 8px 10px; width: 33.33%;">Item 1</td>' +
+      '<td style="border: 1px solid #cbd5e1; padding: 8px 10px; width: 33.33%;">Description</td>' +
+      '<td style="border: 1px solid #cbd5e1; padding: 8px 10px; width: 33.34%;">e.g. 5</td>' +
+      '</tr>' +
+      '<tr>' +
+      '<td style="border: 1px solid #cbd5e1; padding: 8px 10px; width: 33.33%;">Item 2</td>' +
+      '<td style="border: 1px solid #cbd5e1; padding: 8px 10px; width: 33.33%;">Description</td>' +
+      '<td style="border: 1px solid #cbd5e1; padding: 8px 10px; width: 33.34%;">e.g. 10</td>' +
+      '</tr>' +
+      '</tbody>' +
+      '</table>' +
+      '<p><br></p>';
+
     if (editorMode === 'code') {
-      const snippet = '<table style="width: 100%; border-collapse: collapse; margin: 14px 0; border: 1px solid #cbd5e1;">\n  <thead>\n    <tr style="background: #f1f5f9;">\n      <th style="border: 1px solid #cbd5e1; padding: 8px 10px; text-align: left;">Concept</th>\n      <th style="border: 1px solid #cbd5e1; padding: 8px 10px; text-align: left;">Formula / Definition</th>\n      <th style="border: 1px solid #cbd5e1; padding: 8px 10px; text-align: left;">Example</th>\n    </tr>\n  </thead>\n  <tbody>\n    <tr>\n      <td style="border: 1px solid #cbd5e1; padding: 8px 10px;">Item 1</td>\n      <td style="border: 1px solid #cbd5e1; padding: 8px 10px;">Description</td>\n      <td style="border: 1px solid #cbd5e1; padding: 8px 10px;">e.g. 5</td>\n    </tr>\n    <tr>\n      <td style="border: 1px solid #cbd5e1; padding: 8px 10px;">Item 2</td>\n      <td style="border: 1px solid #cbd5e1; padding: 8px 10px;">Description</td>\n      <td style="border: 1px solid #cbd5e1; padding: 8px 10px;">e.g. 10</td>\n    </tr>\n  </tbody>\n</table>\n<p><br></p>';
-      insertCustomHtml(snippet);
+      insertCustomHtml(tableHtml);
       return;
     }
-    insertCustomHtml(
-      '<table style="width: 100%; border-collapse: collapse; margin: 14px 0; border: 1px solid #cbd5e1;"><thead><tr style="background: #f1f5f9;"><th style="border: 1px solid #cbd5e1; padding: 8px 10px; text-align: left;">Concept</th><th style="border: 1px solid #cbd5e1; padding: 8px 10px; text-align: left;">Formula / Definition</th><th style="border: 1px solid #cbd5e1; padding: 8px 10px; text-align: left;">Example</th></tr></thead><tbody><tr><td style="border: 1px solid #cbd5e1; padding: 8px 10px;">Item 1</td><td style="border: 1px solid #cbd5e1; padding: 8px 10px;">Description</td><td style="border: 1px solid #cbd5e1; padding: 8px 10px;">e.g. 5</td></tr><tr><td style="border: 1px solid #cbd5e1; padding: 8px 10px;">Item 2</td><td style="border: 1px solid #cbd5e1; padding: 8px 10px;">Description</td><td style="border: 1px solid #cbd5e1; padding: 8px 10px;">e.g. 10</td></tr></tbody></table><p><br></p>'
-    );
+    insertCustomHtml(tableHtml);
   }
 
   function addTableRow(direction: 'above' | 'below' = 'below') {
@@ -852,11 +1227,16 @@ function StudyMaterialEditorModal({
       table.rows[0]?.children.length || 3
     );
 
+    const firstRow = table.rows[0];
     const newRow = document.createElement('tr');
     for (let i = 0; i < colCount; i++) {
       const newCell = document.createElement('td');
       newCell.style.border = '1px solid #cbd5e1';
       newCell.style.padding = '8px 10px';
+      if (firstRow && firstRow.children[i]) {
+        const refCell = firstRow.children[i] as HTMLElement;
+        if (refCell.style.width) newCell.style.width = refCell.style.width;
+      }
       newCell.innerHTML = '<br>';
       newRow.appendChild(newCell);
     }
@@ -880,7 +1260,7 @@ function StudyMaterialEditorModal({
 
     const firstTd = newRow.querySelector('td');
     if (firstTd) {
-      lastActiveCellRef.current = firstTd;
+      updateTableSelection(firstTd);
       const range = document.createRange();
       const sel = window.getSelection();
       range.selectNodeContents(firstTd);
@@ -903,14 +1283,15 @@ function StudyMaterialEditorModal({
 
     if (table.rows.length <= 1) {
       table.remove();
-      lastActiveCellRef.current = null;
+      updateTableSelection(null);
       handleVisualInput();
       setNotice('Table removed.');
       return;
     }
 
     currentRow.remove();
-    lastActiveCellRef.current = table.querySelector('tbody tr:last-child td, tr:last-child td');
+    const nextActive = table.querySelector('tbody tr:last-child td, tr:last-child td') as HTMLTableCellElement | null;
+    updateTableSelection(nextActive);
     handleVisualInput();
     setNotice('Row deleted from table.');
   }
@@ -931,6 +1312,11 @@ function StudyMaterialEditorModal({
 
     const colIndex = Array.from(currentRow.children).indexOf(cell);
     const targetIndex = direction === 'right' ? colIndex + 1 : colIndex;
+    const newTotalCols = currentRow.children.length + 1;
+    const defaultColWidth = (100 / newTotalCols).toFixed(2) + '%';
+
+    table.style.tableLayout = 'fixed';
+    table.style.width = '100%';
 
     const allRows = table.querySelectorAll('tr');
     allRows.forEach((row) => {
@@ -938,6 +1324,7 @@ function StudyMaterialEditorModal({
       const newCell = document.createElement(isHeader ? 'th' : 'td');
       newCell.style.border = '1px solid #cbd5e1';
       newCell.style.padding = '8px 10px';
+      newCell.style.width = defaultColWidth;
       if (isHeader) {
         newCell.style.textAlign = 'left';
         newCell.style.background = '#f1f5f9';
@@ -952,6 +1339,11 @@ function StudyMaterialEditorModal({
         row.insertBefore(newCell, row.children[targetIndex]);
       }
     });
+
+    const activeCellTarget = currentRow.children[targetIndex] as HTMLTableCellElement | undefined;
+    if (activeCellTarget) {
+      updateTableSelection(activeCellTarget);
+    }
 
     handleVisualInput();
     setNotice('Column added to table.');
@@ -970,7 +1362,7 @@ function StudyMaterialEditorModal({
 
     if (totalCols <= 1) {
       table.remove();
-      lastActiveCellRef.current = null;
+      updateTableSelection(null);
       handleVisualInput();
       setNotice('Table removed.');
       return;
@@ -985,7 +1377,8 @@ function StudyMaterialEditorModal({
       }
     });
 
-    lastActiveCellRef.current = table.querySelector('tr td:last-child, tr th:last-child');
+    const nextActive = table.querySelector('tr td:last-child, tr th:last-child') as HTMLTableCellElement | null;
+    updateTableSelection(nextActive);
     handleVisualInput();
     setNotice('Column deleted from table.');
   }
@@ -997,11 +1390,117 @@ function StudyMaterialEditorModal({
     const table = cell.tagName === 'TABLE' ? (cell as HTMLTableElement) : cell.closest('table');
     if (table) {
       table.remove();
-      lastActiveCellRef.current = null;
+      updateTableSelection(null);
       handleVisualInput();
       setNotice('Table removed.');
     }
   }
+
+  const handleCanvasMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (isDraggingColRef.current) return;
+    const target = e.target as HTMLElement;
+    const cell = target.closest('td, th') as HTMLTableCellElement | null;
+    if (cell && visualEditorRef.current?.contains(cell)) {
+      const rect = cell.getBoundingClientRect();
+      const isNearRightEdge = Math.abs(e.clientX - rect.right) <= 6;
+      if (isNearRightEdge) {
+        cell.style.cursor = 'col-resize';
+      } else if (cell.style.cursor === 'col-resize') {
+        cell.style.cursor = '';
+      }
+    }
+  };
+
+  const handleCanvasMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    const target = e.target as HTMLElement;
+    const cell = target.closest('td, th') as HTMLTableCellElement | null;
+    if (cell && visualEditorRef.current?.contains(cell)) {
+      const rect = cell.getBoundingClientRect();
+      const isNearRightEdge = Math.abs(e.clientX - rect.right) <= 6;
+      if (isNearRightEdge) {
+        e.preventDefault();
+        e.stopPropagation();
+        const table = cell.closest('table');
+        if (!table) return;
+
+        const row = cell.parentElement;
+        const colIndex = Array.from(row?.children || []).indexOf(cell);
+        if (colIndex === -1) return;
+
+        isDraggingColRef.current = true;
+        table.style.tableLayout = 'fixed';
+        table.style.width = '100%';
+
+        const tableWidth = table.offsetWidth;
+        const startX = e.clientX;
+        const startWidth = cell.offsetWidth;
+        const nextCell = row?.children[colIndex + 1] as HTMLElement | undefined;
+        const nextStartWidth = nextCell ? nextCell.offsetWidth : undefined;
+
+        document.body.style.cursor = 'col-resize';
+        document.body.style.userSelect = 'none';
+
+        const handleMove = (moveEvt: MouseEvent) => {
+          const delta = moveEvt.clientX - startX;
+          const minW = 35;
+          if (nextCell && nextStartWidth !== undefined) {
+            const clampedDelta = Math.max(minW - startWidth, Math.min(nextStartWidth - minW, delta));
+            const w1Pct = (((startWidth + clampedDelta) / tableWidth) * 100).toFixed(2) + '%';
+            const w2Pct = (((nextStartWidth - clampedDelta) / tableWidth) * 100).toFixed(2) + '%';
+            table.querySelectorAll('tr').forEach((r) => {
+              const c1 = r.children[colIndex] as HTMLElement | undefined;
+              const c2 = r.children[colIndex + 1] as HTMLElement | undefined;
+              if (c1) c1.style.width = w1Pct;
+              if (c2) c2.style.width = w2Pct;
+            });
+            setSelectedTableInfo((prev) => prev ? { ...prev, currentWidth: w1Pct } : null);
+          } else {
+            const newW = Math.max(minW, startWidth + delta);
+            const wPct = ((newW / tableWidth) * 100).toFixed(2) + '%';
+            table.querySelectorAll('tr').forEach((r) => {
+              const c = r.children[colIndex] as HTMLElement | undefined;
+              if (c) c.style.width = wPct;
+            });
+            setSelectedTableInfo((prev) => prev ? { ...prev, currentWidth: wPct } : null);
+          }
+        };
+
+        const handleUp = () => {
+          window.removeEventListener('mousemove', handleMove);
+          window.removeEventListener('mouseup', handleUp);
+          isDraggingColRef.current = false;
+          document.body.style.cursor = '';
+          document.body.style.userSelect = '';
+          handleVisualInput();
+        };
+
+        window.addEventListener('mousemove', handleMove);
+        window.addEventListener('mouseup', handleUp);
+        return;
+      }
+    }
+
+    if (cell && visualEditorRef.current?.contains(cell)) {
+      updateTableSelection(cell);
+    } else if (!target.closest('.study-article-table-toolbar')) {
+      updateTableSelection(null);
+    }
+
+    if (target.tagName === 'IMG') {
+      visualEditorRef.current?.querySelectorAll('img.is-selected').forEach((img) => img.classList.remove('is-selected'));
+      target.classList.add('is-selected');
+      lastSelectedElementRef.current = target;
+    } else {
+      visualEditorRef.current?.querySelectorAll('img.is-selected').forEach((img) => img.classList.remove('is-selected'));
+      if (target.closest('figure')) {
+        lastSelectedElementRef.current = target.closest('figure');
+      } else if (target.closest('table')) {
+        lastSelectedElementRef.current = target.closest('table');
+      } else {
+        lastSelectedElementRef.current = target;
+      }
+    }
+  };
 
   function toggleMode(newMode: 'visual' | 'code') {
     if (newMode === editorMode) return;
@@ -1352,7 +1851,7 @@ function StudyMaterialEditorModal({
               subject={subject}
             />
           ) : (
-            <div className="field compact-field" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <div className="compact-field" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ fontWeight: 600, fontSize: '13.5px', color: '#1e293b' }}>
                 Detailed Notes & Content (HTML or Text)
@@ -1425,6 +1924,68 @@ function StudyMaterialEditorModal({
 
                 <div className="toolbar-separator" />
 
+                {/* Group: Font Family & Font Size */}
+                <div className="toolbar-btn-group">
+                  <div className="toolbar-btn toolbar-select-btn" title="Text Font Style">
+                    <Type size={13} color="#64748b" style={{ flexShrink: 0 }} />
+                    <select
+                      value={currentFontFamily}
+                      onChange={(e) => applyFontFamily(e.target.value)}
+                      onMouseDown={saveSelection}
+                      aria-label="Font Style"
+                      className="toolbar-select-control font-family-select"
+                    >
+                      {FONT_FAMILY_OPTIONS.map((f) => (
+                        <option key={f.value} value={f.value} style={{ fontFamily: f.value }}>
+                          {f.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="toolbar-btn toolbar-select-btn" title="Text Size">
+                    <span className="toolbar-select-label">Size</span>
+                    <select
+                      value={currentFontSize}
+                      onChange={(e) => applyFontSize(e.target.value)}
+                      onMouseDown={saveSelection}
+                      aria-label="Font Size"
+                      className="toolbar-select-control font-size-select"
+                    >
+                      {FONT_SIZE_OPTIONS.map((s) => (
+                        <option key={s.value} value={s.value}>
+                          {s.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <button
+                    type="button"
+                    title="Decrease Font Size (A-)"
+                    className="toolbar-btn"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      stepFontSize(-1);
+                    }}
+                  >
+                    A-
+                  </button>
+                  <button
+                    type="button"
+                    title="Increase Font Size (A+)"
+                    className="toolbar-btn"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      stepFontSize(1);
+                    }}
+                  >
+                    A+
+                  </button>
+                </div>
+
+                <div className="toolbar-separator" />
+
                 {/* Group: Typography */}
                 <div className="toolbar-btn-group">
                   <button type="button" className="toolbar-btn" title="Heading 2 (Major Section)" onMouseDown={(e) => execFormat(e, 'formatBlock', '<h2>')}>
@@ -1490,10 +2051,20 @@ function StudyMaterialEditorModal({
 
                 {/* Group: Lists */}
                 <div className="toolbar-btn-group">
-                  <button type="button" className="toolbar-btn" title="Bullet List" onMouseDown={(e) => execFormat(e, 'insertUnorderedList')}>
+                  <button
+                    type="button"
+                    className="toolbar-btn"
+                    title="Bullet List (• Bullet)"
+                    onMouseDown={(e) => toggleList(e, 'unordered')}
+                  >
                     • Bullet
                   </button>
-                  <button type="button" className="toolbar-btn" title="Numbered List" onMouseDown={(e) => execFormat(e, 'insertOrderedList')}>
+                  <button
+                    type="button"
+                    className="toolbar-btn"
+                    title="Numbered List (1. List)"
+                    onMouseDown={(e) => toggleList(e, 'ordered')}
+                  >
                     1. List
                   </button>
                 </div>
@@ -1649,6 +2220,135 @@ function StudyMaterialEditorModal({
                 </div>
               </div>
 
+              {/* Contextual Table Column Width Toolbar */}
+              {editorMode === 'visual' && selectedTableInfo && (
+                <div className="study-article-table-toolbar">
+                  <div className="table-toolbar-label">
+                    <Table size={14} color="#059669" />
+                    <strong>Table:</strong>
+                    <span className="table-col-pill">Col {selectedTableInfo.colIndex + 1} of {selectedTableInfo.totalCols}</span>
+                  </div>
+
+                  <div className="table-toolbar-group">
+                    <span style={{ fontSize: '11px', fontWeight: 700, color: '#166534' }}>Col Width:</span>
+                    <button
+                      type="button"
+                      className={selectedTableInfo.currentWidth === '15%' ? 'active' : ''}
+                      onMouseDown={(e) => { e.preventDefault(); applyColWidth('15%'); }}
+                    >
+                      15%
+                    </button>
+                    <button
+                      type="button"
+                      className={selectedTableInfo.currentWidth === '25%' ? 'active' : ''}
+                      onMouseDown={(e) => { e.preventDefault(); applyColWidth('25%'); }}
+                    >
+                      25%
+                    </button>
+                    <button
+                      type="button"
+                      className={selectedTableInfo.currentWidth === '33.33%' || selectedTableInfo.currentWidth === '33%' ? 'active' : ''}
+                      onMouseDown={(e) => { e.preventDefault(); applyColWidth('33.33%'); }}
+                    >
+                      33%
+                    </button>
+                    <button
+                      type="button"
+                      className={selectedTableInfo.currentWidth === '50%' ? 'active' : ''}
+                      onMouseDown={(e) => { e.preventDefault(); applyColWidth('50%'); }}
+                    >
+                      50%
+                    </button>
+                    <button
+                      type="button"
+                      title="Distribute width equally across all columns"
+                      onMouseDown={(e) => { e.preventDefault(); equalizeColWidths(); }}
+                    >
+                      Equalize All
+                    </button>
+                    <button
+                      type="button"
+                      title="Decrease Column Width (-5%)"
+                      style={{ padding: '3px 8px', fontWeight: 700 }}
+                      onMouseDown={(e) => { e.preventDefault(); stepColWidth(-5); }}
+                    >
+                      - 5%
+                    </button>
+                    <button
+                      type="button"
+                      title="Increase Column Width (+5%)"
+                      style={{ padding: '3px 8px', fontWeight: 700 }}
+                      onMouseDown={(e) => { e.preventDefault(); stepColWidth(5); }}
+                    >
+                      + 5%
+                    </button>
+                    <input
+                      type="text"
+                      placeholder="e.g. 25% or 150px"
+                      value={selectedTableInfo.currentWidth}
+                      onChange={(e) => applyColWidth(e.target.value)}
+                      className="col-dim-input"
+                      title="Enter custom width in % or px"
+                    />
+                  </div>
+
+                  <div className="table-toolbar-group">
+                    <button
+                      type="button"
+                      title="Insert column to left"
+                      onMouseDown={(e) => { e.preventDefault(); addTableColumn('left'); }}
+                    >
+                      + Col Left
+                    </button>
+                    <button
+                      type="button"
+                      title="Insert column to right"
+                      onMouseDown={(e) => { e.preventDefault(); addTableColumn('right'); }}
+                    >
+                      + Col Right
+                    </button>
+                    <button
+                      type="button"
+                      title="Delete this column"
+                      className="btn-danger"
+                      onMouseDown={(e) => { e.preventDefault(); deleteTableColumn(); }}
+                    >
+                      - Del Col
+                    </button>
+                    <button
+                      type="button"
+                      title="Insert row above"
+                      onMouseDown={(e) => { e.preventDefault(); addTableRow('above'); }}
+                    >
+                      + Row Above
+                    </button>
+                    <button
+                      type="button"
+                      title="Insert row below"
+                      onMouseDown={(e) => { e.preventDefault(); addTableRow('below'); }}
+                    >
+                      + Row Below
+                    </button>
+                    <button
+                      type="button"
+                      title="Delete this row"
+                      className="btn-danger"
+                      onMouseDown={(e) => { e.preventDefault(); deleteTableRow(); }}
+                    >
+                      - Del Row
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-close-table-tool"
+                      onClick={() => updateTableSelection(null)}
+                      title="Done adjusting table"
+                    >
+                      <X size={14} /> Done
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* Canvas: Visual Editor OR Code Editor */}
               {editorMode === 'visual' ? (
                 <div
@@ -1658,23 +2358,8 @@ function StudyMaterialEditorModal({
                   suppressContentEditableWarning
                   onInput={handleVisualInput}
                   onBlur={handleVisualInput}
-                  onMouseDown={(e) => {
-                    const target = e.target as HTMLElement;
-                    if (target.tagName === 'IMG') {
-                      visualEditorRef.current?.querySelectorAll('img.is-selected').forEach((img) => img.classList.remove('is-selected'));
-                      target.classList.add('is-selected');
-                      lastSelectedElementRef.current = target;
-                    } else {
-                      visualEditorRef.current?.querySelectorAll('img.is-selected').forEach((img) => img.classList.remove('is-selected'));
-                      if (target.closest('figure')) {
-                        lastSelectedElementRef.current = target.closest('figure');
-                      } else if (target.closest('table')) {
-                        lastSelectedElementRef.current = target.closest('table');
-                      } else {
-                        lastSelectedElementRef.current = target;
-                      }
-                    }
-                  }}
+                  onMouseMove={handleCanvasMouseMove}
+                  onMouseDown={handleCanvasMouseDown}
                   onMouseUp={handleEditorSelectionChange}
                   onKeyUp={handleEditorSelectionChange}
                   onKeyDown={(e) => {

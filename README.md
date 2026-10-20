@@ -2,6 +2,9 @@
 
 An interactive math classroom quiz platform with teacher-led live rounds, timed self-paced quizzes, student passkeys, persisted results, and real-time classroom updates.
 
+> 📘 **Looking for the complete User Guide?**
+> Check out the step-by-step **[Complete User Guide (USER_GUIDE.md)](./USER_GUIDE.md)** covering the **Public Portal**, **Teacher's Space (with sign-up)**, and **Student's Space**.
+
 ## Stack
 
 - React 19, TypeScript, Vite, and Socket.IO client

@@ -54,6 +54,8 @@ model Student {
   passkey              String?
   passkeyHash          String
   passkeyLookup        String                @unique
+  parentPhone          String?
+  parentName           String?
   active               Boolean               @default(true)
   teacherId            String?
   teacher              Teacher?              @relation(fields: [teacherId], references: [id], onDelete: Cascade)

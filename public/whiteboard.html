@@ -9,6 +9,9 @@
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="vendor/jspdf.umd.min.js"></script>
     <script src="vendor/jszip.min.js"></script>
+    <script src="vendor/chart.umd.min.js"></script>
+    <script>window.Chart = window.Chart || function() {};</script>
+    <script src="vendor/pptxviewjs.min.js"></script>
     <style>
 *,
 *::before,
@@ -157,6 +160,18 @@ body {
   background: #dcfce7;
   border-color: #86efac;
   color: #15803d;
+}
+
+#importPPTButton {
+  background: #fff7ed;
+  border-color: #fed7aa;
+  color: #c2410c;
+  font-weight: 600;
+}
+#importPPTButton:hover {
+  background: #ffedd5;
+  border-color: #fdba74;
+  color: #9a3412;
 }
 
 #clearPageButton:hover,
@@ -1005,6 +1020,10 @@ body {
           Import PDF
         </button>
         <input type="file" id="pdfFileInput" accept="application/pdf" style="display:none" />
+        <button class="top-bar__button" id="importPPTButton" title="Import PowerPoint presentation (.pptx, .ppt) as pages">
+          Import PPT
+        </button>
+        <input type="file" id="pptFileInput" accept=".pptx,.ppt,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.ms-powerpoint" style="display:none" />
         <div class="export-dropdown" id="exportDropdown">
           <button type="button" class="top-bar__button" id="exportButton" title="Export options">
             Export ▾
@@ -8801,6 +8820,380 @@ body {
     });
   }
 
+  let pptFileInput = null;
+
+  function ensurePptFileInput() {
+    if (pptFileInput) return;
+    pptFileInput = document.getElementById("pptFileInput");
+    if (!pptFileInput) {
+      pptFileInput = document.createElement("input");
+      pptFileInput.id = "pptFileInput";
+      pptFileInput.type = "file";
+      pptFileInput.accept = ".pptx,.ppt,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.ms-powerpoint";
+      pptFileInput.style.display = "none";
+      document.body.appendChild(pptFileInput);
+    }
+    pptFileInput.addEventListener("change", () => {
+      const file = pptFileInput?.files?.[0];
+      if (!file) return;
+      loadPPTFile(file);
+      pptFileInput.value = "";
+    });
+  }
+
+  function loadPPTFile(file) {
+    const loadingToast = document.createElement("div");
+    loadingToast.style.cssText = [
+      "position: fixed",
+      "bottom: 20px",
+      "right: 20px",
+      "background: #ea580c",
+      "color: #fff",
+      "padding: 12px 24px",
+      "border-radius: 8px",
+      "box-shadow: 0 4px 12px rgba(0,0,0,0.15)",
+      "z-index: 9999",
+      "font-size: 0.9rem",
+      "font-weight: 600",
+      "transition: all 0.3s ease"
+    ].join("; ");
+    loadingToast.textContent = "Loading PowerPoint presentation...";
+    document.body.appendChild(loadingToast);
+
+    renderPPTPages(file, loadingToast);
+  }
+
+  async function renderPPTPages(file, toast) {
+    try {
+      if (typeof PptxViewJS === "undefined") {
+        throw new Error("PowerPoint rendering library not loaded. Please refresh the page.");
+      }
+
+      toast.textContent = "Parsing presentation slides...";
+
+      const standardWidth = 1000;
+      let slideHeight = 562.5; // Default 16:9 aspect ratio
+
+      const renderCanvas = document.createElement("canvas");
+      renderCanvas.width = 1600;
+      renderCanvas.height = 900;
+
+      const viewer = new PptxViewJS.PPTXViewer({
+        canvas: renderCanvas,
+        autoChartRerenderDelayMs: 0
+      });
+
+      const arrayBuffer = await file.arrayBuffer();
+      await viewer.loadFile(arrayBuffer);
+      const slideCount = typeof viewer.getSlideCount === "function" ? viewer.getSlideCount() : 0;
+
+      if (!slideCount || slideCount <= 0) {
+        throw new Error("No slides detected in this presentation file.");
+      }
+
+      // Detect slide dimensions and aspect ratio if available
+      try {
+        const slideDims = (viewer.processor && typeof viewer.processor.getSlideDimensions === "function")
+          ? viewer.processor.getSlideDimensions()
+          : null;
+        if (slideDims) {
+          const w = slideDims.width || slideDims.cx || 0;
+          const h = slideDims.height || slideDims.cy || 0;
+          if (w > 0 && h > 0) {
+            slideHeight = standardWidth / (w / h);
+          }
+        }
+      } catch (dimErr) {
+        console.warn("Using default 16:9 slide aspect ratio", dimErr);
+      }
+
+      const renderScale = 1.6;
+      renderCanvas.width = Math.round(standardWidth * renderScale);
+      renderCanvas.height = Math.round(slideHeight * renderScale);
+
+      let cumulativeHeight = 0;
+      const slideLayouts = [];
+
+      for (let i = 0; i < slideCount; i++) {
+        slideLayouts.push({
+          slideNum: i + 1,
+          w: standardWidth,
+          h: slideHeight,
+          y: cumulativeHeight
+        });
+        cumulativeHeight += slideHeight;
+      }
+
+      const newPageObj = {
+        strokes: [],
+        shapes: [],
+        texts: [],
+        widgets: [],
+        width: standardWidth,
+        height: cumulativeHeight,
+        background: null
+      };
+
+      for (let i = 0; i < slideCount; i++) {
+        toast.textContent = `Rendering slide ${i + 1} of ${slideCount}...`;
+        const layout = slideLayouts[i];
+
+        const ctx = renderCanvas.getContext("2d");
+        if (ctx) {
+          ctx.clearRect(0, 0, renderCanvas.width, renderCanvas.height);
+          ctx.fillStyle = "#ffffff";
+          ctx.fillRect(0, 0, renderCanvas.width, renderCanvas.height);
+        }
+
+        try {
+          await viewer.renderSlide(i, renderCanvas);
+        } catch (slideErr) {
+          console.warn(`Render fallback for slide ${i + 1}:`, slideErr);
+          if (ctx) {
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(0, 0, renderCanvas.width, renderCanvas.height);
+            ctx.strokeStyle = "#cbd5e1";
+            ctx.lineWidth = 2;
+            ctx.strokeRect(10, 10, renderCanvas.width - 20, renderCanvas.height - 20);
+            ctx.fillStyle = "#64748b";
+            ctx.font = "bold 26px 'Plus Jakarta Sans', sans-serif";
+            ctx.textAlign = "center";
+            ctx.fillText(`Slide ${i + 1}`, renderCanvas.width / 2, renderCanvas.height / 2);
+          }
+        }
+
+        const dataUrl = renderCanvas.toDataURL("image/png");
+
+        newPageObj.shapes.push({
+          id: generateId(),
+          type: "image",
+          color: "#ffffff",
+          width: 1,
+          fillMode: "solid",
+          dataUrl,
+          start: { x: 0, y: layout.y },
+          end: { x: layout.w, y: layout.y + layout.h },
+          locked: true,
+          isPDFPage: true,
+          isPPTPage: true
+        });
+      }
+
+      const isFirstPageBlank = pages.length === 1 &&
+                               pages[0].strokes.length === 0 &&
+                               pages[0].shapes.length === 0 &&
+                               pages[0].texts.length === 0 &&
+                               pages[0].widgets.length === 0 &&
+                               pages[0].background === null;
+
+      let targetIndex;
+      if (isFirstPageBlank) {
+        pages[0] = newPageObj;
+        targetIndex = 0;
+      } else {
+        pages.push(newPageObj);
+        targetIndex = pages.length - 1;
+      }
+
+      toast.style.background = "#10b981";
+      toast.textContent = `PowerPoint (${slideCount} slide${slideCount > 1 ? "s" : ""}) imported successfully!`;
+      setTimeout(() => toast.remove(), 2500);
+
+      syncPageStrip();
+      selectPage(targetIndex);
+
+    } catch (err) {
+      console.error("PPT Import error, trying fallback extraction:", err);
+      try {
+        toast.textContent = "Attempting fallback slide extraction...";
+        const fallbackSuccess = await tryExtractPptxFallback(file, toast);
+        if (fallbackSuccess) return;
+      } catch (fallbackErr) {
+        console.error("Fallback extraction failed:", fallbackErr);
+      }
+
+      toast.style.background = "#ef4444";
+      const isLegacyPpt = file.name && file.name.toLowerCase().endsWith(".ppt") && !file.name.toLowerCase().endsWith(".pptx");
+      toast.textContent = isLegacyPpt
+        ? "Could not read legacy .ppt file. Please save as modern .pptx or .pdf for best compatibility."
+        : `Error importing PPT: ${err.message || "Failed to parse presentation."}`;
+      setTimeout(() => toast.remove(), 4000);
+    }
+  }
+
+  async function tryExtractPptxFallback(file, toast) {
+    if (typeof JSZip === "undefined") return false;
+    const zip = await JSZip.loadAsync(file);
+    const slideFiles = [];
+    zip.forEach((relativePath) => {
+      if (relativePath.match(/^ppt\/slides\/slide\d+\.xml$/i)) {
+        slideFiles.push(relativePath);
+      }
+    });
+
+    if (slideFiles.length === 0) return false;
+
+    slideFiles.sort((a, b) => {
+      const numA = parseInt(a.replace(/\D/g, ""), 10) || 0;
+      const numB = parseInt(b.replace(/\D/g, ""), 10) || 0;
+      return numA - numB;
+    });
+
+    const standardWidth = 1000;
+    const slideHeight = 562.5;
+    let cumulativeHeight = 0;
+
+    const newPageObj = {
+      strokes: [],
+      shapes: [],
+      texts: [],
+      widgets: [],
+      width: standardWidth,
+      height: slideFiles.length * slideHeight,
+      background: null
+    };
+
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(standardWidth * 1.5);
+    canvas.height = Math.round(slideHeight * 1.5);
+    const ctx = canvas.getContext("2d");
+
+    function decodeXml(str) {
+      return str
+        .replace(/&amp;/g, "&")
+        .replace(/&lt;/g, "<")
+        .replace(/&gt;/g, ">")
+        .replace(/&quot;/g, '"')
+        .replace(/&apos;/g, "'")
+        .replace(/&#(\d+);/g, (_, dec) => String.fromCharCode(dec));
+    }
+
+    for (let i = 0; i < slideFiles.length; i++) {
+      const slidePath = slideFiles[i];
+      const slideXmlStr = await zip.file(slidePath).async("string");
+
+      const paragraphs = [];
+      const pMatches = slideXmlStr.match(/<a:p[\s\S]*?<\/a:p>/gi) || [];
+      for (const pStr of pMatches) {
+        const textRuns = [];
+        const tRegex = /<a:t\b[^>]*>([\s\S]*?)<\/a:t>/gi;
+        let tMatch;
+        while ((tMatch = tRegex.exec(pStr)) !== null) {
+          if (tMatch[1]) textRuns.push(decodeXml(tMatch[1]));
+        }
+        const fullPara = textRuns.join("").trim();
+        if (fullPara) paragraphs.push(fullPara);
+      }
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      ctx.fillStyle = "#f8fafc";
+      ctx.fillRect(0, 0, canvas.width, 54);
+      ctx.strokeStyle = "#e2e8f0";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(0, 0, canvas.width, canvas.height);
+
+      ctx.fillStyle = "#ea580c";
+      ctx.font = "bold 22px 'Plus Jakarta Sans', sans-serif";
+      ctx.textAlign = "left";
+      ctx.fillText(`Slide ${i + 1}`, 25, 36);
+
+      const relsPath = slidePath.replace("ppt/slides/", "ppt/slides/_rels/") + ".rels";
+      const relsFile = zip.file(relsPath);
+      if (relsFile) {
+        try {
+          const relsXml = await relsFile.async("string");
+          const targetMatches = relsXml.match(/Target="([^"]+)"/gi) || [];
+          for (const tm of targetMatches) {
+            const target = tm.replace(/Target="|"/gi, "");
+            if (target.match(/\.(png|jpe?g|webp|gif)$/i)) {
+              const mediaPath = target.startsWith("../") ? "ppt/" + target.replace("../", "") : "ppt/slides/" + target;
+              const imgFile = zip.file(mediaPath);
+              if (imgFile) {
+                const b64 = await imgFile.async("base64");
+                const ext = mediaPath.split(".").pop().toLowerCase();
+                const mime = ext === "png" ? "image/png" : "image/jpeg";
+                const img = new Image();
+                img.src = `data:${mime};base64,${b64}`;
+                await new Promise((res) => { img.onload = res; img.onerror = res; });
+                if (img.width > 0 && img.height > 0) {
+                  const maxW = canvas.width * 0.45;
+                  const maxH = canvas.height * 0.7;
+                  const scale = Math.min(maxW / img.width, maxH / img.height, 1);
+                  const drawW = img.width * scale;
+                  const drawH = img.height * scale;
+                  const drawX = canvas.width - drawW - 40;
+                  const drawY = 80;
+                  ctx.drawImage(img, drawX, drawY, drawW, drawH);
+                }
+              }
+            }
+          }
+        } catch (imgErr) {
+          console.warn("Could not load slide image in fallback:", imgErr);
+        }
+      }
+
+      let textY = 110;
+      paragraphs.slice(0, 12).forEach((para, pIdx) => {
+        if (textY >= canvas.height - 40) return;
+        if (pIdx === 0) {
+          ctx.fillStyle = "#0f172a";
+          ctx.font = "bold 26px 'Plus Jakarta Sans', sans-serif";
+          ctx.fillText(para, 40, textY);
+          textY += 40;
+        } else {
+          ctx.fillStyle = "#334155";
+          ctx.font = "18px 'Plus Jakarta Sans', sans-serif";
+          ctx.fillText("• " + para, 45, textY);
+          textY += 32;
+        }
+      });
+
+      const dataUrl = canvas.toDataURL("image/png");
+      newPageObj.shapes.push({
+        id: generateId(),
+        type: "image",
+        color: "#ffffff",
+        width: 1,
+        fillMode: "solid",
+        dataUrl,
+        start: { x: 0, y: cumulativeHeight },
+        end: { x: standardWidth, y: cumulativeHeight + slideHeight },
+        locked: true,
+        isPDFPage: true,
+        isPPTPage: true
+      });
+      cumulativeHeight += slideHeight;
+    }
+
+    const isFirstPageBlank = pages.length === 1 &&
+                             pages[0].strokes.length === 0 &&
+                             pages[0].shapes.length === 0 &&
+                             pages[0].texts.length === 0 &&
+                             pages[0].widgets.length === 0 &&
+                             pages[0].background === null;
+
+    let targetIndex;
+    if (isFirstPageBlank) {
+      pages[0] = newPageObj;
+      targetIndex = 0;
+    } else {
+      pages.push(newPageObj);
+      targetIndex = pages.length - 1;
+    }
+
+    toast.style.background = "#10b981";
+    toast.textContent = `PowerPoint (${slideFiles.length} slide${slideFiles.length > 1 ? "s" : ""}) imported!`;
+    setTimeout(() => toast.remove(), 2500);
+
+    syncPageStrip();
+    selectPage(targetIndex);
+    return true;
+  }
+
   function bindBoardToggleEvents(container) {
     if (!container) return;
     const getBoardTypeFromEvent = (evt) => {
@@ -8872,6 +9265,11 @@ body {
   document.getElementById("importPDFButton")?.addEventListener("click", () => {
     ensurePdfFileInput();
     pdfFileInput?.click();
+  });
+
+  document.getElementById("importPPTButton")?.addEventListener("click", () => {
+    ensurePptFileInput();
+    pptFileInput?.click();
   });
 
   document.getElementById("undoButton")?.addEventListener("click", undo);
@@ -9033,7 +9431,7 @@ body {
     page.texts = [];
     page.widgets = (page.widgets || []).filter((w) => w.type === "clock" || w.type === "timer" || w.type === "stopwatch");
     if (page.shapes) {
-      page.shapes = page.shapes.filter((s) => s.isPDFPage);
+      page.shapes = page.shapes.filter((s) => s.isPDFPage || s.isPPTPage);
     }
     selectedShapes = [];
     selectedTexts = [];
@@ -9060,7 +9458,7 @@ body {
 
   document.getElementById("clearPageButton")?.addEventListener("click", () => {
     const page = pages[currentPageIndex];
-    const hasPDF = page && page.shapes && page.shapes.some((s) => s.isPDFPage);
+    const hasPDF = page && page.shapes && page.shapes.some((s) => s.isPDFPage || s.isPPTPage);
     if (hasPDF) {
       if (clearPDFConfirmEl) {
         clearPDFConfirmEl.classList.add("is-visible");

@@ -1,13 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { io, type Socket } from 'socket.io-client';
-import { AppWindow, Archive, ArrowLeft, ArrowRight, Award, BarChart3, Bell, BookOpen, BookOpenCheck, Calculator, Calendar, CalendarCheck, Check, CheckCircle2, CheckCheck, CheckSquare, ChevronDown, ChevronUp, CircleHelp, Clock3, Copy, CreditCard, Download, ExternalLink, Eye, FileSpreadsheet, FileText, Filter, KeyRound, ListChecks, Lock, LogOut, Mail, Maximize2, Minimize2, Paperclip, Pencil, PenTool, Phone, Plus, Printer, Radio, RefreshCw, RotateCcw, Save, Search, Send, Settings, ShieldCheck, SlidersHorizontal, Sparkles, Trash2, TrendingUp, Type, UploadCloud, UserCheck, Users, UserX, X } from 'lucide-react';
+import { AppWindow, Archive, ArrowLeft, ArrowRight, Award, BarChart3, Bell, BookOpen, BookOpenCheck, Calculator, Calendar, CalendarCheck, Check, CheckCircle2, CheckCheck, CheckSquare, ChevronDown, ChevronUp, CircleHelp, Clock3, Copy, CreditCard, Download, ExternalLink, Eye, FileSpreadsheet, FileText, Filter, KeyRound, ListChecks, Lock, LogOut, Mail, Maximize2, MessageCircle, Minimize2, Paperclip, Pencil, PenTool, Phone, Plus, Printer, Radio, RefreshCw, RotateCcw, Save, Search, Send, Settings, ShieldCheck, SlidersHorizontal, Sparkles, Table, Trash2, TrendingUp, Type, UploadCloud, UserCheck, Users, UserX, X } from 'lucide-react';
 import { PublicPortal } from './components/PublicPortal';
 import { AuthModal, type AuthMode } from './components/AuthModal';
 import { SuperAdminConsole } from './components/SuperAdminConsole';
 import { ClassroomChatWidget, ClassroomChatHeaderButton } from './components/ClassroomChatWidget';
 import { ClassroomCalendar, type CalendarEventItem } from './components/ClassroomCalendar';
+import { UserGuidePage } from './components/UserGuidePage';
 import { getActiveGrades, getDefaultGrade, getActiveSubjects, getDefaultSubject } from './utils/teacherPreferences';
+import { cleanIndianPhoneNumber, openWhatsAppChat, generateScorecardMessage, generateQuizAnnouncementMessage, generateWorksheetAnnouncementMessage } from './utils/whatsapp';
 export { getActiveGrades, getDefaultGrade, getActiveSubjects, getDefaultSubject };
 
 type Mode = 'LIVE' | 'SELF_PACED';
@@ -15,8 +17,8 @@ type QuestionType = 'MCQ' | 'FILL_BLANK' | 'TRUE_FALSE' | 'SOLVE';
 type Status = 'DRAFT' | 'ACTIVE' | 'CLOSED';
 type Option = { id?: string; text: string; isCorrect?: boolean; correct?: boolean };
 type Question = { id?: string; prompt: string; marks: number; imageUrl?: string | null; type?: QuestionType; options: Option[] };
-type Quiz = { id: string; title: string; grade?: string | null; mode: Mode; status: Status; timeLimitSeconds: number | null; showResults: boolean; currentQuestionIndex: number; currentAnswerRevealed: boolean; questions?: Question[]; _count?: { questions: number; attempts: number } };
-type Student = { id: string; name: string; grade?: string | null; passkey?: string | null; active: boolean; joiningDate?: string | null; createdAt?: string; _count: { attempts: number } };
+type Quiz = { id: string; title: string; grade?: string | null; mode: Mode; status: Status; timeLimitSeconds: number | null; showResults: boolean; currentQuestionIndex: number; currentAnswerRevealed: boolean; createdAt?: string; updatedAt?: string; questions?: Question[]; _count?: { questions: number; attempts: number } };
+type Student = { id: string; name: string; grade?: string | null; passkey?: string | null; parentPhone?: string | null; parentName?: string | null; active: boolean; joiningDate?: string | null; createdAt?: string; _count: { attempts: number } };
 type User = { id?: string; role: 'admin' | 'teacher' | 'superadmin' | 'student'; name?: string; email?: string; username?: string; hasApiKey?: boolean; school?: string | null; subject?: string | null; grade?: string | null; teacherId?: string | null; teacherName?: string | null };
 type QuizDraft = { title: string; grade?: string; mode: Mode; hasTimer: boolean; minutes: number; showResults: boolean; questions: Question[] };
 import { TeacherAIAssistant } from './components/TeacherAIAssistant';
@@ -47,7 +49,7 @@ export const ALL_ACADEMIC_SUBJECTS = [
 const newDraft = (): QuizDraft => ({ title: '', grade: getDefaultGrade(), mode: 'LIVE', hasTimer: false, minutes: 20, showResults: true, questions: [emptyQuestion()] });
 type StudentQuiz = { id: string; title: string; grade?: string | null; mode: Mode; status: Status; timeLimitSeconds: number | null; questionCount: number; totalMarks?: number; attempt: { status: string; deadlineAt: string | null; score: number | null; submittedAt?: string | null } | null };
 type ActiveQuiz = { id: string; title: string; grade?: string | null; mode: Mode; status: Status; timeLimitSeconds: number | null; showResults: boolean; currentQuestionIndex: number; currentAnswerRevealed: boolean; questionCount?: number; totalMarks?: number; questions: Question[]; attempt: { status: string; deadlineAt: string | null; score: number | null; answers: { questionId: string; optionId: string }[] } | null };
-type Result = { id: string; studentId?: string; name: string; status: string; submittedAt: string | null; score: number | null; totalMarks: number; answers: { question: string; response: string; correct: boolean; marks: number }[] };
+type Result = { id: string; studentId?: string; name: string; status: string; submittedAt: string | null; score: number | null; totalMarks: number; parentPhone?: string | null; parentName?: string | null; answers: { question: string; response: string; correct: boolean; marks: number }[] };
 type LiveStats = { answered: number; participants: number; distribution: { optionId: string; count: number }[]; responses: { name: string; optionId: string; text: string }[] };
 
 type WorksheetSubmission = {
@@ -289,6 +291,9 @@ function printHtmlContent(content: string) {
     p { margin: 0 0 8px 0; }
     h1, h2, h3 { margin: 14px 0 8px 0; color: #0f172a; }
     img { max-width: 100% !important; height: auto !important; margin: 14px auto; display: block; border-radius: 4px; }
+    table { width: 100% !important; border-collapse: collapse !important; margin: 14px 0 !important; table-layout: fixed !important; }
+    th, td { border: 1px solid #cbd5e1 !important; padding: 6px 10px !important; text-align: left; }
+    th { background: #f1f5f9 !important; font-weight: 600; }
   </style></head><body>${content}</body></html>`);
   win.document.close();
   win.focus();
@@ -326,9 +331,12 @@ function App() {
     }
     return null;
   });
-  const [view, setView] = useState<'portal' | 'dashboard' | 'superadmin'>(() => {
+  const [view, setView] = useState<'portal' | 'dashboard' | 'superadmin' | 'user_guide'>(() => {
     if (typeof window !== 'undefined' && (window.location.search.includes('admin') || window.location.search.includes('superadmin'))) {
       return 'superadmin';
+    }
+    if (typeof window !== 'undefined' && (window.location.search.includes('guide') || window.location.pathname === '/guide' || window.location.pathname === '/user-guide')) {
+      return 'user_guide';
     }
     if (typeof window !== 'undefined' && sessionStorage.getItem(SESSION_ACTIVE_KEY) !== '1') {
       return 'portal';
@@ -336,6 +344,7 @@ function App() {
     const saved = localStorage.getItem('maths_mentor_view');
     return saved === 'portal' ? 'portal' : 'dashboard';
   });
+  const [previousView, setPreviousView] = useState<'portal' | 'dashboard' | 'superadmin'>('portal');
   const [notice, setNotice] = useState('');
 
   async function signOut() {
@@ -478,6 +487,27 @@ function App() {
 
   if (loading) return <div className="loading-screen"><span className="brand-mark"><img src="/logo.png" alt="EduAshram" className="brand-logo" /></span><span>Getting EduAshram ready</span></div>;
 
+  // View 0: User Guide Page
+  if (view === 'user_guide') {
+    return (
+      <UserGuidePage
+        onBack={() => {
+          if (previousView === 'dashboard' && user) {
+            setView('dashboard');
+          } else if (previousView === 'superadmin' && user?.role === 'superadmin') {
+            setView('superadmin');
+          } else {
+            setView('portal');
+          }
+          if (window.location.search.includes('guide') || window.location.pathname === '/guide' || window.location.pathname === '/user-guide') {
+            window.history.replaceState({}, '', '/');
+          }
+        }}
+        userRole={user?.role}
+      />
+    );
+  }
+
   // View 1: Super Admin Console
   if (view === 'superadmin' || user?.role === 'superadmin') {
     return (
@@ -512,6 +542,10 @@ function App() {
             else if (m === 'teacher_login') window.history.replaceState({}, '', '/teacher/login');
           }}
           onOpenSuperAdmin={() => setView('superadmin')}
+          onOpenUserGuide={() => {
+            setPreviousView(user ? 'dashboard' : 'portal');
+            setView('user_guide');
+          }}
           onGoToDashboard={() => {
             setView('dashboard');
             localStorage.setItem('maths_mentor_view', 'dashboard');
@@ -566,9 +600,29 @@ function App() {
   return (
     <>
       {(user.role === 'admin' || user.role === 'teacher') ? (
-        <TeacherApp user={user} onSignOut={signOut} notice={notice} setNotice={setNotice} onViewPortal={() => setView('portal')} />
+        <TeacherApp
+          user={user}
+          onSignOut={signOut}
+          notice={notice}
+          setNotice={setNotice}
+          onViewPortal={() => setView('portal')}
+          onOpenUserGuide={() => {
+            setPreviousView('dashboard');
+            setView('user_guide');
+          }}
+        />
       ) : (
-        <StudentApp user={user} onSignOut={signOut} notice={notice} setNotice={setNotice} onViewPortal={() => setView('portal')} />
+        <StudentApp
+          user={user}
+          onSignOut={signOut}
+          notice={notice}
+          setNotice={setNotice}
+          onViewPortal={() => setView('portal')}
+          onOpenUserGuide={() => {
+            setPreviousView('dashboard');
+            setView('user_guide');
+          }}
+        />
       )}
       <ClassroomChatWidget user={user} />
     </>
@@ -661,7 +715,21 @@ function isUpcomingReminder(event: CalendarEventItem): boolean {
   return true;
 }
 
-function TeacherApp({ user, onSignOut, notice, setNotice, onViewPortal }: { user: User; onSignOut: () => void; notice: string; setNotice: (text: string) => void; onViewPortal?: () => void }) {
+function TeacherApp({
+  user,
+  onSignOut,
+  notice,
+  setNotice,
+  onViewPortal,
+  onOpenUserGuide,
+}: {
+  user: User;
+  onSignOut: () => void;
+  notice: string;
+  setNotice: (text: string) => void;
+  onViewPortal?: () => void;
+  onOpenUserGuide?: () => void;
+}) {
   type TeacherTab = 'overview' | 'ai_assistant' | 'quizzes' | 'worksheets' | 'archive' | 'calendar' | 'whiteboard' | 'students' | 'results' | 'settings' | 'ai_settings';
   const [tab, setTabState] = useState<TeacherTab>(() => {
     const saved = localStorage.getItem('teacher_active_tab') as any;
@@ -777,7 +845,7 @@ function TeacherApp({ user, onSignOut, notice, setNotice, onViewPortal }: { user
   const liveQuiz = quizzes.find((quiz) => quiz.id === selectedQuiz && quiz.status === 'ACTIVE');
 
   function exportCsv() {
-    const lines = [['Student', 'Status', 'Score', 'Out of', 'Submitted at'], ...results.map((result) => [result.name, result.status, result.score ?? '', result.totalMarks, result.submittedAt ? new Date(result.submittedAt).toLocaleString() : ''])];
+    const lines = [['Student', 'Parent Name', 'Parent WhatsApp', 'Status', 'Score', 'Out of', 'Submitted at'], ...results.map((result) => [result.name, result.parentName ?? '', result.parentPhone ? cleanIndianPhoneNumber(result.parentPhone).formatted : '', result.status, result.score ?? '', result.totalMarks, result.submittedAt ? new Date(result.submittedAt).toLocaleString() : ''])];
     const csv = lines.map((row) => row.map((value) => `"${String(value).replaceAll('"', '""')}"`).join(',')).join('\r\n');
     const link = document.createElement('a');
     link.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
@@ -815,6 +883,9 @@ function TeacherApp({ user, onSignOut, notice, setNotice, onViewPortal }: { user
         <NavItem active={tab === 'archive'} icon={<Archive size={17} />} label="Archive" count={archivedQuizzes.length + archivedWorksheets.length} onClick={() => setTab('archive')} />
         <NavItem active={tab === 'students'} icon={<Users size={17} />} label="Students" count={students.length} onClick={() => setTab('students')} />
         <NavItem active={tab === 'settings' || tab === 'ai_settings'} icon={<Settings size={17} />} label="Settings" onClick={() => setTab('settings')} />
+        {onOpenUserGuide && (
+          <NavItem active={false} icon={<BookOpen size={17} />} label="User Guide" onClick={onOpenUserGuide} />
+        )}
       </nav>
       <div className="sidebar-bottom"><div className="teacher-profile"><div className="avatar avatar-green">{(user.email ?? 'T').slice(0, 1).toUpperCase()}</div><div className="profile-copy"><strong>{user.email?.split('@')[0]}</strong><span>Teacher account</span></div><button className="icon-button quiet" title="Sign out" aria-label="Sign out" onClick={onSignOut}><LogOut size={16} /></button></div><div className="sidebar-footnote">A little progress, every day.</div></div>
     </aside>
@@ -825,6 +896,15 @@ function TeacherApp({ user, onSignOut, notice, setNotice, onViewPortal }: { user
           {onViewPortal && (
             <button className="button button-secondary" style={{ fontSize: '13px', padding: '5px 12px', minHeight: '36px', gap: '6px' }} onClick={onViewPortal} title="Preview public website as seen by students and parents">
               <ExternalLink size={14} /> Public Portal
+            </button>
+          )}
+          {onOpenUserGuide && (
+            <button
+              className="button button-secondary guide-topbar-btn"
+              onClick={onOpenUserGuide}
+              title="Open Complete User Guide (Public Portal, Teacher's Space, Student's Space)"
+            >
+              <BookOpen size={14} /> User Guide
             </button>
           )}
           {tab === 'overview' ? (
@@ -958,8 +1038,8 @@ function TeacherApp({ user, onSignOut, notice, setNotice, onViewPortal }: { user
             onLessonSaved={refresh}
           />
         </div>
-        {tab === 'quizzes' && <QuizManager quizzes={quizzes} selectedQuiz={selectedQuiz} setSelectedQuiz={setSelectedQuiz} liveQuiz={liveQuiz} refresh={refresh} setNotice={setNotice} onNavigateToAISettings={() => setTab('settings')} onNavigateToArchive={() => setTab('archive')} />}
-        {tab === 'worksheets' && <WorksheetsPanel setNotice={setNotice} onNavigateToAISettings={() => setTab('settings')} onNavigateToArchive={() => setTab('archive')} />}
+        {tab === 'quizzes' && <QuizManager quizzes={quizzes} selectedQuiz={selectedQuiz} setSelectedQuiz={setSelectedQuiz} liveQuiz={liveQuiz} refresh={refresh} setNotice={setNotice} teacherName={user?.name} onNavigateToAISettings={() => setTab('settings')} onNavigateToArchive={() => setTab('archive')} />}
+        {tab === 'worksheets' && <WorksheetsPanel setNotice={setNotice} teacherName={user?.name} onNavigateToAISettings={() => setTab('settings')} onNavigateToArchive={() => setTab('archive')} />}
         {tab === 'archive' && (
           <TeacherArchivePanel
             quizzes={quizzes}
@@ -990,6 +1070,7 @@ function TeacherApp({ user, onSignOut, notice, setNotice, onViewPortal }: { user
             onResetAttempt={handleResetAttempt}
             subTab={studentSubTab}
             setSubTab={setStudentSubTab}
+            teacherName={user?.name}
           />
         )}
         {(tab === 'settings' || tab === 'ai_settings') && <TeacherSettingsPanel setNotice={setNotice} user={user} />}
@@ -2456,7 +2537,7 @@ function QuizList({ quizzes, onEdit, onSelect, onOpenAI, onRefresh, setNotice, o
 }
 function StatusPill({ status }: { status: Status }) { return <span className={`status-pill status-${status.toLowerCase()}`}><i />{status === 'ACTIVE' ? 'Live' : status === 'CLOSED' ? 'Finished' : 'Draft'}</span>; }
 
-function QuizManager({ quizzes, selectedQuiz, setSelectedQuiz, liveQuiz, refresh, setNotice, initialOpenAI, onNavigateToAISettings, onNavigateToArchive }: { quizzes: Quiz[]; selectedQuiz: string; setSelectedQuiz: (id: string) => void; liveQuiz?: Quiz; refresh: () => Promise<void>; setNotice: (text: string) => void; initialOpenAI?: boolean; onNavigateToAISettings?: () => void; onNavigateToArchive?: () => void }) {
+function QuizManager({ quizzes, selectedQuiz, setSelectedQuiz, liveQuiz, refresh, setNotice, initialOpenAI, teacherName, onNavigateToAISettings, onNavigateToArchive }: { quizzes: Quiz[]; selectedQuiz: string; setSelectedQuiz: (id: string) => void; liveQuiz?: Quiz; refresh: () => Promise<void>; setNotice: (text: string) => void; initialOpenAI?: boolean; teacherName?: string | null; onNavigateToAISettings?: () => void; onNavigateToArchive?: () => void }) {
   const [draft, setDraft] = useState<QuizDraft | null>(null);
   const [editingId, setEditingId] = useState('');
   const [saving, setSaving] = useState(false);
@@ -2825,6 +2906,25 @@ function QuizManager({ quizzes, selectedQuiz, setSelectedQuiz, liveQuiz, refresh
                 <button className="button button-quiet" title="Restart quiz for students who have not submitted" onClick={() => void restartQuiz(liveQuiz)}>
                   <RotateCcw size={16} /> Restart quiz
                 </button>
+                <button
+                  type="button"
+                  className="button button-quiet"
+                  style={{ color: '#047857', background: '#ecfdf5', borderColor: '#a7f3d0' }}
+                  title="Share live quiz announcement with parents on WhatsApp"
+                  onClick={() => {
+                    const text = generateQuizAnnouncementMessage({
+                      quizTitle: liveQuiz.title,
+                      grade: liveQuiz.grade,
+                      mode: liveQuiz.mode,
+                      questionCount: liveQuiz._count?.questions ?? (liveQuiz.questions?.length || 0),
+                      timeMinutes: liveQuiz.timeLimitSeconds ? Math.round(liveQuiz.timeLimitSeconds / 60) : null,
+                      teacherName,
+                    });
+                    openWhatsAppChat(null, text);
+                  }}
+                >
+                  <MessageCircle size={15} color="#059669" /> WhatsApp
+                </button>
               </div>
             </>
           ) : (
@@ -2931,7 +3031,7 @@ function QuizManager({ quizzes, selectedQuiz, setSelectedQuiz, liveQuiz, refresh
                 </div>
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '14px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '4px' }}>
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                   {quiz.status === 'ACTIVE' ? (
                     <button
@@ -2980,6 +3080,26 @@ function QuizManager({ quizzes, selectedQuiz, setSelectedQuiz, liveQuiz, refresh
                     }}
                   >
                     <BarChart3 size={13} /> Results ({quiz._count?.attempts ?? 0})
+                  </button>
+
+                  <button
+                    type="button"
+                    className="button button-secondary"
+                    style={{ flex: '1 1 auto', fontSize: '12px', padding: '6px 8px', color: '#047857', borderColor: '#a7f3d0', background: '#ecfdf5', whiteSpace: 'nowrap' }}
+                    title="Share quiz announcement with parents on WhatsApp"
+                    onClick={() => {
+                      const text = generateQuizAnnouncementMessage({
+                        quizTitle: quiz.title,
+                        grade: quiz.grade,
+                        mode: quiz.mode,
+                        questionCount: quiz._count?.questions ?? (quiz.questions?.length || 0),
+                        timeMinutes: quiz.timeLimitSeconds ? Math.round(quiz.timeLimitSeconds / 60) : null,
+                        teacherName,
+                      });
+                      openWhatsAppChat(null, text);
+                    }}
+                  >
+                    <MessageCircle size={13} color="#059669" /> WhatsApp
                   </button>
 
                   {quiz.status === 'ACTIVE' && (
@@ -3454,17 +3574,17 @@ function TeacherArchivePanel({
                   </span>
                 </div>
 
-                <h3 style={{ margin: '8px 0 12px', fontSize: '18px', fontWeight: 700, color: '#0f172a' }}>
+                <h3 style={{ margin: '6px 0 8px', fontSize: '18px', fontWeight: 700, color: '#0f172a' }}>
                   {quiz.title}
                 </h3>
 
-                <div className="worksheet-card-stats">
+                <div className="worksheet-card-stats" style={{ margin: '8px 0 8px 0' }}>
                   <span>Questions: <strong>{quiz._count?.questions ?? 0}</strong></span>
                   <span>Student Attempts: <strong>{quiz._count?.attempts ?? 0}</strong></span>
                 </div>
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '14px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '4px' }}>
                 {onOpenInLiveCanvas && (
                   <button
                     type="button"
@@ -3553,17 +3673,17 @@ function TeacherArchivePanel({
                   </span>
                 </div>
 
-                <h3 style={{ margin: '8px 0 12px', fontSize: '18px', fontWeight: 700, color: '#0f172a' }}>
+                <h3 style={{ margin: '6px 0 8px', fontSize: '18px', fontWeight: 700, color: '#0f172a' }}>
                   {paper.title}
                 </h3>
 
-                <div className="worksheet-card-stats">
+                <div className="worksheet-card-stats" style={{ margin: '8px 0 8px 0' }}>
                   <span>Marks: <strong>{paper.totalMarks}</strong></span>
                   <span>Submissions: <strong>{paper._count?.submissions ?? 0}</strong></span>
                 </div>
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '14px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '4px' }}>
                 {onOpenInLiveCanvas && (
                   <button
                     type="button"
@@ -6066,6 +6186,7 @@ function StudentManager({
   onResetAttempt = async () => {},
   subTab: externalSubTab,
   setSubTab: externalSetSubTab,
+  teacherName,
 }: {
   students: Student[];
   refresh: () => Promise<void>;
@@ -6080,6 +6201,7 @@ function StudentManager({
   onResetAttempt?: (result: Result) => Promise<void>;
   subTab?: 'roster' | 'attendance' | 'fees' | 'progress' | 'results';
   setSubTab?: (tab: 'roster' | 'attendance' | 'fees' | 'progress' | 'results') => void;
+  teacherName?: string | null;
 }) {
   const [internalSubTab, setInternalSubTab] = useState<'roster' | 'attendance' | 'fees' | 'progress' | 'results'>('roster');
   const subTab = externalSubTab ?? internalSubTab;
@@ -6094,8 +6216,10 @@ function StudentManager({
   const [name, setName] = useState('');
   const [grade, setGrade] = useState(() => getDefaultGrade());
   const [joiningDate, setJoiningDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [parentPhone, setParentPhone] = useState('');
+  const [parentName, setParentName] = useState('');
   const [filterGrade, setFilterGrade] = useState(() => getDefaultGrade() || 'ALL');
-  const [editingStudent, setEditingStudent] = useState<{ id: string; name: string; grade: string; joiningDate: string } | null>(null);
+  const [editingStudent, setEditingStudent] = useState<{ id: string; name: string; grade: string; joiningDate: string; parentPhone?: string; parentName?: string } | null>(null);
   const [editingSaving, setEditingSaving] = useState(false);
   const [createdPasskey, setCreatedPasskey] = useState('');
   const [createdStudentName, setCreatedStudentName] = useState('');
@@ -6127,13 +6251,21 @@ function StudentManager({
     event.preventDefault();
     setCreating(true);
     try {
-      const data = await api<{ student: { name: string; grade?: string; joiningDate?: string }; passkey: string }>('/api/students', {
+      const data = await api<{ student: { name: string; grade?: string; joiningDate?: string; parentPhone?: string; parentName?: string }; passkey: string }>('/api/students', {
         method: 'POST',
-        body: JSON.stringify({ name, grade, joiningDate }),
+        body: JSON.stringify({
+          name: name.trim(),
+          grade,
+          joiningDate,
+          parentPhone: parentPhone.trim() || undefined,
+          parentName: parentName.trim() || undefined,
+        }),
       });
       setCreatedPasskey(data.passkey);
       setCreatedStudentName(data.student.name || name);
       setName('');
+      setParentPhone('');
+      setParentName('');
       setGrade(getDefaultGrade());
       await refresh();
     } catch (cause) {
@@ -6327,6 +6459,39 @@ function StudentManager({
                           </span>
                         </div>
 
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px', fontSize: '12px', flexWrap: 'wrap' }}>
+                          {student.parentPhone ? (
+                            <a
+                              href={`https://wa.me/${cleanIndianPhoneNumber(student.parentPhone).fullWithCountry}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="whatsapp-roster-pill"
+                              title={`Chat with ${student.parentName || 'parent'} on WhatsApp (${student.parentPhone})`}
+                            >
+                              <MessageCircle size={13} />
+                              <span>Parent: {cleanIndianPhoneNumber(student.parentPhone).formatted} {student.parentName ? `(${student.parentName})` : ''}</span>
+                            </a>
+                          ) : (
+                            <button
+                              type="button"
+                              className="text-button"
+                              style={{ fontSize: '11.5px', color: '#059669', display: 'inline-flex', alignItems: 'center', gap: '4px', padding: 0 }}
+                              onClick={() => setEditingStudent({
+                                id: student.id,
+                                name: student.name,
+                                grade: student.grade || getDefaultGrade(),
+                                joiningDate: student.joiningDate
+                                  ? new Date(student.joiningDate).toISOString().slice(0, 10)
+                                  : (student.createdAt ? new Date(student.createdAt).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10)),
+                                parentPhone: '',
+                                parentName: '',
+                              })}
+                            >
+                              <Plus size={12} /> Add Parent WhatsApp
+                            </button>
+                          )}
+                        </div>
+
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px', fontSize: '13px' }}>
                           <span className="muted">Passkey:</span>
                           <code style={{ fontStyle: 'normal', fontWeight: 'bold', letterSpacing: isShown ? '2px' : '1px', background: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0', padding: '2px 8px', borderRadius: '6px' }}>
@@ -6403,7 +6568,9 @@ function StudentManager({
                             grade: student.grade || getDefaultGrade(),
                             joiningDate: student.joiningDate
                               ? new Date(student.joiningDate).toISOString().slice(0, 10)
-                              : (student.createdAt ? new Date(student.createdAt).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10))
+                              : (student.createdAt ? new Date(student.createdAt).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10)),
+                            parentPhone: student.parentPhone || '',
+                            parentName: student.parentName || '',
                           })}
                         >
                           <Pencil size={15} />
@@ -6478,6 +6645,28 @@ function StudentManager({
                   style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#fff', fontSize: '14px', width: '100%' }}
                 />
               </label>
+              <label className="field">
+                <span>Parent WhatsApp No. (India)</span>
+                <div className="phone-input-wrap">
+                  <span className="phone-prefix">+91</span>
+                  <input
+                    type="tel"
+                    maxLength={15}
+                    value={parentPhone}
+                    onChange={(event) => setParentPhone(event.target.value)}
+                    placeholder="10-digit mobile number"
+                  />
+                </div>
+              </label>
+              <label className="field">
+                <span>Parent Name (Optional)</span>
+                <input
+                  maxLength={100}
+                  value={parentName}
+                  onChange={(event) => setParentName(event.target.value)}
+                  placeholder="e.g. Mr. Sharma"
+                />
+              </label>
               <button className="button button-primary button-wide" disabled={creating}>
                 {creating ? 'Creating...' : <><Plus size={16} /> Add student</>}
               </button>
@@ -6540,6 +6729,9 @@ function StudentManager({
           distribution={distribution}
           onExport={onExport}
           onResetAttempt={onResetAttempt}
+          setNotice={setNotice}
+          teacherName={teacherName}
+          refreshStudents={refresh}
         />
       )}
 
@@ -6607,7 +6799,9 @@ function StudentManager({
                   body: JSON.stringify({
                     name: editingStudent.name.trim(),
                     grade: editingStudent.grade,
-                    joiningDate: editingStudent.joiningDate
+                    joiningDate: editingStudent.joiningDate,
+                    parentPhone: editingStudent.parentPhone !== undefined ? (editingStudent.parentPhone.trim() || null) : undefined,
+                    parentName: editingStudent.parentName !== undefined ? (editingStudent.parentName.trim() || null) : undefined,
                   })
                 });
                 setEditingStudent(null);
@@ -6669,6 +6863,34 @@ function StudentManager({
                     Used as the enrollment start date for monthly fee ledgers & attendance records.
                   </span>
                 </label>
+
+                <label className="field" style={{ gap: '6px' }}>
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: '#334155' }}>Parent WhatsApp No. (India)</span>
+                  <div className="phone-input-wrap">
+                    <span className="phone-prefix">+91</span>
+                    <input
+                      type="tel"
+                      maxLength={15}
+                      value={editingStudent.parentPhone || ''}
+                      onChange={(e) => setEditingStudent({ ...editingStudent, parentPhone: e.target.value })}
+                      placeholder="10-digit mobile number"
+                    />
+                  </div>
+                  <span style={{ fontSize: '11.5px', color: '#64748b', marginTop: '2px' }}>
+                    Used for sending instant student scorecards and quiz announcements.
+                  </span>
+                </label>
+
+                <label className="field" style={{ gap: '6px' }}>
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: '#334155' }}>Parent Name (Optional)</span>
+                  <input
+                    maxLength={100}
+                    value={editingStudent.parentName || ''}
+                    onChange={(e) => setEditingStudent({ ...editingStudent, parentName: e.target.value })}
+                    placeholder="e.g. Mr. Sharma"
+                    style={{ padding: '9px 12px', borderRadius: '8px', border: '1.5px solid #cbd5e1', background: '#fff', fontSize: '14px', fontWeight: 600, width: '100%' }}
+                  />
+                </label>
               </div>
 
               <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '4px' }}>
@@ -6707,6 +6929,33 @@ function StudentManager({
 }
 
 
+function getCurrentMonthKey(): string {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  return `${y}-${m}`;
+}
+
+function getQuizMonthKey(quiz: Quiz): string {
+  const raw = quiz.createdAt || quiz.updatedAt;
+  if (!raw) return getCurrentMonthKey();
+  const d = new Date(raw);
+  if (isNaN(d.getTime())) return getCurrentMonthKey();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  return `${y}-${m}`;
+}
+
+function formatMonthKeyLabel(key: string): string {
+  if (key === 'ALL') return 'All Months';
+  const [yStr, mStr] = key.split('-');
+  const y = parseInt(yStr, 10);
+  const m = parseInt(mStr, 10);
+  if (isNaN(y) || isNaN(m)) return key;
+  const d = new Date(y, m - 1, 1);
+  return d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+}
+
 function ResultsPanel({
   quizzes,
   selectedQuiz,
@@ -6715,6 +6964,9 @@ function ResultsPanel({
   distribution,
   onExport,
   onResetAttempt,
+  setNotice,
+  teacherName,
+  refreshStudents,
 }: {
   quizzes: Quiz[];
   selectedQuiz: string;
@@ -6723,7 +6975,94 @@ function ResultsPanel({
   distribution: { question: string; options: { text: string; correct: boolean; count: number }[] }[];
   onExport: () => void;
   onResetAttempt: (result: Result) => Promise<void>;
+  setNotice?: (text: string) => void;
+  teacherName?: string | null;
+  refreshStudents?: () => Promise<void>;
 }) {
+  const currentMonthKey = getCurrentMonthKey();
+  const [selectedMonth, setSelectedMonth] = useState<string>(() => currentMonthKey);
+
+  // If selectedQuiz prop changes to a quiz from another month (e.g. from open-results event),
+  // sync selectedMonth so the quiz is visible in the dropdown
+  useEffect(() => {
+    if (selectedQuiz) {
+      const activeQ = quizzes.find((q) => q.id === selectedQuiz);
+      if (activeQ) {
+        const qMonth = getQuizMonthKey(activeQ);
+        if (qMonth && selectedMonth !== 'ALL' && selectedMonth !== qMonth) {
+          setSelectedMonth(qMonth);
+        }
+      }
+    }
+  }, [selectedQuiz, quizzes]);
+
+  const monthOptions = useMemo(() => {
+    const keysSet = new Set<string>();
+    keysSet.add(currentMonthKey);
+
+    if (selectedMonth && selectedMonth !== 'ALL') {
+      keysSet.add(selectedMonth);
+    }
+
+    quizzes.forEach((q) => {
+      const k = getQuizMonthKey(q);
+      if (k) keysSet.add(k);
+    });
+
+    const now = new Date();
+    for (let i = -1; i <= 12; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      keysSet.add(k);
+    }
+
+    const sortedKeys = Array.from(keysSet).sort((a, b) => b.localeCompare(a));
+
+    const counts: Record<string, number> = {};
+    quizzes.forEach((q) => {
+      const k = getQuizMonthKey(q);
+      counts[k] = (counts[k] || 0) + 1;
+    });
+
+    const list = sortedKeys.map((k) => {
+      const label = formatMonthKeyLabel(k);
+      const count = counts[k] || 0;
+      return {
+        value: k,
+        label: `${label} · ${count} ${count === 1 ? 'quiz' : 'quizzes'}`,
+        count,
+      };
+    });
+
+    return [
+      ...list,
+      {
+        value: 'ALL',
+        label: `All Months · ${quizzes.length} total ${quizzes.length === 1 ? 'quiz' : 'quizzes'}`,
+        count: quizzes.length,
+        isCurrent: false,
+      },
+    ];
+  }, [quizzes, currentMonthKey, selectedMonth]);
+
+  const filteredQuizzes = useMemo(() => {
+    if (selectedMonth === 'ALL') return quizzes;
+    return quizzes.filter((item) => getQuizMonthKey(item) === selectedMonth);
+  }, [quizzes, selectedMonth]);
+
+  const handleMonthChange = (newMonth: string) => {
+    setSelectedMonth(newMonth);
+    if (selectedQuiz) {
+      const activeQ = quizzes.find((q) => q.id === selectedQuiz);
+      if (activeQ) {
+        const qMonth = getQuizMonthKey(activeQ);
+        if (newMonth !== 'ALL' && qMonth !== newMonth) {
+          setSelectedQuiz('');
+        }
+      }
+    }
+  };
+
   const quiz = quizzes.find((entry) => entry.id === selectedQuiz);
   const submitted = results.filter((result) => result.status === 'SUBMITTED');
   const average = submitted.length
@@ -6733,10 +7072,81 @@ function ResultsPanel({
   const [showStudentScores, setShowStudentScores] = useState(true);
   const [showAnswerPatterns, setShowAnswerPatterns] = useState(true);
 
+  // Parent WhatsApp scorecard states
+  const [phonePromptResult, setPhonePromptResult] = useState<Result | null>(null);
+  const [promptPhone, setPromptPhone] = useState('');
+  const [promptParentName, setPromptParentName] = useState('');
+  const [savingPhone, setSavingPhone] = useState(false);
+
+  function triggerScorecardWhatsApp(targetResult: Result, phoneToUse?: string, parentNameToUse?: string) {
+    const activeQ = quizzes.find((q) => q.id === selectedQuiz);
+    const phone = phoneToUse || targetResult.parentPhone;
+    const parentName = parentNameToUse !== undefined ? parentNameToUse : targetResult.parentName;
+    const correctCount = targetResult.answers ? targetResult.answers.filter((a) => a.correct).length : undefined;
+    const totalQuestions = targetResult.answers ? targetResult.answers.length : (activeQ?.questions?.length || 0);
+
+    const message = generateScorecardMessage({
+      studentName: targetResult.name,
+      parentName,
+      quizTitle: activeQ?.title || 'Classroom Assessment',
+      score: targetResult.score,
+      totalMarks: targetResult.totalMarks,
+      submittedAt: targetResult.submittedAt,
+      correctCount,
+      totalQuestions,
+      teacherName,
+    });
+
+    openWhatsAppChat(phone, message);
+  }
+
+  function handleShareScorecard(result: Result) {
+    if (result.parentPhone && cleanIndianPhoneNumber(result.parentPhone).isValid) {
+      triggerScorecardWhatsApp(result);
+    } else {
+      setPromptPhone(result.parentPhone || '');
+      setPromptParentName(result.parentName || '');
+      setPhonePromptResult(result);
+    }
+  }
+
+  async function handleSavePromptPhone(e: React.FormEvent) {
+    e.preventDefault();
+    if (!phonePromptResult) return;
+    const { isValid, formatted } = cleanIndianPhoneNumber(promptPhone);
+    if (!isValid) {
+      alert('Please enter a valid 10-digit Indian mobile number (e.g. 9876543210).');
+      return;
+    }
+    setSavingPhone(true);
+    try {
+      if (phonePromptResult.studentId) {
+        await api(`/api/students/${phonePromptResult.studentId}`, {
+          method: 'PATCH',
+          body: JSON.stringify({
+            parentPhone: promptPhone.trim(),
+            parentName: promptParentName.trim() || undefined,
+          }),
+        });
+        phonePromptResult.parentPhone = promptPhone.trim();
+        phonePromptResult.parentName = promptParentName.trim() || null;
+        if (refreshStudents) void refreshStudents();
+      }
+      triggerScorecardWhatsApp(phonePromptResult, promptPhone.trim(), promptParentName.trim());
+      setPhonePromptResult(null);
+      if (setNotice) setNotice(`✓ Parent WhatsApp (${formatted}) saved and scorecard opened!`);
+    } catch (cause) {
+      if (setNotice) setNotice(cause instanceof Error ? cause.message : 'Unable to save parent phone.');
+    } finally {
+      setSavingPhone(false);
+    }
+  }
+
   return (
     <div className="results-subtab-panel">
       {/* Header and Quiz Selector Card */}
       <div className="report-header-card">
+        {/* Top Row: Title on Left, Month filters & Export CSV on Top Right */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '14px' }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -6751,24 +7161,67 @@ function ResultsPanel({
             </p>
           </div>
 
-          <div className="result-heading-actions" style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-            <label className="select-wrap" style={{ minWidth: '220px' }}>
+          {/* Top Right Corner: Month with quizzes, Month date picker, Export CSV */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', marginLeft: 'auto' }}>
+            <label
+              className="select-wrap"
+              style={{ minWidth: '190px', width: 'auto' }}
+              title="Filter quizzes by month"
+            >
               <select
-                value={selectedQuiz}
-                onChange={(event) => setSelectedQuiz(event.target.value)}
-                aria-label="Choose a quiz"
+                value={selectedMonth}
+                onChange={(event) => handleMonthChange(event.target.value)}
+                aria-label="Filter quizzes by month"
               >
-                <option value="">Choose a quiz...</option>
-                {quizzes.map((item) => (
-                  <option key={item.id} value={item.id}>{item.title}</option>
+                {monthOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
                 ))}
               </select>
               <ChevronDown size={15} />
             </label>
+
+            <input
+              type="month"
+              value={selectedMonth === 'ALL' ? currentMonthKey : selectedMonth}
+              onChange={(e) => {
+                if (e.target.value) handleMonthChange(e.target.value);
+              }}
+              className="styled-date-input"
+              title="Pick specific month from calendar"
+              aria-label="Pick month from calendar"
+              style={{ height: '46px', padding: '0 10px', fontSize: '13.5px', borderRadius: '12px' }}
+            />
+
             <button className="button button-secondary" onClick={onExport} disabled={!results.length}>
               <Download size={16} /> Export CSV
             </button>
           </div>
+        </div>
+
+        {/* Second Row: Quiz Selector Dropdown */}
+        <div style={{ marginTop: '14px' }}>
+          <label className="select-wrap" style={{ width: '100%', display: 'block' }}>
+            <select
+              value={selectedQuiz}
+              onChange={(event) => setSelectedQuiz(event.target.value)}
+              aria-label="Choose a quiz"
+              disabled={filteredQuizzes.length === 0}
+            >
+              <option value="">
+                {filteredQuizzes.length === 0
+                  ? `No quizzes in ${formatMonthKeyLabel(selectedMonth)}`
+                  : `Choose a quiz (${filteredQuizzes.length})...`}
+              </option>
+              {filteredQuizzes.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.title}{item.grade ? ` · ${item.grade}` : ''}
+                </option>
+              ))}
+            </select>
+            <ChevronDown size={15} />
+          </label>
         </div>
       </div>
 
@@ -6808,6 +7261,17 @@ function ResultsPanel({
                           </button>
                           <div className="result-summary-actions">
                             <button
+                              type="button"
+                              className="result-whatsapp-btn"
+                              title={result.parentPhone ? `Share scorecard with parent on WhatsApp (${result.parentPhone})` : `Add parent WhatsApp number & share scorecard for ${result.name}`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleShareScorecard(result);
+                              }}
+                            >
+                              <MessageCircle size={13} /> WhatsApp
+                            </button>
+                            <button
                               className="result-restart-btn"
                               title={`Reset quiz for ${result.name} so they can retake it`}
                               aria-label={`Reset quiz for ${result.name}`}
@@ -6826,6 +7290,16 @@ function ResultsPanel({
                               <span style={{ fontSize: '13px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                                 Submitted Answers ({result.answers.length})
                               </span>
+                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                              <button
+                                type="button"
+                                className="result-whatsapp-btn"
+                                style={{ minHeight: '30px', padding: '4px 10px' }}
+                                title={result.parentPhone ? `Share scorecard with parent on WhatsApp (${result.parentPhone})` : `Add parent WhatsApp number & share scorecard`}
+                                onClick={() => handleShareScorecard(result)}
+                              >
+                                <MessageCircle size={13} /> WhatsApp Scorecard
+                              </button>
                               <button
                                 className="result-restart-btn"
                                 style={{ minHeight: '30px', padding: '4px 10px' }}
@@ -6834,6 +7308,7 @@ function ResultsPanel({
                               >
                                 <RotateCcw size={13} /> Restart Quiz for {result.name}
                               </button>
+                            </div>
                             </div>
                             {result.answers.length ? (
                               result.answers.map((answer, answerIndex) => (
@@ -6905,18 +7380,178 @@ function ResultsPanel({
             </div>
           </div>
         </>
+      ) : filteredQuizzes.length === 0 ? (
+        <div className="empty-state" style={{ background: '#fff', borderRadius: '16px', border: '1px dashed #cbd5e1', padding: '48px 24px', textAlign: 'center' }}>
+          <span className="empty-icon"><Calendar size={24} color="#0284c7" /></span>
+          <h3 style={{ margin: '10px 0 6px 0', fontSize: '17px', color: '#1e293b', fontWeight: 700 }}>
+            No quizzes conducted in {formatMonthKeyLabel(selectedMonth)}
+          </h3>
+          <p style={{ margin: '0 auto', maxWidth: '480px', fontSize: '13px', color: '#64748b' }}>
+            There are no quizzes created for this month. Pick a different month above or view all quizzes across all time.
+          </p>
+          <div style={{ marginTop: '16px', display: 'flex', gap: '10px', justifyContent: 'center', flexWrap: 'wrap' }}>
+            {selectedMonth !== currentMonthKey && (
+              <button
+                type="button"
+                className="button button-secondary"
+                onClick={() => handleMonthChange(currentMonthKey)}
+                style={{ fontSize: '13px' }}
+              >
+                Switch to {formatMonthKeyLabel(currentMonthKey)}
+              </button>
+            )}
+            <button
+              type="button"
+              className="button button-secondary"
+              onClick={() => handleMonthChange('ALL')}
+              style={{ fontSize: '13px' }}
+            >
+              Show All Quizzes ({quizzes.length})
+            </button>
+          </div>
+        </div>
       ) : (
         <div className="empty-state" style={{ background: '#fff', borderRadius: '16px', border: '1px dashed #cbd5e1', padding: '48px 24px' }}>
           <span className="empty-icon"><BarChart3 size={24} /></span>
           <h3>Choose a quiz to see its story.</h3>
-          <p>Select any quiz above to review student scores, responses, and question patterns.</p>
+          <p>
+            Showing quizzes for {formatMonthKeyLabel(selectedMonth)} ({filteredQuizzes.length} available). Select a quiz above to review student scores, responses, and question patterns.
+          </p>
         </div>
+      )}
+
+      {/* Quick Parent WhatsApp Prompt Modal */}
+      {phonePromptResult && typeof document !== 'undefined' && createPortal(
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15, 23, 42, 0.25)',
+            backdropFilter: 'blur(2px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+            padding: '20px',
+            pointerEvents: 'auto',
+          }}
+          onClick={() => setPhonePromptResult(null)}
+        >
+          <div
+            style={{
+              background: '#ffffff',
+              borderRadius: '20px',
+              padding: '24px 26px',
+              maxWidth: '440px',
+              width: '100%',
+              boxShadow: '0 25px 60px -12px rgba(15, 23, 42, 0.24), 0 10px 24px -6px rgba(15, 23, 42, 0.12)',
+              border: '1px solid #e2e8f0',
+              animation: 'rise-in 0.22s cubic-bezier(0.16, 1, 0.3, 1) both',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '14px', marginBottom: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{ width: '42px', height: '42px', borderRadius: '12px', background: '#ecfdf5', color: '#059669', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, border: '1px solid #a7f3d0' }}>
+                  <MessageCircle size={22} />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: '#0f172a' }}>Send Scorecard</h3>
+                  <p style={{ margin: '2px 0 0', fontSize: '12.5px', color: '#64748b' }}>For <strong>{phonePromptResult.name}</strong> ({phonePromptResult.score ?? 0}/{phonePromptResult.totalMarks} marks)</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="icon-button quiet"
+                onClick={() => setPhonePromptResult(null)}
+                title="Close"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <p style={{ fontSize: '13px', color: '#475569', margin: '0 0 16px 0', lineHeight: 1.5 }}>
+              Enter the parent's Indian WhatsApp number below. It will be saved to the student's profile, and the pre-filled scorecard will open instantly in WhatsApp.
+            </p>
+
+            <form onSubmit={handleSavePromptPhone} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <label className="field" style={{ gap: '6px' }}>
+                <span style={{ fontSize: '13px', fontWeight: 700, color: '#334155' }}>Parent WhatsApp Number (India)</span>
+                <div className="phone-input-wrap">
+                  <span className="phone-prefix">+91</span>
+                  <input
+                    type="tel"
+                    required
+                    autoFocus
+                    maxLength={15}
+                    value={promptPhone}
+                    onChange={(e) => setPromptPhone(e.target.value)}
+                    placeholder="10-digit mobile number (e.g. 9876543210)"
+                  />
+                </div>
+              </label>
+
+              <label className="field" style={{ gap: '6px' }}>
+                <span style={{ fontSize: '13px', fontWeight: 700, color: '#334155' }}>Parent Name (Optional)</span>
+                <input
+                  maxLength={100}
+                  value={promptParentName}
+                  onChange={(e) => setPromptParentName(e.target.value)}
+                  placeholder="e.g. Mr. Sharma"
+                  style={{ padding: '9px 12px', borderRadius: '8px', border: '1.5px solid #cbd5e1', background: '#fff', fontSize: '14px', fontWeight: 600, width: '100%' }}
+                />
+              </label>
+
+              <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '6px' }}>
+                <button
+                  type="button"
+                  className="button button-secondary"
+                  onClick={() => setPhonePromptResult(null)}
+                  style={{ minHeight: '38px', padding: '0 16px', fontSize: '13.5px', borderRadius: '10px' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="button button-primary"
+                  style={{ minHeight: '38px', padding: '0 18px', fontSize: '13.5px', fontWeight: 700, borderRadius: '10px', background: '#059669', borderColor: '#059669', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                  disabled={savingPhone}
+                >
+                  {savingPhone ? (
+                    <>
+                      <RefreshCw size={14} className="spin" /> Saving...
+                    </>
+                  ) : (
+                    <>
+                      <MessageCircle size={15} /> Save & Open WhatsApp
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>,
+        document.body
       )}
     </div>
   );
 }
 
-function StudentApp({ user, onSignOut, notice, setNotice, onViewPortal }: { user: User; onSignOut: () => void; notice: string; setNotice: (text: string) => void; onViewPortal?: () => void }) {
+function StudentApp({
+  user,
+  onSignOut,
+  notice,
+  setNotice,
+  onViewPortal,
+  onOpenUserGuide,
+}: {
+  user: User;
+  onSignOut: () => void;
+  notice: string;
+  setNotice: (text: string) => void;
+  onViewPortal?: () => void;
+  onOpenUserGuide?: () => void;
+}) {
   const [tab, setTabState] = useState<'open' | 'quiz_history' | 'paper_history' | 'calendar'>(() => {
     const saved = localStorage.getItem('student_active_tab') as any;
     const validTabs = ['open', 'quiz_history', 'paper_history', 'calendar'];
@@ -7354,6 +7989,14 @@ function StudentApp({ user, onSignOut, notice, setNotice, onViewPortal }: { user
               onClick={onViewPortal}
             />
           )}
+          {onOpenUserGuide && (
+            <NavItem
+              active={false}
+              icon={<BookOpen size={17} />}
+              label="User Guide"
+              onClick={onOpenUserGuide}
+            />
+          )}
         </nav>
         <div className="sidebar-bottom">
           <div className="teacher-profile">
@@ -7379,6 +8022,15 @@ function StudentApp({ user, onSignOut, notice, setNotice, onViewPortal }: { user
             {onViewPortal && (
               <button className="button button-secondary" style={{ fontSize: '13px', padding: '5px 12px', minHeight: '34px', gap: '6px' }} onClick={onViewPortal} title="Browse public revision notes, videos & formulas">
                 <BookOpen size={14} /> Study Materials Hub
+              </button>
+            )}
+            {onOpenUserGuide && (
+              <button
+                className="button button-secondary guide-topbar-btn"
+                onClick={onOpenUserGuide}
+                title="Open Complete User Guide (Public Portal, Teacher's Space, Student's Space)"
+              >
+                <BookOpen size={14} /> User Guide
               </button>
             )}
             {tab !== 'open' ? (
@@ -7529,7 +8181,7 @@ function StudentApp({ user, onSignOut, notice, setNotice, onViewPortal }: { user
    WORKBOOK ANSWER SHEETS & QUESTION PAPERS COMPONENTS
    ========================================================================== */
 
-function WorksheetsPanel({ setNotice, onNavigateToAISettings, onNavigateToArchive }: { setNotice: (msg: string) => void; onNavigateToAISettings?: () => void; onNavigateToArchive?: () => void }) {
+function WorksheetsPanel({ setNotice, teacherName, onNavigateToAISettings, onNavigateToArchive }: { setNotice: (msg: string) => void; teacherName?: string | null; onNavigateToAISettings?: () => void; onNavigateToArchive?: () => void }) {
   const [worksheets, setWorksheets] = useState<WorksheetPaper[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingPaper, setEditingPaper] = useState<Partial<WorksheetPaper> | null>(null);
@@ -7719,8 +8371,8 @@ function WorksheetsPanel({ setNotice, onNavigateToAISettings, onNavigateToArchiv
                 </div>
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '14px' }}>
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '4px' }}>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
                   <button
                     className="button button-secondary"
                     style={{ fontSize: '12.5px', padding: '6px 10px' }}
@@ -7739,6 +8391,26 @@ function WorksheetsPanel({ setNotice, onNavigateToAISettings, onNavigateToArchiv
                   >
                     <Eye size={13} /> View Paper
                   </button>
+                  {paper.status === 'PUBLISHED' && (
+                    <button
+                      type="button"
+                      className="button button-secondary"
+                      style={{ fontSize: '12.5px', padding: '6px 10px', color: '#047857', borderColor: '#a7f3d0', background: '#ecfdf5', whiteSpace: 'nowrap' }}
+                      title="Share question paper / homework announcement on WhatsApp"
+                      onClick={() => {
+                        const text = generateWorksheetAnnouncementMessage({
+                          paperTitle: paper.title,
+                          subject: paper.subject,
+                          grade: paper.grade,
+                          totalMarks: paper.totalMarks,
+                          teacherName,
+                        });
+                        openWhatsAppChat(null, text);
+                      }}
+                    >
+                      <MessageCircle size={13} color="#059669" /> WhatsApp
+                    </button>
+                  )}
                 </div>
 
                 <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'nowrap', width: '100%' }}>
@@ -7937,6 +8609,16 @@ function WordDocEditorModal({
   const canvasRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const savedRangeRef = useRef<Range | null>(null);
+  const lastActiveCellRef = useRef<HTMLTableCellElement | null>(null);
+  const isDraggingColRef = useRef(false);
+
+  const [selectedTableInfo, setSelectedTableInfo] = useState<{
+    table: HTMLTableElement;
+    cell: HTMLTableCellElement;
+    colIndex: number;
+    totalCols: number;
+    currentWidth: string;
+  } | null>(null);
 
   const saveSelection = () => {
     const sel = window.getSelection();
@@ -7968,6 +8650,12 @@ function WordDocEditorModal({
     try {
       document.execCommand('styleWithCSS', false, 'true');
       document.execCommand('fontName', false, fontVal);
+      const targets = canvasRef.current.querySelectorAll(`font[face], font`);
+      targets.forEach((node) => {
+        const el = node as HTMLElement;
+        el.style.fontFamily = fontVal;
+        el.removeAttribute('face');
+      });
     } catch {
       // fallback
     }
@@ -8007,6 +8695,417 @@ function WordDocEditorModal({
     if (nextIdx < 0) nextIdx = 0;
     if (nextIdx >= FONT_SIZE_STEPS.length) nextIdx = FONT_SIZE_STEPS.length - 1;
     applyFontSize(FONT_SIZE_STEPS[nextIdx]);
+  };
+
+  const getActiveTableCell = (): HTMLTableCellElement | null => {
+    const selection = window.getSelection();
+    if (!selection || !selection.rangeCount) return null;
+    let node: Node | null = selection.getRangeAt(0).commonAncestorContainer;
+    while (node && node !== canvasRef.current) {
+      if (node.nodeName === 'TD' || node.nodeName === 'TH') {
+        return node as HTMLTableCellElement;
+      }
+      node = node.parentNode;
+    }
+    return null;
+  };
+
+  const updateTableSelection = (cell: HTMLTableCellElement | null) => {
+    if (!cell) {
+      if (canvasRef.current) {
+        canvasRef.current.querySelectorAll('.cell-active-col').forEach((c) => c.classList.remove('cell-active-col'));
+      }
+      setSelectedTableInfo(null);
+      return;
+    }
+    const table = cell.closest('table');
+    if (!table) return;
+
+    lastActiveCellRef.current = cell;
+    const row = cell.parentElement;
+    const colIndex = Array.from(row?.children || []).indexOf(cell);
+    const totalCols = row?.children.length || 0;
+    const widthStyle = cell.style.width || '';
+    const computedWidth = Math.round((cell.offsetWidth / (table.offsetWidth || 1)) * 100) + '%';
+
+    if (canvasRef.current) {
+      canvasRef.current.querySelectorAll('.cell-active-col').forEach((c) => c.classList.remove('cell-active-col'));
+      table.querySelectorAll('tr').forEach((r) => {
+        const c = r.children[colIndex];
+        if (c) c.classList.add('cell-active-col');
+      });
+    }
+
+    setSelectedTableInfo({
+      table,
+      cell,
+      colIndex: colIndex >= 0 ? colIndex : 0,
+      totalCols: totalCols || 1,
+      currentWidth: widthStyle || computedWidth,
+    });
+  };
+
+  const applyColWidth = (widthVal: string) => {
+    if (!selectedTableInfo) return;
+    const { table, colIndex } = selectedTableInfo;
+    let formatted = widthVal.trim();
+    if (formatted && !formatted.endsWith('%') && !formatted.endsWith('px') && formatted !== 'auto') {
+      const num = parseFloat(formatted);
+      if (!isNaN(num)) {
+        formatted = num <= 100 ? `${num}%` : `${num}px`;
+      }
+    }
+
+    table.style.tableLayout = 'fixed';
+    table.style.width = '100%';
+
+    table.querySelectorAll('tr').forEach((row) => {
+      const cell = row.children[colIndex] as HTMLElement | undefined;
+      if (cell) {
+        cell.style.width = formatted;
+      }
+    });
+
+    setSelectedTableInfo((prev) => prev ? { ...prev, currentWidth: formatted } : null);
+  };
+
+  const equalizeColWidths = () => {
+    if (!selectedTableInfo) return;
+    const { table } = selectedTableInfo;
+    const allRows = table.querySelectorAll('tr');
+    const maxCols = Math.max(...Array.from(allRows).map((r) => r.children.length), 1);
+    const eqWidth = (100 / maxCols).toFixed(2) + '%';
+
+    table.style.tableLayout = 'fixed';
+    table.style.width = '100%';
+
+    allRows.forEach((row) => {
+      Array.from(row.children).forEach((cell) => {
+        (cell as HTMLElement).style.width = eqWidth;
+      });
+    });
+
+    setSelectedTableInfo((prev) => prev ? { ...prev, currentWidth: eqWidth, totalCols: maxCols } : null);
+  };
+
+  const stepColWidth = (deltaPercent: number) => {
+    if (!selectedTableInfo) return;
+    const current = selectedTableInfo.currentWidth;
+    let curPercent = 25;
+    if (current.endsWith('%')) {
+      curPercent = parseFloat(current) || 25;
+    } else if (current.endsWith('px')) {
+      const px = parseFloat(current) || 100;
+      const tWidth = selectedTableInfo.table.offsetWidth || 600;
+      curPercent = Math.round((px / tWidth) * 100);
+    }
+    const nextPercent = Math.max(5, Math.min(90, Math.round(curPercent + deltaPercent)));
+    applyColWidth(`${nextPercent}%`);
+  };
+
+  const insertTable = () => {
+    if (!canvasRef.current) return;
+    canvasRef.current.focus();
+    restoreSelection();
+    const tableHtml =
+      '<table style="width: 100%; border-collapse: collapse; margin: 14px 0; border: 1px solid #cbd5e1; table-layout: fixed;">' +
+      '<thead>' +
+      '<tr style="background: #f1f5f9;">' +
+      '<th style="border: 1px solid #cbd5e1; padding: 8px 10px; text-align: left; width: 33.33%;">Question / Section</th>' +
+      '<th style="border: 1px solid #cbd5e1; padding: 8px 10px; text-align: left; width: 33.33%;">Description / Details</th>' +
+      '<th style="border: 1px solid #cbd5e1; padding: 8px 10px; text-align: left; width: 33.34%;">Marks</th>' +
+      '</tr>' +
+      '</thead>' +
+      '<tbody>' +
+      '<tr>' +
+      '<td style="border: 1px solid #cbd5e1; padding: 8px 10px; width: 33.33%;">Q1</td>' +
+      '<td style="border: 1px solid #cbd5e1; padding: 8px 10px; width: 33.33%;">Solve the equations below</td>' +
+      '<td style="border: 1px solid #cbd5e1; padding: 8px 10px; width: 33.34%;">5 Marks</td>' +
+      '</tr>' +
+      '<tr>' +
+      '<td style="border: 1px solid #cbd5e1; padding: 8px 10px; width: 33.33%;">Q2</td>' +
+      '<td style="border: 1px solid #cbd5e1; padding: 8px 10px; width: 33.33%;">Explain the core principle</td>' +
+      '<td style="border: 1px solid #cbd5e1; padding: 8px 10px; width: 33.34%;">5 Marks</td>' +
+      '</tr>' +
+      '</tbody>' +
+      '</table>' +
+      '<p><br></p>';
+
+    try {
+      document.execCommand('insertHTML', false, tableHtml);
+    } catch {
+      canvasRef.current.innerHTML += tableHtml;
+    }
+
+    setTimeout(() => {
+      if (canvasRef.current) {
+        const lastTable = canvasRef.current.querySelector('table:last-of-type');
+        const firstCell = lastTable?.querySelector('td');
+        if (firstCell) updateTableSelection(firstCell as HTMLTableCellElement);
+      }
+    }, 50);
+  };
+
+  const addTableRow = (direction: 'above' | 'below' = 'below') => {
+    if (!canvasRef.current) return;
+    const cell = getActiveTableCell() || lastActiveCellRef.current || (canvasRef.current.querySelector('tbody tr:last-child td, tr:last-child td, tr:last-child th') as HTMLTableCellElement | null);
+    if (!cell) {
+      insertTable();
+      return;
+    }
+    const currentRow = cell.closest('tr');
+    const table = cell.closest('table');
+    if (!table || !currentRow) {
+      insertTable();
+      return;
+    }
+
+    const colCount = Math.max(currentRow.children.length, table.rows[0]?.children.length || 3);
+    const firstRow = table.rows[0];
+    const newRow = document.createElement('tr');
+    for (let i = 0; i < colCount; i++) {
+      const newCell = document.createElement('td');
+      newCell.style.border = '1px solid #cbd5e1';
+      newCell.style.padding = '8px 10px';
+      if (firstRow && firstRow.children[i]) {
+        const refCell = firstRow.children[i] as HTMLElement;
+        if (refCell.style.width) newCell.style.width = refCell.style.width;
+      }
+      newCell.innerHTML = '<br>';
+      newRow.appendChild(newCell);
+    }
+
+    if (direction === 'above') {
+      currentRow.parentElement?.insertBefore(newRow, currentRow);
+    } else {
+      if (currentRow.parentElement?.tagName === 'THEAD') {
+        const tbody = table.querySelector('tbody');
+        if (tbody) {
+          tbody.insertBefore(newRow, tbody.firstChild);
+        } else {
+          currentRow.parentElement?.appendChild(newRow);
+        }
+      } else if (currentRow.nextSibling) {
+        currentRow.parentElement?.insertBefore(newRow, currentRow.nextSibling);
+      } else {
+        currentRow.parentElement?.appendChild(newRow);
+      }
+    }
+
+    const firstTd = newRow.querySelector('td');
+    if (firstTd) {
+      updateTableSelection(firstTd);
+      const range = document.createRange();
+      const sel = window.getSelection();
+      range.selectNodeContents(firstTd);
+      range.collapse(true);
+      sel?.removeAllRanges();
+      sel?.addRange(range);
+    }
+  };
+
+  const deleteTableRow = () => {
+    if (!canvasRef.current) return;
+    const cell = getActiveTableCell() || lastActiveCellRef.current || (canvasRef.current.querySelector('tbody tr:last-child td, tr:last-child td') as HTMLTableCellElement | null);
+    if (!cell) return;
+    const currentRow = cell.closest('tr');
+    const table = cell.closest('table');
+    if (!table || !currentRow) return;
+
+    if (table.rows.length <= 1) {
+      table.remove();
+      updateTableSelection(null);
+      return;
+    }
+
+    currentRow.remove();
+    const nextActive = table.querySelector('tbody tr:last-child td, tr:last-child td') as HTMLTableCellElement | null;
+    updateTableSelection(nextActive);
+  };
+
+  const addTableColumn = (direction: 'left' | 'right' = 'right') => {
+    if (!canvasRef.current) return;
+    const cell = getActiveTableCell() || lastActiveCellRef.current || (canvasRef.current.querySelector('tr td:last-child, tr th:last-child') as HTMLTableCellElement | null);
+    if (!cell) {
+      insertTable();
+      return;
+    }
+    const table = cell.closest('table');
+    const currentRow = cell.closest('tr');
+    if (!table || !currentRow) {
+      insertTable();
+      return;
+    }
+
+    const colIndex = Array.from(currentRow.children).indexOf(cell);
+    const targetIndex = direction === 'right' ? colIndex + 1 : colIndex;
+    const newTotalCols = currentRow.children.length + 1;
+    const defaultColWidth = (100 / newTotalCols).toFixed(2) + '%';
+
+    table.style.tableLayout = 'fixed';
+    table.style.width = '100%';
+
+    const allRows = table.querySelectorAll('tr');
+    allRows.forEach((row) => {
+      const isHeader = row.parentElement?.tagName === 'THEAD' || row.querySelector('th') !== null;
+      const newCell = document.createElement(isHeader ? 'th' : 'td');
+      newCell.style.border = '1px solid #cbd5e1';
+      newCell.style.padding = '8px 10px';
+      newCell.style.width = defaultColWidth;
+      if (isHeader) {
+        newCell.style.textAlign = 'left';
+        newCell.style.background = '#f1f5f9';
+        newCell.innerHTML = 'Header';
+      } else {
+        newCell.innerHTML = '<br>';
+      }
+
+      if (targetIndex >= row.children.length) {
+        row.appendChild(newCell);
+      } else {
+        row.insertBefore(newCell, row.children[targetIndex]);
+      }
+    });
+
+    const activeCellTarget = currentRow.children[targetIndex] as HTMLTableCellElement | undefined;
+    if (activeCellTarget) {
+      updateTableSelection(activeCellTarget);
+    }
+  };
+
+  const deleteTableColumn = () => {
+    if (!canvasRef.current) return;
+    const cell = getActiveTableCell() || lastActiveCellRef.current || (canvasRef.current.querySelector('tr td:last-child, tr th:last-child') as HTMLTableCellElement | null);
+    if (!cell) return;
+    const table = cell.closest('table');
+    const currentRow = cell.closest('tr');
+    if (!table || !currentRow) return;
+
+    const colIndex = Array.from(currentRow.children).indexOf(cell);
+    const totalCols = currentRow.children.length;
+
+    if (totalCols <= 1) {
+      table.remove();
+      updateTableSelection(null);
+      return;
+    }
+
+    const allRows = table.querySelectorAll('tr');
+    allRows.forEach((row) => {
+      if (row.children[colIndex]) {
+        row.children[colIndex].remove();
+      } else if (row.lastElementChild) {
+        row.lastElementChild.remove();
+      }
+    });
+
+    const nextActive = table.querySelector('tr td:last-child, tr th:last-child') as HTMLTableCellElement | null;
+    updateTableSelection(nextActive);
+  };
+
+  const deleteTable = () => {
+    if (!canvasRef.current) return;
+    const cell = getActiveTableCell() || lastActiveCellRef.current || canvasRef.current.querySelector('table');
+    if (!cell) return;
+    const table = cell.tagName === 'TABLE' ? (cell as HTMLTableElement) : cell.closest('table');
+    if (table) {
+      table.remove();
+      updateTableSelection(null);
+    }
+  };
+
+  const handleCanvasMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (isDraggingColRef.current) return;
+    const target = e.target as HTMLElement;
+    const cell = target.closest('td, th') as HTMLTableCellElement | null;
+    if (cell && canvasRef.current?.contains(cell)) {
+      const rect = cell.getBoundingClientRect();
+      const isNearRightEdge = Math.abs(e.clientX - rect.right) <= 6;
+      if (isNearRightEdge) {
+        cell.style.cursor = 'col-resize';
+      } else if (cell.style.cursor === 'col-resize') {
+        cell.style.cursor = '';
+      }
+    }
+  };
+
+  const handleCanvasMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    const target = e.target as HTMLElement;
+    const cell = target.closest('td, th') as HTMLTableCellElement | null;
+    if (cell && canvasRef.current?.contains(cell)) {
+      const rect = cell.getBoundingClientRect();
+      const isNearRightEdge = Math.abs(e.clientX - rect.right) <= 6;
+      if (isNearRightEdge) {
+        e.preventDefault();
+        e.stopPropagation();
+        const table = cell.closest('table');
+        if (!table) return;
+
+        const row = cell.parentElement;
+        const colIndex = Array.from(row?.children || []).indexOf(cell);
+        if (colIndex === -1) return;
+
+        isDraggingColRef.current = true;
+        table.style.tableLayout = 'fixed';
+        table.style.width = '100%';
+
+        const tableWidth = table.offsetWidth;
+        const startX = e.clientX;
+        const startWidth = cell.offsetWidth;
+        const nextCell = row?.children[colIndex + 1] as HTMLElement | undefined;
+        const nextStartWidth = nextCell ? nextCell.offsetWidth : undefined;
+
+        document.body.style.cursor = 'col-resize';
+        document.body.style.userSelect = 'none';
+
+        const handleMove = (moveEvt: MouseEvent) => {
+          const delta = moveEvt.clientX - startX;
+          const minW = 35;
+          if (nextCell && nextStartWidth !== undefined) {
+            const clampedDelta = Math.max(minW - startWidth, Math.min(nextStartWidth - minW, delta));
+            const w1Pct = (((startWidth + clampedDelta) / tableWidth) * 100).toFixed(2) + '%';
+            const w2Pct = (((nextStartWidth - clampedDelta) / tableWidth) * 100).toFixed(2) + '%';
+            table.querySelectorAll('tr').forEach((r) => {
+              const c1 = r.children[colIndex] as HTMLElement | undefined;
+              const c2 = r.children[colIndex + 1] as HTMLElement | undefined;
+              if (c1) c1.style.width = w1Pct;
+              if (c2) c2.style.width = w2Pct;
+            });
+            setSelectedTableInfo((prev) => prev ? { ...prev, currentWidth: w1Pct } : null);
+          } else {
+            const newW = Math.max(minW, startWidth + delta);
+            const wPct = ((newW / tableWidth) * 100).toFixed(2) + '%';
+            table.querySelectorAll('tr').forEach((r) => {
+              const c = r.children[colIndex] as HTMLElement | undefined;
+              if (c) c.style.width = wPct;
+            });
+            setSelectedTableInfo((prev) => prev ? { ...prev, currentWidth: wPct } : null);
+          }
+        };
+
+        const handleUp = () => {
+          window.removeEventListener('mousemove', handleMove);
+          window.removeEventListener('mouseup', handleUp);
+          isDraggingColRef.current = false;
+          document.body.style.cursor = '';
+          document.body.style.userSelect = '';
+        };
+
+        window.addEventListener('mousemove', handleMove);
+        window.addEventListener('mouseup', handleUp);
+        return;
+      }
+    }
+
+    if (cell && canvasRef.current?.contains(cell)) {
+      updateTableSelection(cell);
+      if (selectedImg) {
+        if (canvasRef.current) canvasRef.current.querySelectorAll('img').forEach((i) => i.classList.remove('img-selected'));
+        setSelectedImg(null);
+      }
+    } else if (!target.closest('.word-doc-table-toolbar')) {
+      updateTableSelection(null);
+    }
   };
 
   const applyImageStyle = (w: string, h: string, align: 'left' | 'center' | 'right') => {
@@ -8088,6 +9187,7 @@ function WordDocEditorModal({
       }
       img.classList.add('img-selected');
       setSelectedImg(img);
+      updateTableSelection(null);
 
       const styleW = img.style.width || (img.getAttribute('width') ? `${img.getAttribute('width')}px` : '100%');
       const styleH = img.style.height || (img.getAttribute('height') ? `${img.getAttribute('height')}px` : 'auto');
@@ -8110,6 +9210,10 @@ function WordDocEditorModal({
         canvasRef.current.querySelectorAll('img').forEach((i) => i.classList.remove('img-selected'));
       }
       setSelectedImg(null);
+      const cell = target.closest('td, th') as HTMLTableCellElement | null;
+      if (cell && canvasRef.current?.contains(cell)) {
+        updateTableSelection(cell);
+      }
     }
   };
 
@@ -8279,12 +9383,13 @@ function WordDocEditorModal({
         <div className="word-doc-toolbar">
           {/* Font Family Selector */}
           <div className="word-doc-toolbar-group" title="Text Font Style">
-            <Type size={14} color="#64748b" />
+            <Type size={14} color="#64748b" style={{ flexShrink: 0 }} />
             <select
               value={currentFontFamily}
               onChange={(e) => applyFontFamily(e.target.value)}
               onMouseDown={saveSelection}
               aria-label="Font Style"
+              className="toolbar-select-control font-family-select"
             >
               {FONT_FAMILY_OPTIONS.map((f) => (
                 <option key={f.value} value={f.value} style={{ fontFamily: f.value }}>
@@ -8294,14 +9399,15 @@ function WordDocEditorModal({
             </select>
           </div>
 
-          {/* Font Size Selector & Step Buttons */}
+          {/* Font Size Selector */}
           <div className="word-doc-toolbar-group" title="Text Size">
-            <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b' }}>Size</span>
+            <span className="toolbar-select-label">Size</span>
             <select
               value={currentFontSize}
               onChange={(e) => applyFontSize(e.target.value)}
               onMouseDown={saveSelection}
               aria-label="Font Size"
+              className="toolbar-select-control font-size-select"
             >
               {FONT_SIZE_OPTIONS.map((s) => (
                 <option key={s.value} value={s.value}>
@@ -8309,29 +9415,29 @@ function WordDocEditorModal({
                 </option>
               ))}
             </select>
-            <button
-              type="button"
-              title="Decrease Font Size"
-              style={{ padding: '3px 6px', fontSize: '11px' }}
-              onMouseDown={(e) => {
-                e.preventDefault();
-                stepFontSize(-1);
-              }}
-            >
-              A-
-            </button>
-            <button
-              type="button"
-              title="Increase Font Size"
-              style={{ padding: '3px 6px', fontSize: '11px' }}
-              onMouseDown={(e) => {
-                e.preventDefault();
-                stepFontSize(1);
-              }}
-            >
-              A+
-            </button>
           </div>
+
+          {/* Font Step Buttons A- / A+ */}
+          <button
+            type="button"
+            title="Decrease Font Size (A-)"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              stepFontSize(-1);
+            }}
+          >
+            A-
+          </button>
+          <button
+            type="button"
+            title="Increase Font Size (A+)"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              stepFontSize(1);
+            }}
+          >
+            A+
+          </button>
 
           <div className="word-doc-toolbar-divider" />
 
@@ -8349,6 +9455,71 @@ function WordDocEditorModal({
           <button type="button" title="Bullet List" onMouseDown={(e) => execCmd(e, 'insertUnorderedList')}>• Bullet List</button>
           <button type="button" title="Numbered List" onMouseDown={(e) => execCmd(e, 'insertOrderedList')}>1. Numbered</button>
           <button type="button" title="Line Divider" onMouseDown={(e) => execCmd(e, 'insertHorizontalRule')}>― Line Divider</button>
+
+          <div className="word-doc-toolbar-divider" />
+
+          {/* Table Tools */}
+          <button
+            type="button"
+            title="Insert Table"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              insertTable();
+            }}
+          >
+            <Table size={14} color="#0284c7" /> Table
+          </button>
+          <button
+            type="button"
+            title="Add row below active row (+ Row)"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              addTableRow('below');
+            }}
+          >
+            + Row
+          </button>
+          <button
+            type="button"
+            title="Delete active row (- Row)"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              deleteTableRow();
+            }}
+          >
+            - Row
+          </button>
+          <button
+            type="button"
+            title="Add column to the right (+ Column)"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              addTableColumn('right');
+            }}
+          >
+            + Col
+          </button>
+          <button
+            type="button"
+            title="Delete active column (- Column)"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              deleteTableColumn();
+            }}
+          >
+            - Col
+          </button>
+          <button
+            type="button"
+            title="Delete table"
+            style={{ color: '#ef4444' }}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              deleteTable();
+            }}
+          >
+            <Trash2 size={13} /> Table
+          </button>
 
           <div className="word-doc-toolbar-divider" />
 
@@ -8505,6 +9676,134 @@ function WordDocEditorModal({
           </div>
         )}
 
+        {selectedTableInfo && (
+          <div className="word-doc-table-toolbar">
+            <div className="table-toolbar-label">
+              <Table size={14} color="#059669" />
+              <strong>Table Column:</strong>
+              <span className="table-col-pill">Col {selectedTableInfo.colIndex + 1} of {selectedTableInfo.totalCols}</span>
+            </div>
+
+            <div className="table-toolbar-group">
+              <span style={{ fontSize: '11px', fontWeight: 700, color: '#166534' }}>Col Width:</span>
+              <button
+                type="button"
+                className={selectedTableInfo.currentWidth === '15%' ? 'active' : ''}
+                onMouseDown={(e) => { e.preventDefault(); applyColWidth('15%'); }}
+              >
+                15%
+              </button>
+              <button
+                type="button"
+                className={selectedTableInfo.currentWidth === '25%' ? 'active' : ''}
+                onMouseDown={(e) => { e.preventDefault(); applyColWidth('25%'); }}
+              >
+                25%
+              </button>
+              <button
+                type="button"
+                className={selectedTableInfo.currentWidth === '33.33%' || selectedTableInfo.currentWidth === '33%' ? 'active' : ''}
+                onMouseDown={(e) => { e.preventDefault(); applyColWidth('33.33%'); }}
+              >
+                33%
+              </button>
+              <button
+                type="button"
+                className={selectedTableInfo.currentWidth === '50%' ? 'active' : ''}
+                onMouseDown={(e) => { e.preventDefault(); applyColWidth('50%'); }}
+              >
+                50%
+              </button>
+              <button
+                type="button"
+                title="Distribute width equally across all columns"
+                onMouseDown={(e) => { e.preventDefault(); equalizeColWidths(); }}
+              >
+                Equalize All
+              </button>
+              <button
+                type="button"
+                title="Decrease Column Width (-5%)"
+                style={{ padding: '3px 8px', fontWeight: 700 }}
+                onMouseDown={(e) => { e.preventDefault(); stepColWidth(-5); }}
+              >
+                - 5%
+              </button>
+              <button
+                type="button"
+                title="Increase Column Width (+5%)"
+                style={{ padding: '3px 8px', fontWeight: 700 }}
+                onMouseDown={(e) => { e.preventDefault(); stepColWidth(5); }}
+              >
+                + 5%
+              </button>
+              <input
+                type="text"
+                placeholder="e.g. 25% or 150px"
+                value={selectedTableInfo.currentWidth}
+                onChange={(e) => applyColWidth(e.target.value)}
+                className="col-dim-input"
+                title="Enter custom width in % or px"
+              />
+            </div>
+
+            <div className="table-toolbar-group">
+              <button
+                type="button"
+                title="Insert column to left"
+                onMouseDown={(e) => { e.preventDefault(); addTableColumn('left'); }}
+              >
+                + Col Left
+              </button>
+              <button
+                type="button"
+                title="Insert column to right"
+                onMouseDown={(e) => { e.preventDefault(); addTableColumn('right'); }}
+              >
+                + Col Right
+              </button>
+              <button
+                type="button"
+                title="Delete this column"
+                className="btn-danger"
+                onMouseDown={(e) => { e.preventDefault(); deleteTableColumn(); }}
+              >
+                - Del Col
+              </button>
+              <button
+                type="button"
+                title="Insert row above"
+                onMouseDown={(e) => { e.preventDefault(); addTableRow('above'); }}
+              >
+                + Row Above
+              </button>
+              <button
+                type="button"
+                title="Insert row below"
+                onMouseDown={(e) => { e.preventDefault(); addTableRow('below'); }}
+              >
+                + Row Below
+              </button>
+              <button
+                type="button"
+                title="Delete this row"
+                className="btn-danger"
+                onMouseDown={(e) => { e.preventDefault(); deleteTableRow(); }}
+              >
+                - Del Row
+              </button>
+              <button
+                type="button"
+                className="btn-close-table-tool"
+                onClick={() => updateTableSelection(null)}
+                title="Done adjusting table"
+              >
+                <X size={14} /> Done
+              </button>
+            </div>
+          </div>
+        )}
+
         <div className="word-doc-canvas-wrapper">
           <div
             ref={canvasRef}
@@ -8512,8 +9811,18 @@ function WordDocEditorModal({
             contentEditable
             suppressContentEditableWarning
             onClick={handleCanvasClick}
-            onMouseUp={saveSelection}
-            onKeyUp={saveSelection}
+            onMouseMove={handleCanvasMouseMove}
+            onMouseDown={handleCanvasMouseDown}
+            onMouseUp={() => {
+              saveSelection();
+              const cell = getActiveTableCell();
+              if (cell) updateTableSelection(cell);
+            }}
+            onKeyUp={() => {
+              saveSelection();
+              const cell = getActiveTableCell();
+              if (cell) updateTableSelection(cell);
+            }}
             onSelect={saveSelection}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {

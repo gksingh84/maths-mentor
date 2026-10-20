@@ -2742,6 +2742,8 @@ app.get('/api/students', adminOnly, async (req: AuthRequest, res: Response) => {
       name: true,
       grade: true,
       passkey: true,
+      parentPhone: true,
+      parentName: true,
       active: true,
       joiningDate: true,
       createdAt: true,
@@ -2766,6 +2768,8 @@ app.post('/api/students', adminOnly, async (req: AuthRequest, res: Response) => 
       name: z.string().trim().min(1).max(100),
       grade: z.string().trim().min(1).max(50).optional().default('Grade 6'),
       joiningDate: z.string().optional(),
+      parentPhone: z.string().trim().max(30).optional().nullable(),
+      parentName: z.string().trim().max(100).optional().nullable(),
     }), req.body);
     const passkey = generateShortPasskey();
     const teacherId = req.session!.id;
@@ -2779,8 +2783,10 @@ app.post('/api/students', adminOnly, async (req: AuthRequest, res: Response) => 
         passkeyHash: await bcrypt.hash(passkey, 12),
         passkeyLookup: passkeyLookup(passkey),
         teacherId,
+        parentPhone: data.parentPhone ? data.parentPhone.trim() : null,
+        parentName: data.parentName ? data.parentName.trim() : null,
       },
-      select: { id: true, name: true, grade: true, passkey: true, active: true, joiningDate: true, createdAt: true }
+      select: { id: true, name: true, grade: true, passkey: true, parentPhone: true, parentName: true, active: true, joiningDate: true, createdAt: true }
     });
     res.status(201).json({ student, passkey });
   } catch (error) { errorResponse(res, error); }
@@ -2793,6 +2799,8 @@ app.patch('/api/students/:id', adminOnly, async (req: AuthRequest, res: Response
       name: z.string().trim().min(1).max(100).optional(),
       grade: z.string().trim().min(1).max(50).optional(),
       joiningDate: z.string().optional().nullable(),
+      parentPhone: z.string().trim().max(30).optional().nullable(),
+      parentName: z.string().trim().max(100).optional().nullable(),
       resetPasskey: z.boolean().optional(),
     }), req.body);
     const passkey = data.resetPasskey ? generateShortPasskey() : null;
@@ -2807,9 +2815,11 @@ app.patch('/api/students/:id', adminOnly, async (req: AuthRequest, res: Response
         name: data.name,
         grade: data.grade,
         ...(data.joiningDate !== undefined ? { joiningDate: data.joiningDate ? new Date(data.joiningDate) : null } : {}),
+        ...(data.parentPhone !== undefined ? { parentPhone: data.parentPhone ? data.parentPhone.trim() : null } : {}),
+        ...(data.parentName !== undefined ? { parentName: data.parentName ? data.parentName.trim() : null } : {}),
         ...(passkey ? { passkey, passkeyHash: await bcrypt.hash(passkey, 12), passkeyLookup: passkeyLookup(passkey) } : {})
       },
-      select: { id: true, name: true, grade: true, passkey: true, active: true, joiningDate: true, createdAt: true }
+      select: { id: true, name: true, grade: true, passkey: true, parentPhone: true, parentName: true, active: true, joiningDate: true, createdAt: true }
     });
     invalidateProgressCache(id);
     res.json({ student, ...(passkey ? { passkey } : {}) });
@@ -2828,10 +2838,10 @@ app.delete('/api/students/:id', adminOnly, async (req: AuthRequest, res: Respons
 });
 app.get('/api/quizzes/:id/results', adminOnly, async (req: Request, res: Response) => {
   try {
-    const quiz = await prisma.quiz.findUnique({ where: { id: parse(objectId, req.params.id) }, include: { questions: { orderBy: { position: 'asc' }, include: { options: { orderBy: { position: 'asc' } } } }, attempts: { include: { student: { select: { name: true } }, answers: { include: { question: true, option: true } } }, orderBy: { startedAt: 'asc' } } } });
+    const quiz = await prisma.quiz.findUnique({ where: { id: parse(objectId, req.params.id) }, include: { questions: { orderBy: { position: 'asc' }, include: { options: { orderBy: { position: 'asc' } } } }, attempts: { include: { student: { select: { id: true, name: true, parentPhone: true, parentName: true } as any }, answers: { include: { question: true, option: true } } }, orderBy: { startedAt: 'asc' } } } });
     if (!quiz) return res.status(404).json({ error: 'Quiz not found.' });
     const totalMarks = quiz.questions.reduce((sum, question) => sum + question.marks, 0);
-    const results = quiz.attempts.map((attempt) => ({ id: attempt.id, studentId: attempt.studentId, name: attempt.student.name, status: attempt.status, startedAt: attempt.startedAt, submittedAt: attempt.submittedAt, score: attempt.score, totalMarks, answers: attempt.answers.map((answer) => ({ questionId: answer.questionId, question: answer.question.prompt, response: answer.option.text, correct: answer.option.isCorrect, marks: answer.question.marks })) }));
+    const results = quiz.attempts.map((attempt: any) => ({ id: attempt.id, studentId: attempt.studentId, name: attempt.student?.name || 'Student', parentPhone: attempt.student?.parentPhone || null, parentName: attempt.student?.parentName || null, status: attempt.status, startedAt: attempt.startedAt, submittedAt: attempt.submittedAt, score: attempt.score, totalMarks, answers: attempt.answers.map((answer: any) => ({ questionId: answer.questionId, question: answer.question.prompt, response: answer.option.text, correct: answer.option.isCorrect, marks: answer.question.marks })) }));
     const distribution = quiz.questions.map((question) => ({ question: question.prompt, options: question.options.map((option) => ({ text: option.text, correct: option.isCorrect, count: quiz.attempts.reduce((count, attempt) => count + attempt.answers.filter((answer) => answer.optionId === option.id).length, 0) })) }));
     res.json({ quiz: { id: quiz.id, title: quiz.title, mode: quiz.mode, status: quiz.status }, results, distribution });
   } catch (error) { errorResponse(res, error); }
@@ -4873,6 +4883,7 @@ app.use(express.static(resolve('public')));
 app.use(express.static(resolve('dist')));
 app.use((req: Request, res: Response, next: NextFunction) => {
   if (req.path.startsWith('/api/')) return next();
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.sendFile(resolve('dist/index.html'), (error) => { if (error) next(error); });
 });
 app.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => errorResponse(res, error));

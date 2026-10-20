@@ -1,0 +1,447 @@
+# EduAshram / Maths Mentor — Complete User Guide
+### A Step-by-Step Practical Manual for Teachers, Students & School Administrators
+
+Welcome to **EduAshram (Maths Mentor)**! This platform is designed to make classroom teaching, quizzes, offline paper grading, student progress tracking, fee records, and parent communication effortless, interactive, and modern.
+
+This user guide is divided into three comprehensive parts:
+1. **[Part 1: The Public Portal](#part-1-the-public-portal)** — What visitors, parents, and students see before signing in.
+2. **[Part 2: Teacher's Space](#part-2-teachers-space)** — A complete operational manual for educators covering signup, AI assistants, live quizzes, question paper builder, WhatsApp reports, attendance, fees, and analytics.
+3. **[Part 3: Student's Space](#part-3-students-space)** — A simple guide for students on how to join with their 6-character passkey, take live tests, and upload handwritten workbook sheets.
+
+---
+
+# Part 1: The Public Portal
+
+The Public Portal is the homepage accessible at your classroom URL (e.g., `https://maths-mentor-32kc.onrender.com` or `http://localhost:4000`). It is designed to be welcoming, fast, and easy to navigate for parents, new students, and visitors.
+
+### 1.1 Header & Quick Navigation
+- **Platform Brand Logo & Title**: Displays **EduAshram** and the school/classroom motto (*"Understand Better. Achieve More"*).
+- **Portal Switcher / Sign In Buttons**:
+  - **Student Login**: Click to open the simple 6-character passkey prompt.
+  - **Teacher Login**: Click to access the educator dashboard with email & password.
+  - **Classroom Chat / Ask AI Widget**: An accessible quick-help button located in the corner for instant assistance.
+
+### 1.2 Feature Showcase
+Visitors can explore interactive overview cards explaining the core strengths of the classroom:
+- **Interactive Live Quizzes**: Explaining how live classroom rounds work in real-time.
+- **Word-Style Question Papers**: Information on printed/digital exam papers and workbook answer sheet submission.
+- **AI Teaching Assistant**: How artificial intelligence powers custom question generation and step-by-step math explanations.
+- **Student Progress & Fee Registers**: Transparent academic session record-keeping.
+
+### 1.3 Interactive Sandbox & Demo Practice
+- Students and parents can preview sample questions without signing in to get familiar with the test format.
+- Click any sample option to test instant answer checking and explanations.
+
+### 1.4 How to Enter Your Space from the Public Portal
+- **If you are a Teacher**: Click **"Teacher Login"** in the top-right corner.
+- **If you are a Student**: Click **"Student Login"** or enter your 6-character passkey directly in the student sign-in modal.
+
+---
+
+# Part 2: Teacher's Space
+
+The **Teacher's Space** is your complete digital classroom command center. Once logged in, you can manage everything from curriculum generation to parent communications.
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│                          TEACHER'S DASHBOARD                           │
+├──────────────┬─────────────────────────────────────────────────────────┤
+│ Overview     │ Summary metrics, quick action launcher, recent tests    │
+│ AI Assistant │ Live teaching canvas, LaTeX formula solver, AI quiz gen │
+│ Calendar     │ Class test schedules, assignment deadlines, holidays    │
+│ Whiteboard   │ Real-time digital drawing board with geometry tools     │
+│ Quizzes      │ Live classroom rounds, timed tests, classroom monitor   │
+│ Papers       │ Word-like exam builder, printing, photo grading         │
+│ Students     │ Directory, WhatsApp parent chat, attendance, fees, report│
+│ Results      │ Assessment analytics, answer review, WhatsApp scorecard │
+│ Archive      │ Completed quizzes & papers safely preserved             │
+│ Settings     │ Personal AI API Key, school name, active grade levels   │
+└──────────────┴─────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 2.1 Teacher Sign Up & Sign In
+
+### How to Sign Up (First-Time Teacher)
+1. On the homepage, click **Teacher Login**.
+2. If self-registration is enabled, click **"Create an Account"**.
+3. Fill in:
+   - **Full Name**: e.g., *Gaurav Kumar Singh* (this name appears on printed student papers, progress reports, and WhatsApp messages).
+   - **Email Address**: Your official or personal email (e.g., `teacher@school.com`).
+   - **Password**: Create a secure password (minimum 8 characters).
+   - **School / Coaching Institute Name**: e.g., *EduAshram Central*.
+   - **Subject**: e.g., *Mathematics*, *Science*, etc.
+4. Click **Create Teacher Account**. You will be logged in immediately.
+
+### How to Sign In
+1. Go to **Teacher Login**.
+2. Enter your registered email address and password.
+3. Click **Sign In**.
+4. *Tip*: If you stay logged in on your personal laptop, your session is saved securely via encrypted HTTP-only session cookies.
+
+---
+
+## 2.2 Teacher Overview & Classroom Dashboard
+The Overview tab gives you an immediate bird's-eye view of your teaching day:
+- **Metrics Bar**:
+  - **Total Enrolled Students** (click to jump to Student Directory).
+  - **Live / Active Quizzes** (click to view running monitors).
+  - **Open Question Papers** (click to check student submissions).
+  - **Today's Attendance Rate** (percentage of students present).
+- **Quick Action Launcher**:
+  - **"Launch Live Quiz"**: Start an interactive round in 1 click.
+  - **"New Question Paper"**: Open the Word-style exam builder.
+  - **"AI Teaching Assistant"**: Generate lesson notes and problems.
+
+---
+
+## 2.3 AI Teaching Assistant & Live Teaching Canvas
+
+The AI Assistant is your 24/7 pedagogical partner. It can solve complex math problems, generate step-by-step explanations, and draft whole test papers from your syllabus.
+
+### Setting Up Your Free AI Key (One-Time Setup)
+1. In the sidebar, click **Settings** (or **AI Settings**).
+2. Choose your preferred AI Provider:
+   - **Google Gemini** (*Recommended* — very fast, supports free API keys).
+   - **OpenAI (ChatGPT)**.
+   - **Groq** (ultra-fast open models).
+   - **Anthropic Claude** or **DeepSeek**.
+3. Paste your API Key into the **API Key** input.
+4. Click **Save AI Configuration**. Your key is securely encrypted and never shared.
+
+### Using the Live Teaching Canvas
+1. In the sidebar, click **AI Teaching Assistant**.
+2. Type or paste any math problem, concept, or curriculum topic (e.g., *"Explain quadratic formula with visual steps and 3 word problems for Grade 9"*).
+3. The AI renders rich LaTeX formulas, highlighted steps, and pedagogical diagrams.
+4. **Action Buttons**:
+   - **Copy Formula**: Copies clean text for worksheets.
+   - **Save as Draft in Question Papers**: Instantly turns the generated lesson into a physical or online worksheet.
+   - **Export to Study Materials**: Publishes it to your classroom reference library.
+
+---
+
+## 2.4 Quizzes & Worksheets Management
+
+EduAshram supports **three distinct test modes** to fit every teaching scenario:
+
+| Mode | How it Works | Best Used For |
+| :--- | :--- | :--- |
+| **Live Classroom** | Teacher controls the screen question-by-question. Students answer simultaneously. Teacher reveals answers with real-time bar graphs. | In-class revision, competitive rounds, Friday quizzes. |
+| **Timed Practice** | Student has an individual countdown timer (e.g., 20 mins). Auto-submits when time expires. | Mock tests, weekly chapter tests. |
+| **Self-Paced** | No time limit. Students can solve problems at their own pace and return later. | Homework, weekend assignments. |
+
+### Creating a Quiz Manually
+1. Go to **Quizzes and Worksheets** and click **Create manually**.
+2. Enter the **Quiz Title** (e.g., *Fractions & Decimals Diagnostic Test*).
+3. Select the target **Class/Grade** (e.g., *Grade 6*).
+4. Choose the **Mode** (`Live`, `Timed`, or `Self-Paced`).
+5. For each question:
+   - Type the question prompt.
+   - Set marks (e.g., 1 mark, 2 marks).
+   - Add options (A, B, C, D) and mark the green checkmark on the correct option.
+   - *(Optional)* Add a diagram or image URL.
+6. Click **Save Quiz**.
+
+### Generating a Quiz Instantly with AI
+1. Click **Generate with AI** in the top-right corner.
+2. Select:
+   - Grade / Class level.
+   - Academic Subject & Chapter Topic (e.g., *Linear Equations*).
+   - Difficulty Level (Easy, Medium, Challenging).
+   - Number of Questions (e.g., 10 questions).
+3. Click **Generate Quiz with AI**.
+4. Review the generated questions, edit any wording if desired, and click **Publish Quiz**.
+
+### Running a Live Classroom Quiz
+1. On the quiz card, click **Start Live Quiz**.
+2. The **Classroom Monitor** opens at the top of your screen:
+   - You will see the current question prompt and live counter: *"X students answered"*.
+   - A live distribution bar shows how many students picked Option A, B, C, or D.
+3. Click **Reveal Answer**: Students' screens will flash green for correct and red for incorrect, showing explanations.
+4. Click **Next Question** to broadcast the next problem to all connected student screens.
+5. Click **End Quiz** when finished. All student attempts are safely finalized and transferred to Results.
+
+---
+
+## 2.5 Word-Style Question Papers Studio
+
+For formal exams, descriptive math tests, and printable physical worksheets, EduAshram provides a built-in **Word-like Question Paper Builder**.
+
+### Creating & Formatting a Question Paper
+1. In the sidebar, click **Question Papers**.
+2. Click **Create manually** or **Generate with AI**.
+3. In the Paper Studio:
+   - Set **Paper Title** (e.g., *Mid-Term Mathematics Examination*).
+   - Set **Subject**, **Grade**, **Time Allowed** (e.g., *90 Mins*), and **Total Marks** (e.g., *80*).
+   - Write or customize the **Instructions for Students** (e.g., *"Write all steps neatly in your workbook"*).
+   - Type or paste your questions with section headers (Section A: 1-mark MCQs, Section B: 3-mark descriptive proofs, etc.).
+4. Click **Save as Draft** while working, or **Publish** when ready for students.
+
+### Viewing & Printing Physical Papers
+1. On any paper card, click **View Paper**.
+2. A formal, printable examination paper is displayed on an A4-proportioned paper layout with school header and student details lines (`Name: _________`, `Roll No: _________`).
+3. Click **Print Paper** in the top-right corner:
+   - The browser print preview automatically strips all website menus and prints a clean, black-and-white exam paper ready for classroom photocopying.
+
+### Checking Student Answer Sheets & Assigning Marks
+1. When students write answers in physical notebooks and upload photos, click **Submissions** on the paper card.
+2. Select any student who submitted their work:
+   - You will see the high-resolution photos of their physical answer sheets.
+   - Use the **Zoom** and **Rotate** buttons to inspect handwriting.
+3. Enter the **Score Obtained** (e.g., `45 / 50`).
+4. Enter **Teacher Remarks** (e.g., *"Good presentation. Pay attention to signs in Question 4"*).
+5. Click **Save Grade & Feedback**. The student can now see their evaluated paper in their portal.
+
+---
+
+## 2.6 Student Management & Directory (Roster)
+
+Click **Students** in the navigation bar to access the student administration suite.
+
+### Adding a New Student
+1. In the right-hand sidebar under **"Add to your class"**:
+   - **Student Name**: Enter student's full name (e.g., *Vanya Singh*).
+   - **Grade / Class**: Select from your active grades (e.g., *Grade 5*).
+   - **Date of Joining**: Pick enrollment date (used for monthly attendance and fee ledgers).
+   - **Parent WhatsApp No. (India)**: Enter the 10-digit Indian mobile number (e.g., `9876543210`). The `+91` country code is added automatically.
+   - **Parent Name (Optional)**: e.g., *Mr. Rajesh Singh*.
+2. Click **Add student**.
+3. **The 6-Character Passkey** is generated immediately (e.g., `K7M2P9`).
+   - Click **Copy passkey** to share with the student or parent.
+
+### Student Roster Actions
+On each student row in the Directory:
+- **WhatsApp Chat Pill**: Click the green WhatsApp pill to open an instant chat with the parent.
+- **Progress Report**: Quick shortcut to view the student's April–March academic history.
+- **Fees Ledger**: Quick shortcut to view their 12-month payment record.
+- **Passkey Reveal (`••••••`)**: Click **Show** to view their passkey or **Copy** to clipboard.
+- **Pencil Icon (Edit)**: Update student's name, class, joining date, or parent WhatsApp number.
+- **Refresh Icon (Reset Passkey)**: Creates a new 6-character passkey if a student forgets theirs.
+- **Pause Access (User Check/X)**: Temporarily disables student login without deleting their records.
+- **Trash Icon**: Permanently removes student profile.
+
+---
+
+## 2.7 WhatsApp Parent Notifications & Instant Scorecards
+
+EduAshram includes native, zero-cost WhatsApp sharing for Indian phone numbers (`+91`):
+
+### 1. Sending an Individual Student Quiz Scorecard
+1. Go to **Quiz Results & Answer Analytics**.
+2. Select any completed quiz.
+3. Next to any student's name, click the green **WhatsApp** button:
+   - **If Parent Phone is already saved**: WhatsApp Web (or Desktop app) opens instantly with the student's clean, pre-filled report card.
+   - **If Parent Phone is missing**: A clean modal prompts: *"Send Scorecard for [Student Name]"*. Enter the 10-digit number and click **Save & Open WhatsApp**. It saves the number to the student's profile for the future and opens WhatsApp immediately.
+4. Click **Send** in WhatsApp!
+
+#### What the Parent Receives:
+```text
+STUDENT ASSESSMENT REPORT
+----------------------------------------
+Dear Mr. Rajesh Singh,
+Here is the performance update for Vanya in the recent classroom assessment:
+
+Quiz / Test: FRACTIONS
+Score Obtained: 10 / 10 (100%)
+Performance: Outstanding Performance
+Correct Answers: 10 / 10
+Date: 19 Oct 2026
+
+----------------------------------------
+Teacher Note:
+Consistent revision and problem-solving build strong foundations. Please encourage Vanya to review questions and continue the good work.
+
+Best regards,
+Teacher: Gaurav Kumar Singh
+```
+
+### 2. Sharing New Quiz or Homework Announcements to Class Groups
+- **On Quiz Cards**: Click the **WhatsApp** button to copy a ready-to-send announcement with test format and login link (`https://maths-mentor-32kc.onrender.com`).
+- **On Question Paper Cards**: Click **WhatsApp** next to **View Paper** to announce new homework to parents.
+
+---
+
+## 2.8 Attendance Register
+1. In the **Students** tab, click **Attendance Register**.
+2. Select the **Class Date** (defaults to today).
+3. For each student, click:
+   - **P (Present)** — Green
+   - **A (Absent)** — Red
+   - **L (Late)** — Amber
+   - **E (Excused)** — Blue
+4. Click **"Mark All Present"** for 1-click fast attendance on full-attendance days.
+5. The top summary automatically calculates:
+   - *Total Present*, *Absentees*, and *Monthly Attendance Rate (%)*.
+
+---
+
+## 2.9 Monthly Fees Ledger (April to March Session)
+EduAshram manages school and tuition fees across the standard Indian academic session (April – March).
+
+1. In the **Students** tab, click **Monthly Fees (Apr–Mar)**.
+2. Select any student from the dropdown or click **Fees Ledger** from the Directory.
+3. You will see a 12-month table from **April to March**:
+   - **Due Date** & **Monthly Fee Amount (₹)**.
+   - **Payment Status**: `PAID`, `PENDING`, `OVERDUE`, or `PARTIAL`.
+   - **Payment Mode**: Cash, UPI / GPay, Bank Transfer, Cheque.
+   - **Receipt Generator**: Click **Print Receipt** on any paid month to generate a formal fee slip complete with receipt number, school logo, student name, and teacher signature line.
+
+---
+
+## 2.10 Academic Progress Reports & Year-Long Scorecards
+1. In the **Students** tab, click **Progress Reports**.
+2. Pick any student to inspect their comprehensive annual academic record:
+   - Average score percentage across all quizzes and worksheets.
+   - Total tests attempted, passed, and outstanding marks.
+   - Month-by-month progress graph showing performance trajectory.
+   - Topic-wise breakdown (identifying strong chapters and areas needing revision).
+3. Click **"Print Formal Progress Report Card"** to generate a signed annual performance report ready for parent-teacher meetings.
+
+---
+
+## 2.11 Quiz Results & Answer Analytics
+1. In the sidebar, click **Results** (or **Results & Assessments** in Student Manager).
+2. **Month Filter**:
+   - Use the **Month Dropdown** or **Calendar Month Picker** in the top-right corner to see quizzes conducted in any specific month (e.g., *October 2026*).
+   - Or select **"All Months"** to see full history.
+3. Select a quiz:
+   - **Scoreboard**: See student names, submission status (`Submitted` vs `In progress`), and marks (`8 / 10`).
+   - **Answer Review**: Click on any student row to expand and inspect their question-by-question responses (green checkmark for correct, red cross for incorrect).
+   - **Class Answer Patterns**: View question-by-question response distribution to see which specific problems the class struggled with.
+   - **Export CSV**: Click **Export CSV** in the top-right corner to download an Excel-friendly file with student names, marks, submission times, and parent contact numbers.
+   - **Reset Attempt**: If a student faced network trouble or needs to retake a quiz, click **Restart Quiz** next to their name.
+
+---
+
+## 2.12 Classroom Archive
+When a quiz or question paper is completed:
+1. Click **Mark Finished** on the quiz card, or **Mark Complete** on the paper card.
+2. It moves safely to the **Archive** tab:
+   - This keeps your active workspace clean and uncluttered.
+   - Past score records, answers, and student attempt histories remain 100% preserved forever.
+   - You can re-open an archived paper or review past questions anytime by clicking **Archive** in the sidebar.
+
+---
+
+# Part 3: Student's Space
+
+The **Student's Space** is clean, distraction-free, and designed so that children of all ages (Grades 1 to 12) can participate without confusion.
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                     STUDENT PORTAL                      │
+├─────────────────┬───────────────────────────────────────┤
+│ Open Classroom  │ Active live quizzes & open worksheets │
+│ Quiz History    │ Past quiz scores, reviews & answers   │
+│ Paper History   │ Graded workbook sheets & remarks      │
+│ Class Calendar  │ Upcoming tests & homework deadlines   │
+└─────────────────┴───────────────────────────────────────┘
+```
+
+---
+
+## 3.1 How Students Sign In (No Email Required)
+
+Students do **not** need to remember complicated emails or passwords.
+
+1. Open the classroom link (e.g., `https://maths-mentor-32kc.onrender.com`).
+2. Click **Student Login** (or **Join with Passkey**).
+3. Enter your **6-character Student Passkey** given by your teacher (e.g., `K7M2P9`).
+4. Click **Enter Classroom**.
+5. You will see a personalized welcome: *"Welcome back, [Student Name]! Ready for today's math practice?"*
+
+---
+
+## 3.2 Taking a Live Classroom Quiz
+
+1. When your teacher starts a live round, the quiz appears under **Open Quizzes and Worksheets** with a red **"● LIVE NOW"** indicator.
+2. Click **Join Quiz**.
+3. **During the Live Quiz**:
+   - The question appears on your screen in large, readable text with options **A, B, C, D**.
+   - Tap or click your answer choice.
+   - You will see a confirmation: *"Answer submitted! Waiting for teacher to reveal..."*
+4. **Answer Reveal**:
+   - When the teacher reveals the answer, your screen shows immediately whether your choice was **Correct** (green) or **Incorrect** (red), along with the explanation.
+   - The teacher will then advance to the next question automatically.
+
+---
+
+## 3.3 Taking a Self-Paced or Timed Quiz
+
+1. Under **Open Classroom**, look for practice quizzes.
+2. If it is **Timed**: You will see a countdown timer at the top (e.g., `18:42 remaining`).
+3. If it is **Self-Paced**: There is no timer; solve questions calmly at your own pace.
+4. Select your answer for each question and click **Next**.
+5. You can click **Previous** to change any answer before final submission.
+6. Click **Submit Quiz**:
+   - Your score is calculated instantly (e.g., `10 / 10 - 100%`).
+   - You can review all correct answers and step-by-step solutions immediately.
+
+---
+
+## 3.4 Solving Question Papers & Uploading Workbook Photos
+
+For descriptive homework and exam papers:
+
+1. In the **Open Classroom** tab, scroll down to **Open Question Papers & Worksheets**.
+2. Click **View Paper**:
+   - Read the instructions, total marks, and questions.
+3. **Solve on Physical Paper**:
+   - Take out your real classroom notebook / workbook.
+   - Write your name, class, date, and neat step-by-step answers for each question number.
+4. **Upload Your Answer Sheets**:
+   - Click **"Upload Answer Sheet Photos"**.
+   - If using a mobile phone or tablet, you can take photos directly with your camera.
+   - If using a computer, select the saved photo files.
+   - You can upload multiple pages (Page 1, Page 2, Page 3).
+5. Click **Submit Answer Sheets**:
+   - You will see a confirmation badge: *"Submitted · Awaiting Teacher Evaluation"*.
+
+---
+
+## 3.5 Checking Past Scores & Teacher Feedback
+
+### Reviewing Past Quizzes (`Quiz History`)
+1. In the student menu, tap **Quiz History**.
+2. You will see a chronological list of every test you have completed.
+3. Click on any quiz to review:
+   - Total marks achieved.
+   - Exactly which questions you answered correctly.
+   - Explanations for questions you missed.
+
+### Reviewing Graded Question Papers (`Paper History`)
+1. Tap **Paper History**.
+2. When your teacher finishes grading your workbook upload:
+   - You will see your assigned marks (e.g., `45 / 50`).
+   - Read your teacher's personalized advice and remarks.
+
+---
+
+## 3.6 Student Calendar & Reminders
+1. Tap **Class Calendar & Reminders**.
+2. View dates for upcoming quizzes, homework submission deadlines, and school holidays marked by your teacher.
+
+---
+
+# Frequently Asked Questions (FAQ)
+
+### For Teachers:
+- **Q: Can I use this on my mobile phone?**
+  - *A:* Yes! The entire teacher dashboard and student portal are fully responsive and work seamlessly on mobile browsers, tablets, laptops, and smart classroom boards.
+- **Q: Does WhatsApp sharing cost any money?**
+  - *A:* No. Phase 1 uses direct WhatsApp Web links (`wa.me`). It is 100% free, requires no business API verification, and connects directly with Indian phone numbers (+91).
+- **Q: Can parents see other students' marks?**
+  - *A:* No. When clicking WhatsApp next to a student's name, the scorecard is sent exclusively to that individual child's parent number.
+- **Q: What happens if a student accidentally closes their browser during a timed quiz?**
+  - *A:* Their progress is saved automatically on the server. When they re-enter their 6-character passkey, they resume right where they left off with their remaining time intact.
+
+### For Students:
+- **Q: I forgot my passkey. How can I log in?**
+  - *A:* Ask your teacher! In the teacher's Student Directory, your teacher can view or regenerate your passkey in 1 click.
+- **Q: Can other students see my scores?**
+  - *A:* No. Passkeys are private to each student. Other students can never view your scores or submitted workbook photos.
+
+---
+
+*EduAshram — Empowering Teachers. Inspiring Students.*

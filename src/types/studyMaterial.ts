@@ -1,6 +1,35 @@
 export type StudyMediaType = 'ARTICLE' | 'PDF' | 'VIDEO' | 'PRESENTATION' | 'IMAGE' | 'WORKSHEET';
 export type MaterialStatus = 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
 
+export const FONT_FAMILY_OPTIONS = [
+  { label: 'Arial (Default)', value: 'Arial, sans-serif' },
+  { label: 'Times New Roman', value: '"Times New Roman", Times, serif' },
+  { label: 'Georgia', value: 'Georgia, serif' },
+  { label: 'Calibri', value: 'Calibri, sans-serif' },
+  { label: 'Garamond', value: 'Garamond, serif' },
+  { label: 'Plus Jakarta Sans', value: '"Plus Jakarta Sans", sans-serif' },
+  { label: 'Inter', value: 'Inter, sans-serif' },
+  { label: 'Verdana', value: 'Verdana, sans-serif' },
+  { label: 'Trebuchet MS', value: '"Trebuchet MS", sans-serif' },
+  { label: 'Courier New (Mono)', value: '"Courier New", Courier, monospace' },
+  { label: 'Comic Sans MS', value: '"Comic Sans MS", cursive, sans-serif' },
+];
+
+export const FONT_SIZE_OPTIONS = [
+  { label: '12px (Small)', value: '12px' },
+  { label: '14px (Compact)', value: '14px' },
+  { label: '16px (Normal)', value: '16px' },
+  { label: '18px (Medium)', value: '18px' },
+  { label: '20px (Large)', value: '20px' },
+  { label: '24px (Subhead)', value: '24px' },
+  { label: '28px (H2 Section)', value: '28px' },
+  { label: '32px (H1 Title)', value: '32px' },
+  { label: '36px (Big Title)', value: '36px' },
+  { label: '42px (Jumbo)', value: '42px' },
+];
+
+export const FONT_SIZE_STEPS = ['12px', '14px', '16px', '18px', '20px', '24px', '28px', '32px', '36px', '42px'];
+
 export type WorksheetQuestion = {
   id: string;
   question: string;

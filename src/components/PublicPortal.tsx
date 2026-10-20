@@ -35,6 +35,7 @@ interface PublicPortalProps {
   user: { role: 'admin' | 'teacher' | 'superadmin' | 'student'; name?: string; email?: string } | null;
   onOpenLogin: (mode: 'student' | 'teacher_login' | 'teacher_signup' | 'admin') => void;
   onOpenSuperAdmin?: () => void;
+  onOpenUserGuide?: () => void;
   onGoToDashboard: () => void;
   onSignOut: () => void;
 }
@@ -43,6 +44,7 @@ export function PublicPortal({
   user,
   onOpenLogin,
   onOpenSuperAdmin,
+  onOpenUserGuide,
   onGoToDashboard,
   onSignOut,
 }: PublicPortalProps) {
@@ -230,33 +232,32 @@ export function PublicPortal({
           <nav className="navbar-links">
             <button
               className={`nav-link-btn ${activeGrade === 'ALL' ? 'active' : ''}`}
-              onClick={() => { setActiveGrade('ALL'); setSelectedSubject('ALL'); }}
-            >
-              All Materials
-            </button>
-            <div className="grade-dropdown-wrapper">
-              <span className="nav-dropdown-label">Explore Grade ▾</span>
-              <div className="grade-dropdown-menu">
-                {STANDARD_GRADES.map((g) => (
-                  <button
-                    key={g}
-                    className={`grade-dropdown-item ${activeGrade === g ? 'active' : ''}`}
-                    onClick={() => { setActiveGrade(g); setSelectedSubject('ALL'); }}
-                  >
-                    <span>{GRADE_DETAILS[g]?.iconEmoji} {g}</span>
-                    <span className="grade-count-tag">{gradeSummary[g] ?? 0}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-            <a href="#grade-hubs" className="nav-link-btn" onClick={(e) => {
-              if (activeGrade !== 'ALL') {
-                e.preventDefault();
+              onClick={() => {
                 setActiveGrade('ALL');
-                setTimeout(() => document.getElementById('grade-hubs')?.scrollIntoView({ behavior: 'smooth' }), 50);
-              }
-            }}>
-              Grade Hubs
+                setSelectedSubject('ALL');
+                setTimeout(() => {
+                  document.getElementById('materials-feed')?.scrollIntoView({ behavior: 'smooth' });
+                }, 40);
+              }}
+              title="Browse all study materials, formulas and worksheets"
+            >
+              <Layers size={14} />
+              <span>All Materials</span>
+            </button>
+            <a
+              href="#grade-hubs"
+              className="nav-link-btn nav-gradehubs-btn"
+              onClick={(e) => {
+                if (activeGrade !== 'ALL') {
+                  e.preventDefault();
+                  setActiveGrade('ALL');
+                  setTimeout(() => document.getElementById('grade-hubs')?.scrollIntoView({ behavior: 'smooth' }), 50);
+                }
+              }}
+              title="Explore dedicated hubs by class / grade"
+            >
+              <Sparkles size={14} />
+              <span>Grade Hubs</span>
             </a>
           </nav>
 
@@ -266,6 +267,16 @@ export function PublicPortal({
                 <span className="user-role-badge">
                   {user.role === 'superadmin' ? 'Master Admin' : (user.role === 'admin' || user.role === 'teacher') ? 'Teacher' : 'Student'}: {user.name || user.email?.split('@')[0]}
                 </span>
+                {onOpenUserGuide && (
+                  <button
+                    className="button button-secondary nav-action-btn"
+                    onClick={onOpenUserGuide}
+                    title="Open Complete User Guide"
+                    style={{ borderRadius: '9999px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                  >
+                    <BookOpen size={14} /> User Guide
+                  </button>
+                )}
                 <button className="button button-primary nav-action-btn" onClick={onGoToDashboard}>
                   {user.role === 'superadmin' ? 'Admin Console' : 'Go to Dashboard'} <ArrowRight size={14} />
                 </button>
@@ -275,6 +286,16 @@ export function PublicPortal({
               </div>
             ) : (
               <div className="auth-buttons-group">
+                {onOpenUserGuide && (
+                  <button
+                    id="btn-user-guide-nav"
+                    className="button button-secondary auth-btn guide-auth-btn"
+                    onClick={onOpenUserGuide}
+                    title="Open Complete User Guide (Public Portal, Teacher's Space, Student's Space)"
+                  >
+                    <BookOpen size={15} /> User Guide
+                  </button>
+                )}
                 <button
                   id="btn-student-login-nav"
                   className="button button-secondary auth-btn student-auth-btn"
@@ -723,6 +744,11 @@ export function PublicPortal({
               <button onClick={() => onOpenLogin('teacher_signup')}>
                 <UserPlus size={14} /> Register as New Teacher
               </button>
+              {onOpenUserGuide && (
+                <button onClick={onOpenUserGuide} style={{ color: '#0284c7', fontWeight: 600 }}>
+                  <BookOpen size={14} /> Comprehensive User Guide
+                </button>
+              )}
               {onOpenSuperAdmin && (
                 <button onClick={onOpenSuperAdmin} style={{ color: '#94a3b8', marginTop: '6px' }} title="Protected platform owner admin console">
                   <Lock size={13} /> Master Admin Console
