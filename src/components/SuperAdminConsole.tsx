@@ -16,9 +16,11 @@ import {
   GraduationCap,
   RefreshCw,
   Eye,
-  EyeOff
+  EyeOff,
+  Sparkles
 } from 'lucide-react';
 import { TeacherStudyMaterials } from './TeacherStudyMaterials';
+import { AdminArticleImageStudio } from './AdminArticleImageStudio';
 
 interface TeacherItem {
   id: string;
@@ -65,7 +67,7 @@ export function SuperAdminConsole({ currentUser, onSignOut, onLoginSuccess, onBa
   const [loginError, setLoginError] = useState('');
 
   // Dashboard States
-  const [activeTab, setActiveTab] = useState<'teachers' | 'study_materials'>('teachers');
+  const [activeTab, setActiveTab] = useState<'teachers' | 'study_materials' | 'ai_image_studio'>('teachers');
   const [teachers, setTeachers] = useState<TeacherItem[]>([]);
   const [loadingTeachers, setLoadingTeachers] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -408,6 +410,39 @@ export function SuperAdminConsole({ currentUser, onSignOut, onLoginSuccess, onBa
           >
             <BookOpen size={17} /> Public Study Materials & Worksheets Control
           </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('ai_image_studio')}
+            style={{
+              padding: '16px 20px',
+              border: 'none',
+              borderBottom: activeTab === 'ai_image_studio' ? '3px solid #8b5cf6' : '3px solid transparent',
+              background: 'transparent',
+              fontSize: '14px',
+              fontWeight: activeTab === 'ai_image_studio' ? 700 : 500,
+              color: activeTab === 'ai_image_studio' ? '#7c3aed' : '#64748b',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+            }}
+          >
+            <Sparkles size={17} color={activeTab === 'ai_image_studio' ? '#7c3aed' : '#64748b'} /> AI Article Image Studio
+            <span
+              style={{
+                background: '#f3e8ff',
+                color: '#7c3aed',
+                fontSize: '11px',
+                fontWeight: 700,
+                padding: '2px 8px',
+                borderRadius: '9999px',
+                border: '1px solid #d8b4fe',
+              }}
+            >
+              Gemini & DALL·E
+            </span>
+          </button>
         </div>
       </div>
 
@@ -676,6 +711,19 @@ export function SuperAdminConsole({ currentUser, onSignOut, onLoginSuccess, onBa
 
           {/* Embed the Study Materials Management console */}
           <TeacherStudyMaterials setNotice={setActionNotice} />
+        </div>
+      )}
+
+      {/* TAB 3: AI ARTICLE IMAGE STUDIO */}
+      {activeTab === 'ai_image_studio' && (
+        <div style={{ padding: '24px', maxWidth: '1400px', margin: '0 auto' }}>
+          <AdminArticleImageStudio
+            onInsertIntoArticle={(imageUrl) => {
+              setActiveTab('study_materials');
+              setActionNotice(`Artwork ready! Switched to Article Editor. You can embed with URL: ${imageUrl}`);
+            }}
+            setNotice={setActionNotice}
+          />
         </div>
       )}
     </div>

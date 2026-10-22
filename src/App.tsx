@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { io, type Socket } from 'socket.io-client';
-import { AppWindow, Archive, ArrowLeft, ArrowRight, Award, BarChart3, Bell, BookOpen, BookOpenCheck, Calculator, Calendar, CalendarCheck, Check, CheckCircle2, CheckCheck, CheckSquare, ChevronDown, ChevronUp, CircleHelp, Clock3, Copy, CreditCard, Download, ExternalLink, Eye, FileSpreadsheet, FileText, Filter, KeyRound, ListChecks, Lock, LogOut, Mail, Maximize2, MessageCircle, Minimize2, Paperclip, Pencil, PenTool, Phone, Plus, Printer, Radio, RefreshCw, RotateCcw, Save, Search, Send, Settings, ShieldCheck, SlidersHorizontal, Sparkles, Table, Trash2, TrendingUp, Type, UploadCloud, UserCheck, Users, UserX, X } from 'lucide-react';
+import { AppWindow, Archive, ArrowLeft, ArrowRight, Award, BarChart3, Bell, BookOpen, BookOpenCheck, Calculator, Calendar, CalendarCheck, Camera, Check, CheckCircle2, CheckCheck, CheckSquare, ChevronDown, ChevronUp, CircleHelp, Clock3, Copy, CreditCard, Download, ExternalLink, Eye, FileSpreadsheet, FileText, Filter, KeyRound, ListChecks, Lock, LogOut, Mail, Maximize2, MessageCircle, Minimize2, Paperclip, Pause, Pencil, PenTool, Phone, Play, Plus, Printer, Radio, RefreshCw, RotateCcw, Save, Search, Send, Settings, ShieldCheck, SlidersHorizontal, Sparkles, Table, Trash2, TrendingUp, Type, UploadCloud, UserCheck, Users, UserX, Volume2, VolumeX, X } from 'lucide-react';
 import { PublicPortal } from './components/PublicPortal';
 import { AuthModal, type AuthMode } from './components/AuthModal';
 import { SuperAdminConsole } from './components/SuperAdminConsole';
@@ -10,6 +10,7 @@ import { ClassroomCalendar, type CalendarEventItem } from './components/Classroo
 import { UserGuidePage } from './components/UserGuidePage';
 import { getActiveGrades, getDefaultGrade, getActiveSubjects, getDefaultSubject } from './utils/teacherPreferences';
 import { cleanIndianPhoneNumber, openWhatsAppChat, generateScorecardMessage, generateQuizAnnouncementMessage, generateWorksheetAnnouncementMessage } from './utils/whatsapp';
+import { playCountdownWarningSound, playAnswerRevealChime, isQuizSoundEnabled, setQuizSoundEnabled, playTestSound, unlockAudio } from './utils/quizSounds';
 export { getActiveGrades, getDefaultGrade, getActiveSubjects, getDefaultSubject };
 
 type Mode = 'LIVE' | 'SELF_PACED';
@@ -20,7 +21,15 @@ type Question = { id?: string; prompt: string; marks: number; imageUrl?: string 
 type Quiz = { id: string; title: string; grade?: string | null; mode: Mode; status: Status; timeLimitSeconds: number | null; showResults: boolean; currentQuestionIndex: number; currentAnswerRevealed: boolean; createdAt?: string; updatedAt?: string; questions?: Question[]; _count?: { questions: number; attempts: number } };
 type Student = { id: string; name: string; grade?: string | null; passkey?: string | null; parentPhone?: string | null; parentName?: string | null; active: boolean; joiningDate?: string | null; createdAt?: string; _count: { attempts: number } };
 type User = { id?: string; role: 'admin' | 'teacher' | 'superadmin' | 'student'; name?: string; email?: string; username?: string; hasApiKey?: boolean; school?: string | null; subject?: string | null; grade?: string | null; teacherId?: string | null; teacherName?: string | null };
-type QuizDraft = { title: string; grade?: string; mode: Mode; hasTimer: boolean; minutes: number; showResults: boolean; questions: Question[] };
+export type LiveTimerState = {
+  enabled: boolean;
+  durationSeconds: number;
+  remainingSeconds: number;
+  isPaused: boolean;
+  phase: 'question' | 'revealing' | 'gap' | 'advancing' | 'idle';
+  gapRemainingSeconds: number;
+};
+type QuizDraft = { title: string; grade?: string; mode: Mode; hasTimer: boolean; minutes: number; liveTimerSeconds?: number | null; showResults: boolean; questions: Question[] };
 import { TeacherAIAssistant } from './components/TeacherAIAssistant';
 export const ALL_STUDENT_GRADES = ['Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12'];
 export const ALL_ACADEMIC_SUBJECTS = [
@@ -46,9 +55,9 @@ export const ALL_ACADEMIC_SUBJECTS = [
   'Moral Science & Ethics',
   'Other / Custom Subject',
 ];
-const newDraft = (): QuizDraft => ({ title: '', grade: getDefaultGrade(), mode: 'LIVE', hasTimer: false, minutes: 20, showResults: true, questions: [emptyQuestion()] });
+const newDraft = (): QuizDraft => ({ title: '', grade: getDefaultGrade(), mode: 'LIVE', hasTimer: false, minutes: 20, liveTimerSeconds: 30, showResults: true, questions: [emptyQuestion()] });
 type StudentQuiz = { id: string; title: string; grade?: string | null; mode: Mode; status: Status; timeLimitSeconds: number | null; questionCount: number; totalMarks?: number; attempt: { status: string; deadlineAt: string | null; score: number | null; submittedAt?: string | null } | null };
-type ActiveQuiz = { id: string; title: string; grade?: string | null; mode: Mode; status: Status; timeLimitSeconds: number | null; showResults: boolean; currentQuestionIndex: number; currentAnswerRevealed: boolean; questionCount?: number; totalMarks?: number; questions: Question[]; attempt: { status: string; deadlineAt: string | null; score: number | null; answers: { questionId: string; optionId: string }[] } | null };
+type ActiveQuiz = { id: string; title: string; grade?: string | null; mode: Mode; status: Status; timeLimitSeconds: number | null; showResults: boolean; currentQuestionIndex: number; currentAnswerRevealed: boolean; questionCount?: number; totalMarks?: number; questions: Question[]; timer?: LiveTimerState | null; attempt: { status: string; deadlineAt: string | null; score: number | null; answers: { questionId: string; optionId: string }[] } | null };
 type Result = { id: string; studentId?: string; name: string; status: string; submittedAt: string | null; score: number | null; totalMarks: number; parentPhone?: string | null; parentName?: string | null; answers: { question: string; response: string; correct: boolean; marks: number }[] };
 type LiveStats = { answered: number; participants: number; distribution: { optionId: string; count: number }[]; responses: { name: string; optionId: string; text: string }[] };
 
@@ -59,6 +68,10 @@ type WorksheetSubmission = {
   images: string;
   score: number | null;
   remarks: string | null;
+  aiDraftScore?: number | null;
+  aiDraftRemarks?: string | null;
+  aiDraftBreakdown?: string | null;
+  aiStatus?: string | null;
   status: 'SUBMITTED' | 'GRADED';
   submittedAt: string;
   gradedAt: string | null;
@@ -369,7 +382,7 @@ function App() {
           bc.postMessage({ type: 'LOGOUT' });
           bc.close();
         }
-      } catch {}
+      } catch { }
     }
   }
 
@@ -588,7 +601,7 @@ function App() {
                   bc.postMessage({ type: 'LOGIN', user: u });
                   bc.close();
                 }
-              } catch {}
+              } catch { }
             }}
           />
         )}
@@ -1169,7 +1182,7 @@ function AISettingsPanel({ setNotice, user }: { setNotice: (msg: string) => void
           if (user) user.hasApiKey = Boolean(d.teacher.apiKey);
         }
       })
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => setLoading(false));
   }, []);
 
@@ -2275,7 +2288,7 @@ function ContentSourceUploadSection({
   );
 }
 
-function AIQuizModal({ onClose, onGenerated, onNavigateToAISettings }: { onClose: () => void; onGenerated: (quiz: { title: string; mode: Mode; hasTimer?: boolean; minutes?: number; questions: Question[]; grade?: string }) => void; onNavigateToAISettings?: () => void }) {
+function AIQuizModal({ onClose, onGenerated, onNavigateToAISettings }: { onClose: () => void; onGenerated: (quiz: { title: string; mode: Mode; hasTimer?: boolean; minutes?: number; liveTimerSeconds?: number | null; questions: Question[]; grade?: string }) => void; onNavigateToAISettings?: () => void }) {
   const [subject, setSubject] = useState(() => getDefaultSubject());
   const [customSubject, setCustomSubject] = useState('');
   const [grade, setGrade] = useState(() => getDefaultGrade());
@@ -2287,6 +2300,7 @@ function AIQuizModal({ onClose, onGenerated, onNavigateToAISettings }: { onClose
   const [mode, setMode] = useState<Mode>('LIVE');
   const [hasTimer, setHasTimer] = useState(false);
   const [minutes, setMinutes] = useState(20);
+  const [liveTimerSeconds, setLiveTimerSeconds] = useState(30);
   const [details, setDetails] = useState('');
   const [sourceFiles, setSourceFiles] = useState<UploadedSourceFile[]>([]);
   const [strictMode, setStrictMode] = useState(false);
@@ -2337,7 +2351,15 @@ function AIQuizModal({ onClose, onGenerated, onNavigateToAISettings }: { onClose
           uploadedFiles: sourceFiles.length > 0 ? sourceFiles : undefined,
         }),
       });
-      onGenerated({ title: res.title, grade, mode, hasTimer, minutes, questions: res.questions });
+      onGenerated({
+        title: res.title,
+        grade,
+        mode,
+        hasTimer,
+        minutes,
+        liveTimerSeconds: (mode === 'LIVE' && hasTimer) ? liveTimerSeconds : null,
+        questions: res.questions
+      });
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Unable to generate quiz.');
     } finally {
@@ -2469,7 +2491,7 @@ function AIQuizModal({ onClose, onGenerated, onNavigateToAISettings }: { onClose
         <div className="field compact-field" style={{ gridColumn: '1 / -1' }}>
           <span>Quiz Delivery Mode</span>
           <div className="mode-choice compact-mode-choice">
-            <button type="button" className={mode === 'LIVE' ? 'chosen' : ''} onClick={() => { setMode('LIVE'); setHasTimer(false); }}>
+            <button type="button" className={mode === 'LIVE' ? 'chosen' : ''} onClick={() => { setMode('LIVE'); }}>
               <Radio size={15} />
               <span><strong>Live classroom</strong></span>
             </button>
@@ -2484,6 +2506,52 @@ function AIQuizModal({ onClose, onGenerated, onNavigateToAISettings }: { onClose
           </div>
         </div>
 
+        {mode === 'LIVE' && (
+          <div style={{ gridColumn: '1 / -1', padding: '12px 14px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+              <span style={{ fontSize: '13px', fontWeight: 600, color: '#334155', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Clock3 size={15} color="#0284c7" /> Per-Question Timer (Auto Reveal & Advance)
+              </span>
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '12.5px', fontWeight: 600, color: hasTimer ? '#0284c7' : '#64748b' }}>
+                <input type="checkbox" checked={hasTimer} onChange={(e) => setHasTimer(e.target.checked)} />
+                {hasTimer ? 'Timer Active' : 'Manual Pace (No Timer)'}
+              </label>
+            </div>
+            {hasTimer && (
+              <div>
+                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '8px' }}>
+                  {[15, 20, 30, 45, 60].map((sec) => (
+                    <button
+                      key={sec}
+                      type="button"
+                      className={`button button-quiet ${liveTimerSeconds === sec ? 'active-pill' : ''}`}
+                      style={{
+                        padding: '4px 10px',
+                        borderRadius: '16px',
+                        fontSize: '12px',
+                        fontWeight: 600,
+                        border: liveTimerSeconds === sec ? '2px solid #0284c7' : '1px solid #cbd5e1',
+                        background: liveTimerSeconds === sec ? '#e0f2fe' : '#ffffff',
+                        color: liveTimerSeconds === sec ? '#0369a1' : '#475569',
+                      }}
+                      onClick={() => setLiveTimerSeconds(sec)}
+                    >
+                      {sec}s
+                    </button>
+                  ))}
+                </div>
+                <div className="input-suffix" style={{ maxWidth: '160px' }}>
+                  <input type="number" min={5} max={300} value={liveTimerSeconds} onChange={(e) => setLiveTimerSeconds(Number(e.target.value))} />
+                  <span>seconds</span>
+                </div>
+                <p style={{ margin: '6px 0 0', fontSize: '11.5px', color: '#64748b' }}>
+                  Automatically reveals answer after timer expires, pauses 2-3s, and shows next question. Teacher can pause anytime.
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
         {mode === 'SELF_PACED' && hasTimer && (
           <label className="field compact-field short-field" style={{ marginTop: '4px' }}>
             <span>Time Limit (Minutes)</span>
@@ -2494,7 +2562,7 @@ function AIQuizModal({ onClose, onGenerated, onNavigateToAISettings }: { onClose
           </label>
         )}
 
-        <label className="field compact-field" style={{ gridColumn: mode === 'SELF_PACED' && hasTimer ? 'auto' : '1 / -1' }}>
+        <label className="field compact-field" style={{ gridColumn: (mode === 'SELF_PACED' && hasTimer) ? 'auto' : '1 / -1' }}>
           <span>Any Other Details (Optional)</span>
           <input value={details} onChange={(e) => setDetails(e.target.value)} placeholder="e.g. Focus on word problems..." />
         </label>
@@ -2533,7 +2601,7 @@ function QuizList({ quizzes, onEdit, onSelect, onOpenAI, onRefresh, setNotice, o
     catch (cause) { setNotice(cause instanceof Error ? cause.message : 'Unable to delete quiz.'); }
   }
   if (!quizzes.length) return <div className="empty-state"><span className="empty-icon"><Sparkles size={26} /></span><h3>Your first quiz starts here.</h3><p>Build a live classroom round or generate an AI quiz in seconds.</p><div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', justifyContent: 'center' }}><button className="button button-primary" onClick={onOpenAI}><Sparkles size={17} /> Generate with AI</button><button className="button button-secondary" onClick={() => onEdit({ id: '', title: '', mode: 'LIVE', status: 'DRAFT', currentQuestionIndex: 0, currentAnswerRevealed: false, timeLimitSeconds: null, showResults: true })}><Plus size={16} /> Create manually</button></div></div>;
-  return <div className="quiz-list">{quizzes.map((quiz) => <article className="quiz-row" key={quiz.id}><div className={`quiz-mode-icon ${quiz.mode === 'LIVE' ? 'mode-live' : 'mode-timed'}`}>{quiz.mode === 'LIVE' ? <Radio size={19} /> : <Clock3 size={19} />}</div><button className="quiz-row-main" onClick={() => onSelect(quiz)}><strong>{quiz.title}</strong><span>{quiz.mode === 'LIVE' ? 'Live classroom' : quiz.timeLimitSeconds !== null ? `${Math.round(quiz.timeLimitSeconds / 60)} min · Self-paced` : 'Self Paced'} <i /> {quiz._count?.questions ?? 0} questions <i /> {quiz._count?.attempts ?? 0} attempts</span></button><StatusPill status={quiz.status} /><div className="quiz-row-actions">{onRestart && <button className="icon-button" title="Restart quiz for unsubmitted students (reset to Question 1)" aria-label={`Restart ${quiz.title}`} onClick={() => onRestart(quiz)}><RotateCcw size={15} /></button>}<button className="icon-button" title="Edit quiz" aria-label={`Edit ${quiz.title}`} disabled={quiz.status === 'ACTIVE'} onClick={() => onEdit(quiz)}><Pencil size={15} /></button><button className="icon-button danger-hover" title="Delete quiz" aria-label={`Delete ${quiz.title}`} onClick={() => void remove(quiz)}><Trash2 size={15} /></button></div></article>)}</div>;
+  return <div className="quiz-list">{quizzes.map((quiz) => <article className="quiz-row" key={quiz.id}><div className={`quiz-mode-icon ${quiz.mode === 'LIVE' ? 'mode-live' : 'mode-timed'}`}>{quiz.mode === 'LIVE' ? <Radio size={19} /> : <Clock3 size={19} />}</div><button className="quiz-row-main" onClick={() => onSelect(quiz)}><strong>{quiz.title}</strong><span>{quiz.mode === 'LIVE' ? (quiz.timeLimitSeconds ? `${quiz.timeLimitSeconds}s timer · Live classroom` : 'Live classroom') : quiz.timeLimitSeconds !== null ? `${Math.round(quiz.timeLimitSeconds / 60)} min · Self-paced` : 'Self Paced'} <i /> {quiz._count?.questions ?? 0} questions <i /> {quiz._count?.attempts ?? 0} attempts</span></button><StatusPill status={quiz.status} /><div className="quiz-row-actions">{onRestart && <button className="icon-button" title="Restart quiz for unsubmitted students (reset to Question 1)" aria-label={`Restart ${quiz.title}`} onClick={() => onRestart(quiz)}><RotateCcw size={15} /></button>}<button className="icon-button" title="Edit quiz" aria-label={`Edit ${quiz.title}`} disabled={quiz.status === 'ACTIVE'} onClick={() => onEdit(quiz)}><Pencil size={15} /></button><button className="icon-button danger-hover" title="Delete quiz" aria-label={`Delete ${quiz.title}`} onClick={() => void remove(quiz)}><Trash2 size={15} /></button></div></article>)}</div>;
 }
 function StatusPill({ status }: { status: Status }) { return <span className={`status-pill status-${status.toLowerCase()}`}><i />{status === 'ACTIVE' ? 'Live' : status === 'CLOSED' ? 'Finished' : 'Draft'}</span>; }
 
@@ -2545,19 +2613,54 @@ function QuizManager({ quizzes, selectedQuiz, setSelectedQuiz, liveQuiz, refresh
   const [stats, setStats] = useState<LiveStats>({ answered: 0, participants: 0, distribution: [], responses: [] });
   const socketRef = useRef<Socket | null>(null);
   const [liveState, setLiveState] = useState<{ status: Status; currentQuestionIndex: number; currentAnswerRevealed: boolean; questionCount: number; question: Question | null } | null>(null);
+  const [liveTimer, setLiveTimer] = useState<LiveTimerState | null>(null);
 
   const activeQuizzes = quizzes.filter((quiz) => quiz.status !== 'CLOSED');
   const archivedQuizzes = quizzes.filter((quiz) => quiz.status === 'CLOSED');
 
   useEffect(() => {
-    if (!liveQuiz || liveQuiz.mode !== 'LIVE' || liveQuiz.status !== 'ACTIVE') { setLiveState(null); return; }
+    if (!liveQuiz || liveQuiz.mode !== 'LIVE' || liveQuiz.status !== 'ACTIVE') {
+      setLiveState(null);
+      setLiveTimer(null);
+      return;
+    }
     const socket = io({ withCredentials: true, transports: ['websocket', 'polling'] });
     socketRef.current = socket;
     socket.on('connect', () => socket.emit('watch:quiz', liveQuiz.id));
     socket.on('quiz:stats', setStats);
-    socket.on('quiz:state', (state) => setLiveState(state));
+    socket.on('quiz:timer', (timerData: LiveTimerState) => setLiveTimer(timerData));
+    socket.on('quiz:state', (state: any) => {
+      setLiveState(state);
+      if (state?.timer !== undefined) setLiveTimer(state.timer);
+    });
     return () => { socket.disconnect(); socketRef.current = null; };
   }, [liveQuiz?.id, liveQuiz?.status]);
+
+  const [teacherSoundEnabled, setTeacherSoundEnabled] = useState<boolean>(() => isQuizSoundEnabled());
+  const teacherWarningSecRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    teacherWarningSecRef.current = null;
+  }, [liveQuiz?.currentQuestionIndex]);
+
+  useEffect(() => {
+    if (!liveQuiz || liveQuiz.mode !== 'LIVE' || liveQuiz.status !== 'ACTIVE' || !liveTimer || !liveTimer.enabled || liveTimer.isPaused) {
+      return;
+    }
+    if (liveTimer.phase === 'question' && liveTimer.remainingSeconds >= 1 && liveTimer.remainingSeconds <= 5) {
+      if (teacherWarningSecRef.current !== liveTimer.remainingSeconds) {
+        teacherWarningSecRef.current = liveTimer.remainingSeconds;
+        playCountdownWarningSound(liveTimer.remainingSeconds, teacherSoundEnabled);
+      }
+    } else if (liveTimer.phase === 'revealing' || liveTimer.phase === 'gap') {
+      if (teacherWarningSecRef.current !== 0) {
+        teacherWarningSecRef.current = 0;
+        playAnswerRevealChime(teacherSoundEnabled);
+      }
+    } else if (liveTimer.phase === 'question' && liveTimer.remainingSeconds > 5) {
+      teacherWarningSecRef.current = null;
+    }
+  }, [liveQuiz?.id, liveQuiz?.mode, liveQuiz?.status, liveQuiz?.currentQuestionIndex, liveTimer?.phase, liveTimer?.remainingSeconds, liveTimer?.isPaused, liveTimer?.enabled, teacherSoundEnabled]);
 
   async function startEdit(quiz?: Quiz) {
     if (!quiz?.id) { setEditingId(''); setDraft(newDraft()); return; }
@@ -2569,8 +2672,9 @@ function QuizManager({ quizzes, selectedQuiz, setSelectedQuiz, liveQuiz, refresh
         title: full.title,
         grade: full.grade || 'All Grades',
         mode: full.mode,
-        hasTimer: full.mode === 'SELF_PACED' && full.timeLimitSeconds !== null,
+        hasTimer: full.mode === 'LIVE' ? (full.timeLimitSeconds !== null && full.timeLimitSeconds > 0) : (full.mode === 'SELF_PACED' && full.timeLimitSeconds !== null),
         minutes: Math.max(1, Math.round((full.timeLimitSeconds ?? 1200) / 60)),
+        liveTimerSeconds: full.mode === 'LIVE' && full.timeLimitSeconds ? full.timeLimitSeconds : 30,
         showResults: full.showResults,
         questions: full.questions ?? [emptyQuestion()]
       });
@@ -2591,7 +2695,9 @@ function QuizManager({ quizzes, selectedQuiz, setSelectedQuiz, liveQuiz, refresh
         title: draft.title,
         grade: draft.grade && draft.grade !== 'All Grades' ? draft.grade : null,
         mode: draft.mode,
-        timeLimitSeconds: (draft.mode === 'SELF_PACED' && draft.hasTimer) ? Math.max(60, draft.minutes * 60) : null,
+        timeLimitSeconds: draft.mode === 'LIVE'
+          ? (draft.hasTimer ? (draft.liveTimerSeconds || 30) : null)
+          : (draft.hasTimer ? Math.max(60, draft.minutes * 60) : null),
         showResults: draft.showResults,
         questions: draft.questions
       };
@@ -2601,7 +2707,8 @@ function QuizManager({ quizzes, selectedQuiz, setSelectedQuiz, liveQuiz, refresh
     finally { setSaving(false); }
   }
 
-  async function control(action: 'start' | 'next' | 'reveal' | 'stop', quizId?: string) {
+  async function control(action: 'start' | 'next' | 'reveal' | 'stop' | 'pause_timer' | 'resume_timer' | 'set_timer' | 'add_time', quizId?: string, seconds?: number) {
+    unlockAudio();
     const targetQuiz = quizId ? quizzes.find((q) => q.id === quizId) : liveQuiz;
     if (!targetQuiz) return;
     try {
@@ -2610,9 +2717,10 @@ function QuizManager({ quizzes, selectedQuiz, setSelectedQuiz, liveQuiz, refresh
       } else if (action === 'next') {
         setLiveState((prev) => prev ? { ...prev, currentQuestionIndex: prev.currentQuestionIndex + 1, currentAnswerRevealed: false } : prev);
       }
-      await api(`/api/quizzes/${targetQuiz.id}/control`, { method: 'PATCH', body: JSON.stringify({ action }) });
+      await api(`/api/quizzes/${targetQuiz.id}/control`, { method: 'PATCH', body: JSON.stringify({ action, seconds }) });
       if (action === 'stop') {
         setSelectedQuiz('');
+        setLiveTimer(null);
         setNotice(`✓ "${targetQuiz.title}" finished and safely moved to Archive.`);
       } else if (action === 'start') {
         setSelectedQuiz(targetQuiz.id);
@@ -2648,7 +2756,7 @@ function QuizManager({ quizzes, selectedQuiz, setSelectedQuiz, liveQuiz, refresh
     }
   }
 
-  function handleAIGenerated(result: { title: string; mode: Mode; hasTimer?: boolean; minutes?: number; questions: Question[]; grade?: string }) {
+  function handleAIGenerated(result: { title: string; mode: Mode; hasTimer?: boolean; minutes?: number; liveTimerSeconds?: number | null; questions: Question[]; grade?: string }) {
     setEditingId('');
     setDraft({
       title: result.title,
@@ -2656,6 +2764,7 @@ function QuizManager({ quizzes, selectedQuiz, setSelectedQuiz, liveQuiz, refresh
       mode: result.mode,
       hasTimer: result.hasTimer ?? false,
       minutes: result.minutes ?? 20,
+      liveTimerSeconds: result.liveTimerSeconds ?? 30,
       showResults: true,
       questions: result.questions,
     });
@@ -2666,7 +2775,61 @@ function QuizManager({ quizzes, selectedQuiz, setSelectedQuiz, liveQuiz, refresh
   if (draft) return <section className="view-enter"><div className="page-heading compact-heading"><div><button className="back-link" onClick={() => setDraft(null)}><ArrowLeft size={15} /> All quizzes</button><h1>{editingId ? 'Edit your quiz' : 'Build a quiz'}</h1><p>Keep each question clear and focused.</p></div><button className="button button-primary" onClick={(event) => void saveQuiz(event as unknown as React.FormEvent)} disabled={saving}>{saving ? 'Saving...' : <><Check size={16} /> Save quiz</>}</button></div>
     <form className="editor-layout" onSubmit={saveQuiz}>
       <div className="editor-main">
-        <div className="form-panel"><div className="panel-title"><span className="step-count">01</span><div><h2>Quiz details</h2><p>Give your quiz a name and select target grade.</p></div></div><div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px' }}><label className="field"><span>Quiz title</span><input required maxLength={120} value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} placeholder="e.g. Fractions, round one" /></label><label className="field"><span>Target Grade</span><select value={draft.grade || getDefaultGrade()} onChange={(event) => setDraft({ ...draft, grade: event.target.value })} style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#fff', fontSize: '14px', width: '100%' }}><option value="All Grades">All Grades (Open to all students)</option>{getActiveGrades().length > 0 && (<optgroup label="Active Classes">{getActiveGrades().map((g) => (<option key={g} value={g}>{g}</option>))}</optgroup>)}{ALL_STUDENT_GRADES.filter((g) => !getActiveGrades().includes(g)).length > 0 && (<optgroup label="Other Classes">{ALL_STUDENT_GRADES.filter((g) => !getActiveGrades().includes(g)).map((g) => (<option key={g} value={g}>{g}</option>))}</optgroup>)}</select></label></div><div className="field"><span>How will students take it?</span><div className="mode-choice"><button type="button" className={draft.mode === 'LIVE' ? 'chosen' : ''} onClick={() => setDraft({ ...draft, mode: 'LIVE', hasTimer: false })}><Radio size={18} /><span><strong>Live classroom</strong></span>{draft.mode === 'LIVE' && <Check size={16} />}</button><button type="button" className={draft.mode === 'SELF_PACED' && draft.hasTimer ? 'chosen' : ''} onClick={() => setDraft({ ...draft, mode: 'SELF_PACED', hasTimer: true })}><Clock3 size={18} /><span><strong>Timed practice</strong></span>{draft.mode === 'SELF_PACED' && draft.hasTimer && <Check size={16} />}</button><button type="button" className={draft.mode === 'SELF_PACED' && !draft.hasTimer ? 'chosen' : ''} onClick={() => setDraft({ ...draft, mode: 'SELF_PACED', hasTimer: false })}><BookOpenCheck size={18} /><span><strong>Self Paced</strong></span>{draft.mode === 'SELF_PACED' && !draft.hasTimer && <Check size={16} />}</button></div></div>{draft.mode === 'SELF_PACED' && draft.hasTimer && <label className="field short-field" style={{ marginTop: '16px' }}><span>Time limit</span><div className="input-suffix"><input type="number" min={1} max={1440} value={draft.minutes} onChange={(event) => setDraft({ ...draft, minutes: Number(event.target.value) })} /><span>minutes</span></div></label>}<label className="check-row"><input type="checkbox" checked={draft.showResults} onChange={(event) => setDraft({ ...draft, showResults: event.target.checked })} /><span><strong>Show results to students</strong></span></label></div>
+        <div className="form-panel"><div className="panel-title"><span className="step-count">01</span><div><h2>Quiz details</h2><p>Give your quiz a name and select target grade.</p></div></div><div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px' }}><label className="field"><span>Quiz title</span><input required maxLength={120} value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} placeholder="e.g. Fractions, round one" /></label><label className="field"><span>Target Grade</span><select value={draft.grade || getDefaultGrade()} onChange={(event) => setDraft({ ...draft, grade: event.target.value })} style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#fff', fontSize: '14px', width: '100%' }}><option value="All Grades">All Grades (Open to all students)</option>{getActiveGrades().length > 0 && (<optgroup label="Active Classes">{getActiveGrades().map((g) => (<option key={g} value={g}>{g}</option>))}</optgroup>)}{ALL_STUDENT_GRADES.filter((g) => !getActiveGrades().includes(g)).length > 0 && (<optgroup label="Other Classes">{ALL_STUDENT_GRADES.filter((g) => !getActiveGrades().includes(g)).map((g) => (<option key={g} value={g}>{g}</option>))}</optgroup>)}</select></label></div><div className="field"><span>How will students take it?</span><div className="mode-choice"><button type="button" className={draft.mode === 'LIVE' ? 'chosen' : ''} onClick={() => setDraft({ ...draft, mode: 'LIVE' })}><Radio size={18} /><span><strong>Live classroom</strong></span>{draft.mode === 'LIVE' && <Check size={16} />}</button><button type="button" className={draft.mode === 'SELF_PACED' && draft.hasTimer ? 'chosen' : ''} onClick={() => setDraft({ ...draft, mode: 'SELF_PACED', hasTimer: true })}><Clock3 size={18} /><span><strong>Timed practice</strong></span>{draft.mode === 'SELF_PACED' && draft.hasTimer && <Check size={16} />}</button><button type="button" className={draft.mode === 'SELF_PACED' && !draft.hasTimer ? 'chosen' : ''} onClick={() => setDraft({ ...draft, mode: 'SELF_PACED', hasTimer: false })}><BookOpenCheck size={18} /><span><strong>Self Paced</strong></span>{draft.mode === 'SELF_PACED' && !draft.hasTimer && <Check size={16} />}</button></div></div>{draft.mode === 'LIVE' && (
+          <div style={{ marginTop: '16px', padding: '14px 16px', background: '#f8fafc', border: '1.5px solid #e2e8f0', borderRadius: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', fontWeight: 700, fontSize: '13.5px', color: '#1e293b' }}>
+                <Clock3 size={17} color="#0284c7" /> Per-Question Timer (Auto-Reveal & Advance)
+              </span>
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 600, color: draft.hasTimer ? '#0284c7' : '#64748b' }}>
+                <input
+                  type="checkbox"
+                  checked={draft.hasTimer}
+                  onChange={(event) => setDraft({ ...draft, hasTimer: event.target.checked, liveTimerSeconds: draft.liveTimerSeconds || 30 })}
+                />
+                <span>{draft.hasTimer ? 'Timer Active ✓' : 'Manual Pace (No timer)'}</span>
+              </label>
+            </div>
+            {draft.hasTimer && (
+              <div>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '10px' }}>
+                  {[15, 20, 30, 45, 60, 90].map((sec) => (
+                    <button
+                      key={sec}
+                      type="button"
+                      className={`button button-quiet ${draft.liveTimerSeconds === sec ? 'active-pill' : ''}`}
+                      style={{
+                        padding: '5px 14px',
+                        borderRadius: '20px',
+                        fontSize: '13px',
+                        fontWeight: 700,
+                        border: draft.liveTimerSeconds === sec ? '2px solid #0284c7' : '1px solid #cbd5e1',
+                        background: draft.liveTimerSeconds === sec ? '#e0f2fe' : '#ffffff',
+                        color: draft.liveTimerSeconds === sec ? '#0369a1' : '#475569',
+                      }}
+                      onClick={() => setDraft({ ...draft, liveTimerSeconds: sec })}
+                    >
+                      {sec}s
+                    </button>
+                  ))}
+                </div>
+                <div className="input-suffix" style={{ maxWidth: '180px' }}>
+                  <input
+                    type="number"
+                    min={5}
+                    max={300}
+                    value={draft.liveTimerSeconds || 30}
+                    onChange={(event) => setDraft({ ...draft, liveTimerSeconds: Math.max(5, Math.min(300, Number(event.target.value))) })}
+                  />
+                  <span>seconds</span>
+                </div>
+                <p style={{ margin: '8px 0 0', fontSize: '12px', color: '#64748b', lineHeight: 1.5 }}>
+                  ⏱ Each question will automatically reveal the answer after the timer finishes, pause for 2-3 seconds, and advance to the next question. You can pause or adjust the timer anytime during class.
+                </p>
+              </div>
+            )}
+          </div>
+        )}{draft.mode === 'SELF_PACED' && draft.hasTimer && <label className="field short-field" style={{ marginTop: '16px' }}><span>Time limit</span><div className="input-suffix"><input type="number" min={1} max={1440} value={draft.minutes} onChange={(event) => setDraft({ ...draft, minutes: Number(event.target.value) })} /><span>minutes</span></div></label>}<label className="check-row"><input type="checkbox" checked={draft.showResults} onChange={(event) => setDraft({ ...draft, showResults: event.target.checked })} /><span><strong>Show results to students</strong></span></label></div>
         {draft.questions.map((question, index) => <div className="form-panel question-editor" key={index}>
           <div className="panel-title">
             <span className="step-count">{String(index + 2).padStart(2, '0')}</span>
@@ -2818,6 +2981,319 @@ function QuizManager({ quizzes, selectedQuiz, setSelectedQuiz, liveQuiz, refresh
 
           {liveQuiz.mode === 'LIVE' ? (
             <>
+              {/* Live Classroom Interactive Timer Controller Bar */}
+              <div
+                className="live-timer-bar"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  gap: '12px',
+                  padding: '12px 18px',
+                  margin: '6px 0 16px',
+                  background: liveTimer?.phase === 'gap'
+                    ? 'linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%)'
+                    : liveTimer?.isPaused
+                      ? 'linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)'
+                      : (liveTimer && liveTimer.enabled)
+                        ? 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)'
+                        : '#f8fafc',
+                  border: liveTimer?.phase === 'gap'
+                    ? '2px solid #34d399'
+                    : liveTimer?.isPaused
+                      ? '2px solid #f59e0b'
+                      : (liveTimer && liveTimer.enabled)
+                        ? '2px solid #38bdf8'
+                        : '1px solid #e2e8f0',
+                  borderRadius: '14px',
+                  boxShadow: '0 2px 10px rgba(0,0,0,0.03)',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
+                  {liveTimer && liveTimer.enabled ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <div
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          width: '42px',
+                          height: '42px',
+                          borderRadius: '50%',
+                          background: (liveTimer.phase === 'gap' || liveTimer.phase === 'revealing') ? '#10b981' : liveTimer.isPaused ? '#f59e0b' : '#0284c7',
+                          color: '#ffffff',
+                          boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                          fontWeight: 800,
+                          fontSize: '15px',
+                        }}
+                      >
+                        {liveTimer.phase === 'gap' || liveTimer.phase === 'revealing' ? (
+                          <Check size={20} />
+                        ) : liveTimer.isPaused ? (
+                          <Pause size={18} />
+                        ) : (
+                          <Clock3 size={18} />
+                        )}
+                      </div>
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ fontSize: '19px', fontWeight: 800, color: liveTimer.isPaused ? '#b45309' : (liveTimer.phase === 'gap' ? '#047857' : '#0f172a') }}>
+                            {liveTimer.phase === 'gap'
+                              ? `Next Question in ${Math.max(1, liveTimer.gapRemainingSeconds)}s`
+                              : liveTimer.phase === 'revealing'
+                                ? 'Revealing Answer to Students...'
+                                : liveTimer.phase === 'advancing'
+                                  ? 'Loading Next Question...'
+                                  : `${Math.max(0, liveTimer.remainingSeconds)}s remaining`}
+                          </span>
+                          {liveTimer.isPaused ? (
+                            <span
+                              style={{
+                                fontSize: '11px',
+                                fontWeight: 700,
+                                padding: '2px 8px',
+                                borderRadius: '12px',
+                                background: '#fef3c7',
+                                color: '#b45309',
+                                border: '1px solid #fde68a',
+                                letterSpacing: '0.5px',
+                              }}
+                            >
+                              PAUSED
+                            </span>
+                          ) : liveTimer.phase === 'gap' ? (
+                            <span
+                              style={{
+                                fontSize: '11px',
+                                fontWeight: 700,
+                                padding: '2px 8px',
+                                borderRadius: '12px',
+                                background: '#d1fae5',
+                                color: '#065f46',
+                                border: '1px solid #a7f3d0',
+                              }}
+                            >
+                              GAP (ANSWER REVEALED)
+                            </span>
+                          ) : liveTimer.phase === 'revealing' ? (
+                            <span
+                              style={{
+                                fontSize: '11px',
+                                fontWeight: 700,
+                                padding: '2px 8px',
+                                borderRadius: '12px',
+                                background: '#fef3c7',
+                                color: '#b45309',
+                                border: '1px solid #fde68a',
+                              }}
+                            >
+                              REVEALING ANSWER...
+                            </span>
+                          ) : (
+                            <span
+                              style={{
+                                fontSize: '11px',
+                                fontWeight: 700,
+                                padding: '2px 8px',
+                                borderRadius: '12px',
+                                background: '#e0f2fe',
+                                color: '#0369a1',
+                                border: '1px solid #bae6fd',
+                              }}
+                            >
+                              AUTO REVEAL ({liveTimer.durationSeconds}s)
+                            </span>
+                          )}
+                        </div>
+                        <span style={{ fontSize: '12px', color: '#64748b' }}>
+                          {liveTimer.phase === 'gap'
+                            ? `Answer is revealed on student screens. Advancing automatically in ${Math.max(1, liveTimer.gapRemainingSeconds)}s.`
+                            : liveTimer.phase === 'revealing'
+                              ? 'Time expired. Syncing answer reveal to all student screens...'
+                              : liveTimer.phase === 'advancing'
+                                ? 'Advancing to the next question...'
+                                : liveTimer.isPaused
+                                  ? 'Timer is paused. Students have unlimited time until you resume.'
+                                  : 'Reveals answer automatically when timer expires, pauses 2-3s, and advances.'}
+                        </span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <Clock3 size={20} color="#64748b" />
+                      <div>
+                        <strong style={{ fontSize: '14px', color: '#334155' }}>Manual Pace (No Timer)</strong>
+                        <p style={{ margin: 0, fontSize: '12px', color: '#64748b' }}>
+                          You control question reveals manually. Or enable an automated timer below:
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                  {liveTimer && liveTimer.enabled ? (
+                    <>
+                      {liveTimer.isPaused ? (
+                        <button
+                          type="button"
+                          className="button button-primary"
+                          style={{
+                            background: '#10b981',
+                            borderColor: '#059669',
+                            padding: '6px 14px',
+                            fontSize: '13px',
+                            fontWeight: 700,
+                            gap: '6px',
+                          }}
+                          title="Resume timer countdown"
+                          onClick={() => void control('resume_timer')}
+                        >
+                          <Play size={15} /> Resume Timer
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          className="button button-secondary"
+                          style={{
+                            background: '#fef3c7',
+                            borderColor: '#f59e0b',
+                            color: '#b45309',
+                            padding: '6px 14px',
+                            fontSize: '13px',
+                            fontWeight: 700,
+                            gap: '6px',
+                          }}
+                          title="Pause timer on this question"
+                          onClick={() => void control('pause_timer')}
+                        >
+                          <Pause size={15} /> Pause Timer
+                        </button>
+                      )}
+
+                      {liveTimer.phase === 'question' && (
+                        <button
+                          type="button"
+                          className="button button-quiet"
+                          style={{
+                            padding: '6px 10px',
+                            fontSize: '12.5px',
+                            fontWeight: 700,
+                            background: '#ffffff',
+                            border: '1px solid #cbd5e1',
+                          }}
+                          title="Add 10 extra seconds to this question"
+                          onClick={() => void control('add_time', undefined, 10)}
+                        >
+                          +10s
+                        </button>
+                      )}
+
+                      <select
+                        value={liveTimer.durationSeconds || 30}
+                        onChange={(e) => {
+                          const val = Number(e.target.value);
+                          void control('set_timer', undefined, val);
+                        }}
+                        style={{
+                          padding: '6px 10px',
+                          borderRadius: '8px',
+                          border: '1px solid #cbd5e1',
+                          background: '#ffffff',
+                          fontSize: '12px',
+                          fontWeight: 600,
+                          color: '#334155',
+                          cursor: 'pointer',
+                        }}
+                        title="Change timer duration in seconds"
+                      >
+                        <option value={15}>15 seconds</option>
+                        <option value={20}>20 seconds</option>
+                        <option value={30}>30 seconds</option>
+                        <option value={45}>45 seconds</option>
+                        <option value={60}>60 seconds</option>
+                        <option value={90}>90 seconds</option>
+                      </select>
+                      <button
+                        type="button"
+                        className="button button-quiet"
+                        style={{
+                          padding: '6px 10px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          fontSize: '12px',
+                          color: teacherSoundEnabled ? '#047857' : '#64748b',
+                          background: teacherSoundEnabled ? '#ecfdf5' : '#ffffff',
+                          border: teacherSoundEnabled ? '1px solid #a7f3d0' : '1px solid #cbd5e1',
+                          borderRadius: '8px',
+                        }}
+                        title={teacherSoundEnabled ? '5-second countdown warning sound is ON. Click to mute.' : '5-second countdown warning sound is OFF. Click to unmute.'}
+                        onClick={() => {
+                          unlockAudio();
+                          const next = !teacherSoundEnabled;
+                          setTeacherSoundEnabled(next);
+                          setQuizSoundEnabled(next);
+                          if (next) {
+                            playTestSound();
+                          }
+                        }}
+                      >
+                        {teacherSoundEnabled ? <Volume2 size={14} color="#059669" /> : <VolumeX size={14} color="#94a3b8" />}
+                        <span>{teacherSoundEnabled ? 'Sound ON' : 'Muted'}</span>
+                      </button>
+
+                      {teacherSoundEnabled && (
+                        <button
+                          type="button"
+                          className="button button-quiet"
+                          style={{
+                            padding: '6px 8px',
+                            fontSize: '11px',
+                            color: '#059669',
+                            background: '#f0fdf4',
+                            border: '1px solid #bbf7d0',
+                            borderRadius: '8px',
+                          }}
+                          title="Click to test countdown bell sound"
+                          onClick={() => {
+                            unlockAudio();
+                            playTestSound();
+                          }}
+                        >
+                          Test Sound
+                        </button>
+                      )}
+
+                      <button
+                        type="button"
+                        className="button button-quiet"
+                        style={{ padding: '6px 10px', fontSize: '12px', color: '#64748b' }}
+                        title="Turn off automatic timer and use manual pace"
+                        onClick={() => void control('set_timer', undefined, 0)}
+                      >
+                        Turn Off
+                      </button>
+                    </>
+                  ) : (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                      {[15, 20, 30, 45, 60].map((sec) => (
+                        <button
+                          key={sec}
+                          type="button"
+                          className="button button-secondary"
+                          style={{ padding: '5px 10px', fontSize: '12px', fontWeight: 600 }}
+                          onClick={() => void control('set_timer', undefined, sec)}
+                        >
+                          Start {sec}s Timer
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
               <div className="monitor-question">
                 <div className="monitor-question-meta">
                   <span>
@@ -2917,7 +3393,7 @@ function QuizManager({ quizzes, selectedQuiz, setSelectedQuiz, liveQuiz, refresh
                       grade: liveQuiz.grade,
                       mode: liveQuiz.mode,
                       questionCount: liveQuiz._count?.questions ?? (liveQuiz.questions?.length || 0),
-                      timeMinutes: liveQuiz.timeLimitSeconds ? Math.round(liveQuiz.timeLimitSeconds / 60) : null,
+                      timeMinutes: liveQuiz.mode === 'LIVE' ? null : (liveQuiz.timeLimitSeconds ? Math.round(liveQuiz.timeLimitSeconds / 60) : null),
                       teacherName,
                     });
                     openWhatsAppChat(null, text);
@@ -3093,7 +3569,7 @@ function QuizManager({ quizzes, selectedQuiz, setSelectedQuiz, liveQuiz, refresh
                         grade: quiz.grade,
                         mode: quiz.mode,
                         questionCount: quiz._count?.questions ?? (quiz.questions?.length || 0),
-                        timeMinutes: quiz.timeLimitSeconds ? Math.round(quiz.timeLimitSeconds / 60) : null,
+                        timeMinutes: quiz.mode === 'LIVE' ? null : (quiz.timeLimitSeconds ? Math.round(quiz.timeLimitSeconds / 60) : null),
                         teacherName,
                       });
                       openWhatsAppChat(null, text);
@@ -3822,7 +4298,7 @@ function AttendanceTrackerPanel({ students, setNotice }: { students: Student[]; 
         records: { studentId: string; status: AttendanceStatus; remarks?: string; updatedAt?: string }[];
         summary: AttendanceSummary;
       }>(`/api/attendance?date=${targetDate}&grade=${grade}`);
-      
+
       const map: Record<string, { status: AttendanceStatus | ''; remarks: string; updatedAt?: string }> = {};
       data.records.forEach((r) => {
         map[r.studentId] = { status: r.status, remarks: r.remarks || '', updatedAt: r.updatedAt };
@@ -5370,9 +5846,9 @@ function StudentProgressReportPanel({
     const scoresToPrint = selectedMonth === 'ALL'
       ? scores
       : scores.filter((s) => {
-          const m = getAssessmentMonthName(s.completedAt);
-          return m.toLowerCase() === selectedMonth.toLowerCase();
-        });
+        const m = getAssessmentMonthName(s.completedAt);
+        return m.toLowerCase() === selectedMonth.toLowerCase();
+      });
 
     const scoresRows = scoresToPrint
       .map(
@@ -5511,9 +5987,9 @@ function StudentProgressReportPanel({
   const monthScores = (selectedMonth === 'ALL'
     ? scores
     : scores.filter((s) => {
-        const m = getAssessmentMonthName(s.completedAt);
-        return m.toLowerCase() === selectedMonth.toLowerCase();
-      })
+      const m = getAssessmentMonthName(s.completedAt);
+      return m.toLowerCase() === selectedMonth.toLowerCase();
+    })
   );
 
   // Then filter by type (ALL, QUIZ, QUESTION_PAPER)
@@ -5690,15 +6166,15 @@ function StudentProgressReportPanel({
             {gradeStudents.length === 0
               ? `No Students Enrolled in ${selectedGrade}`
               : eligibleGradeStudents.length === 0
-              ? `No Students Enrolled in ${selectedGrade} for ${selectedMonth}`
-              : 'No Student Selected'}
+                ? `No Students Enrolled in ${selectedGrade} for ${selectedMonth}`
+                : 'No Student Selected'}
           </h3>
           <p style={{ margin: 0, fontSize: '14px', color: '#64748b', maxWidth: '440px', marginInline: 'auto' }}>
             {gradeStudents.length === 0
               ? `There are no students enrolled in ${selectedGrade}. Please select another grade from the Grade dropdown above.`
               : eligibleGradeStudents.length === 0
-              ? `No students in ${selectedGrade} had joined on or before ${selectedMonth} (${academicYear}). Please select another month or grade.`
-              : 'Please select a student from the dropdown above to view their academic summary, assessment scores, and attendance record.'}
+                ? `No students in ${selectedGrade} had joined on or before ${selectedMonth} (${academicYear}). Please select another month or grade.`
+                : 'Please select a student from the dropdown above to view their academic summary, assessment scores, and attendance record.'}
           </p>
         </div>
       ) : (
@@ -6179,11 +6655,11 @@ function StudentManager({
   onBackToClassroom,
   quizzes = [],
   selectedQuiz = '',
-  setSelectedQuiz = () => {},
+  setSelectedQuiz = () => { },
   results = [],
   distribution = [],
-  onExport = () => {},
-  onResetAttempt = async () => {},
+  onExport = () => { },
+  onResetAttempt = async () => { },
   subTab: externalSubTab,
   setSubTab: externalSetSubTab,
   teacherName,
@@ -7290,25 +7766,25 @@ function ResultsPanel({
                               <span style={{ fontSize: '13px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                                 Submitted Answers ({result.answers.length})
                               </span>
-                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-                              <button
-                                type="button"
-                                className="result-whatsapp-btn"
-                                style={{ minHeight: '30px', padding: '4px 10px' }}
-                                title={result.parentPhone ? `Share scorecard with parent on WhatsApp (${result.parentPhone})` : `Add parent WhatsApp number & share scorecard`}
-                                onClick={() => handleShareScorecard(result)}
-                              >
-                                <MessageCircle size={13} /> WhatsApp Scorecard
-                              </button>
-                              <button
-                                className="result-restart-btn"
-                                style={{ minHeight: '30px', padding: '4px 10px' }}
-                                title={`Reset quiz for ${result.name} so they can retake it`}
-                                onClick={() => void onResetAttempt(result)}
-                              >
-                                <RotateCcw size={13} /> Restart Quiz for {result.name}
-                              </button>
-                            </div>
+                              <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                                <button
+                                  type="button"
+                                  className="result-whatsapp-btn"
+                                  style={{ minHeight: '30px', padding: '4px 10px' }}
+                                  title={result.parentPhone ? `Share scorecard with parent on WhatsApp (${result.parentPhone})` : `Add parent WhatsApp number & share scorecard`}
+                                  onClick={() => handleShareScorecard(result)}
+                                >
+                                  <MessageCircle size={13} /> WhatsApp Scorecard
+                                </button>
+                                <button
+                                  className="result-restart-btn"
+                                  style={{ minHeight: '30px', padding: '4px 10px' }}
+                                  title={`Reset quiz for ${result.name} so they can retake it`}
+                                  onClick={() => void onResetAttempt(result)}
+                                >
+                                  <RotateCcw size={13} /> Restart Quiz for {result.name}
+                                </button>
+                              </div>
                             </div>
                             {result.answers.length ? (
                               result.answers.map((answer, answerIndex) => (
@@ -7571,17 +8047,47 @@ function StudentApp({
   const [remaining, setRemaining] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [liveTimer, setLiveTimer] = useState<LiveTimerState | null>(null);
   const socketRef = useRef<Socket | null>(null);
   const submittedRef = useRef(false);
   const activeQuizRef = useRef<ActiveQuiz | null>(null);
   activeQuizRef.current = activeQuiz;
 
+  const [soundEnabled, setSoundEnabled] = useState<boolean>(() => isQuizSoundEnabled());
+  const lastPlayedWarningSecRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    lastPlayedWarningSecRef.current = null;
+  }, [activeQuiz?.currentQuestionIndex]);
+
+  useEffect(() => {
+    if (!activeQuiz || activeQuiz.mode !== 'LIVE' || !liveTimer || !liveTimer.enabled || liveTimer.isPaused) {
+      return;
+    }
+    // Last 5 seconds light warning music (5, 4, 3, 2, 1)
+    if (liveTimer.phase === 'question' && liveTimer.remainingSeconds >= 1 && liveTimer.remainingSeconds <= 5) {
+      if (lastPlayedWarningSecRef.current !== liveTimer.remainingSeconds) {
+        lastPlayedWarningSecRef.current = liveTimer.remainingSeconds;
+        playCountdownWarningSound(liveTimer.remainingSeconds, soundEnabled);
+      }
+    } else if (liveTimer.phase === 'revealing' || liveTimer.phase === 'gap') {
+      if (lastPlayedWarningSecRef.current !== 0) {
+        lastPlayedWarningSecRef.current = 0;
+        playAnswerRevealChime(soundEnabled);
+      }
+    } else if (liveTimer.phase === 'question' && liveTimer.remainingSeconds > 5) {
+      lastPlayedWarningSecRef.current = null;
+    }
+  }, [activeQuiz?.id, activeQuiz?.mode, activeQuiz?.currentQuestionIndex, liveTimer?.phase, liveTimer?.remainingSeconds, liveTimer?.isPaused, liveTimer?.enabled, soundEnabled]);
+
   async function joinQuiz(quizId: string) {
+    unlockAudio();
     setError('');
     try {
       sessionStorage.setItem('activeQuizId', quizId);
       const data = await api<{ quiz: ActiveQuiz }>(`/api/student/quizzes/${quizId}`);
       setActiveQuiz(data.quiz);
+      if (data.quiz.timer !== undefined) setLiveTimer(data.quiz.timer);
       setAnswers(Object.fromEntries((data.quiz.attempt?.answers ?? []).map((answer) => [answer.questionId, answer.optionId])));
       setQuestionIndex(data.quiz.currentQuestionIndex);
       submittedRef.current = data.quiz.attempt?.status === 'SUBMITTED';
@@ -7621,6 +8127,7 @@ function StudentApp({
             setAnswers({});
             setQuestionIndex(0);
             submittedRef.current = false;
+            setLiveTimer(null);
             setActiveQuiz((prev) => prev ? {
               ...prev,
               status: fresh ? fresh.status : 'DRAFT',
@@ -7638,6 +8145,7 @@ function StudentApp({
       setAnswers({});
       setQuestionIndex(0);
       submittedRef.current = false;
+      setLiveTimer(null);
       sessionStorage.removeItem('activeQuizId');
       setActiveQuiz(null);
       setTab('open');
@@ -7661,6 +8169,10 @@ function StudentApp({
     socketRef.current = socket;
     socket.on('connect', () => socket.emit('watch:quiz', currentQuiz.id));
 
+    socket.on('quiz:timer', (timerData: LiveTimerState) => {
+      setLiveTimer(timerData);
+    });
+
     socket.on('quiz:restarted', (data: { quizId: string }) => {
       const liveId = activeQuizRef.current?.id;
       if (!liveId || liveId !== data.quizId) return;
@@ -7670,6 +8182,7 @@ function StudentApp({
       setAnswers({});
       setQuestionIndex(0);
       submittedRef.current = false;
+      setLiveTimer(null);
       sessionStorage.removeItem('activeQuizId');
       setActiveQuiz((prev) => prev ? {
         ...prev,
@@ -7689,15 +8202,20 @@ function StudentApp({
       setAnswers({});
       setQuestionIndex(0);
       submittedRef.current = false;
+      setLiveTimer(null);
       sessionStorage.removeItem('activeQuizId');
       setActiveQuiz(null);
       void loadQuizzes();
     });
 
-    socket.on('quiz:state', (state: { status: Status; currentQuestionIndex: number; currentAnswerRevealed: boolean; questionCount?: number; totalMarks?: number; question: Question | null }) => {
+    socket.on('quiz:state', (state: any) => {
       const liveId = activeQuizRef.current?.id;
+      if (state?.timer !== undefined) {
+        setLiveTimer(state.timer);
+      }
       if (state.status === 'CLOSED' && liveId) {
         sessionStorage.removeItem('activeQuizId');
+        setLiveTimer(null);
         void api<{ quiz: ActiveQuiz }>(`/api/student/quizzes/${liveId}`).then(({ quiz }) => {
           setActiveQuiz(quiz);
           if (quiz.attempt?.answers) {
@@ -7717,6 +8235,7 @@ function StudentApp({
         setAnswers({});
         setQuestionIndex(0);
         submittedRef.current = false;
+        setLiveTimer(null);
         setActiveQuiz((prev) => prev ? {
           ...prev,
           status: 'DRAFT',
@@ -7778,6 +8297,7 @@ function StudentApp({
   const isSubmitted = activeQuiz?.attempt?.status === 'SUBMITTED';
 
   async function saveAnswer(questionId: string, optionId: string) {
+    unlockAudio();
     if (!activeQuiz || isSubmitted) return;
     setAnswers((current) => ({ ...current, [questionId]: optionId }));
     setSaving(true);
@@ -7901,8 +8421,86 @@ function StudentApp({
           </div>
         </div>
       ) : <>
-        <div className="student-quiz-heading"><div><span className="overline">{activeQuiz.mode === 'LIVE' ? <><i className="live-dot" /> Live classroom</> : activeQuiz.timeLimitSeconds !== null ? 'Timed practice' : 'Self-paced practice'}</span><h1>{activeQuiz.title}</h1></div>{activeQuiz.mode === 'SELF_PACED' && activeQuiz.timeLimitSeconds !== null && <div className={`timer-chip ${remaining !== null && remaining < 60 ? 'timer-warning' : ''}`}><Clock3 size={16} /><span>{remaining === null ? '--:--' : `${String(Math.floor(remaining / 60)).padStart(2, '0')}:${String(remaining % 60).padStart(2, '0')}`}</span></div>}</div>
+        <div className="student-quiz-heading"><div><span className="overline">{activeQuiz.mode === 'LIVE' ? <><i className="live-dot" /> Live classroom</> : activeQuiz.timeLimitSeconds !== null ? 'Timed practice' : 'Self-paced practice'}</span><h1>{activeQuiz.title}</h1></div>{activeQuiz.mode === 'SELF_PACED' && activeQuiz.timeLimitSeconds !== null && <div className={`timer-chip ${remaining !== null && remaining < 60 ? 'timer-warning' : ''}`}><Clock3 size={16} /><span>{remaining === null ? '--:--' : `${String(Math.floor(remaining / 60)).padStart(2, '0')}:${String(remaining % 60).padStart(2, '0')}`}</span></div>}{activeQuiz.mode === 'LIVE' && liveTimer && liveTimer.enabled && <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}><div className={`timer-chip ${liveTimer.phase === 'gap' ? 'timer-gap' : liveTimer.phase === 'revealing' ? 'timer-gap' : liveTimer.isPaused ? 'timer-paused' : liveTimer.remainingSeconds <= 5 ? 'timer-warning' : ''}`} style={{ minWidth: '180px', padding: '0 22px' }}>{liveTimer.phase === 'gap' ? <><CheckCircle2 size={16} /><span>Next in {Math.max(1, liveTimer.gapRemainingSeconds)}s</span></> : liveTimer.phase === 'revealing' ? <><CheckCircle2 size={16} /><span>Revealing...</span></> : liveTimer.phase === 'advancing' ? <><Clock3 size={16} /><span>Loading...</span></> : liveTimer.isPaused ? <><Pause size={16} /><span>Paused ({Math.max(0, liveTimer.remainingSeconds)}s)</span></> : <><Clock3 size={16} /><span>{Math.max(0, liveTimer.remainingSeconds)}s</span></>}</div><button type="button" className="icon-button" style={{ height: '48px', width: '48px', borderRadius: '14px', background: soundEnabled ? '#ecfdf5' : '#f1f5f9', borderColor: soundEnabled ? '#a7f3d0' : '#cbd5e1', color: soundEnabled ? '#059669' : '#64748b' }} title={soundEnabled ? '5-second countdown warning sound is ON. Click to mute / test.' : '5-second countdown warning sound is OFF. Click to unmute.'} onClick={() => { unlockAudio(); const next = !soundEnabled; setSoundEnabled(next); setQuizSoundEnabled(next); if (next) { playTestSound(); } }}>{soundEnabled ? <Volume2 size={20} /> : <VolumeX size={20} />}</button></div>}</div>
         <div className="student-progress"><span>Question {activeQuiz.mode === 'LIVE' ? activeQuiz.currentQuestionIndex + 1 : questionIndex + 1} <i>of {activeQuiz.mode === 'LIVE' ? total : questionList.length}</i></span><div className="progress-track"><div style={{ width: `${(activeQuiz.mode === 'LIVE' ? (activeQuiz.currentQuestionIndex + 1) / total : (questionIndex + 1) / questionList.length) * 100}%` }} /></div><span className="saved-label">{saving ? 'Saving...' : answers[currentQuestion?.id ?? ''] ? 'Answer saved' : 'Not answered'}</span></div>
+        {liveTimer && liveTimer.enabled && liveTimer.phase === 'revealing' && (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              padding: '12px 18px',
+              background: '#fef3c7',
+              border: '2px solid #f59e0b',
+              borderRadius: '14px',
+              color: '#92400e',
+              marginBottom: '16px',
+              fontWeight: 600,
+              fontSize: '14px',
+              boxShadow: '0 4px 14px rgba(245, 158, 11, 0.15)',
+            }}
+          >
+            <Clock3 size={20} color="#d97706" />
+            <span>Time's up! Revealing correct answer...</span>
+          </div>
+        )}
+        {liveTimer && liveTimer.enabled && liveTimer.phase === 'gap' && (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '12px',
+              padding: '12px 18px',
+              background: '#ecfdf5',
+              border: '2px solid #10b981',
+              borderRadius: '14px',
+              color: '#065f46',
+              marginBottom: '16px',
+              fontWeight: 600,
+              fontSize: '14px',
+              boxShadow: '0 4px 14px rgba(16, 185, 129, 0.15)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <CheckCircle2 size={20} color="#059669" />
+              <span>Time’s up! Correct answer is revealed below</span>
+            </div>
+            <span
+              style={{
+                background: '#10b981',
+                color: '#ffffff',
+                padding: '4px 12px',
+                borderRadius: '20px',
+                fontSize: '12px',
+                fontWeight: 700,
+                letterSpacing: '0.02em',
+              }}
+            >
+              Next question in {Math.max(1, liveTimer.gapRemainingSeconds)}s...
+            </span>
+          </div>
+        )}
+        {liveTimer && liveTimer.enabled && liveTimer.isPaused && (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              padding: '10px 16px',
+              background: '#fffbeb',
+              border: '1.5px solid #f59e0b',
+              borderRadius: '12px',
+              color: '#92400e',
+              marginBottom: '16px',
+              fontSize: '13px',
+              fontWeight: 600,
+            }}
+          >
+            <Pause size={17} color="#d97706" />
+            <span>Teacher has paused the timer on this question. Take your time!</span>
+          </div>
+        )}
         {currentQuestion ? <div className="student-question-card">
           <div className="question-card-top">
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
@@ -7936,13 +8534,63 @@ function StudentApp({
             {currentQuestion.options.map((option, index) => {
               const chosen = answers[currentQuestion.id ?? ''] === option.id;
               const correct = Boolean(option.isCorrect);
-              return <button key={option.id ?? index} className={`student-option ${chosen ? 'option-selected' : ''} ${activeQuiz.currentAnswerRevealed && correct ? 'option-revealed' : ''}`} onClick={() => void saveAnswer(currentQuestion.id!, option.id!)} disabled={activeQuiz.currentAnswerRevealed || saving}><span className="student-option-letter">{String.fromCharCode(65 + index)}</span><span>{option.text}</span>{chosen && <span className="option-check"><Check size={15} /></span>}{activeQuiz.currentAnswerRevealed && correct && <span className="correct-label">Correct</span>}</button>;
+              const isLocked = activeQuiz.currentAnswerRevealed || saving || Boolean(liveTimer?.enabled && (liveTimer?.phase === 'revealing' || liveTimer?.phase === 'gap' || liveTimer?.phase === 'advancing'));
+              return <button key={option.id ?? index} className={`student-option ${chosen ? 'option-selected' : ''} ${activeQuiz.currentAnswerRevealed && correct ? 'option-revealed' : ''}`} onClick={() => void saveAnswer(currentQuestion.id!, option.id!)} disabled={isLocked}><span className="student-option-letter">{String.fromCharCode(65 + index)}</span><span>{option.text}</span>{chosen && <span className="option-check"><Check size={15} /></span>}{activeQuiz.currentAnswerRevealed && correct && <span className="correct-label">Correct</span>}</button>;
             })}
           </div>
-          {activeQuiz.currentAnswerRevealed && <div className="answer-revealed-note"><CheckCircle2 size={15} /> Your teacher revealed the answer</div>}
+          {activeQuiz.currentAnswerRevealed && (
+            <div className="answer-revealed-note">
+              <CheckCircle2 size={15} />{' '}
+              {liveTimer && liveTimer.enabled && liveTimer.phase === 'gap'
+                ? `Time's up! Answer revealed · Next question in ${Math.max(1, liveTimer.gapRemainingSeconds)}s`
+                : liveTimer && liveTimer.enabled && liveTimer.phase === 'revealing'
+                  ? `Time's up! Answer revealed to classroom`
+                  : 'Your teacher revealed the answer'}
+            </div>
+          )}
         </div> : <div className="waiting-card"><div className="waiting-pulse"><Radio size={22} /></div><h2>You're in.</h2><p>Your teacher will bring up the first question in a moment.</p><span className="waiting-label"><i /> Waiting for the teacher</span></div>}
-        {activeQuiz.mode === 'SELF_PACED' ? <><div className="question-jump"><span>Jump to</span>{questionList.map((question, index) => <button className={`${questionIndex === index ? 'jump-current' : ''} ${answers[question.id ?? ''] ? 'jump-answered' : ''}`} key={question.id ?? index} onClick={() => setQuestionIndex(index)}>{index + 1}</button>)}<span className="jump-legend"><i /> Answered</span></div><div className="student-nav"><button className="button button-secondary" onClick={() => setQuestionIndex(Math.max(0, questionIndex - 1))} disabled={questionIndex === 0}><ArrowLeft size={16} /> Previous</button>{questionIndex < questionList.length - 1 ? <button className="button button-primary" onClick={() => setQuestionIndex(Math.min(questionList.length - 1, questionIndex + 1))}>Next question <ArrowRight size={16} /></button> : <button className="button button-primary" onClick={() => void submitQuiz()} disabled={submitting || saving}>{submitting ? 'Submitting...' : <>Submit quiz <Send size={15} /></>}</button>}</div></> : <div className="live-student-footer"><span><i className="live-dot" /> Your teacher controls the next question</span><span>Your answer is saved automatically</span></div>}
-      </>}{error && <div className="inline-error student-error" role="alert">{error}<button onClick={() => setError('')}><X size={14} /></button></div>}</div><footer className="student-footer">Take a breath. You’ve got this.</footer></main>;
+        {activeQuiz.mode === 'SELF_PACED' ? <><div className="question-jump"><span>Jump to</span>{questionList.map((question, index) => <button className={`${questionIndex === index ? 'jump-current' : ''} ${answers[question.id ?? ''] ? 'jump-answered' : ''}`} key={question.id ?? index} onClick={() => setQuestionIndex(index)}>{index + 1}</button>)}<span className="jump-legend"><i /> Answered</span></div><div className="student-nav"><button className="button button-secondary" onClick={() => setQuestionIndex(Math.max(0, questionIndex - 1))} disabled={questionIndex === 0}><ArrowLeft size={16} /> Previous</button>{questionIndex < questionList.length - 1 ? <button className="button button-primary" onClick={() => setQuestionIndex(Math.min(questionList.length - 1, questionIndex + 1))}>Next question <ArrowRight size={16} /></button> : <button className="button button-primary" onClick={() => void submitQuiz()} disabled={submitting || saving}>{submitting ? 'Submitting...' : <>Submit quiz <Send size={15} /></>}</button>}</div></> : <div className="live-student-footer" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px', padding: '12px 18px', background: '#f8fafc', border: '1.5px solid #e2e8f0', borderRadius: '12px', fontSize: '13px', fontWeight: 600, color: '#475569', marginTop: '20px' }}><span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}><i className="live-dot" /> {liveTimer && liveTimer.enabled ? (liveTimer.phase === 'gap' ? `Next question loading in ${Math.max(1, liveTimer.gapRemainingSeconds)}s...` : liveTimer.phase === 'revealing' ? 'Revealing answer to classroom...' : liveTimer.phase === 'advancing' ? 'Loading next question...' : liveTimer.isPaused ? 'Timer is paused by teacher.' : `Auto-advance timer: ${Math.max(0, liveTimer.remainingSeconds)}s remaining.`) : 'Your teacher controls the next question.'}</span><span style={{ color: '#059669', display: 'inline-flex', alignItems: 'center', gap: '6px' }}><Check size={14} /> Your answer is saved automatically.</span></div>}
+      </>}{error && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            padding: '10px 16px',
+            background: '#fffbeb',
+            border: '1.5px solid #f59e0b',
+            borderRadius: '12px',
+            color: '#92400e',
+            marginTop: '16px',
+            fontSize: '13px',
+            fontWeight: 600,
+            boxShadow: '0 2px 8px rgba(245, 158, 11, 0.08)',
+          }}
+          role="alert"
+        >
+          <Clock3 size={17} color="#d97706" style={{ flexShrink: 0 }} />
+          <span style={{ flex: 1 }}>{error}</span>
+          <button
+            type="button"
+            onClick={() => setError('')}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              cursor: 'pointer',
+              color: '#b45309',
+              padding: '2px 4px',
+              borderRadius: '6px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+            title="Dismiss"
+            aria-label="Dismiss"
+          >
+            <X size={15} />
+          </button>
+        </div>
+      )}</div><footer className="student-footer">Take a breath. You’ve got this.</footer></main>;
   }
 
   return (
@@ -8093,7 +8741,7 @@ function StudentApp({
                           </span>
                           <span className="student-tile-copy">
                             <strong>{quiz.title}</strong>{' '}
-                            <span>{quiz.mode === 'LIVE' ? 'Live classroom · Teacher-led' : quiz.timeLimitSeconds !== null ? `${Math.round((quiz.timeLimitSeconds ?? 0) / 60)} minutes · Self-paced` : 'Self-paced · No time limit'}</span>
+                            <span>{quiz.mode === 'LIVE' ? (quiz.timeLimitSeconds ? `${quiz.timeLimitSeconds}s timer · Live classroom` : 'Live classroom · Teacher-led') : quiz.timeLimitSeconds !== null ? `${Math.round((quiz.timeLimitSeconds ?? 0) / 60)} minutes · Self-paced` : 'Self-paced · No time limit'}</span>
                           </span>
                           <span className="tile-start">
                             {quiz.attempt?.status === 'IN_PROGRESS' ? 'Continue' : 'Join'} <ArrowRight size={15} />
@@ -10061,24 +10709,140 @@ function WorksheetSubmissionsModal({
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [gradingState, setGradingState] = useState<Record<string, { score: number; remarks: string }>>({});
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [evaluatingId, setEvaluatingId] = useState<string | null>(null);
+  const [showBreakdown, setShowBreakdown] = useState<Record<string, boolean>>({});
+
+  // Teacher manual upload on behalf of student
+  const [students, setStudents] = useState<Array<{ id: string; name: string; grade?: string | null }>>([]);
+  const [showUploadForm, setShowUploadForm] = useState(false);
+  const [selectedStudentId, setSelectedStudentId] = useState('');
+  const [teacherImages, setTeacherImages] = useState<string[]>([]);
+  const [isUploadingTeacher, setIsUploadingTeacher] = useState(false);
+  const [uploadError, setUploadError] = useState('');
+  const [resettingId, setResettingId] = useState<string | null>(null);
 
   const submissions = paper.submissions || [];
 
+  useEffect(() => {
+    async function loadStudents() {
+      try {
+        const res = await api<{ students: Array<{ id: string; name: string; grade?: string | null }> }>('/api/students');
+        if (res.students) setStudents(res.students);
+      } catch {
+        // quiet
+      }
+    }
+    void loadStudents();
+  }, []);
+
+  function handleTeacherFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+    setUploadError('');
+
+    files.forEach((file) => {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const base64 = event.target?.result as string;
+        if (base64) {
+          setTeacherImages((prev) => [...prev, base64]);
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function handleTeacherUpload() {
+    if (!selectedStudentId) {
+      setUploadError('Please select a student from the dropdown list.');
+      return;
+    }
+    if (teacherImages.length === 0) {
+      setUploadError('Please select or capture at least one photo of the student’s notebook / answer sheet.');
+      return;
+    }
+
+    setIsUploadingTeacher(true);
+    setUploadError('');
+    try {
+      const res = await api<{ ok: boolean; submission: any }>(`/api/worksheets/${paper.id}/teacher-upload`, {
+        method: 'POST',
+        body: JSON.stringify({
+          studentId: selectedStudentId,
+          images: teacherImages,
+        }),
+      });
+
+      if (res.submission) {
+        setGradingState((prev) => ({
+          ...prev,
+          [res.submission.id]: {
+            score: res.submission.aiDraftScore ?? res.submission.score ?? 0,
+            remarks: res.submission.aiDraftRemarks ?? res.submission.remarks ?? '',
+          },
+        }));
+      }
+
+      setNotice('✨ Student notebook photos uploaded & AI auto-evaluation complete! Review draft marks below.');
+      setTeacherImages([]);
+      setSelectedStudentId('');
+      setShowUploadForm(false);
+      await onRefresh();
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : 'Teacher upload failed.');
+    } finally {
+      setIsUploadingTeacher(false);
+    }
+  }
+
   async function handleGrade(submissionId: string) {
-    const state = gradingState[submissionId];
-    if (!state) return;
+    const sub = submissions.find((s) => s.id === submissionId);
+    const defaultScore = sub?.status === 'GRADED'
+      ? (sub.score ?? 0)
+      : (sub?.aiDraftScore !== null && sub?.aiDraftScore !== undefined ? sub.aiDraftScore : (sub?.score ?? 0));
+    const defaultRemarks = sub?.status === 'GRADED'
+      ? (sub.remarks ?? '')
+      : (sub?.aiDraftRemarks || sub?.remarks || '');
+
+    const currentScore = gradingState[submissionId]?.score ?? defaultScore;
+    const currentRemarks = gradingState[submissionId]?.remarks ?? defaultRemarks;
+
     setSavingId(submissionId);
     try {
       await api(`/api/worksheets/submissions/${submissionId}/grade`, {
         method: 'PATCH',
-        body: JSON.stringify({ score: Number(state.score), remarks: state.remarks }),
+        body: JSON.stringify({ score: Number(currentScore), remarks: currentRemarks }),
       });
-      setNotice('Grade & remarks saved for student!');
+      setNotice('✓ Grade & remarks saved for student!');
       await onRefresh();
     } catch (err) {
       setNotice(err instanceof Error ? err.message : 'Could not save grade.');
     } finally {
       setSavingId(null);
+    }
+  }
+
+  async function handleEvaluateAI(submissionId: string) {
+    setEvaluatingId(submissionId);
+    try {
+      const res = await api<{ ok: boolean; result: any }>(`/api/worksheets/submissions/${submissionId}/ai-evaluate`, {
+        method: 'POST',
+      });
+      if (res.result) {
+        setGradingState((prev) => ({
+          ...prev,
+          [submissionId]: {
+            score: res.result.aiDraftScore ?? prev[submissionId]?.score ?? 0,
+            remarks: res.result.aiDraftRemarks ?? prev[submissionId]?.remarks ?? '',
+          },
+        }));
+      }
+      setNotice('✨ AI auto-check complete! Suggested score & feedback filled in draft mode.');
+      await onRefresh();
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : 'AI evaluation failed.');
+    } finally {
+      setEvaluatingId(null);
     }
   }
 
@@ -10093,16 +10857,103 @@ function WorksheetSubmissionsModal({
     }
   }
 
-  return (
-    <div className="word-doc-modal-overlay">
-      <div className="word-doc-modal-container" style={{ maxWidth: '900px' }}>
-        <div className="word-doc-modal-header">
-          <h3><CheckSquare size={20} color="#059669" /> Student Answer Sheet Submissions - {paper.title}</h3>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+  async function handleResetSubmission(submissionId: string, studentName: string) {
+    if (!window.confirm(`Reset answer sheet submission for ${studentName}?\n\nThis will completely delete the student's uploaded notebook photos, recorded score, remarks, and AI evaluation, unlocking the worksheet so the student can submit anew.`)) {
+      return;
+    }
+    setResettingId(submissionId);
+    try {
+      await api(`/api/worksheets/submissions/${submissionId}`, { method: 'DELETE' });
+      setNotice(`✓ Answer sheet submission reset for ${studentName}. The student can now upload anew.`);
+      await onRefresh();
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : 'Could not reset submission.');
+    } finally {
+      setResettingId(null);
+    }
+  }
+
+  return createPortal(
+    <div
+      className="word-doc-modal-overlay submissions-modal-overlay"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div
+        className="word-doc-modal-container submissions-modal-container"
+        style={{ maxWidth: '920px', width: '92%', margin: 'auto' }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div
+          className="word-doc-modal-header submissions-modal-header"
+          style={{
+            padding: '16px 24px',
+            background: '#f8fafc',
+            borderBottom: '1px solid #e2e8f0',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '16px',
+            flexWrap: 'nowrap',
+            minHeight: '68px',
+            boxSizing: 'border-box',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flex: '1 1 auto' }}>
+            <CheckSquare size={22} color="#059669" style={{ flexShrink: 0 }} />
+            <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#0f172a', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              Student Answer Sheet Submissions - {paper.title}
+            </h3>
+          </div>
+
+          <div className="submissions-modal-actions" style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0, flexWrap: 'nowrap' }}>
+            <button
+              type="button"
+              className="button button-primary"
+              style={{
+                fontSize: '13px',
+                height: '36px',
+                padding: '0 14px',
+                background: showUploadForm ? '#e0f2fe' : '#0284c7',
+                borderColor: showUploadForm ? '#7dd3fc' : '#0284c7',
+                color: showUploadForm ? '#0369a1' : '#ffffff',
+                borderRadius: '9px',
+                fontWeight: 600,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                boxShadow: showUploadForm ? 'none' : '0 2px 6px rgba(2, 132, 199, 0.22)',
+                whiteSpace: 'nowrap',
+              }}
+              title="Upload student notebook photos"
+              onClick={() => {
+                setShowUploadForm((prev) => !prev);
+                setUploadError('');
+              }}
+            >
+              <Camera size={15} />
+              <span>{showUploadForm ? 'Close Upload' : 'Upload Student Work'}</span>
+            </button>
+
             {paper.status === 'PUBLISHED' ? (
               <button
+                type="button"
                 className="button button-secondary"
-                style={{ fontSize: '13px', padding: '6px 12px', color: '#047857', borderColor: '#a7f3d0', background: '#ecfdf5' }}
+                style={{
+                  fontSize: '13px',
+                  height: '36px',
+                  padding: '0 14px',
+                  color: '#047857',
+                  borderColor: '#a7f3d0',
+                  background: '#ecfdf5',
+                  borderRadius: '9px',
+                  fontWeight: 600,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  whiteSpace: 'nowrap',
+                }}
                 title="Mark all student answer sheet submissions complete"
                 onClick={async () => {
                   await api(`/api/worksheets/${paper.id}`, {
@@ -10113,30 +10964,321 @@ function WorksheetSubmissionsModal({
                   await onRefresh();
                 }}
               >
-                <CheckCircle2 size={14} color="#047857" /> Mark Submissions Complete
+                <CheckCircle2 size={15} color="#047857" />
+                <span>Mark Complete</span>
               </button>
             ) : paper.status === 'ARCHIVED' ? (
-              <span className="worksheet-badge badge-published" style={{ background: '#dcfce7', color: '#15803d' }}>
-                <CheckCircle2 size={13} /> Submissions Completed
+              <span className="worksheet-badge badge-published" style={{ background: '#dcfce7', color: '#15803d', height: '36px', padding: '0 12px', display: 'inline-flex', alignItems: 'center', gap: '5px', borderRadius: '8px', fontSize: '12px', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                <CheckCircle2 size={14} /> Completed
               </span>
             ) : null}
-            <button className="icon-button quiet" onClick={onClose}><X size={16} /></button>
+
+            <button
+              type="button"
+              className="icon-button quiet"
+              style={{ width: '36px', height: '36px', borderRadius: '9px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+              onClick={onClose}
+              title="Close modal"
+            >
+              <X size={18} />
+            </button>
           </div>
         </div>
 
-        <div style={{ padding: '24px', overflowY: 'auto', flex: 1 }}>
-          <p style={{ margin: '0 0 20px 0', color: '#64748b' }}>
-            Check students' uploaded workbook answer sheet photos, assign final scores with remarks, and delete answer sheet images after checking.
+        <div style={{ padding: '24px', overflowY: 'auto', flex: 1, maxHeight: 'calc(90vh - 80px)' }}>
+          <p style={{ margin: '0 0 20px 0', color: '#64748b', fontSize: '13.5px', lineHeight: '1.5' }}>
+            AI automatically evaluates students' uploaded workbook answer sheet photos in draft mode. Review the suggested scores, customize feedback, and click <strong>"Save Score & Remarks"</strong> to finalize.
           </p>
 
+          {/* Teacher Upload Form for Mobile/WhatsApp Notebook Photos */}
+          {showUploadForm && (
+            <div
+              style={{
+                marginBottom: '24px',
+                background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)',
+                border: '2px solid #38bdf8',
+                borderRadius: '16px',
+                padding: '20px 22px',
+                boxShadow: '0 4px 16px rgba(2, 132, 199, 0.12)',
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '14px' }}>
+                <div>
+                  <h4 style={{ margin: 0, fontSize: '15.5px', fontWeight: 700, color: '#0369a1', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Camera size={18} color="#0284c7" />
+                    <span>Upload Student Answer Sheet (From Notebook / WhatsApp / Mobile)</span>
+                  </h4>
+                  <p style={{ margin: '4px 0 0 0', fontSize: '12.5px', color: '#0c4a6e' }}>
+                    Select the student and attach photos of their handwritten notebook work. AI will inspect the solution steps, calculate marks, and fill in draft evaluation.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="icon-button quiet"
+                  style={{ color: '#0369a1', background: '#ffffff', borderRadius: '8px', width: '28px', height: '28px' }}
+                  onClick={() => setShowUploadForm(false)}
+                >
+                  <X size={15} />
+                </button>
+              </div>
+
+              {uploadError && (
+                <div
+                  style={{
+                    background: '#fef2f2',
+                    border: '1px solid #fecaca',
+                    color: '#991b1b',
+                    borderRadius: '8px',
+                    padding: '8px 12px',
+                    fontSize: '12.5px',
+                    marginBottom: '14px',
+                  }}
+                >
+                  {uploadError}
+                </div>
+              )}
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(240px, 1fr) 2fr', gap: '16px', alignItems: 'start' }}>
+                {/* Student Selector */}
+                <div>
+                  <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 700, color: '#0f172a', marginBottom: '6px' }}>
+                    Select Student: <span style={{ color: '#e11d48' }}>*</span>
+                  </label>
+                  <select
+                    value={selectedStudentId}
+                    onChange={(e) => setSelectedStudentId(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '9px 12px',
+                      borderRadius: '10px',
+                      border: '1.5px solid #7dd3fc',
+                      background: '#ffffff',
+                      fontSize: '13.5px',
+                      color: '#0f172a',
+                      fontWeight: 500,
+                      outline: 'none',
+                    }}
+                  >
+                    <option value="">-- Choose Student --</option>
+                    {students.map((st) => {
+                      const existingSub = submissions.find((s) => s.studentId === st.id);
+                      const statusLabel = existingSub
+                        ? existingSub.status === 'GRADED'
+                          ? ` [Graded: ${existingSub.score}/${paper.totalMarks}]`
+                          : ' [Already Submitted]'
+                        : '';
+                      return (
+                        <option key={st.id} value={st.id}>
+                          {st.name} {st.grade ? `(${st.grade})` : ''}{statusLabel}
+                        </option>
+                      );
+                    })}
+                  </select>
+                  <div style={{ fontSize: '11.5px', color: '#0369a1', marginTop: '4px' }}>
+                    {selectedStudentId && submissions.some((s) => s.studentId === selectedStudentId) ? (
+                      <span style={{ color: '#d97706', fontWeight: 600 }}>⚠️ This student already has a submission. Uploading will replace photos & re-evaluate.</span>
+                    ) : (
+                      'Select the student whose notebook work you are uploading.'
+                    )}
+                  </div>
+                </div>
+
+                {/* File Upload / Camera Photos */}
+                <div>
+                  <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 700, color: '#0f172a', marginBottom: '6px' }}>
+                    Notebook / Answer Sheet Photos: <span style={{ color: '#e11d48' }}>*</span>
+                  </label>
+                  <label
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: '16px',
+                      border: '2px dashed #38bdf8',
+                      borderRadius: '12px',
+                      background: '#ffffff',
+                      cursor: 'pointer',
+                      textAlign: 'center',
+                      transition: 'border-color 0.2s',
+                    }}
+                  >
+                    <Camera size={26} color="#0284c7" />
+                    <div style={{ marginTop: '6px', fontSize: '13px', fontWeight: 600, color: '#0369a1' }}>
+                      Click to Browse or Take Photos of Notebook Pages
+                    </div>
+                    <div style={{ fontSize: '11.5px', color: '#64748b', marginTop: '2px' }}>
+                      Supports multiple photos (Page 1, Page 2, Page 3...)
+                    </div>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      onChange={handleTeacherFileSelect}
+                      style={{ display: 'none' }}
+                    />
+                  </label>
+                </div>
+              </div>
+
+              {/* Attached Images Preview */}
+              {teacherImages.length > 0 && (
+                <div style={{ marginTop: '16px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                    <strong style={{ fontSize: '13px', color: '#0369a1' }}>
+                      Selected Notebook Pages ({teacherImages.length} Page{teacherImages.length === 1 ? '' : 's'}):
+                    </strong>
+                    <button
+                      type="button"
+                      className="text-button"
+                      style={{ fontSize: '12px', color: '#e11d48' }}
+                      onClick={() => setTeacherImages([])}
+                    >
+                      Clear All Photos
+                    </button>
+                  </div>
+                  <div className="image-preview-strip">
+                    {teacherImages.map((img, idx) => (
+                      <div
+                        className="image-preview-thumb"
+                        key={idx}
+                        onClick={() => setSelectedImage(img)}
+                        style={{ cursor: 'pointer', position: 'relative' }}
+                        title="Click to zoom page"
+                      >
+                        <img src={img} alt={`Page ${idx + 1}`} />
+                        <div
+                          style={{
+                            position: 'absolute',
+                            bottom: 0,
+                            left: 0,
+                            right: 0,
+                            background: 'rgba(0,0,0,0.65)',
+                            color: '#fff',
+                            fontSize: '10px',
+                            textAlign: 'center',
+                            padding: '2px',
+                            fontWeight: 600,
+                          }}
+                        >
+                          Page {idx + 1}
+                        </div>
+                        <button
+                          type="button"
+                          title="Remove page"
+                          style={{
+                            position: 'absolute',
+                            top: '2px',
+                            right: '2px',
+                            background: '#e11d48',
+                            color: '#fff',
+                            border: 'none',
+                            borderRadius: '50%',
+                            width: '18px',
+                            height: '18px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer',
+                          }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setTeacherImages((prev) => prev.filter((_, i) => i !== idx));
+                          }}
+                        >
+                          <X size={10} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Bottom Actions */}
+              <div style={{ marginTop: '16px', display: 'flex', justifyContent: 'flex-end', gap: '10px', alignItems: 'center' }}>
+                <button
+                  type="button"
+                  className="button button-secondary"
+                  style={{ fontSize: '13px', padding: '7px 14px', borderRadius: '10px' }}
+                  disabled={isUploadingTeacher}
+                  onClick={() => {
+                    setShowUploadForm(false);
+                    setTeacherImages([]);
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="button button-primary"
+                  style={{
+                    fontSize: '13px',
+                    padding: '7px 18px',
+                    background: '#059669',
+                    borderColor: '#059669',
+                    borderRadius: '10px',
+                    fontWeight: 700,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    boxShadow: '0 2px 8px rgba(5, 150, 105, 0.3)',
+                  }}
+                  disabled={isUploadingTeacher || !selectedStudentId || teacherImages.length === 0}
+                  onClick={() => void handleTeacherUpload()}
+                >
+                  {isUploadingTeacher ? (
+                    <>
+                      <RefreshCw size={15} className="spin" />
+                      <span>Analyzing Notebook & Evaluating with AI... (~5-8s)</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles size={15} />
+                      <span>Upload & Run AI Auto-Check</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          )}
+
           {submissions.length === 0 ? (
-            <div className="roster-empty">No students have uploaded answer sheets for this paper yet.</div>
+            <div className="roster-empty" style={{ padding: '36px 20px', textAlign: 'center' }}>
+              <p style={{ margin: '0 0 14px 0', fontSize: '14px', color: '#64748b' }}>
+                No students have uploaded answer sheets for this paper yet.
+              </p>
+              {!showUploadForm && (
+                <button
+                  type="button"
+                  className="button button-primary"
+                  style={{ fontSize: '13px', padding: '8px 18px', borderRadius: '10px', margin: '0 auto', background: '#0284c7', borderColor: '#0284c7', display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+                  onClick={() => setShowUploadForm(true)}
+                >
+                  <UploadCloud size={16} /> Upload Student Answer Sheet (From Notebook / WhatsApp)
+                </button>
+              )}
+            </div>
           ) : (
             submissions.map((sub) => {
               let images: string[] = [];
               try { images = JSON.parse(sub.images || '[]'); } catch { images = []; }
-              const currentScore = gradingState[sub.id]?.score ?? sub.score ?? 0;
-              const currentRemarks = gradingState[sub.id]?.remarks ?? sub.remarks ?? '';
+
+              const defaultScore = sub.status === 'GRADED'
+                ? (sub.score ?? 0)
+                : (sub.aiDraftScore !== null && sub.aiDraftScore !== undefined ? sub.aiDraftScore : (sub.score ?? 0));
+              const defaultRemarks = sub.status === 'GRADED'
+                ? (sub.remarks ?? '')
+                : (sub.aiDraftRemarks || sub.remarks || '');
+
+              const currentScore = gradingState[sub.id]?.score ?? defaultScore;
+              const currentRemarks = gradingState[sub.id]?.remarks ?? defaultRemarks;
+
+              let breakdownList: any[] = [];
+              try {
+                if (sub.aiDraftBreakdown) breakdownList = JSON.parse(sub.aiDraftBreakdown);
+              } catch { breakdownList = []; }
+
+              const isEvaluating = sub.aiStatus === 'EVALUATING' || evaluatingId === sub.id;
 
               return (
                 <div className="submission-detail-card" key={sub.id}>
@@ -10145,33 +11287,79 @@ function WorksheetSubmissionsModal({
                       <span className="student-name-tag">👤 {sub.student?.name || 'Student'}</span>
                       <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>
                         Submitted on {new Date(sub.submittedAt).toLocaleString()}
-                        {sub.status === 'GRADED' && <span style={{ marginLeft: '10px', color: '#059669', fontWeight: 'bold' }}>✓ GRADED</span>}
+                        {sub.status === 'GRADED' ? (
+                          <span style={{ marginLeft: '10px', color: '#059669', fontWeight: 'bold' }}>✓ GRADED BY TEACHER</span>
+                        ) : sub.aiStatus === 'COMPLETED' ? (
+                          <span style={{ marginLeft: '10px', color: '#0284c7', fontWeight: 'bold' }}>✨ AI DRAFT READY (Needs Review)</span>
+                        ) : isEvaluating ? (
+                          <span style={{ marginLeft: '10px', color: '#d97706', fontWeight: 'bold' }}>⏳ AI CHECKING PHOTOS...</span>
+                        ) : (
+                          <span style={{ marginLeft: '10px', color: '#64748b' }}>⏳ PENDING TEACHER REVIEW</span>
+                        )}
                       </div>
                     </div>
-                    {sub.score !== null && sub.score !== undefined && (
+                    {sub.score !== null && sub.score !== undefined && sub.status === 'GRADED' ? (
                       <div style={{ textAlign: 'right' }}>
                         <span style={{ fontSize: '20px', fontWeight: 'bold', color: '#059669' }}>
                           {sub.score} / {paper.totalMarks}
                         </span>
-                        <div style={{ fontSize: '12px', color: '#64748b' }}>Final Score</div>
+                        <div style={{ fontSize: '12px', color: '#64748b' }}>Final Verified Score</div>
                       </div>
-                    )}
+                    ) : sub.aiDraftScore !== null && sub.aiDraftScore !== undefined ? (
+                      <div style={{ textAlign: 'right' }}>
+                        <span style={{ fontSize: '20px', fontWeight: 'bold', color: '#0284c7' }}>
+                          {sub.aiDraftScore} / {paper.totalMarks}
+                        </span>
+                        <div style={{ fontSize: '12px', color: '#0284c7', fontWeight: 600 }}>AI Suggested Draft</div>
+                      </div>
+                    ) : null}
                   </div>
 
                   <div style={{ marginTop: '12px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px', flexWrap: 'wrap', gap: '8px' }}>
                       <strong style={{ fontSize: '13px', color: '#334155' }}>
                         Uploaded Answer Sheets ({images.length} Page{images.length === 1 ? '' : 's'}):
                       </strong>
-                      {images.length > 0 && (
+                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                         <button
-                          className="button danger-hover"
-                          style={{ fontSize: '12px', padding: '4px 8px' }}
-                          onClick={() => void handleDeleteImages(sub.id, sub.student?.name || 'Student')}
+                          type="button"
+                          className="button button-quiet"
+                          style={{ fontSize: '12px', padding: '4px 10px', color: '#0284c7', background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: '8px' }}
+                          title="Evaluate or re-check student photos with AI"
+                          disabled={isEvaluating}
+                          onClick={() => void handleEvaluateAI(sub.id)}
                         >
-                          <Trash2 size={13} /> Delete Answer Sheets After Checking
+                          {isEvaluating ? (
+                            <><RefreshCw size={12} className="spin" /> Checking with AI...</>
+                          ) : (
+                            <><Sparkles size={12} /> {sub.aiDraftScore !== null ? 'Re-check with AI' : 'Evaluate with AI'}</>
+                          )}
                         </button>
-                      )}
+                        {images.length > 0 && (
+                          <button
+                            type="button"
+                            className="button danger-hover"
+                            style={{ fontSize: '12px', padding: '4px 8px' }}
+                            onClick={() => void handleDeleteImages(sub.id, sub.student?.name || 'Student')}
+                          >
+                            <Trash2 size={13} /> Delete Answer Sheets After Checking
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          className="button danger-hover"
+                          style={{ fontSize: '12px', padding: '4px 10px', color: '#dc2626', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', fontWeight: 600 }}
+                          title="Reset submission: completely clears student's uploaded work, score and remarks, allowing student to re-submit"
+                          disabled={resettingId === sub.id}
+                          onClick={() => void handleResetSubmission(sub.id, sub.student?.name || 'Student')}
+                        >
+                          {resettingId === sub.id ? (
+                            <><RefreshCw size={12} className="spin" /> Resetting...</>
+                          ) : (
+                            <><RotateCcw size={12} /> Reset Submission</>
+                          )}
+                        </button>
+                      </div>
                     </div>
 
                     {images.length === 0 ? (
@@ -10181,9 +11369,15 @@ function WorksheetSubmissionsModal({
                     ) : (
                       <div className="image-preview-strip">
                         {images.map((imgUrl, idx) => (
-                          <div className="image-preview-thumb" key={idx} onClick={() => setSelectedImage(imgUrl)} style={{ cursor: 'pointer' }}>
+                          <div
+                            className="image-preview-thumb"
+                            key={idx}
+                            onClick={() => setSelectedImage(imgUrl)}
+                            style={{ cursor: 'pointer' }}
+                            title="Click to view full image"
+                          >
                             <img src={imgUrl} alt={`Page ${idx + 1}`} />
-                            <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(0,0,0,0.6)', color: '#fff', fontSize: '10px', textAlign: 'center', padding: '2px' }}>
+                            <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(0,0,0,0.65)', color: '#fff', fontSize: '10px', textAlign: 'center', padding: '3px 2px', fontWeight: 600 }}>
                               Page {idx + 1} (Click)
                             </div>
                           </div>
@@ -10192,8 +11386,162 @@ function WorksheetSubmissionsModal({
                     )}
                   </div>
 
+                  {/* AI Evaluation Draft Banner */}
+                  {isEvaluating ? (
+                    <div
+                      style={{
+                        marginTop: '16px',
+                        padding: '12px 16px',
+                        background: '#fffbeb',
+                        border: '1.5px solid #fde68a',
+                        borderRadius: '12px',
+                        color: '#92400e',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '10px',
+                        fontSize: '13px',
+                        fontWeight: 600,
+                      }}
+                    >
+                      <RefreshCw size={16} className="spin" color="#d97706" />
+                      <span>AI is inspecting student's handwritten solutions & scoring against question paper... (Takes ~5-8s)</span>
+                    </div>
+                  ) : sub.aiStatus === 'COMPLETED' && sub.aiDraftScore !== null ? (
+                    <div
+                      style={{
+                        marginTop: '16px',
+                        padding: '14px 18px',
+                        background: '#f0fdf4',
+                        border: '1.5px solid #86efac',
+                        borderRadius: '14px',
+                        boxShadow: '0 2px 8px rgba(16, 185, 129, 0.08)',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <span style={{ background: '#dcfce7', padding: '6px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <Sparkles size={18} color="#059669" />
+                          </span>
+                          <div>
+                            <span style={{ fontSize: '14px', fontWeight: 700, color: '#065f46' }}>
+                              AI Draft Evaluation: {sub.aiDraftScore} / {paper.totalMarks} marks
+                            </span>
+                            <div style={{ fontSize: '12px', color: '#047857', marginTop: '2px' }}>
+                              Pre-filled below in draft mode. You can edit the score & remarks anytime, then click "Save Score & Remarks".
+                            </div>
+                          </div>
+                        </div>
+
+                        {breakdownList.length > 0 && (
+                          <button
+                            type="button"
+                            className="button button-secondary"
+                            style={{ fontSize: '12px', padding: '5px 12px', background: '#ffffff', borderColor: '#86efac', color: '#047857', borderRadius: '8px', fontWeight: 600 }}
+                            onClick={() => setShowBreakdown((prev) => ({ ...prev, [sub.id]: !prev[sub.id] }))}
+                          >
+                            {showBreakdown[sub.id] ? 'Hide Question Breakdown' : `View AI Breakdown (${breakdownList.length} Questions)`}
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Expandable Question-by-Question Breakdown */}
+                      {showBreakdown[sub.id] && breakdownList.length > 0 && (
+                        <div style={{ marginTop: '14px', paddingTop: '14px', borderTop: '1px dashed #86efac' }}>
+                          <h5 style={{ margin: '0 0 10px 0', fontSize: '12.5px', color: '#065f46', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                            Question-by-Question Step & Marking Analysis
+                          </h5>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            {breakdownList.map((item, bIdx) => {
+                              const isCorrect = item.status === 'CORRECT';
+                              const isPartial = item.status === 'PARTIAL';
+                              const badgeBg = isCorrect ? '#ecfdf5' : isPartial ? '#fffbeb' : '#fef2f2';
+                              const badgeColor = isCorrect ? '#047857' : isPartial ? '#b45309' : '#b91c1c';
+                              const badgeBorder = isCorrect ? '#a7f3d0' : isPartial ? '#fde68a' : '#fecaca';
+
+                              return (
+                                <div
+                                  key={bIdx}
+                                  style={{
+                                    background: '#ffffff',
+                                    border: '1px solid #d1fae5',
+                                    borderRadius: '10px',
+                                    padding: '10px 14px',
+                                    fontSize: '12.5px',
+                                  }}
+                                >
+                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+                                    <strong style={{ color: '#0f172a' }}>{item.question || `Question ${bIdx + 1}`}</strong>
+                                    <span
+                                      style={{
+                                        background: badgeBg,
+                                        color: badgeColor,
+                                        border: `1px solid ${badgeBorder}`,
+                                        padding: '2px 8px',
+                                        borderRadius: '12px',
+                                        fontWeight: 700,
+                                        fontSize: '11px',
+                                      }}
+                                    >
+                                      {item.marksAwarded ?? 0} / {item.maxMarks ?? '?'} marks · {item.status || 'CHECKED'}
+                                    </span>
+                                  </div>
+                                  {item.studentWorking && (
+                                    <div style={{ color: '#475569', fontSize: '12px', marginBottom: '2px' }}>
+                                      <span style={{ fontWeight: 600, color: '#334155' }}>Working: </span>
+                                      {item.studentWorking}
+                                    </div>
+                                  )}
+                                  {item.feedback && (
+                                    <div style={{ color: '#047857', fontSize: '12px', fontStyle: 'italic' }}>
+                                      <span style={{ fontWeight: 600 }}>Note: </span>
+                                      {item.feedback}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ) : sub.aiStatus === 'FAILED' ? (
+                    <div
+                      style={{
+                        marginTop: '16px',
+                        padding: '10px 16px',
+                        background: '#fef2f2',
+                        border: '1px solid #fecaca',
+                        borderRadius: '10px',
+                        color: '#991b1b',
+                        fontSize: '12.5px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: '8px',
+                      }}
+                    >
+                      <span>AI auto-check note: {sub.aiDraftRemarks || 'Could not complete auto-check.'}</span>
+                      <button
+                        type="button"
+                        className="button button-quiet"
+                        style={{ fontSize: '12px', padding: '2px 8px', color: '#991b1b' }}
+                        onClick={() => void handleEvaluateAI(sub.id)}
+                      >
+                        Retry AI
+                      </button>
+                    </div>
+                  ) : null}
+
                   <div className="grading-panel">
-                    <h4>Teacher Assessment & Remarks</h4>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                      <h4 style={{ margin: 0 }}>Teacher Assessment & Remarks</h4>
+                      {sub.status === 'GRADED' ? (
+                        <span style={{ fontSize: '12px', color: '#059669', fontWeight: 'bold' }}>✓ Score is saved & verified</span>
+                      ) : sub.aiDraftScore !== null && sub.aiDraftScore !== undefined ? (
+                        <span style={{ fontSize: '12px', color: '#0284c7', fontWeight: 600 }}>Draft pre-filled by AI · Click Save to confirm</span>
+                      ) : null}
+                    </div>
+
                     <div className="form-grid-2">
                       <label className="field compact-field">
                         <span>Final Score (Out of {paper.totalMarks})</span>
@@ -10211,7 +11559,7 @@ function WorksheetSubmissionsModal({
                         />
                       </label>
                       <label className="field compact-field">
-                        <span>Teacher Remarks / Feedback</span>
+                        <span>Teacher Remarks / Feedback for Student & Parent</span>
                         <input
                           value={currentRemarks}
                           onChange={(e) =>
@@ -10225,10 +11573,25 @@ function WorksheetSubmissionsModal({
                       </label>
                     </div>
 
-                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '12px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px', flexWrap: 'wrap', gap: '10px' }}>
+                      <button
+                        type="button"
+                        className="button danger-hover"
+                        style={{ fontSize: '12.5px', padding: '6px 12px', color: '#dc2626', background: '#fff5f5', border: '1px solid #fed7d7', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 600 }}
+                        title="Reset submission: completely clears student's uploaded work, score and remarks, unlocking submission for student"
+                        disabled={resettingId === sub.id}
+                        onClick={() => void handleResetSubmission(sub.id, sub.student?.name || 'Student')}
+                      >
+                        {resettingId === sub.id ? (
+                          <><RefreshCw size={13} className="spin" /> Resetting Submission...</>
+                        ) : (
+                          <><RotateCcw size={13} /> Reset Submission for {sub.student?.name || 'Student'}</>
+                        )}
+                      </button>
+
                       <button
                         className="button button-primary"
-                        style={{ fontSize: '13px', padding: '6px 14px' }}
+                        style={{ fontSize: '13px', padding: '7px 16px', borderRadius: '10px' }}
                         disabled={savingId === sub.id}
                         onClick={() => void handleGrade(sub.id)}
                       >
@@ -10243,17 +11606,23 @@ function WorksheetSubmissionsModal({
         </div>
       </div>
 
-      {selectedImage && (
-        <div className="word-doc-modal-overlay" style={{ zIndex: 1050 }} onClick={() => setSelectedImage(null)}>
-          <div style={{ position: 'relative', maxWidth: '90vw', maxHeight: '90vh' }} onClick={(e) => e.stopPropagation()}>
-            <img src={selectedImage} alt="Answer sheet full view" style={{ maxWidth: '90vw', maxHeight: '85vh', objectFit: 'contain', borderRadius: '8px', boxShadow: '0 20px 40px rgba(0,0,0,0.5)' }} />
-            <button className="icon-button quiet" style={{ position: 'absolute', top: '-15px', right: '-15px', background: '#e11d48', color: '#fff', borderRadius: '50%' }} onClick={() => setSelectedImage(null)}>
+      {selectedImage && createPortal(
+        <div
+          className="word-doc-modal-overlay"
+          style={{ zIndex: 100001, background: 'rgba(15, 23, 42, 0.65)' }}
+          onClick={() => setSelectedImage(null)}
+        >
+          <div style={{ position: 'relative', maxWidth: '92vw', maxHeight: '92vh', margin: 'auto' }} onClick={(e) => e.stopPropagation()}>
+            <img src={selectedImage} alt="Answer sheet full view" style={{ maxWidth: '92vw', maxHeight: '88vh', objectFit: 'contain', borderRadius: '12px', boxShadow: '0 25px 50px rgba(0,0,0,0.4)', background: '#fff' }} />
+            <button className="icon-button quiet" style={{ position: 'absolute', top: '-14px', right: '-14px', background: '#e11d48', color: '#fff', borderRadius: '50%', width: '32px', height: '32px', boxShadow: '0 4px 12px rgba(0,0,0,0.3)' }} onClick={() => setSelectedImage(null)}>
               <X size={18} />
             </button>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -10590,60 +11959,98 @@ function StudentPaperModal({
           <div className="word-doc-canvas" style={{ margin: '0 auto 30px auto', boxShadow: 'none' }} dangerouslySetInnerHTML={{ __html: paper.content }} />
 
           <div style={{ background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '12px', padding: '20px', marginTop: '20px' }}>
-            <h4 style={{ margin: '0 0 8px 0', fontSize: '16px', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <UploadCloud size={18} color="#0284c7" /> {sub?.status === 'GRADED' || sub?.status === 'SUBMITTED' ? 'Your Answer Sheets' : 'Upload Your Workbook Answer Sheets'}
-            </h4>
-            <p style={{ margin: '0 0 16px 0', fontSize: '13px', color: '#64748b' }}>
-              {sub?.status === 'GRADED' || sub?.status === 'SUBMITTED'
-                ? 'Review your uploaded answer sheet pages below or attach additional photos.'
-                : 'Solve the questions on paper in your physical workbook, take clear photos of your pages, and upload them here for your teacher to check.'}
-            </p>
-
-            {error && <div className="inline-error" style={{ marginBottom: '12px' }}>{error}</div>}
-
-            <label className="upload-box">
-              <UploadCloud size={32} color="#0284c7" />
-              <p>Click or Tap to Select/Take Photos of Answer Sheet Pages</p>
-              <input type="file" accept="image/*" multiple onChange={handleFileSelect} style={{ display: 'none' }} />
-            </label>
-
-            {images.length > 0 && (
+            {sub?.status === 'GRADED' ? (
               <div>
-                <strong style={{ fontSize: '13px', color: '#334155' }}>Selected Pages to Submit ({images.length}):</strong>
-                <div className="image-preview-strip">
-                  {images.map((img, idx) => (
-                    <div className="image-preview-thumb" key={idx} onClick={() => setPreviewImg(img)} style={{ cursor: 'pointer' }}>
-                      <img src={img} alt={`Page ${idx + 1}`} />
-                      <button type="button" title="Remove page" onClick={(e) => { e.stopPropagation(); setImages(images.filter((_, i) => i !== idx)); }}>
-                        <X size={12} />
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '14px 16px', background: '#ecfdf5', border: '1.5px solid #a7f3d0', borderRadius: '12px', color: '#065f46' }}>
+                  <div style={{ background: '#dcfce7', borderRadius: '50%', padding: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Lock size={20} color="#059669" />
+                  </div>
+                  <div>
+                    <strong style={{ fontSize: '14px', display: 'block', color: '#064e3b' }}>
+                      Answer Sheet Evaluated & Submissions Closed
+                    </strong>
+                    <span style={{ fontSize: '12.5px', color: '#047857' }}>
+                      Your teacher has evaluated your work and recorded the official score and remarks above. Further submissions for this paper are locked.
+                    </span>
+                  </div>
+                </div>
+
+                {existingImages.length > 0 && (
+                  <div style={{ marginTop: '16px' }}>
+                    <strong style={{ fontSize: '13px', color: '#334155', display: 'block', marginBottom: '8px' }}>
+                      Your Evaluated Answer Sheet Pages ({existingImages.length} Page{existingImages.length === 1 ? '' : 's'}):
+                    </strong>
+                    <div className="image-preview-strip">
+                      {existingImages.map((img, idx) => (
+                        <div className="image-preview-thumb" key={idx} onClick={() => setPreviewImg(img)} style={{ cursor: 'pointer' }}>
+                          <img src={img} alt={`Page ${idx + 1}`} />
+                          <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(0,0,0,0.6)', color: '#fff', fontSize: '10px', textAlign: 'center', padding: '2px' }}>
+                            Page {idx + 1} (Click)
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div>
+                <h4 style={{ margin: '0 0 8px 0', fontSize: '16px', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <UploadCloud size={18} color="#0284c7" /> {sub?.status === 'SUBMITTED' ? 'Your Submitted Answer Sheets' : 'Upload Your Workbook Answer Sheets'}
+                </h4>
+                <p style={{ margin: '0 0 16px 0', fontSize: '13px', color: '#64748b' }}>
+                  {sub?.status === 'SUBMITTED'
+                    ? 'Review your uploaded answer sheet pages below or attach additional photos.'
+                    : 'Solve the questions on paper in your physical workbook, take clear photos of your pages, and upload them here for your teacher to check.'}
+                </p>
+
+                {error && <div className="inline-error" style={{ marginBottom: '12px' }}>{error}</div>}
+
+                <label className="upload-box">
+                  <UploadCloud size={32} color="#0284c7" />
+                  <p>Click or Tap to Select/Take Photos of Answer Sheet Pages</p>
+                  <input type="file" accept="image/*" multiple onChange={handleFileSelect} style={{ display: 'none' }} />
+                </label>
+
+                {images.length > 0 && (
+                  <div>
+                    <strong style={{ fontSize: '13px', color: '#334155' }}>Selected Pages to Submit ({images.length}):</strong>
+                    <div className="image-preview-strip">
+                      {images.map((img, idx) => (
+                        <div className="image-preview-thumb" key={idx} onClick={() => setPreviewImg(img)} style={{ cursor: 'pointer' }}>
+                          <img src={img} alt={`Page ${idx + 1}`} />
+                          <button type="button" title="Remove page" onClick={(e) => { e.stopPropagation(); setImages(images.filter((_, i) => i !== idx)); }}>
+                            <X size={12} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div style={{ marginTop: '16px', display: 'flex', justifyContent: 'flex-end' }}>
+                      <button className="button button-primary" onClick={() => void handleSubmit()} disabled={uploading}>
+                        {uploading ? <><RefreshCw size={16} className="spin" /> Submitting...</> : <><Send size={15} /> Submit Answer Sheets to Teacher</>}
                       </button>
                     </div>
-                  ))}
-                </div>
+                  </div>
+                )}
 
-                <div style={{ marginTop: '16px', display: 'flex', justifyContent: 'flex-end' }}>
-                  <button className="button button-primary" onClick={() => void handleSubmit()} disabled={uploading}>
-                    {uploading ? <><RefreshCw size={16} className="spin" /> Submitting...</> : <><Send size={15} /> Submit Answer Sheets to Teacher</>}
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {existingImages.length > 0 && images.length === 0 && (
-              <div style={{ marginTop: '12px' }}>
-                <strong style={{ fontSize: '13px', color: '#059669', display: 'block', marginBottom: '8px' }}>
-                  ✓ Previously Submitted Pages ({existingImages.length} Page{existingImages.length === 1 ? '' : 's'}):
-                </strong>
-                <div className="image-preview-strip">
-                  {existingImages.map((img, idx) => (
-                    <div className="image-preview-thumb" key={idx} onClick={() => setPreviewImg(img)} style={{ cursor: 'pointer' }}>
-                      <img src={img} alt={`Page ${idx + 1}`} />
-                      <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(0,0,0,0.6)', color: '#fff', fontSize: '10px', textAlign: 'center', padding: '2px' }}>
-                        Page {idx + 1} (Click)
-                      </div>
+                {existingImages.length > 0 && images.length === 0 && (
+                  <div style={{ marginTop: '12px' }}>
+                    <strong style={{ fontSize: '13px', color: '#059669', display: 'block', marginBottom: '8px' }}>
+                      ✓ Previously Submitted Pages ({existingImages.length} Page{existingImages.length === 1 ? '' : 's'}):
+                    </strong>
+                    <div className="image-preview-strip">
+                      {existingImages.map((img, idx) => (
+                        <div className="image-preview-thumb" key={idx} onClick={() => setPreviewImg(img)} style={{ cursor: 'pointer' }}>
+                          <img src={img} alt={`Page ${idx + 1}`} />
+                          <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(0,0,0,0.6)', color: '#fff', fontSize: '10px', textAlign: 'center', padding: '2px' }}>
+                            Page {idx + 1} (Click)
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -10682,16 +12089,16 @@ function PaperPreviewModal({
   const renderedHtml = isHtml
     ? paper.content
     : (paper.content || '')
-        .split('\n')
-        .map((line) => {
-          if (line.startsWith('# ')) return `<h2>${line.replace('# ', '')}</h2>`;
-          if (line.startsWith('## ')) return `<h3>${line.replace('## ', '')}</h3>`;
-          if (line.startsWith('### ')) return `<h4>${line.replace('### ', '')}</h4>`;
-          if (line.startsWith('- ')) return `<li>${line.replace('- ', '')}</li>`;
-          if (!line.trim()) return '<br/>';
-          return `<p>${line}</p>`;
-        })
-        .join('');
+      .split('\n')
+      .map((line) => {
+        if (line.startsWith('# ')) return `<h2>${line.replace('# ', '')}</h2>`;
+        if (line.startsWith('## ')) return `<h3>${line.replace('## ', '')}</h3>`;
+        if (line.startsWith('### ')) return `<h4>${line.replace('### ', '')}</h4>`;
+        if (line.startsWith('- ')) return `<li>${line.replace('- ', '')}</li>`;
+        if (!line.trim()) return '<br/>';
+        return `<p>${line}</p>`;
+      })
+      .join('');
 
   return createPortal(
     <div className="word-doc-modal-overlay">

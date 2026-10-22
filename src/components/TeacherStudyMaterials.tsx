@@ -24,8 +24,10 @@ import {
   AlignRight,
   FileCheck,
   Type,
+  Sparkles,
 } from 'lucide-react';
 import { WorksheetQuestionBuilder } from './WorksheetQuestionBuilder';
+import { ArticleAiImageModal } from './ArticleAiImageModal';
 import { getDefaultGrade, getDefaultSubject } from '../utils/teacherPreferences';
 import {
   type StudyMaterial,
@@ -300,6 +302,7 @@ function StudyMaterialEditorModal({
 
   const [showDraftPrompt, setShowDraftPrompt] = useState(false);
   const [restoredDraftAvailable, setRestoredDraftAvailable] = useState(false);
+  const [showAiImageModal, setShowAiImageModal] = useState(false);
 
   const handleVisualInput = () => {
     if (visualEditorRef.current) {
@@ -890,6 +893,13 @@ function StudyMaterialEditorModal({
     if (!url) return;
     const imgHtml = `<figure style="margin: 16px 0; text-align: center;"><img src="${url}" alt="Diagram" style="max-width: 100%; max-height: 400px; border-radius: 10px; box-shadow: 0 4px 14px rgba(0,0,0,0.08);" /></figure><p><br></p>`;
     insertCustomHtml(imgHtml);
+  }
+
+  function handleInsertAiImage(imageUrl: string, promptText: string) {
+    const imgHtml = `<figure style="margin: 20px 0; text-align: center;"><img src="${imageUrl}" alt="${promptText}" style="max-width: 100%; max-height: 450px; border-radius: 12px; box-shadow: 0 6px 22px rgba(0,0,0,0.09);" /><figcaption style="font-size: 12.5px; color: #64748b; margin-top: 8px;"><em>${promptText}</em></figcaption></figure><p><br></p>`;
+    insertCustomHtml(imgHtml);
+    setShowAiImageModal(false);
+    setNotice('AI artwork embedded into article!');
   }
 
   async function handleArticleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -2137,6 +2147,24 @@ function StudyMaterialEditorModal({
                     <ImageIcon size={13} /> Web Image
                   </button>
 
+                  <button
+                    type="button"
+                    className="toolbar-btn"
+                    title="Generate and Embed AI Visuals with Gemini or ChatGPT"
+                    style={{
+                      background: 'linear-gradient(135deg, #ede9fe, #fce7f3)',
+                      borderColor: '#c4b5fd',
+                      color: '#7c3aed',
+                      fontWeight: 700,
+                    }}
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      setShowAiImageModal(true);
+                    }}
+                  >
+                    <Sparkles size={13} color="#7c3aed" /> AI Image
+                  </button>
+
                   <button type="button" className="toolbar-btn" title="Insert Link" onMouseDown={handleInsertLink}>
                     <LinkIcon size={13} /> Link
                   </button>
@@ -2568,6 +2596,15 @@ function StudyMaterialEditorModal({
               </div>
             </div>
           </div>
+        )}
+
+        {/* In-Editor AI Image Generator Modal */}
+        {showAiImageModal && (
+          <ArticleAiImageModal
+            isOpen={showAiImageModal}
+            onClose={() => setShowAiImageModal(false)}
+            onInsert={handleInsertAiImage}
+          />
         )}
       </div>
     </div>,

@@ -8,7 +8,7 @@ import jwt, { type JwtPayload } from 'jsonwebtoken';
 import { createServer } from 'node:http';
 import { createHmac, randomBytes } from 'node:crypto';
 import { resolve } from 'node:path';
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync, readFileSync, unlinkSync } from 'node:fs';
 import { Prisma, PrismaClient, type QuizMode } from '@prisma/client';
 import { Server } from 'socket.io';
 import { z } from 'zod';
@@ -368,6 +368,194 @@ const questionForStudent = (question: { id: string; prompt: string; marks: numbe
   options: question.options.map(({ id, text, isCorrect }) => reveal ? { id, text, isCorrect } : { id, text }),
 });
 
+interface LiveQuizTimerState {
+  quizId: string;
+  durationSeconds: number;
+  remainingSeconds: number;
+  isPaused: boolean;
+  phase: 'question' | 'revealing' | 'gap' | 'advancing' | 'idle';
+  gapRemainingSeconds: number;
+  isTransitioning?: boolean;
+  timerTimeout?: NodeJS.Timeout;
+}
+
+const liveQuizTimers = new Map<string, LiveQuizTimerState>();
+
+function getQuizTimerState(quizId: string) {
+  const timer = liveQuizTimers.get(quizId);
+  if (!timer) return null;
+  return {
+    enabled: timer.durationSeconds > 0,
+    durationSeconds: Math.max(0, timer.durationSeconds),
+    remainingSeconds: Math.max(0, timer.remainingSeconds),
+    isPaused: timer.isPaused,
+    phase: timer.phase,
+    gapRemainingSeconds: Math.max(0, timer.gapRemainingSeconds),
+  };
+}
+
+function broadcastTimerState(quizId: string) {
+  const state = getQuizTimerState(quizId);
+  if (state) {
+    io.to(`teachers:${quizId}`).emit('quiz:timer', state);
+    io.to(`students:${quizId}`).emit('quiz:timer', state);
+  }
+}
+
+function clearQuizTimer(quizId: string) {
+  const current = liveQuizTimers.get(quizId);
+  if (current?.timerTimeout) {
+    clearTimeout(current.timerTimeout);
+  }
+  liveQuizTimers.delete(quizId);
+}
+
+function scheduleNextTimerTick(quizId: string, delayMs = 1000) {
+  const current = liveQuizTimers.get(quizId);
+  if (!current) return;
+  if (current.timerTimeout) {
+    clearTimeout(current.timerTimeout);
+  }
+  current.timerTimeout = setTimeout(() => {
+    void handleQuizTimerTick(quizId);
+  }, delayMs);
+}
+
+async function executeAnswerRevealAndGapSequence(quizId: string) {
+  const t = liveQuizTimers.get(quizId);
+  if (!t || t.isTransitioning) return;
+
+  // 1. Lock state into 'revealing' so no timers tick or jump
+  t.isTransitioning = true;
+  t.phase = 'revealing';
+  t.remainingSeconds = 0;
+  broadcastTimerState(quizId);
+
+  try {
+    // 2. Save reveal to DB and broadcast quiz state to all kids (whatever time it takes)
+    await prisma.quiz.update({
+      where: { id: quizId },
+      data: { currentAnswerRevealed: true },
+    });
+    await publishQuizState(quizId);
+  } catch (e) {
+    console.error(`[Quiz ${quizId}] Error revealing answer on timer expiry:`, e);
+  }
+
+  // 3. Verify quiz timer was not cancelled or cleared during DB / broadcast latency
+  const current = liveQuizTimers.get(quizId);
+  if (!current || current !== t) return;
+
+  // 4. NOW that the answer is 100% loaded and revealed on student screens,
+  // begin the 3-second gap timer!
+  t.phase = 'gap';
+  t.gapRemainingSeconds = 3; // Guaranteed full 3 seconds gap
+  t.isTransitioning = false;
+  broadcastTimerState(quizId);
+
+  scheduleNextTimerTick(quizId, 1000);
+}
+
+async function executeAdvanceToNextQuestion(quizId: string) {
+  const t = liveQuizTimers.get(quizId);
+  if (!t || t.isTransitioning) return;
+
+  t.isTransitioning = true;
+  t.phase = 'advancing';
+  t.gapRemainingSeconds = 0;
+  broadcastTimerState(quizId);
+
+  try {
+    const quiz = await prisma.quiz.findUnique({
+      where: { id: quizId },
+      include: { _count: { select: { questions: true } } },
+    });
+    if (!quiz || quiz.status !== 'ACTIVE') {
+      clearQuizTimer(quizId);
+      return;
+    }
+    const nextIndex = quiz.currentQuestionIndex + 1;
+    if (nextIndex >= quiz._count.questions) {
+      // All questions finished, close quiz and score
+      clearQuizTimer(quizId);
+      await prisma.quiz.update({ where: { id: quizId }, data: { status: 'CLOSED' } });
+      const attempts = await prisma.attempt.findMany({ where: { quizId, status: 'IN_PROGRESS' }, select: { id: true } });
+      for (const attempt of attempts) await scoreAttempt(attempt.id);
+      await publishQuizState(quizId);
+    } else {
+      // Next question
+      await prisma.quiz.update({
+        where: { id: quizId },
+        data: { currentQuestionIndex: nextIndex, currentAnswerRevealed: false },
+      });
+      await publishQuizState(quizId);
+      // Restart timer for next question fresh
+      startQuizTimerForQuestion(quizId, t.durationSeconds);
+    }
+  } catch (e) {
+    console.error(`[Quiz ${quizId}] Error advancing to next question after gap:`, e);
+    clearQuizTimer(quizId);
+  }
+}
+
+async function handleQuizTimerTick(quizId: string) {
+  const t = liveQuizTimers.get(quizId);
+  if (!t) return;
+  if (t.isPaused) {
+    scheduleNextTimerTick(quizId, 1000);
+    return;
+  }
+  if (t.isTransitioning) {
+    scheduleNextTimerTick(quizId, 500);
+    return;
+  }
+
+  if (t.phase === 'question') {
+    t.remainingSeconds = Math.max(0, t.remainingSeconds - 1);
+    broadcastTimerState(quizId);
+
+    if (t.remainingSeconds <= 0) {
+      // Question time expired: start the sequential reveal -> 3s gap -> next question sequence
+      await executeAnswerRevealAndGapSequence(quizId);
+      return;
+    }
+    scheduleNextTimerTick(quizId, 1000);
+    return;
+  }
+
+  if (t.phase === 'gap') {
+    t.gapRemainingSeconds = Math.max(0, t.gapRemainingSeconds - 1);
+    broadcastTimerState(quizId);
+
+    if (t.gapRemainingSeconds <= 0) {
+      // Gap complete: safely advance to next question
+      await executeAdvanceToNextQuestion(quizId);
+      return;
+    }
+    scheduleNextTimerTick(quizId, 1000);
+    return;
+  }
+}
+
+function startQuizTimerForQuestion(quizId: string, durationSeconds: number) {
+  clearQuizTimer(quizId);
+  if (!durationSeconds || durationSeconds <= 0) return;
+
+  const timerState: LiveQuizTimerState = {
+    quizId,
+    durationSeconds,
+    remainingSeconds: durationSeconds,
+    isPaused: false,
+    phase: 'question',
+    gapRemainingSeconds: 0,
+    isTransitioning: false,
+  };
+
+  liveQuizTimers.set(quizId, timerState);
+  broadcastTimerState(quizId);
+  scheduleNextTimerTick(quizId, 1000);
+}
+
 async function studentQuizState(quizId: string, studentId: string) {
   const quiz = await prisma.quiz.findUnique({
     where: { id: quizId },
@@ -392,6 +580,7 @@ async function studentQuizState(quizId: string, studentId: string) {
     totalMarks,
     questions: questions.map((question) => questionForStudent(question, reveal)),
     attempt: attempt ? { id: attempt.id, status: attempt.status, startedAt: attempt.startedAt, deadlineAt: attempt.deadlineAt, submittedAt: attempt.submittedAt, score: quiz.showResults ? attempt.score : null, answers: attempt.answers.map(({ questionId, optionId }) => ({ questionId, optionId })) } : null,
+    timer: getQuizTimerState(quizId),
   };
 }
 
@@ -433,10 +622,12 @@ async function publishQuizState(quizId: string) {
   }
   const state = {
     id: quiz.id, title: quiz.title, mode: quiz.mode, status: quiz.status,
+    timeLimitSeconds: quiz.timeLimitSeconds,
     currentQuestionIndex: quiz.currentQuestionIndex, currentAnswerRevealed: quiz.currentAnswerRevealed,
     questionCount: quiz.questions.length,
     totalMarks,
     question: question ? questionForStudent(question, quiz.currentAnswerRevealed) : null,
+    timer: getQuizTimerState(quizId),
   };
   io.to(`teachers:${quizId}`).emit('quiz:state', state);
   io.to(`students:${quizId}`).emit('quiz:state', state);
@@ -2456,7 +2647,7 @@ app.post('/api/quizzes', adminOnly, async (req: AuthRequest, res: Response) => {
           title: data.title,
           grade: data.grade || null,
           mode: data.mode as QuizMode,
-          timeLimitSeconds: data.mode === 'LIVE' ? null : data.timeLimitSeconds,
+          timeLimitSeconds: data.timeLimitSeconds ?? null,
           showResults: data.showResults,
           teacherId,
         },
@@ -2531,7 +2722,7 @@ app.put('/api/quizzes/:id', adminOnly, async (req: Request, res: Response) => {
           title: data.title,
           grade: data.grade || null,
           mode: data.mode as QuizMode,
-          timeLimitSeconds: data.mode === 'LIVE' ? null : data.timeLimitSeconds,
+          timeLimitSeconds: data.timeLimitSeconds ?? null,
           showResults: data.showResults,
           currentQuestionIndex: 0,
           currentAnswerRevealed: false,
@@ -2589,7 +2780,7 @@ app.patch('/api/quizzes/:id/mode', adminOnly, async (req: Request, res: Response
       where: { id },
       data: {
         mode: mode as QuizMode,
-        timeLimitSeconds: mode === 'LIVE' ? null : (timeLimitSeconds !== undefined ? timeLimitSeconds : quiz.timeLimitSeconds),
+        timeLimitSeconds: timeLimitSeconds !== undefined ? timeLimitSeconds : quiz.timeLimitSeconds,
       }
     });
 
@@ -2623,6 +2814,7 @@ app.delete('/api/quizzes/:id', adminOnly, async (req: Request, res: Response) =>
         });
       }
     }
+    clearQuizTimer(id);
     await prisma.quiz.delete({ where: { id } });
     res.json({ ok: true });
   } catch (error) { errorResponse(res, error); }
@@ -2639,10 +2831,12 @@ app.patch('/api/quizzes/:id/status', adminOnly, async (req: Request, res: Respon
       if (quiz.status !== 'DRAFT') return res.status(409).json({ error: 'Only a draft quiz can be opened.' });
       await prisma.quiz.update({ where: { id }, data: { status: 'ACTIVE' } });
     } else if (action === 'stop') {
+      clearQuizTimer(id);
       await prisma.quiz.update({ where: { id }, data: { status: 'CLOSED' } });
       const attempts = await prisma.attempt.findMany({ where: { quizId: id, status: 'IN_PROGRESS' }, select: { id: true } });
       for (const attempt of attempts) await scoreAttempt(attempt.id);
     } else if (action === 'reopen') {
+      clearQuizTimer(id);
       await prisma.quiz.update({ where: { id }, data: { status: 'DRAFT', currentQuestionIndex: 0, currentAnswerRevealed: false } });
     }
 
@@ -2653,27 +2847,87 @@ app.patch('/api/quizzes/:id/status', adminOnly, async (req: Request, res: Respon
 app.patch('/api/quizzes/:id/control', adminOnly, async (req: Request, res: Response) => {
   try {
     const id = parse(objectId, req.params.id);
-    const { action } = parse(z.object({ action: z.enum(['start', 'next', 'reveal', 'stop']) }), req.body);
+    const { action, seconds } = parse(z.object({
+      action: z.enum(['start', 'next', 'reveal', 'stop', 'pause_timer', 'resume_timer', 'set_timer', 'add_time']),
+      seconds: z.number().int().min(0).max(600).nullable().optional(),
+    }), req.body);
     const quiz = await prisma.quiz.findUnique({ where: { id }, include: { _count: { select: { questions: true } } } });
     if (!quiz) return res.status(404).json({ error: 'Quiz not found.' });
     if (quiz.mode !== 'LIVE') return res.status(400).json({ error: 'Only live quizzes have teacher controls.' });
-    if (action === 'start') {
+
+    if (action === 'pause_timer') {
+      const t = liveQuizTimers.get(id);
+      if (t) {
+        t.isPaused = true;
+        broadcastTimerState(id);
+      }
+      return res.json({ ok: true, isPaused: true });
+    } else if (action === 'resume_timer') {
+      const t = liveQuizTimers.get(id);
+      if (t) {
+        t.isPaused = false;
+        broadcastTimerState(id);
+        scheduleNextTimerTick(id, 1000);
+      }
+      return res.json({ ok: true, isPaused: false });
+    } else if (action === 'add_time') {
+      const t = liveQuizTimers.get(id);
+      if (t && t.phase === 'question') {
+        const extra = seconds || 10;
+        t.remainingSeconds += extra;
+        t.durationSeconds = Math.max(t.durationSeconds, t.remainingSeconds);
+        broadcastTimerState(id);
+      }
+      return res.json({ ok: true });
+    } else if (action === 'set_timer') {
+      const newSeconds = seconds && seconds > 0 ? seconds : null;
+      await prisma.quiz.update({ where: { id }, data: { timeLimitSeconds: newSeconds } });
+      if (newSeconds && newSeconds > 0) {
+        if (quiz.status === 'ACTIVE') {
+          startQuizTimerForQuestion(id, newSeconds);
+        }
+      } else {
+        clearQuizTimer(id);
+        broadcastTimerState(id);
+      }
+      void publishQuizState(id);
+      return res.json({ ok: true, timeLimitSeconds: newSeconds });
+    } else if (action === 'start') {
       if (quiz.status !== 'DRAFT') return res.status(409).json({ error: 'Only a draft quiz can be started.' });
       await prisma.quiz.update({ where: { id }, data: { status: 'ACTIVE', currentQuestionIndex: 0, currentAnswerRevealed: false } });
+      if (quiz.timeLimitSeconds && quiz.timeLimitSeconds > 0) {
+        startQuizTimerForQuestion(id, quiz.timeLimitSeconds);
+      } else {
+        clearQuizTimer(id);
+      }
     } else if (action === 'next') {
       if (quiz.status !== 'ACTIVE') return res.status(409).json({ error: 'This quiz is not active.' });
       const nextIndex = quiz.currentQuestionIndex + 1;
       if (nextIndex >= quiz._count.questions) {
+        clearQuizTimer(id);
         await prisma.quiz.update({ where: { id }, data: { status: 'CLOSED' } });
         const attempts = await prisma.attempt.findMany({ where: { quizId: id, status: 'IN_PROGRESS' }, select: { id: true } });
         for (const attempt of attempts) await scoreAttempt(attempt.id);
       } else {
         await prisma.quiz.update({ where: { id }, data: { currentQuestionIndex: nextIndex, currentAnswerRevealed: false } });
+        if (quiz.timeLimitSeconds && quiz.timeLimitSeconds > 0) {
+          startQuizTimerForQuestion(id, quiz.timeLimitSeconds);
+        } else {
+          clearQuizTimer(id);
+        }
       }
     } else if (action === 'reveal') {
       if (quiz.status !== 'ACTIVE') return res.status(409).json({ error: 'This quiz is not active.' });
-      await prisma.quiz.update({ where: { id }, data: { currentAnswerRevealed: true } });
+      const t = liveQuizTimers.get(id);
+      if (t && t.durationSeconds > 0) {
+        void executeAnswerRevealAndGapSequence(id);
+      } else {
+        await prisma.quiz.update({ where: { id }, data: { currentAnswerRevealed: true } });
+        void publishQuizState(id);
+      }
+      return res.json({ ok: true });
     } else {
+      clearQuizTimer(id);
       await prisma.quiz.update({ where: { id }, data: { status: 'CLOSED' } });
       const attempts = await prisma.attempt.findMany({ where: { quizId: id, status: 'IN_PROGRESS' }, select: { id: true } });
       for (const attempt of attempts) await scoreAttempt(attempt.id);
@@ -2688,6 +2942,8 @@ app.post('/api/quizzes/:id/restart', adminOnly, async (req: Request, res: Respon
     const id = parse(objectId, req.params.id);
     const quiz = await prisma.quiz.findUnique({ where: { id } });
     if (!quiz) return res.status(404).json({ error: 'Quiz not found.' });
+
+    clearQuizTimer(id);
 
     await prisma.$transaction(async (tx) => {
       // Find ONLY unsubmitted attempts (IN_PROGRESS).
@@ -3052,7 +3308,7 @@ io.on('connection', (socket) => {
           }
         });
       })
-      .catch(() => {});
+      .catch(() => { });
   }
 
   socket.on('chat:join_direct', (studentId: string) => {
@@ -3063,7 +3319,7 @@ io.on('connection', (socket) => {
         .then((teacherId: string) => {
           socket.join(`chat:${teacherId}:direct:${studentId}`);
         })
-        .catch(() => {});
+        .catch(() => { });
     }
   });
 
@@ -3892,22 +4148,296 @@ app.post('/api/worksheets/:id/submit', authenticate('student'), async (req: Auth
       return res.status(404).json({ error: 'Question paper not available for submission.' });
     }
 
-    const submission = await prisma.worksheetSubmission.upsert({
+    // Check if submission already exists and was already graded by teacher
+    const existing = await prisma.worksheetSubmission.findUnique({
+      where: { paperId_studentId: { paperId, studentId } },
+    });
+    if (existing && existing.status === 'GRADED') {
+      return res.status(403).json({ error: 'Your answer sheet has already been evaluated and graded by your teacher. Further submissions are locked.' });
+    }
+
+    const submission = await (prisma.worksheetSubmission as any).upsert({
       where: { paperId_studentId: { paperId, studentId } },
       update: {
         images: JSON.stringify(data.images),
         status: 'SUBMITTED',
         submittedAt: new Date(),
+        aiStatus: 'EVALUATING',
       },
       create: {
         paperId,
         studentId,
         images: JSON.stringify(data.images),
         status: 'SUBMITTED',
+        aiStatus: 'EVALUATING',
       },
     });
 
+    // Option A: Automatically evaluate student submission in background with AI
+    void evaluateAnswerSheetSubmissionWithAI(submission.id).catch((err) => {
+      console.warn('[AI Evaluation Background Error]', err);
+    });
+
     res.json({ submission });
+  } catch (error) { errorResponse(res, error); }
+});
+
+app.post('/api/worksheets/:id/teacher-upload', adminOnly, async (req: AuthRequest, res: Response) => {
+  try {
+    const paperId = req.params.id as string;
+    const schema = z.object({
+      studentId: z.string().min(1, 'Please select a student.'),
+      images: z.array(z.string().min(10)).min(1, 'Please attach at least one photo of the answer sheet.'),
+    });
+    const data = parse(schema, req.body);
+
+    const paper = await prisma.worksheetPaper.findUnique({ where: { id: paperId } });
+    if (!paper) {
+      return res.status(404).json({ error: 'Question paper not found.' });
+    }
+
+    const student = await prisma.student.findUnique({ where: { id: data.studentId } });
+    if (!student) {
+      return res.status(404).json({ error: 'Student not found.' });
+    }
+
+    const submission = await (prisma.worksheetSubmission as any).upsert({
+      where: { paperId_studentId: { paperId, studentId: data.studentId } },
+      update: {
+        images: JSON.stringify(data.images),
+        status: 'SUBMITTED',
+        submittedAt: new Date(),
+        aiStatus: 'EVALUATING',
+      },
+      create: {
+        paperId,
+        studentId: data.studentId,
+        images: JSON.stringify(data.images),
+        status: 'SUBMITTED',
+        aiStatus: 'EVALUATING',
+      },
+      include: {
+        student: { select: { id: true, name: true, grade: true } },
+      },
+    });
+
+    // Evaluate with AI immediately so teacher sees draft marks right away
+    const evaluated = await evaluateAnswerSheetSubmissionWithAI(submission.id);
+
+    res.json({ ok: true, submission: evaluated || submission });
+  } catch (error) { errorResponse(res, error); }
+});
+
+async function evaluateAnswerSheetSubmissionWithAI(submissionId: string) {
+  const sub = await prisma.worksheetSubmission.findUnique({
+    where: { id: submissionId },
+    include: {
+      paper: true,
+      student: { select: { id: true, name: true, grade: true } },
+    },
+  });
+
+  if (!sub || !sub.paper) return null;
+
+  let images: string[] = [];
+  try { images = JSON.parse(sub.images || '[]'); } catch { images = []; }
+  if (!images || images.length === 0) {
+    return null;
+  }
+
+  // Update status to EVALUATING
+  await (prisma.worksheetSubmission as any).update({
+    where: { id: submissionId },
+    data: { aiStatus: 'EVALUATING' },
+  });
+
+  try {
+    let geminiKey = process.env.GEMINI_API_KEY;
+    if (sub.paper.teacherId) {
+      const teacher = await (prisma.teacher as any).findUnique({
+        where: { id: sub.paper.teacherId },
+        select: { apiKey: true },
+      });
+      if (teacher?.apiKey && teacher.apiKey.trim()) {
+        geminiKey = teacher.apiKey.trim();
+      }
+    }
+
+    if (!geminiKey) {
+      await (prisma.worksheetSubmission as any).update({
+        where: { id: submissionId },
+        data: {
+          aiStatus: 'FAILED',
+          aiDraftRemarks: 'Teacher Gemini API Key is missing. Please configure your API key in Settings > AI Settings to enable AI auto-evaluation.',
+        },
+      });
+      return null;
+    }
+
+    // Clean question paper content text
+    const cleanContent = sub.paper.content
+      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    const parts: any[] = [];
+    for (let i = 0; i < images.length; i++) {
+      let raw = images[i];
+      let mimeType = 'image/jpeg';
+      if (raw.startsWith('data:')) {
+        const [header, b64] = raw.split(';base64,');
+        mimeType = header.replace('data:', '') || 'image/jpeg';
+        raw = b64;
+      }
+      raw = raw.replace(/\s+/g, '');
+      if (raw) {
+        parts.push({
+          inlineData: {
+            mimeType,
+            data: raw,
+          },
+        });
+      }
+    }
+
+    const promptText = `You are a supportive, precise, and fair Mathematics teacher grading a student's handwritten answer sheet.
+
+STUDENT NAME: ${sub.student?.name || 'Student'}
+EXAM TITLE: "${sub.paper.title}"
+TOTAL MARKS: ${sub.paper.totalMarks}
+GRADE & SUBJECT: ${sub.paper.grade || 'General'} · ${sub.paper.subject || 'Mathematics'}
+
+QUESTION PAPER / EXAM CONTENT:
+"""
+${cleanContent.slice(0, 10000)}
+"""
+
+INSTRUCTIONS:
+1. Examine the attached handwritten answer sheet image(s) page by page.
+2. Read the student's handwritten steps and final answers for each question found on the paper.
+3. Compare the student's solution steps with the expected mathematical principles. Award step marks for correct working even if the final calculation has minor arithmetic slips.
+4. Calculate the total score out of ${sub.paper.totalMarks} (ensure 0 <= score <= ${sub.paper.totalMarks}).
+5. Write constructive, warm, and motivating 2-3 sentence feedback for the student and parent.
+6. Provide a question-by-question breakdown.
+
+CRITICAL: Return ONLY a valid JSON object matching this exact schema:
+{
+  "score": number,
+  "remarks": "string",
+  "breakdown": [
+    {
+      "question": "string (e.g. Q1)",
+      "marksAwarded": number,
+      "maxMarks": number,
+      "status": "CORRECT" | "PARTIAL" | "INCORRECT",
+      "studentWorking": "string (brief summary of student's answer/steps)",
+      "feedback": "string (1 sentence feedback on this question)"
+    }
+  ]
+}
+`;
+    parts.push({ text: promptText });
+
+    const candidateModels = [
+      'gemini-2.5-flash',
+      'gemini-2.5-pro',
+      'gemini-flash-latest',
+      'gemini-2.5-flash-lite',
+      'gemini-2.0-flash',
+      'gemini-1.5-flash',
+    ];
+
+    let lastError = '';
+    let parsed: any = null;
+
+    for (const modelName of candidateModels) {
+      try {
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${geminiKey}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts }],
+            generationConfig: { responseMimeType: 'application/json' },
+          }),
+        });
+
+        const jsonResult: any = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          lastError = jsonResult?.error?.message ?? response.statusText;
+          if (lastError.includes('not found') || lastError.includes('no longer available') || response.status === 404) {
+            continue;
+          }
+          throw new Error(`Google Gemini Error: ${lastError}`);
+        }
+
+        const textOutput = jsonResult.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (textOutput) {
+          try {
+            parsed = JSON.parse(textOutput);
+            if (parsed && typeof parsed.score === 'number') {
+              break;
+            }
+          } catch (e) {
+            const match = textOutput.match(/\{[\s\S]*\}/);
+            if (match) {
+              parsed = JSON.parse(match[0]);
+              if (parsed && typeof parsed.score === 'number') break;
+            }
+          }
+        }
+      } catch (err) {
+        lastError = err instanceof Error ? err.message : String(err);
+      }
+    }
+
+    if (!parsed || typeof parsed.score !== 'number') {
+      await (prisma.worksheetSubmission as any).update({
+        where: { id: submissionId },
+        data: {
+          aiStatus: 'FAILED',
+          aiDraftRemarks: `AI evaluation could not complete: ${lastError || 'Invalid response format'}`,
+        },
+      });
+      return null;
+    }
+
+    const calculatedScore = Math.min(sub.paper.totalMarks, Math.max(0, Math.round(Number(parsed.score))));
+    const finalRemarks = String(parsed.remarks || '').trim();
+    const finalBreakdown = Array.isArray(parsed.breakdown) ? JSON.stringify(parsed.breakdown) : '[]';
+
+    const updated = await (prisma.worksheetSubmission as any).update({
+      where: { id: submissionId },
+      data: {
+        aiDraftScore: calculatedScore,
+        aiDraftRemarks: finalRemarks,
+        aiDraftBreakdown: finalBreakdown,
+        aiStatus: 'COMPLETED',
+      },
+    });
+
+    console.log(`[AI Auto-Evaluation] Completed for student ${sub.student?.name} on paper "${sub.paper.title}": Score ${calculatedScore}/${sub.paper.totalMarks}`);
+    return updated;
+  } catch (err) {
+    console.error('[AI Auto-Evaluation Error]', err);
+    await (prisma.worksheetSubmission as any).update({
+      where: { id: submissionId },
+      data: {
+        aiStatus: 'FAILED',
+        aiDraftRemarks: err instanceof Error ? err.message : 'Evaluation failed',
+      },
+    });
+    return null;
+  }
+}
+
+app.post('/api/worksheets/submissions/:submissionId/ai-evaluate', adminOnly, async (req: Request, res: Response) => {
+  try {
+    const id = req.params.submissionId as string;
+    const result = await evaluateAnswerSheetSubmissionWithAI(id);
+    res.json({ ok: true, result });
   } catch (error) { errorResponse(res, error); }
 });
 
@@ -3964,6 +4494,77 @@ app.delete('/api/worksheets/submissions/:submissionId/images', adminOnly, async 
       },
     });
     res.json({ submission, ok: true });
+  } catch (error) { errorResponse(res, error); }
+});
+
+app.delete('/api/worksheets/submissions/:submissionId', adminOnly, async (req: AuthRequest, res: Response) => {
+  try {
+    const id = req.params.submissionId as string;
+    const sub = await prisma.worksheetSubmission.findUnique({
+      where: { id },
+      include: { student: true, paper: true },
+    });
+
+    if (!sub) {
+      return res.status(404).json({ error: 'Submission not found.' });
+    }
+
+    // Clean up persistent score records if teacher had saved marks
+    if (sub.paperId && sub.studentId) {
+      try {
+        await prisma.studentScoreRecord.deleteMany({
+          where: {
+            paperId: sub.paperId,
+            studentId: sub.studentId,
+            itemType: 'QUESTION_PAPER',
+          },
+        });
+      } catch (scoreErr) {
+        console.warn('[Reset Submission Score Cleanup]', scoreErr);
+      }
+    }
+
+    // Completely delete the worksheet submission
+    await prisma.worksheetSubmission.delete({
+      where: { id },
+    });
+
+    console.log(`[Reset Submission] Cleared answer sheet submission for student ${sub.student?.name} on paper "${sub.paper?.title}"`);
+    res.json({ ok: true, message: 'Submission reset successfully.' });
+  } catch (error) { errorResponse(res, error); }
+});
+
+app.post('/api/worksheets/submissions/:submissionId/reset', adminOnly, async (req: AuthRequest, res: Response) => {
+  try {
+    const id = req.params.submissionId as string;
+    const sub = await prisma.worksheetSubmission.findUnique({
+      where: { id },
+      include: { student: true, paper: true },
+    });
+
+    if (!sub) {
+      return res.status(404).json({ error: 'Submission not found.' });
+    }
+
+    if (sub.paperId && sub.studentId) {
+      try {
+        await prisma.studentScoreRecord.deleteMany({
+          where: {
+            paperId: sub.paperId,
+            studentId: sub.studentId,
+            itemType: 'QUESTION_PAPER',
+          },
+        });
+      } catch (scoreErr) {
+        console.warn('[Reset Submission Score Cleanup]', scoreErr);
+      }
+    }
+
+    await prisma.worksheetSubmission.delete({
+      where: { id },
+    });
+
+    res.json({ ok: true, message: 'Submission reset successfully.' });
   } catch (error) { errorResponse(res, error); }
 });
 
@@ -4157,6 +4758,419 @@ app.post('/api/study-materials/upload', superAdminOnly, async (req: Request, res
 
     const fileUrl = `/uploads/materials/${storedFileName}`;
     res.json({ fileUrl, fileName: data.fileName, fileSize: buffer.length });
+  } catch (error) { errorResponse(res, error); }
+});
+
+/* ==========================================================================
+   SUPER ADMIN AI IMAGE STUDIO (ARTICLES & MATERIALS)
+   Powered by Google Gemini Imagen 3 and ChatGPT DALL-E 3
+   ========================================================================== */
+
+interface AIGeneratedArticleImage {
+  id: string;
+  fileName: string;
+  fileUrl: string;
+  prompt: string;
+  fullPrompt: string;
+  provider: 'gemini' | 'openai';
+  aspectRatio: string;
+  stylePreset: string;
+  createdAt: string;
+  fileSize?: number;
+  format?: string;
+}
+
+function getAiGallery(): AIGeneratedArticleImage[] {
+  const file = resolve('public/uploads/materials/ai-articles-gallery.json');
+  if (!existsSync(file)) return [];
+  try {
+    const raw = readFileSync(file, 'utf-8');
+    const items = JSON.parse(raw);
+    if (!Array.isArray(items)) return [];
+    return items.filter((it: any) => it?.fileName && existsSync(resolve('public/uploads/materials', it.fileName)));
+  } catch {
+    return [];
+  }
+}
+
+function saveAiGallery(items: AIGeneratedArticleImage[]) {
+  const dir = resolve('public/uploads/materials');
+  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+  const file = resolve(dir, 'ai-articles-gallery.json');
+  writeFileSync(file, JSON.stringify(items.slice(0, 150), null, 2));
+}
+
+function applyArticleStylePreset(prompt: string, preset: string, _aspectRatio?: string): string {
+  const p = prompt.trim();
+  switch (preset) {
+    case 'splashlearn_vector':
+      return `Expert educational 2D vector illustration inspired by modern educational websites like SplashLearn, child-friendly for school students Grades 1 to 10. Clean flat vector artwork with smooth rounded shapes and clean outlines, soft pastel colors with bright cheerful accents, pure white background with generous whitespace. Clear visual hierarchy with the central educational concept as prominent focal point, uncluttered, minimal subtle shadows, zero realistic textures, no watermarks, no branding. Scientifically and mathematically accurate diagrams, step-by-step visual explanations: ${p}`;
+    case 'vibrant_banner':
+      return `High-end editorial article header illustration, vibrant educational 3D digital art, topic: ${p}. Clean composition, volumetric lighting, rich color palette, 8k resolution, suitable for educational mathematics magazine, no misspelled or distorted text.`;
+    case 'clean_infographic':
+      return `Modern educational infographic diagram, flat vector graphic design, clean minimalist aesthetic, white background, high contrast, topic: ${p}. Clear geometric precision, mathematical elegance, publication quality.`;
+    case 'classical_sketch':
+      return `Renaissance vintage mathematical sketchbook drawing, Leonardo da Vinci style sepia ink on parchment paper, technical engraving, intricate geometric annotations, topic: ${p}. Academic, historical, masterwork illustration.`;
+    case 'abstract_math':
+      return `Abstract mathematical visualization, glowing celestial geometric structures, radiant sacred geometry and fractal spirals in deep cosmic space, ethereal neon highlights, topic: ${p}. 8k digital wallpaper.`;
+    case 'chalkboard_blueprint':
+      return `Classroom chalkboard aesthetic with clean white and turquoise chalk drawings, geometric constructions, formulas and diagrams, high contrast, topic: ${p}. Crisp educational illustration.`;
+    case 'none':
+    default:
+      return p;
+  }
+}
+
+// Generate an article image with Gemini Imagen 3 or OpenAI DALL-E 3
+app.post('/api/superadmin/generate-article-image', superAdminOnly, async (req: Request, res: Response) => {
+  try {
+    const schema = z.object({
+      prompt: z.string().trim().min(3).max(2500),
+      provider: z.enum(['gemini', 'openai']).default('gemini'),
+      aspectRatio: z.enum(['16:9', '1:1', '4:3']).default('16:9'),
+      stylePreset: z.string().optional().default('splashlearn_vector'),
+      customApiKey: z.string().optional(),
+      autoEnhance: z.boolean().optional().default(false),
+    });
+    const data = parse(schema, req.body);
+
+    const uploadsDir = resolve('public/uploads/materials');
+    if (!existsSync(uploadsDir)) {
+      mkdirSync(uploadsDir, { recursive: true });
+    }
+
+    let fullPrompt = applyArticleStylePreset(data.prompt, data.stylePreset, data.aspectRatio);
+
+    const cleanCustom = data.customApiKey?.trim();
+    const geminiKey = cleanCustom?.startsWith('AIza')
+      ? cleanCustom
+      : (process.env.GEMINI_API_KEY || (cleanCustom && !cleanCustom.startsWith('sk-') ? cleanCustom : undefined));
+    const openaiKey = cleanCustom?.startsWith('sk-')
+      ? cleanCustom
+      : (process.env.OPENAI_API_KEY || (cleanCustom && cleanCustom.startsWith('sk-') ? cleanCustom : undefined));
+
+    let imageBuffer: Buffer | null = null;
+    let providerUsed = data.provider;
+    let detectedExt = '.webp';
+
+    if (data.provider === 'gemini') {
+      if (!geminiKey) {
+        throw new Error('Google Gemini API Key is required. Please enter your Gemini API Key in the Studio or configure GEMINI_API_KEY in the server .env.');
+      }
+
+      // Multi-strategy cascade for Google Gemini image generation:
+      // 1. Google Gemini Interactions API (Latest native multimodal image generation)
+      // 2. Google Gemini generateContent with responseModalities: ["IMAGE", "TEXT"]
+      // 3. Legacy Imagen 3 :predict endpoint
+      let lastErr = '';
+
+      // Strategy 1: Interactions API
+      const interactionModels = ['gemini-3.1-flash-image', 'gemini-2.5-flash-image', 'gemini-nano-banana-2.1'];
+      for (const model of interactionModels) {
+        try {
+          const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/interactions?key=${geminiKey}`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-goog-api-key': geminiKey,
+            },
+            body: JSON.stringify({
+              model,
+              input: [{ type: 'text', text: fullPrompt }],
+            }),
+          });
+          const json: any = await resp.json().catch(() => ({}));
+          if (resp.ok && json.steps) {
+            for (const step of json.steps) {
+              if (step.content) {
+                for (const part of step.content) {
+                  if (part.type === 'image' && part.data) {
+                    imageBuffer = Buffer.from(part.data, 'base64');
+                    const mime = part.mime_type || 'image/webp';
+                    if (mime.includes('webp')) detectedExt = '.webp';
+                    else if (mime.includes('jpeg') || mime.includes('jpg')) detectedExt = '.jpg';
+                    else detectedExt = '.png';
+                    break;
+                  }
+                }
+              }
+              if (imageBuffer) break;
+            }
+            if (imageBuffer) break;
+          } else {
+            lastErr = json?.error?.message || resp.statusText;
+          }
+        } catch (e: any) {
+          lastErr = e.message || String(e);
+        }
+      }
+
+      // Strategy 2: generateContent with responseModalities: ["IMAGE", "TEXT"]
+      if (!imageBuffer) {
+        const generateContentModels = ['gemini-2.5-flash-image', 'gemini-3.1-flash-image', 'gemini-2.0-flash'];
+        for (const model of generateContentModels) {
+          try {
+            const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'x-goog-api-key': geminiKey,
+              },
+              body: JSON.stringify({
+                contents: [{ parts: [{ text: fullPrompt }] }],
+                generationConfig: {
+                  responseModalities: ['IMAGE', 'TEXT'],
+                },
+              }),
+            });
+            const json: any = await resp.json().catch(() => ({}));
+            if (resp.ok && json.candidates?.[0]?.content?.parts) {
+              for (const part of json.candidates[0].content.parts) {
+                if (part.inlineData?.data) {
+                  imageBuffer = Buffer.from(part.inlineData.data, 'base64');
+                  const mime = part.inlineData.mimeType || 'image/png';
+                  if (mime.includes('webp')) detectedExt = '.webp';
+                  else if (mime.includes('jpeg') || mime.includes('jpg')) detectedExt = '.jpg';
+                  else detectedExt = '.png';
+                  break;
+                }
+              }
+              if (imageBuffer) break;
+            } else {
+              lastErr = json?.error?.message || resp.statusText;
+            }
+          } catch (e: any) {
+            lastErr = e.message || String(e);
+          }
+        }
+      }
+
+      // Strategy 3: Legacy Imagen 3 :predict
+      if (!imageBuffer) {
+        const legacyModels = ['imagen-3.0-generate-002'];
+        for (const model of legacyModels) {
+          try {
+            const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:predict?key=${geminiKey}`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'x-goog-api-key': geminiKey,
+              },
+              body: JSON.stringify({
+                instances: [{ prompt: fullPrompt }],
+                parameters: {
+                  sampleCount: 1,
+                  aspectRatio: data.aspectRatio,
+                },
+              }),
+            });
+            const json: any = await resp.json().catch(() => ({}));
+            if (resp.ok && json.predictions?.[0]?.bytesBase64Encoded) {
+              imageBuffer = Buffer.from(json.predictions[0].bytesBase64Encoded, 'base64');
+              const mime = json.predictions[0].mimeType || 'image/png';
+              if (mime.includes('webp')) detectedExt = '.webp';
+              else if (mime.includes('jpeg') || mime.includes('jpg')) detectedExt = '.jpg';
+              else detectedExt = '.png';
+              break;
+            } else {
+              lastErr = json?.error?.message || resp.statusText;
+            }
+          } catch (e: any) {
+            lastErr = e.message || String(e);
+          }
+        }
+      }
+
+      if (!imageBuffer) {
+        let friendlyMsg = `Google Gemini Error: ${lastErr || 'Model returned empty image data.'}`;
+        if (
+          lastErr.toLowerCase().includes('not found') ||
+          lastErr.toLowerCase().includes('not supported') ||
+          lastErr.includes('404') ||
+          lastErr.toLowerCase().includes('predict')
+        ) {
+          friendlyMsg = `Google Gemini Image Generation is not active on this Gemini API Key. Google AI Studio restricts native image generation to accounts with Google Cloud billing enabled. Please switch to the "ChatGPT DALL·E 3 (OpenAI)" provider option above to generate your image immediately with OpenAI.`;
+        }
+        throw new Error(friendlyMsg);
+      }
+    } else {
+      // OpenAI DALL-E 3
+      if (!openaiKey) {
+        throw new Error('ChatGPT (OpenAI) API Key is required. Please enter your OpenAI API Key in the Studio or configure OPENAI_API_KEY in the server .env.');
+      }
+
+      let dalleSize: '1024x1024' | '1792x1024' = '1792x1024';
+      if (data.aspectRatio === '1:1') {
+        dalleSize = '1024x1024';
+      } else {
+        dalleSize = '1792x1024';
+      }
+
+      const openaiRes = await fetch('https://api.openai.com/v1/images/generations', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${openaiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'dall-e-3',
+          prompt: fullPrompt,
+          n: 1,
+          size: dalleSize,
+          response_format: 'b64_json',
+        }),
+      });
+
+      const openaiJson: any = await openaiRes.json().catch(() => ({}));
+      if (!openaiRes.ok) {
+        throw new Error(`OpenAI DALL-E Error: ${openaiJson?.error?.message || openaiRes.statusText}`);
+      }
+
+      const item = openaiJson?.data?.[0];
+      if (item?.b64_json) {
+        imageBuffer = Buffer.from(item.b64_json, 'base64');
+      } else if (item?.url) {
+        const dlRes = await fetch(item.url);
+        const ab = await dlRes.arrayBuffer();
+        imageBuffer = Buffer.from(ab);
+      }
+
+      if (!imageBuffer) {
+        throw new Error('OpenAI DALL-E did not return valid image data.');
+      }
+      detectedExt = '.png';
+    }
+
+    const safeBase = randomBytes(6).toString('hex');
+    const storedFileName = `ai-art-${Date.now()}_${safeBase}${detectedExt}`;
+    const filePath = resolve(uploadsDir, storedFileName);
+    writeFileSync(filePath, imageBuffer);
+
+    const fileUrl = `/uploads/materials/${storedFileName}`;
+    const newImage: AIGeneratedArticleImage = {
+      id: `img_${Date.now()}_${safeBase}`,
+      fileName: storedFileName,
+      fileUrl,
+      prompt: data.prompt,
+      fullPrompt,
+      provider: providerUsed,
+      aspectRatio: data.aspectRatio,
+      stylePreset: data.stylePreset,
+      createdAt: new Date().toISOString(),
+      fileSize: imageBuffer.length,
+      format: detectedExt.replace('.', '').toUpperCase(),
+    };
+
+    const currentGallery = getAiGallery();
+    currentGallery.unshift(newImage);
+    saveAiGallery(currentGallery);
+
+    res.json({
+      ok: true,
+      image: newImage,
+      message: 'Article image generated and saved permanently to library.',
+    });
+  } catch (error) { errorResponse(res, error); }
+});
+
+// Prompt enhancement via LLM
+app.post('/api/superadmin/enhance-image-prompt', superAdminOnly, async (req: Request, res: Response) => {
+  try {
+    const schema = z.object({
+      prompt: z.string().trim().min(2),
+      stylePreset: z.string().optional().default('splashlearn_vector'),
+      aspectRatio: z.string().optional().default('16:9'),
+      customApiKey: z.string().optional(),
+      provider: z.enum(['gemini', 'openai']).optional().default('gemini'),
+    });
+    const data = parse(schema, req.body);
+
+    const cleanCustom = data.customApiKey?.trim();
+    const geminiKey = cleanCustom?.startsWith('AIza')
+      ? cleanCustom
+      : (process.env.GEMINI_API_KEY || (cleanCustom && !cleanCustom.startsWith('sk-') ? cleanCustom : undefined));
+    const openaiKey = cleanCustom?.startsWith('sk-')
+      ? cleanCustom
+      : (process.env.OPENAI_API_KEY || (cleanCustom && cleanCustom.startsWith('sk-') ? cleanCustom : undefined));
+
+    const systemPrompt = data.stylePreset === 'splashlearn_vector'
+      ? `You are an expert educational illustrator and visual learning designer for a school education portal. Your task is to generate a high-quality educational illustration prompt based on the topic and concept provided by the user.
+1. Illustration Style: Clean, attractive, child-friendly, 2D vector illustration inspired by modern educational websites such as SplashLearn. Flat vector artwork with smooth rounded shapes and clean outlines. Soft pastel colours combined with bright, cheerful accent colours. A predominantly white background with plenty of whitespace. Simple, attractive compositions that make the educational concept easy to understand. Cute decorative elements such as books, pencils, plants, stars, classroom objects, or playful shapes when relevant. Minimal shadows and subtle depth, avoiding realistic textures. Visually appealing for school students, especially Grades 1–10.
+2. Educational Accuracy: Represent the concept accurately and clearly. Scientifically and mathematically correct diagrams, labelled illustrations, and clear processes.
+3. Composition: Main concept as focal point, balanced layout, clear visual hierarchy, no watermarks, no branding.
+Output ONLY the final image generation prompt text under 85 words, without commentary or quotes.`
+      : `You are an award-winning art director for educational publications. Expand the given brief topic into a vivid, descriptive prompt for an AI image generator (like DALL-E 3 or Imagen 3). Keep it under 65 words. Output ONLY the prompt text without preamble or quotes.`;
+
+    let enhanced = '';
+
+    if (data.provider === 'openai' && openaiKey) {
+      const resp = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${openaiKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          messages: [
+            {
+              role: 'system',
+              content: systemPrompt,
+            },
+            {
+              role: 'user',
+              content: `Topic: ${data.prompt}. Target style: ${data.stylePreset}. Aspect ratio: ${data.aspectRatio}.`
+            }
+          ],
+          temperature: 0.7,
+        }),
+      });
+      const json: any = await resp.json().catch(() => ({}));
+      enhanced = json?.choices?.[0]?.message?.content?.trim() || '';
+    } else if (geminiKey) {
+      const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{
+            parts: [{
+              text: `${systemPrompt}\n\nTopic: ${data.prompt}\nStyle: ${data.stylePreset}\nAspect Ratio: ${data.aspectRatio}`
+            }]
+          }]
+        }),
+      });
+      const json: any = await resp.json().catch(() => ({}));
+      enhanced = json?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '';
+    }
+
+    if (!enhanced) {
+      enhanced = applyArticleStylePreset(data.prompt, data.stylePreset, data.aspectRatio);
+    }
+
+    res.json({ ok: true, enhancedPrompt: enhanced });
+  } catch (error) { errorResponse(res, error); }
+});
+
+// Fetch all generated AI images from gallery
+app.get('/api/superadmin/ai-images', superAdminOnly, async (_req: Request, res: Response) => {
+  try {
+    const gallery = getAiGallery();
+    res.json({ ok: true, images: gallery });
+  } catch (error) { errorResponse(res, error); }
+});
+
+// Delete an AI image from disk and gallery
+app.delete('/api/superadmin/ai-images/:id', superAdminOnly, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const gallery = getAiGallery();
+    const target = gallery.find(item => item.id === id);
+    if (target) {
+      const filePath = resolve('public/uploads/materials', target.fileName);
+      if (existsSync(filePath)) {
+        try { unlinkSync(filePath); } catch { }
+      }
+      const updated = gallery.filter(item => item.id !== id);
+      saveAiGallery(updated);
+    }
+    res.json({ ok: true });
   } catch (error) { errorResponse(res, error); }
 });
 

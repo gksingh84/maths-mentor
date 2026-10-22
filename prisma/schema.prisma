@@ -171,17 +171,21 @@ model WorksheetPaper {
 }
 
 model WorksheetSubmission {
-  id          String           @id @default(cuid())
-  paperId     String
-  studentId   String
-  images      String           @default("[]")
-  score       Int?
-  remarks     String?
-  status      SubmissionStatus @default(SUBMITTED)
-  submittedAt DateTime         @default(now())
-  gradedAt    DateTime?
-  paper       WorksheetPaper   @relation(fields: [paperId], references: [id], onDelete: Cascade)
-  student     Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  id               String           @id @default(cuid())
+  paperId          String
+  studentId        String
+  images           String           @default("[]")
+  score            Int?
+  remarks          String?
+  aiDraftScore     Int?
+  aiDraftRemarks   String?
+  aiDraftBreakdown String?
+  aiStatus         String?          @default("IDLE")
+  status           SubmissionStatus @default(SUBMITTED)
+  submittedAt      DateTime         @default(now())
+  gradedAt         DateTime?
+  paper            WorksheetPaper   @relation(fields: [paperId], references: [id], onDelete: Cascade)
+  student          Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
   @@unique([paperId, studentId])
 }
