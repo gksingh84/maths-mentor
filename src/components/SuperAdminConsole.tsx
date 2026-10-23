@@ -75,6 +75,12 @@ export function SuperAdminConsole({ currentUser, onSignOut, onLoginSuccess, onBa
   const [actionNotice, setActionNotice] = useState('');
   const [togglingId, setTogglingId] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (currentUser?.role === 'superadmin') {
+      setAdminUser(currentUser);
+    }
+  }, [currentUser]);
+
   // Check auth session on mount
   useEffect(() => {
     async function checkAuth() {
@@ -309,7 +315,9 @@ export function SuperAdminConsole({ currentUser, onSignOut, onLoginSuccess, onBa
           <div style={{ textAlign: 'center', marginTop: '20px', borderTop: '1px solid #f1f5f9', paddingTop: '16px' }}>
             <button
               type="button"
+              id="btn-admin-login-back-portal"
               onClick={onBackToPortal}
+              title="Return to EduAshram Public Portal"
               style={{ background: 'none', border: 'none', color: '#64748b', fontSize: '13px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '5px' }}
             >
               ← Back to EduAshram Public Portal
@@ -343,9 +351,11 @@ export function SuperAdminConsole({ currentUser, onSignOut, onLoginSuccess, onBa
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <button
             type="button"
+            id="btn-admin-public-portal"
             className="button button-secondary"
             onClick={onBackToPortal}
-            style={{ fontSize: '13px', padding: '6px 14px', borderRadius: '8px', background: '#1e293b', color: '#e2e8f0', border: '1px solid #334155' }}
+            title="Go to Public Portal"
+            style={{ fontSize: '13px', padding: '6px 14px', borderRadius: '8px', background: '#1e293b', color: '#e2e8f0', border: '1px solid #334155', cursor: 'pointer' }}
           >
             <ExternalLink size={14} /> Public Portal
           </button>

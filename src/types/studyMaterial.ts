@@ -30,6 +30,14 @@ export const FONT_SIZE_OPTIONS = [
 
 export const FONT_SIZE_STEPS = ['12px', '14px', '16px', '18px', '20px', '24px', '28px', '32px', '36px', '42px'];
 
+export const LINE_SPACING_OPTIONS = [
+  { label: '1.2 (Tight)', value: '1.2' },
+  { label: '1.4 (Compact)', value: '1.4' },
+  { label: '1.7 (Normal)', value: '1.7' },
+  { label: '2.0 (Double)', value: '2.0' },
+  { label: '2.4 (Spacious)', value: '2.4' },
+];
+
 export type WorksheetQuestion = {
   id: string;
   question: string;

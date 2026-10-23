@@ -303,6 +303,51 @@ export function AdminArticleImageStudio({ onInsertIntoArticle, setNotice }: Admi
     return `<figure style="margin: 22px 0; text-align: center;"><img src="${item.fileUrl}" alt="${item.prompt}" style="max-width: 100%; max-height: 480px; border-radius: 12px; box-shadow: 0 6px 22px rgba(0,0,0,0.09);" /><figcaption style="font-size: 13px; color: #64748b; margin-top: 8px;"><em>${item.prompt}</em></figcaption></figure><p><br></p>`;
   }
 
+  function handleDownloadImage(item: AIGeneratedImageItem) {
+    if (!item) return;
+    if (item.fileUrl.endsWith('.svg') || item.format === 'SVG') {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          canvas.width = 1600;
+          canvas.height = 900;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            const pngUrl = canvas.toDataURL('image/png');
+            const a = document.createElement('a');
+            a.href = pngUrl;
+            a.download = item.fileName.replace(/\.svg$/i, '.png');
+            a.click();
+            return;
+          }
+        } catch {
+          // fallback to direct download
+        }
+        const a = document.createElement('a');
+        a.href = item.fileUrl;
+        a.download = item.fileName;
+        a.click();
+      };
+      img.onerror = () => {
+        const a = document.createElement('a');
+        a.href = item.fileUrl;
+        a.download = item.fileName;
+        a.click();
+      };
+      img.src = item.fileUrl;
+    } else {
+      const a = document.createElement('a');
+      a.href = item.fileUrl;
+      a.download = item.fileName;
+      a.click();
+    }
+  }
+
   const filteredGallery = gallery.filter(
     (item) =>
       item.prompt.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -869,15 +914,39 @@ export function AdminArticleImageStudio({ onInsertIntoArticle, setNotice }: Admi
               }}
             >
               {activeImage ? (
-                <div style={{ position: 'relative', maxWidth: '100%', maxHeight: '520px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div
+                  style={{
+                    position: 'relative',
+                    maxWidth: '100%',
+                    maxHeight: '520px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    background: '#ffffff',
+                    borderRadius: '12px',
+                    padding: '8px',
+                    boxShadow: '0 12px 35px rgba(0,0,0,0.6)',
+                  }}
+                >
                   <img
                     src={activeImage.fileUrl}
                     alt={activeImage.prompt}
+                    onError={(e) => {
+                      const target = e.currentTarget;
+                      target.style.display = 'none';
+                      const parent = target.parentElement;
+                      if (parent && !parent.querySelector('.img-load-fallback')) {
+                        const fallback = document.createElement('div');
+                        fallback.className = 'img-load-fallback';
+                        fallback.style.cssText = 'padding: 40px 24px; text-align: center; color: #dc2626; font-size: 13px; font-weight: 600;';
+                        fallback.innerHTML = '⚠️ Image preview could not load. Click "Generate Article Image" to create a fresh visual.';
+                        parent.appendChild(fallback);
+                      }
+                    }}
                     style={{
                       maxWidth: '100%',
-                      maxHeight: '520px',
+                      maxHeight: '500px',
                       borderRadius: '8px',
-                      boxShadow: '0 10px 30px rgba(0,0,0,0.5)',
                       objectFit: 'contain',
                     }}
                   />
@@ -887,15 +956,18 @@ export function AdminArticleImageStudio({ onInsertIntoArticle, setNotice }: Admi
                     title="View Fullscreen Lightbox"
                     style={{
                       position: 'absolute',
-                      right: '12px',
-                      bottom: '12px',
-                      background: 'rgba(0, 0, 0, 0.7)',
+                      right: '16px',
+                      bottom: '16px',
+                      background: 'rgba(15, 23, 42, 0.8)',
                       color: '#ffffff',
                       border: '1px solid rgba(255, 255, 255, 0.3)',
                       borderRadius: '8px',
                       padding: '8px',
                       cursor: 'pointer',
                       backdropFilter: 'blur(4px)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
                     }}
                   >
                     <Maximize2 size={16} />
@@ -967,9 +1039,9 @@ export function AdminArticleImageStudio({ onInsertIntoArticle, setNotice }: Admi
                     <span>{copiedHtml ? 'Copied HTML!' : 'Copy <figure> Embed Code'}</span>
                   </button>
 
-                  <a
-                    href={activeImage.fileUrl}
-                    download={activeImage.fileName}
+                  <button
+                    type="button"
+                    onClick={() => handleDownloadImage(activeImage)}
                     style={{
                       display: 'inline-flex',
                       alignItems: 'center',
@@ -981,12 +1053,12 @@ export function AdminArticleImageStudio({ onInsertIntoArticle, setNotice }: Admi
                       color: '#1e293b',
                       fontSize: '13px',
                       fontWeight: 600,
-                      textDecoration: 'none',
                       cursor: 'pointer',
                     }}
                   >
-                    <Download size={15} /> Download PNG
-                  </a>
+                    <Download size={15} />
+                    <span>Download {activeImage.format === 'SVG' ? 'PNG / SVG' : (activeImage.format || 'PNG')}</span>
+                  </button>
 
                   {onInsertIntoArticle && (
                     <button

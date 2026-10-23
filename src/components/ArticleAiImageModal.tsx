@@ -9,7 +9,8 @@ import {
   CheckCircle2,
   Image as ImageIcon,
   ArrowRight,
-  Layers
+  Layers,
+  KeyRound,
 } from 'lucide-react';
 import type { AIGeneratedImageItem } from './AdminArticleImageStudio';
 
@@ -30,6 +31,10 @@ const PRESETS = [
 ];
 
 export function ArticleAiImageModal({ isOpen, onClose, onInsert }: ArticleAiImageModalProps) {
+  const [customApiKey, setCustomApiKey] = useState(() => {
+    return localStorage.getItem('maths_mentor_admin_ai_key') || '';
+  });
+  const [showKeyConfig, setShowKeyConfig] = useState(false);
   const [provider, setProvider] = useState<'gemini' | 'openai'>('gemini');
   const [prompt, setPrompt] = useState('');
   const [selectedPreset, setSelectedPreset] = useState('splashlearn_vector');
@@ -89,7 +94,7 @@ export function ArticleAiImageModal({ isOpen, onClose, onInsert }: ArticleAiImag
     setEnhancing(true);
     setErrorMessage('');
     try {
-      const customKey = localStorage.getItem('maths_mentor_admin_ai_key') || undefined;
+      const customKey = customApiKey.trim() || localStorage.getItem('maths_mentor_admin_ai_key') || undefined;
       const effective = buildEffectivePrompt();
       const res = await fetch('/api/superadmin/enhance-image-prompt', {
         method: 'POST',
@@ -125,13 +130,13 @@ export function ArticleAiImageModal({ isOpen, onClose, onInsert }: ArticleAiImag
     setGenerating(true);
     setErrorMessage('');
     setStatusMessage(
-      provider === 'gemini'
-        ? 'Generating with Google Imagen 3...'
-        : 'Generating with ChatGPT DALL·E 3...'
+      provider === 'openai'
+        ? 'Generating with ChatGPT DALL·E 3...'
+        : 'Generating with Google Imagen 3...'
     );
 
     try {
-      const customKey = localStorage.getItem('maths_mentor_admin_ai_key') || undefined;
+      const customKey = customApiKey.trim() || localStorage.getItem('maths_mentor_admin_ai_key') || undefined;
       const effective = buildEffectivePrompt();
       const res = await fetch('/api/superadmin/generate-article-image', {
         method: 'POST',
@@ -295,8 +300,8 @@ export function ArticleAiImageModal({ isOpen, onClose, onInsert }: ArticleAiImag
                       background: '#ffffff',
                     }}
                   >
-                    <option value="gemini">Google Imagen 3 (Recommended)</option>
-                    <option value="openai">ChatGPT DALL·E 3 (OpenAI)</option>
+                    <option value="gemini">Google Gemini AI (SplashLearn Vector - Free)</option>
+                    <option value="openai">ChatGPT DALL·E 3 (Photorealistic - Requires Credits)</option>
                   </select>
                 </div>
 
@@ -322,6 +327,62 @@ export function ArticleAiImageModal({ isOpen, onClose, onInsert }: ArticleAiImag
                     <option value="1:1">1:1 (Square Graphic)</option>
                   </select>
                 </div>
+              </div>
+
+              {/* API Key Configuration Toggle */}
+              <div style={{ marginBottom: '14px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <button
+                    type="button"
+                    onClick={() => setShowKeyConfig(!showKeyConfig)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#4f46e5',
+                      fontSize: '11.5px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      padding: 0,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                    }}
+                  >
+                    <KeyRound size={12} />
+                    {showKeyConfig ? 'Hide Custom API Key' : (customApiKey ? 'Custom API Key Active (Click to edit)' : 'Enter Custom API Key (Optional)')}
+                  </button>
+                  {customApiKey && !showKeyConfig && (
+                    <span style={{ fontSize: '11px', color: '#10b981', fontWeight: 600 }}>✓ Key set</span>
+                  )}
+                </div>
+
+                {showKeyConfig && (
+                  <div style={{ marginTop: '6px', background: '#f8fafc', padding: '10px 12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <input
+                        type="password"
+                        placeholder={provider === 'openai' ? 'Paste OpenAI key (sk-...)' : 'Paste Gemini key (AIza...)'}
+                        value={customApiKey}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setCustomApiKey(val);
+                          localStorage.setItem('maths_mentor_admin_ai_key', val.trim());
+                        }}
+                        style={{
+                          flex: 1,
+                          padding: '6px 10px',
+                          borderRadius: '6px',
+                          border: '1px solid #cbd5e1',
+                          fontSize: '12px',
+                          background: '#ffffff',
+                        }}
+                      />
+                    </div>
+                    <p style={{ margin: '4px 0 0', fontSize: '11px', color: '#64748b' }}>
+                      Key is stored securely in your browser's localStorage. Leave empty to use server default.
+                    </p>
+                  </div>
+                )}
               </div>
 
               {/* Style Presets */}
@@ -544,10 +605,22 @@ export function ArticleAiImageModal({ isOpen, onClose, onInsert }: ArticleAiImag
                     </button>
                   </div>
 
-                  <div style={{ textAlign: 'center', padding: '12px' }}>
+                  <div style={{ textAlign: 'center', padding: '14px', background: '#ffffff', margin: '12px', borderRadius: '10px' }}>
                     <img
                       src={generatedResult.fileUrl}
                       alt={generatedResult.prompt}
+                      onError={(e) => {
+                        const target = e.currentTarget;
+                        target.style.display = 'none';
+                        const parent = target.parentElement;
+                        if (parent && !parent.querySelector('.img-load-fallback')) {
+                          const fallback = document.createElement('div');
+                          fallback.className = 'img-load-fallback';
+                          fallback.style.cssText = 'padding: 24px; text-align: center; color: #dc2626; font-size: 13px; font-weight: 600;';
+                          fallback.innerHTML = '⚠️ Image preview could not load. Please generate again.';
+                          parent.appendChild(fallback);
+                        }
+                      }}
                       style={{ maxWidth: '100%', maxHeight: '280px', borderRadius: '6px', objectFit: 'contain' }}
                     />
                   </div>

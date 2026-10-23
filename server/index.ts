@@ -4283,7 +4283,7 @@ async function evaluateAnswerSheetSubmissionWithAI(submissionId: string) {
       .replace(/\s+/g, ' ')
       .trim();
 
-    const parts: any[] = [];
+    const imageParts: any[] = [];
     for (let i = 0; i < images.length; i++) {
       let raw = images[i];
       let mimeType = 'image/jpeg';
@@ -4294,7 +4294,7 @@ async function evaluateAnswerSheetSubmissionWithAI(submissionId: string) {
       }
       raw = raw.replace(/\s+/g, '');
       if (raw) {
-        parts.push({
+        imageParts.push({
           inlineData: {
             mimeType,
             data: raw,
@@ -4303,110 +4303,189 @@ async function evaluateAnswerSheetSubmissionWithAI(submissionId: string) {
       }
     }
 
-    const promptText = `You are a supportive, precise, and fair Mathematics teacher grading a student's handwritten answer sheet.
+    if (imageParts.length === 0) {
+      throw new Error('No valid image data found in submission.');
+    }
+
+    const candidateModels = [
+      'gemini-3.5-flash',
+      'gemini-3.5-flash-lite',
+      'gemini-3-flash-preview',
+      'gemini-flash-lite-latest',
+      'gemini-2.5-flash',
+    ];
+
+    // Helper to query Gemini with candidate models fallback
+    async function queryGemini(contents: any[]): Promise<any> {
+      let lastErr = '';
+      for (const modelName of candidateModels) {
+        try {
+          console.log(`[AI Auto-Evaluation] Querying Gemini model: ${modelName}...`);
+          const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${geminiKey}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents,
+              generationConfig: { responseMimeType: 'application/json' },
+            }),
+          });
+          const jsonResult: any = await response.json().catch(() => ({}));
+          if (!response.ok) {
+            lastErr = jsonResult?.error?.message ?? response.statusText;
+            console.warn(`[AI Auto-Evaluation] Model ${modelName} returned HTTP ${response.status}: ${lastErr.slice(0, 120)}`);
+            // Fall back to next model on 404 (not found), 429 (rate/quota limit), 503 (temporary high demand), or 500
+            if (response.status === 404 || response.status === 429 || response.status === 503 || response.status >= 500 || lastErr.includes('not found') || lastErr.includes('quota') || lastErr.includes('demand')) {
+              continue;
+            }
+            throw new Error(`Google Gemini Error: ${lastErr}`);
+          }
+          const parts = jsonResult.candidates?.[0]?.content?.parts || [];
+          const nonThoughtParts = parts.filter((p: any) => !p.thought && typeof p.text === 'string');
+          const textOutput = nonThoughtParts.length > 0
+            ? nonThoughtParts.map((p: any) => p.text).join('\n')
+            : (parts[parts.length - 1]?.text || '');
+
+          if (textOutput) {
+            let cleaned = textOutput.trim();
+            if (cleaned.startsWith('```')) {
+              cleaned = cleaned.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+            }
+            try {
+              return JSON.parse(cleaned);
+            } catch {
+              const match = cleaned.match(/\{[\s\S]*\}|\[[\s\S]*\]/);
+              if (match) return JSON.parse(match[0]);
+            }
+          }
+        } catch (err) {
+          lastErr = err instanceof Error ? err.message : String(err);
+          console.warn(`[AI Auto-Evaluation] Model ${modelName} encountered error: ${lastErr.slice(0, 120)}`);
+        }
+      }
+      throw new Error(lastErr || 'No response from Google Gemini models.');
+    }
+
+    // --- STAGE 1: Pure Visual Document & Optical Mark Reading (OMR & Handwriting OCR) ---
+    console.log(`[AI Auto-Evaluation] Stage 1: Reading answer sheet images for student ${sub.student?.name || 'Student'}...`);
+    const stage1Prompt = `You are a precision Optical Mark Recognition (OMR) and Handwriting Transcription engine.
+Your task is to examine the attached student answer sheet photo(s) and transcribe EXACTLY what the student has marked or written for each question.
+DO NOT attempt to solve the math problems or judge if the student is right or wrong. Only report what is visually present on the paper.
+
+INSTRUCTIONS:
+1. Examine all attached pages carefully from top to bottom.
+2. For each question number (Q1, Q2, Q3, ...):
+   - MULTIPLE CHOICE / OPTION SELECTION:
+     Look closely at the options (A, B, C, D).
+     Identify which option has the student's pen/pencil mark, tick, checkmark, circle, underline, or cross on or immediately next to it.
+     Be strictly faithful to the placement of the mark:
+     - Check which option letter (A, B, C, or D) the mark actually touches or precedes.
+     - A checkmark immediately preceding "(C)" belongs to (C), NOT (B).
+     - Record the exact option letter and text (e.g., "(C) 4/20 meter" or "(B) 5/8").
+   - HANDWRITTEN SOLUTIONS / CALCULATIONS / STEPS:
+     Transcribe the student's handwritten equations, working steps, intermediate calculations, and final answer verbatim.
+   - If an answer is crossed out or corrected, record the student's final intended answer.
+   - If a question was left unattempted or no mark is visible, report "Unattempted / Blank".
+
+Return a JSON object:
+{
+  "transcriptions": [
+    {
+      "question": "Q1",
+      "studentResponse": "Option (D) 9/4",
+      "visualNote": "Blue checkmark on (D)"
+    }
+  ]
+}`;
+
+    let transcribedAnswers: any[] = [];
+    try {
+      const stage1Result = await queryGemini([{ parts: [...imageParts, { text: stage1Prompt }] }]);
+      transcribedAnswers = stage1Result?.transcriptions || stage1Result?.answers || (Array.isArray(stage1Result) ? stage1Result : []);
+      console.log(`[AI Auto-Evaluation] Stage 1 Transcribed ${transcribedAnswers.length} responses for student ${sub.student?.name || 'Student'}`);
+    } catch (stage1Err) {
+      console.warn('[AI Auto-Evaluation] Stage 1 Transcription Warning:', stage1Err);
+      transcribedAnswers = [];
+    }
+
+    // --- STAGE 2: Rigorous Mathematical Evaluation & Step-by-Step Checking ---
+    console.log(`[AI Auto-Evaluation] Stage 2: Mathematically evaluating responses against question paper...`);
+    const stage2Prompt = `You are a rigorous, fair, and encouraging Mathematics teacher and official examiner.
+Grade the student's submitted answer sheet against the official Question Paper.
 
 STUDENT NAME: ${sub.student?.name || 'Student'}
 EXAM TITLE: "${sub.paper.title}"
 TOTAL MARKS: ${sub.paper.totalMarks}
 GRADE & SUBJECT: ${sub.paper.grade || 'General'} · ${sub.paper.subject || 'Mathematics'}
 
-QUESTION PAPER / EXAM CONTENT:
+QUESTION PAPER / EXAM QUESTIONS & MARKING SCHEME:
 """
 ${cleanContent.slice(0, 10000)}
 """
 
-INSTRUCTIONS:
-1. Examine the attached handwritten answer sheet image(s) page by page.
-2. Read the student's handwritten steps and final answers for each question found on the paper.
-3. Compare the student's solution steps with the expected mathematical principles. Award step marks for correct working even if the final calculation has minor arithmetic slips.
-4. Calculate the total score out of ${sub.paper.totalMarks} (ensure 0 <= score <= ${sub.paper.totalMarks}).
-5. Write constructive, warm, and motivating 2-3 sentence feedback for the student and parent.
-6. Provide a question-by-question breakdown.
+${transcribedAnswers.length > 0 ? `STUDENT'S ACTUAL RESPONSES (Transcribed from uploaded answer sheet photos):
+"""
+${JSON.stringify(transcribedAnswers, null, 2)}
+"""` : `NOTE: Inspect the attached answer sheet images directly for student marks, handwriting, and answers.`}
 
-CRITICAL: Return ONLY a valid JSON object matching this exact schema:
+GRADING INSTRUCTIONS & RULES:
+1. Question-by-Question Evaluation:
+   For EVERY question in the Question Paper:
+   a. Solve the question mathematically to find the TRUE CORRECT ANSWER, correct option, and required solution steps.
+   b. Look at what the student actually marked or wrote.
+   c. Award marks strictly:
+      - If student's answer/option is CORRECT: status = "CORRECT", award marksAwarded = maxMarks for this question (e.g. 1 out of 1).
+      - If student's answer/option is WRONG or INCORRECT: status = "INCORRECT", award marksAwarded = 0. Never give marks for wrong options.
+      - If multi-step question with correct partial steps: status = "PARTIAL", award partial marks reflecting the valid steps.
+      - If unattempted or blank: status = "INCORRECT", award marksAwarded = 0.
+   d. Write concise, clear feedback explaining why the answer is correct or highlighting the mathematical mistake made.
+2. Total Score Calculation:
+   - "score" MUST EQUAL THE EXACT SUM of all "marksAwarded" in the breakdown array.
+   - Ensure 0 <= score <= ${sub.paper.totalMarks}.
+3. Constructive Teacher Feedback / Remarks:
+   - Write a warm, constructive 2-4 sentence summary for the student and parent.
+   - Mention the total marks scored out of ${sub.paper.totalMarks}.
+   - Praise topics mastered.
+   - Point out specific questions/concepts where mistakes were made so the student knows what to revise.
+
+Return ONLY a JSON object matching this exact structure:
 {
-  "score": number,
-  "remarks": "string",
   "breakdown": [
     {
-      "question": "string (e.g. Q1)",
+      "question": "Q1",
+      "correctAnswer": "string (the correct option or answer)",
+      "studentWorking": "string (what the student actually marked or wrote)",
+      "status": "CORRECT" | "PARTIAL" | "INCORRECT",
       "marksAwarded": number,
       "maxMarks": number,
-      "status": "CORRECT" | "PARTIAL" | "INCORRECT",
-      "studentWorking": "string (brief summary of student's answer/steps)",
-      "feedback": "string (1 sentence feedback on this question)"
+      "feedback": "string"
     }
-  ]
-}
-`;
-    parts.push({ text: promptText });
+  ],
+  "score": number,
+  "remarks": "string"
+}`;
 
-    const candidateModels = [
-      'gemini-2.5-flash',
-      'gemini-2.5-pro',
-      'gemini-flash-latest',
-      'gemini-2.5-flash-lite',
-      'gemini-2.0-flash',
-      'gemini-1.5-flash',
-    ];
+    // If stage 1 had transcriptions, we pass stage 2 as text with transcriptions. If stage 1 was empty, pass imageParts as fallback.
+    const stage2Contents = transcribedAnswers.length > 0
+      ? [{ parts: [{ text: stage2Prompt }] }]
+      : [{ parts: [...imageParts, { text: stage2Prompt }] }];
 
-    let lastError = '';
-    let parsed: any = null;
+    const parsed = await queryGemini(stage2Contents);
 
-    for (const modelName of candidateModels) {
-      try {
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${geminiKey}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts }],
-            generationConfig: { responseMimeType: 'application/json' },
-          }),
-        });
-
-        const jsonResult: any = await response.json().catch(() => ({}));
-        if (!response.ok) {
-          lastError = jsonResult?.error?.message ?? response.statusText;
-          if (lastError.includes('not found') || lastError.includes('no longer available') || response.status === 404) {
-            continue;
-          }
-          throw new Error(`Google Gemini Error: ${lastError}`);
-        }
-
-        const textOutput = jsonResult.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (textOutput) {
-          try {
-            parsed = JSON.parse(textOutput);
-            if (parsed && typeof parsed.score === 'number') {
-              break;
-            }
-          } catch (e) {
-            const match = textOutput.match(/\{[\s\S]*\}/);
-            if (match) {
-              parsed = JSON.parse(match[0]);
-              if (parsed && typeof parsed.score === 'number') break;
-            }
-          }
-        }
-      } catch (err) {
-        lastError = err instanceof Error ? err.message : String(err);
-      }
+    if (!parsed || !Array.isArray(parsed.breakdown)) {
+      throw new Error('AI evaluation response was incomplete or had an invalid structure.');
     }
 
-    if (!parsed || typeof parsed.score !== 'number') {
-      await (prisma.worksheetSubmission as any).update({
-        where: { id: submissionId },
-        data: {
-          aiStatus: 'FAILED',
-          aiDraftRemarks: `AI evaluation could not complete: ${lastError || 'Invalid response format'}`,
-        },
-      });
-      return null;
+    let breakdownScore = 0;
+    if (parsed.breakdown.length > 0) {
+      breakdownScore = parsed.breakdown.reduce((sum: number, item: any) => sum + (Number(item.marksAwarded) || 0), 0);
     }
 
-    const calculatedScore = Math.min(sub.paper.totalMarks, Math.max(0, Math.round(Number(parsed.score))));
+    const calculatedScore = Math.min(
+      sub.paper.totalMarks,
+      Math.max(0, Math.round(parsed.breakdown.length > 0 ? breakdownScore : (Number(parsed.score) || 0)))
+    );
     const finalRemarks = String(parsed.remarks || '').trim();
-    const finalBreakdown = Array.isArray(parsed.breakdown) ? JSON.stringify(parsed.breakdown) : '[]';
+    const finalBreakdown = JSON.stringify(parsed.breakdown);
 
     const updated = await (prisma.worksheetSubmission as any).update({
       where: { id: submissionId },
@@ -4800,6 +4879,47 @@ function saveAiGallery(items: AIGeneratedArticleImage[]) {
   writeFileSync(file, JSON.stringify(items.slice(0, 150), null, 2));
 }
 
+function cleanAndNormalizeSvg(rawText: string, width = 800, height = 450): string | null {
+  if (!rawText) return null;
+  let text = rawText.replace(/```(?:xml|svg|html)?/gi, '').replace(/```/g, '').trim();
+
+  const startIdx = text.indexOf('<svg');
+  const endIdx = text.lastIndexOf('</svg>');
+  if (startIdx === -1 || endIdx === -1 || endIdx <= startIdx) {
+    return null;
+  }
+
+  let svg = text.substring(startIdx, endIdx + 6).trim();
+  const closeOpenTag = svg.indexOf('>');
+  if (closeOpenTag === -1) return null;
+
+  let openTag = svg.substring(0, closeOpenTag + 1);
+  let rest = svg.substring(closeOpenTag + 1);
+
+  if (!openTag.includes('xmlns=')) {
+    openTag = openTag.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"');
+  }
+  if (!openTag.includes('xmlns:xlink=')) {
+    openTag = openTag.replace('<svg', '<svg xmlns:xlink="http://www.w3.org/1999/xlink"');
+  }
+  if (!openTag.includes('viewBox=') && !openTag.includes('viewbox=')) {
+    openTag = openTag.replace('<svg', `<svg viewBox="0 0 ${width} ${height}"`);
+  }
+  if (!openTag.includes('width=')) {
+    openTag = openTag.replace('<svg', '<svg width="100%"');
+  }
+  if (!openTag.includes('height=')) {
+    openTag = openTag.replace('<svg', '<svg height="100%"');
+  }
+
+  // Ensure solid white background rect is present so graphic is always bright, clear, and visible
+  if (!rest.includes('<rect') || (!rest.includes('fill="#ffffff"') && !rest.includes('fill="#fff"') && !rest.includes('fill="white"'))) {
+    rest = `<rect width="100%" height="100%" fill="#ffffff" rx="6" />\n` + rest;
+  }
+
+  return `<?xml version="1.0" encoding="UTF-8"?>\n${openTag}\n${rest}`;
+}
+
 function applyArticleStylePreset(prompt: string, preset: string, _aspectRatio?: string): string {
   const p = prompt.trim();
   switch (preset) {
@@ -4981,6 +5101,51 @@ app.post('/api/superadmin/generate-article-image', superAdminOnly, async (req: R
         }
       }
 
+      // Strategy 4: High-Resolution Educational SVG Vector Graphic via Gemini 2.0 Flash / 1.5 Flash
+      // (Bypasses Google Cloud billing requirements completely! Generates crisp, publication-grade SVG graphics for free)
+      if (!imageBuffer) {
+        const textModels = ['gemini-2.0-flash', 'gemini-1.5-flash'];
+        const w = data.aspectRatio === '16:9' ? 800 : (data.aspectRatio === '1:1' ? 600 : 800);
+        const h = data.aspectRatio === '16:9' ? 450 : (data.aspectRatio === '1:1' ? 600 : 600);
+        const svgPrompt = `You are an elite educational graphic designer and SVG artist.
+Create a complete, beautiful, child-friendly 2D vector educational graphic in valid, standalone SVG format for school students (Grades 1 to 10).
+Topic / Educational Concept: ${data.prompt}
+Visual Style: Modern educational vector art inspired by SplashLearn and Khan Academy.
+Design requirements:
+- Canvas: viewBox="0 0 ${w} ${h}" width="100%" height="100%"
+- Background: A crisp, clean white background (<rect width="100%" height="100%" fill="#ffffff" />)
+- Color Palette: Vibrant, harmonious pastel tones (soft emerald, sky blue, warm amber, coral, violet, slate) with high contrast for easy reading
+- Content: Visually explain the concept with mathematically/scientifically accurate geometric shapes, curves, labeled components, numbers, or step-by-step diagrams
+- Typography: Use clean modern sans-serif <text> elements (font-family="system-ui, -apple-system, sans-serif") with font-weight="600" or "bold"
+- Polish: Rounded corners (rx, ry), subtle gradients (<linearGradient>), clear borders, balanced whitespace
+- Output format: Return ONLY the raw SVG code starting with <svg and ending with </svg>. Do NOT include markdown code fences, preamble, or commentary.`;
+
+        for (const model of textModels) {
+          try {
+            const svgResp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                contents: [{ parts: [{ text: svgPrompt }] }],
+                generationConfig: {
+                  temperature: 0.2,
+                },
+              }),
+            });
+            const svgJson: any = await svgResp.json().catch(() => ({}));
+            const rawText = svgJson?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+            const normalized = cleanAndNormalizeSvg(rawText, w, h);
+            if (normalized) {
+              imageBuffer = Buffer.from(normalized, 'utf-8');
+              detectedExt = '.svg';
+              break;
+            }
+          } catch {
+            // try next model
+          }
+        }
+      }
+
       if (!imageBuffer) {
         let friendlyMsg = `Google Gemini Error: ${lastErr || 'Model returned empty image data.'}`;
         if (
@@ -4994,57 +5159,132 @@ app.post('/api/superadmin/generate-article-image', superAdminOnly, async (req: R
         throw new Error(friendlyMsg);
       }
     } else {
-      // OpenAI DALL-E 3
+      // OpenAI DALL-E & GPT Vector Fallback
       if (!openaiKey) {
         throw new Error('ChatGPT (OpenAI) API Key is required. Please enter your OpenAI API Key in the Studio or configure OPENAI_API_KEY in the server .env.');
       }
 
-      let dalleSize: '1024x1024' | '1792x1024' = '1792x1024';
-      if (data.aspectRatio === '1:1') {
-        dalleSize = '1024x1024';
-      } else {
-        dalleSize = '1792x1024';
-      }
+      let dalleSize: '1024x1024' | '1792x1024' = data.aspectRatio === '1:1' ? '1024x1024' : '1792x1024';
 
-      const openaiRes = await fetch('https://api.openai.com/v1/images/generations', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${openaiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'dall-e-3',
+      const callOpenAIImages = async (model: string, size: string) => {
+        const payload: Record<string, any> = {
+          model,
           prompt: fullPrompt,
           n: 1,
-          size: dalleSize,
-          response_format: 'b64_json',
-        }),
-      });
+          size,
+        };
+        const resp = await fetch('https://api.openai.com/v1/images/generations', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${openaiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(payload),
+        });
+        const json: any = await resp.json().catch(() => ({}));
+        return { ok: resp.ok, statusText: resp.statusText, json };
+      };
 
-      const openaiJson: any = await openaiRes.json().catch(() => ({}));
-      if (!openaiRes.ok) {
-        throw new Error(`OpenAI DALL-E Error: ${openaiJson?.error?.message || openaiRes.statusText}`);
+      // 1. Primary attempt: DALL-E 3 with requested size (omitting response_format)
+      let attempt = await callOpenAIImages('dall-e-3', dalleSize);
+
+      // 2. If size not supported by account tier, retry standard square 1024x1024
+      if (!attempt.ok && dalleSize !== '1024x1024') {
+        const retrySquare = await callOpenAIImages('dall-e-3', '1024x1024');
+        if (retrySquare.ok) {
+          attempt = retrySquare;
+        }
       }
 
-      const item = openaiJson?.data?.[0];
-      if (item?.b64_json) {
-        imageBuffer = Buffer.from(item.b64_json, 'base64');
-      } else if (item?.url) {
-        const dlRes = await fetch(item.url);
-        const ab = await dlRes.arrayBuffer();
-        imageBuffer = Buffer.from(ab);
+      // 3. Fallback to DALL-E 2 if DALL-E 3 is unavailable or out of quota
+      if (!attempt.ok) {
+        const dalle2Attempt = await callOpenAIImages('dall-e-2', '1024x1024');
+        if (dalle2Attempt.ok) {
+          attempt = dalle2Attempt;
+        }
+      }
+
+      // 4. Fallback: If DALL-E models fail (e.g. project key lacks image permissions or account lacks credits),
+      // generate a crisp educational SVG diagram using GPT-4o-mini!
+      if (!attempt.ok) {
+        try {
+          const w = data.aspectRatio === '16:9' ? 800 : (data.aspectRatio === '1:1' ? 600 : 800);
+          const h = data.aspectRatio === '16:9' ? 450 : (data.aspectRatio === '1:1' ? 600 : 600);
+          const gptSvgPrompt = `You are a master educational illustrator and SVG graphics engineer.
+Generate a complete, beautiful, child-friendly 2D vector educational illustration in standalone SVG format for: ${data.prompt}.
+Specifications:
+- Canvas: viewBox="0 0 ${w} ${h}" width="100%" height="100%"
+- Background: pure white (<rect width="100%" height="100%" fill="#ffffff" />)
+- Color Palette: SplashLearn / Khan Academy style modern pastels and vibrant accents
+- Typography: Clean sans-serif <text> labels
+- Output: Output ONLY valid raw <svg ...>...</svg> code without markdown backticks or explanations.`;
+
+          const gptResp = await fetch('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${openaiKey}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              model: 'gpt-4o-mini',
+              messages: [{ role: 'user', content: gptSvgPrompt }],
+              temperature: 0.2,
+            }),
+          });
+          const gptJson: any = await gptResp.json().catch(() => ({}));
+          const gptRaw = gptJson?.choices?.[0]?.message?.content || '';
+          const normalized = cleanAndNormalizeSvg(gptRaw, w, h);
+          if (normalized) {
+            imageBuffer = Buffer.from(normalized, 'utf-8');
+            detectedExt = '.svg';
+          }
+        } catch {
+          // ignore
+        }
+
+        if (!imageBuffer) {
+          const errMsg = attempt.json?.error?.message || attempt.statusText;
+          let userFriendly = `OpenAI DALL-E Error: ${errMsg}`;
+          if (errMsg.toLowerCase().includes('does not exist') || errMsg.toLowerCase().includes('not found')) {
+            userFriendly = `OpenAI Error: The model 'dall-e-3' is not accessible with this API Key. This occurs when your OpenAI account has $0.00 credit balance (DALL-E requires prepaid platform credits at platform.openai.com/billing) or if you are using a Project Key restricted to chat models. Tip: Switch to "Google Gemini" above to generate your diagram for free!`;
+          }
+          throw new Error(userFriendly);
+        }
+      }
+
+      if (!imageBuffer && attempt.ok) {
+        const item = attempt.json?.data?.[0];
+        if (item?.b64_json) {
+          imageBuffer = Buffer.from(item.b64_json, 'base64');
+          detectedExt = '.png';
+        } else if (item?.url) {
+          const dlRes = await fetch(item.url);
+          if (!dlRes.ok) throw new Error(`Failed to download generated image from OpenAI: ${dlRes.statusText}`);
+          const ab = await dlRes.arrayBuffer();
+          imageBuffer = Buffer.from(ab);
+          detectedExt = '.png';
+        }
       }
 
       if (!imageBuffer) {
         throw new Error('OpenAI DALL-E did not return valid image data.');
       }
-      detectedExt = '.png';
+      if (!detectedExt) {
+        detectedExt = '.png';
+      }
     }
 
     const safeBase = randomBytes(6).toString('hex');
     const storedFileName = `ai-art-${Date.now()}_${safeBase}${detectedExt}`;
     const filePath = resolve(uploadsDir, storedFileName);
     writeFileSync(filePath, imageBuffer);
+
+    const distUploadsDir = resolve('dist/uploads/materials');
+    if (existsSync(distUploadsDir)) {
+      try {
+        writeFileSync(resolve(distUploadsDir, storedFileName), imageBuffer);
+      } catch { }
+    }
 
     const fileUrl = `/uploads/materials/${storedFileName}`;
     const newImage: AIGeneratedArticleImage = {

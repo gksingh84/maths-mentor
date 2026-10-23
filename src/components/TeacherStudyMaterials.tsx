@@ -25,6 +25,11 @@ import {
   FileCheck,
   Type,
   Sparkles,
+  Paintbrush,
+  Superscript,
+  Subscript,
+  StretchVertical,
+  PenTool,
 } from 'lucide-react';
 import { WorksheetQuestionBuilder } from './WorksheetQuestionBuilder';
 import { ArticleAiImageModal } from './ArticleAiImageModal';
@@ -38,6 +43,7 @@ import {
   FONT_FAMILY_OPTIONS,
   FONT_SIZE_OPTIONS,
   FONT_SIZE_STEPS,
+  LINE_SPACING_OPTIONS,
 } from '../types/studyMaterial';
 
 interface TeacherStudyMaterialsProps {
@@ -290,6 +296,17 @@ function StudyMaterialEditorModal({
 
   const [currentFontFamily, setCurrentFontFamily] = useState('Arial, sans-serif');
   const [currentFontSize, setCurrentFontSize] = useState('16px');
+  const [currentLineSpacing, setCurrentLineSpacing] = useState('1.7');
+  const [formatPainterStyle, setFormatPainterStyle] = useState<{
+    fontFamily?: string;
+    fontSize?: string;
+    fontWeight?: string;
+    fontStyle?: string;
+    textDecoration?: string;
+    color?: string;
+    lineHeight?: string;
+    backgroundColor?: string;
+  } | null>(null);
   const savedRangeRef = useRef<Range | null>(null);
 
   const [selectedTableInfo, setSelectedTableInfo] = useState<{
@@ -299,6 +316,11 @@ function StudyMaterialEditorModal({
     totalCols: number;
     currentWidth: string;
   } | null>(null);
+
+  const [selectedImg, setSelectedImg] = useState<HTMLImageElement | null>(null);
+  const [imgWidth, setImgWidth] = useState<string>('100%');
+  const [imgHeight, setImgHeight] = useState<string>('auto');
+  const [imgAlign, setImgAlign] = useState<'left' | 'center' | 'right'>('center');
 
   const [showDraftPrompt, setShowDraftPrompt] = useState(false);
   const [restoredDraftAvailable, setRestoredDraftAvailable] = useState(false);
@@ -633,6 +655,8 @@ function StudyMaterialEditorModal({
       case 'italic': open = '<i>'; close = '</i>'; break;
       case 'underline': open = '<u>'; close = '</u>'; break;
       case 'strikeThrough': open = '<s>'; close = '</s>'; break;
+      case 'superscript': open = '<sup>'; close = '</sup>'; break;
+      case 'subscript': open = '<sub>'; close = '</sub>'; break;
       case 'insertUnorderedList': open = '<ul>\n  <li>'; close = '</li>\n</ul>'; break;
       case 'insertOrderedList': open = '<ol>\n  <li>'; close = '</li>\n</ol>'; break;
       case 'insertHorizontalRule': open = '<hr />\n'; close = ''; break;
@@ -680,8 +704,8 @@ function StudyMaterialEditorModal({
     }
 
     // 1. Check for IMAGE / FIGURE
-    const selectedImg = visualEditorRef.current.querySelector('img.is-selected') as HTMLImageElement | null;
-    const img = selectedImg || (targetElem?.tagName === 'IMG'
+    const activeImg = selectedImg || (visualEditorRef.current.querySelector('img.is-selected') as HTMLImageElement | null);
+    const img = activeImg || (targetElem?.tagName === 'IMG'
       ? (targetElem as HTMLImageElement)
       : (targetElem?.querySelector('img') || targetElem?.closest('figure')?.querySelector('img') || (lastSelectedElementRef.current?.tagName === 'IMG' ? lastSelectedElementRef.current as HTMLImageElement : null)));
 
@@ -709,13 +733,17 @@ function StudyMaterialEditorModal({
         if (align === 'center') {
           img.style.marginLeft = 'auto';
           img.style.marginRight = 'auto';
+          img.style.float = 'none';
         } else if (align === 'right') {
           img.style.marginLeft = 'auto';
           img.style.marginRight = '0';
+          img.style.float = 'none';
         } else {
           img.style.marginLeft = '0';
           img.style.marginRight = 'auto';
+          img.style.float = 'none';
         }
+        setImgAlign(align);
       }
       handleVisualInput();
       setNotice(`Image aligned ${align === 'center' ? 'mid (center)' : align}.`);
@@ -887,12 +915,81 @@ function StudyMaterialEditorModal({
     }
   }
 
+  const applyImageStyle = (w: string, h: string, align: 'left' | 'center' | 'right') => {
+    if (!selectedImg) return;
+    const formattedWidth = w ? (w.endsWith('%') || w.endsWith('px') || w === 'auto' ? w : `${w}px`) : '100%';
+    const formattedHeight = h ? (h.endsWith('%') || h.endsWith('px') || h === 'auto' ? h : `${h}px`) : 'auto';
+
+    setImgWidth(formattedWidth);
+    setImgHeight(formattedHeight);
+    setImgAlign(align);
+
+    selectedImg.style.width = formattedWidth;
+    selectedImg.style.height = formattedHeight;
+    selectedImg.style.display = 'block';
+
+    const fig = selectedImg.closest('figure');
+    if (fig) {
+      fig.style.textAlign = align;
+      if (align === 'center') {
+        fig.style.marginLeft = 'auto';
+        fig.style.marginRight = 'auto';
+      } else if (align === 'left') {
+        fig.style.marginLeft = '0';
+        fig.style.marginRight = 'auto';
+      } else if (align === 'right') {
+        fig.style.marginLeft = 'auto';
+        fig.style.marginRight = '0';
+      }
+    }
+
+    if (align === 'center') {
+      selectedImg.style.marginLeft = 'auto';
+      selectedImg.style.marginRight = 'auto';
+      selectedImg.style.float = 'none';
+    } else if (align === 'left') {
+      selectedImg.style.marginLeft = '0';
+      selectedImg.style.marginRight = 'auto';
+      selectedImg.style.float = 'none';
+    } else if (align === 'right') {
+      selectedImg.style.marginLeft = 'auto';
+      selectedImg.style.marginRight = '0';
+      selectedImg.style.float = 'none';
+    }
+
+    handleVisualInput();
+  };
+
+  const setupInsertedImage = () => {
+    setTimeout(() => {
+      if (!visualEditorRef.current) return;
+      const imgs = visualEditorRef.current.querySelectorAll('img');
+      if (imgs.length > 0) {
+        const lastImg = imgs[imgs.length - 1] as HTMLImageElement;
+        imgs.forEach((i) => i.classList.remove('is-selected'));
+        lastImg.classList.add('is-selected');
+        setSelectedImg(lastImg);
+        lastSelectedElementRef.current = lastImg;
+        updateTableSelection(null);
+
+        const styleW = lastImg.style.width || (lastImg.getAttribute('width') ? `${lastImg.getAttribute('width')}px` : '100%');
+        const styleH = lastImg.style.height || (lastImg.getAttribute('height') ? `${lastImg.getAttribute('height')}px` : 'auto');
+        setImgWidth(styleW);
+        setImgHeight(styleH);
+        setImgAlign('center');
+      }
+    }, 60);
+  };
+
   function handleInsertWebImage(e: React.MouseEvent) {
     e.preventDefault();
     const url = window.prompt('Enter Image URL to embed into article:');
     if (!url) return;
     const imgHtml = `<figure style="margin: 16px 0; text-align: center;"><img src="${url}" alt="Diagram" style="max-width: 100%; max-height: 400px; border-radius: 10px; box-shadow: 0 4px 14px rgba(0,0,0,0.08);" /></figure><p><br></p>`;
     insertCustomHtml(imgHtml);
+    if (editorMode === 'visual') {
+      setupInsertedImage();
+    }
   }
 
   function handleInsertAiImage(imageUrl: string, promptText: string) {
@@ -900,6 +997,9 @@ function StudyMaterialEditorModal({
     insertCustomHtml(imgHtml);
     setShowAiImageModal(false);
     setNotice('AI artwork embedded into article!');
+    if (editorMode === 'visual') {
+      setupInsertedImage();
+    }
   }
 
   async function handleArticleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -927,10 +1027,16 @@ function StudyMaterialEditorModal({
           const imgHtml = `<figure style="margin: 18px 0; text-align: center;"><img src="${finalUrl}" alt="${file.name}" style="max-width: 100%; max-height: 400px; border-radius: 10px; box-shadow: 0 4px 16px rgba(0,0,0,0.08);" /><figcaption style="font-size: 12px; color: #64748b; margin-top: 6px;"><em>${file.name}</em></figcaption></figure><p><br></p>`;
           insertCustomHtml(imgHtml);
           setNotice(`Image "${file.name}" embedded into article!`);
+          if (editorMode === 'visual') {
+            setupInsertedImage();
+          }
         } catch {
           const imgHtml = `<figure style="margin: 18px 0; text-align: center;"><img src="${base64}" alt="${file.name}" style="max-width: 100%; max-height: 400px; border-radius: 10px;" /><figcaption style="font-size: 12px; color: #64748b; margin-top: 6px;"><em>${file.name}</em></figcaption></figure><p><br></p>`;
           insertCustomHtml(imgHtml);
           setNotice(`Image loaded into article!`);
+          if (editorMode === 'visual') {
+            setupInsertedImage();
+          }
         } finally {
           setUploadingArticleImg(false);
           if (articleImageInputRef.current) articleImageInputRef.current.value = '';
@@ -988,18 +1094,64 @@ function StudyMaterialEditorModal({
 
     if (!visualEditorRef.current) return;
     restoreSelection();
-    try {
-      document.execCommand('styleWithCSS', false, 'true');
-      document.execCommand('fontName', false, fontVal);
-      const targets = visualEditorRef.current.querySelectorAll(`font[face], font`);
+    const sel = window.getSelection();
+    const range = (sel && sel.rangeCount > 0) ? sel.getRangeAt(0) : savedRangeRef.current;
+    const primaryFont = fontVal.split(',')[0].replace(/["']/g, '').trim();
+
+    if (range && !range.collapsed) {
+      try {
+        document.execCommand('styleWithCSS', false, 'false');
+        document.execCommand('fontName', false, primaryFont);
+      } catch {
+        // fallback
+      }
+
+      const targets = Array.from(visualEditorRef.current.querySelectorAll(`font[face], font`));
+      const createdSpans: HTMLElement[] = [];
       targets.forEach((node) => {
-        const el = node as HTMLElement;
-        el.style.fontFamily = fontVal;
-        el.removeAttribute('face');
+        const fontEl = node as HTMLElement;
+        fontEl.removeAttribute('face');
+        const span = document.createElement('span');
+        span.style.fontFamily = fontVal;
+        if (fontEl.style.fontSize) span.style.fontSize = fontEl.style.fontSize;
+        if (fontEl.style.color) span.style.color = fontEl.style.color;
+        while (fontEl.firstChild) {
+          span.appendChild(fontEl.firstChild);
+        }
+        fontEl.parentNode?.replaceChild(span, fontEl);
+        createdSpans.push(span);
       });
-    } catch {
-      // fallback
+
+      if (createdSpans.length === 0) {
+        const spanTargets = Array.from(visualEditorRef.current.querySelectorAll(`span[style*="font-family"]`));
+        spanTargets.forEach((s) => {
+          const el = s as HTMLElement;
+          if (el.style.fontFamily.toLowerCase().includes(primaryFont.toLowerCase())) {
+            el.style.fontFamily = fontVal;
+            createdSpans.push(el);
+          }
+        });
+      }
+
+      if (createdSpans.length > 0 && sel) {
+        const newRange = document.createRange();
+        newRange.setStartBefore(createdSpans[0]);
+        newRange.setEndAfter(createdSpans[createdSpans.length - 1]);
+        sel.removeAllRanges();
+        sel.addRange(newRange);
+        savedRangeRef.current = newRange.cloneRange();
+      }
+    } else if (range && range.collapsed) {
+      let node: Node | null = range.commonAncestorContainer;
+      if (node.nodeType === Node.TEXT_NODE) {
+        node = node.parentElement;
+      }
+      const currentElem = node as HTMLElement | null;
+      if (currentElem && visualEditorRef.current.contains(currentElem) && currentElem !== visualEditorRef.current) {
+        currentElem.style.fontFamily = fontVal;
+      }
     }
+
     handleVisualInput();
     saveSelection();
   };
@@ -1026,36 +1178,276 @@ function StudyMaterialEditorModal({
 
     if (!visualEditorRef.current) return;
     restoreSelection();
-    try {
-      document.execCommand('styleWithCSS', false, 'false');
-      document.execCommand('fontSize', false, '7');
-      const targets = visualEditorRef.current.querySelectorAll('font[size="7"], [style*="-webkit-xxx-large"]');
+    const sel = window.getSelection();
+    const range = (sel && sel.rangeCount > 0) ? sel.getRangeAt(0) : savedRangeRef.current;
+
+    if (range && !range.collapsed) {
+      try {
+        document.execCommand('styleWithCSS', false, 'false');
+        document.execCommand('fontSize', false, '7');
+      } catch {
+        // fallback
+      }
+
+      const targets = Array.from(visualEditorRef.current.querySelectorAll('font[size="7"], font[size="xxx-large"], [style*="-webkit-xxx-large"]'));
+      const createdSpans: HTMLElement[] = [];
       targets.forEach((node) => {
         const el = node as HTMLElement;
         el.removeAttribute('size');
-        el.style.fontSize = sizeVal;
-        if (el.tagName.toLowerCase() === 'font') {
-          const span = document.createElement('span');
-          span.style.fontSize = sizeVal;
-          while (el.firstChild) {
-            span.appendChild(el.firstChild);
-          }
-          el.parentNode?.replaceChild(span, el);
+        const span = document.createElement('span');
+        span.style.fontSize = sizeVal;
+        if (el.style.fontFamily) span.style.fontFamily = el.style.fontFamily;
+        if (el.style.color) span.style.color = el.style.color;
+        while (el.firstChild) {
+          span.appendChild(el.firstChild);
         }
+        el.parentNode?.replaceChild(span, el);
+        createdSpans.push(span);
       });
-    } catch {
-      // fallback
+
+      if (createdSpans.length > 0 && sel) {
+        const newRange = document.createRange();
+        newRange.setStartBefore(createdSpans[0]);
+        newRange.setEndAfter(createdSpans[createdSpans.length - 1]);
+        sel.removeAllRanges();
+        sel.addRange(newRange);
+        savedRangeRef.current = newRange.cloneRange();
+      }
+    } else if (range && range.collapsed) {
+      let node: Node | null = range.commonAncestorContainer;
+      if (node.nodeType === Node.TEXT_NODE) {
+        node = node.parentElement;
+      }
+      const currentElem = node as HTMLElement | null;
+      if (currentElem && visualEditorRef.current.contains(currentElem) && currentElem !== visualEditorRef.current) {
+        currentElem.style.fontSize = sizeVal;
+      }
     }
+
     handleVisualInput();
     saveSelection();
   };
 
   const stepFontSize = (delta: number) => {
-    const idx = FONT_SIZE_STEPS.indexOf(currentFontSize);
-    let nextIdx = idx >= 0 ? idx + delta : delta > 0 ? 3 : 1;
+    let activeSize = currentFontSize;
+    const sel = window.getSelection();
+    const range = (sel && sel.rangeCount > 0) ? sel.getRangeAt(0) : savedRangeRef.current;
+    if (range && visualEditorRef.current) {
+      let node: Node | null = range.commonAncestorContainer;
+      if (node.nodeType === Node.TEXT_NODE) {
+        node = node.parentElement;
+      }
+      const elem = node as HTMLElement | null;
+      if (elem && visualEditorRef.current.contains(elem)) {
+        try {
+          const computed = window.getComputedStyle(elem);
+          if (computed.fontSize) {
+            const px = parseInt(computed.fontSize, 10);
+            if (!isNaN(px)) {
+              let closest = FONT_SIZE_STEPS[2];
+              let minDiff = 9999;
+              FONT_SIZE_STEPS.forEach((s) => {
+                const sPx = parseInt(s, 10);
+                const diff = Math.abs(sPx - px);
+                if (diff < minDiff) {
+                  minDiff = diff;
+                  closest = s;
+                }
+              });
+              activeSize = closest;
+            }
+          }
+        } catch {
+          // quiet
+        }
+      }
+    }
+
+    const idx = FONT_SIZE_STEPS.indexOf(activeSize);
+    let nextIdx = idx >= 0 ? idx + delta : (delta > 0 ? 3 : 1);
     if (nextIdx < 0) nextIdx = 0;
     if (nextIdx >= FONT_SIZE_STEPS.length) nextIdx = FONT_SIZE_STEPS.length - 1;
     applyFontSize(FONT_SIZE_STEPS[nextIdx]);
+  };
+
+  const handleToggleFormatPainter = (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (formatPainterStyle) {
+      setFormatPainterStyle(null);
+      setNotice('Format Painter cancelled.');
+      return;
+    }
+
+    if (editorMode === 'code') {
+      setNotice('Format painter is available in Visual Editor mode.');
+      return;
+    }
+
+    if (!visualEditorRef.current) return;
+    const sel = window.getSelection();
+    const range = (sel && sel.rangeCount > 0) ? sel.getRangeAt(0) : savedRangeRef.current;
+    if (range && visualEditorRef.current) {
+      let node: Node | null = range.commonAncestorContainer;
+      if (node.nodeType === Node.TEXT_NODE) node = node.parentElement;
+      const elem = (node as HTMLElement) || visualEditorRef.current;
+      if (elem) {
+        try {
+          const computed = window.getComputedStyle(elem);
+          const styleToCopy = {
+            fontFamily: elem.style.fontFamily || computed.fontFamily,
+            fontSize: elem.style.fontSize || computed.fontSize,
+            fontWeight: computed.fontWeight,
+            fontStyle: computed.fontStyle,
+            textDecoration: computed.textDecoration,
+            color: elem.style.color || computed.color,
+            lineHeight: elem.style.lineHeight || computed.lineHeight,
+            backgroundColor: elem.style.backgroundColor || computed.backgroundColor,
+          };
+          setFormatPainterStyle(styleToCopy);
+          setNotice('Format copied! Drag or click to apply formatting to text.');
+        } catch {
+          setNotice('Could not copy format.');
+        }
+      }
+    } else {
+      setNotice('Select or place caret inside text to copy format.');
+    }
+  };
+
+  const applyCopiedFormat = () => {
+    if (!formatPainterStyle || !visualEditorRef.current) return;
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return;
+    const range = sel.getRangeAt(0);
+    if (!visualEditorRef.current.contains(range.commonAncestorContainer)) return;
+
+    const style = formatPainterStyle;
+
+    if (!range.collapsed) {
+      try {
+        const span = document.createElement('span');
+        if (style.fontFamily) span.style.fontFamily = style.fontFamily;
+        if (style.fontSize) span.style.fontSize = style.fontSize;
+        if (style.fontWeight) span.style.fontWeight = style.fontWeight;
+        if (style.fontStyle) span.style.fontStyle = style.fontStyle;
+        if (style.textDecoration) span.style.textDecoration = style.textDecoration;
+        if (style.color) span.style.color = style.color;
+        if (style.backgroundColor && style.backgroundColor !== 'rgba(0, 0, 0, 0)' && style.backgroundColor !== 'transparent') {
+          span.style.backgroundColor = style.backgroundColor;
+        }
+        const contents = range.extractContents();
+        span.appendChild(contents);
+        range.insertNode(span);
+        sel.removeAllRanges();
+        const newRange = document.createRange();
+        newRange.selectNodeContents(span);
+        sel.addRange(newRange);
+        savedRangeRef.current = newRange.cloneRange();
+      } catch {
+        let node: Node | null = range.commonAncestorContainer;
+        if (node.nodeType === Node.TEXT_NODE) node = node.parentElement;
+        const el = node as HTMLElement | null;
+        if (el && el !== visualEditorRef.current) {
+          if (style.fontFamily) el.style.fontFamily = style.fontFamily;
+          if (style.fontSize) el.style.fontSize = style.fontSize;
+          if (style.fontWeight) el.style.fontWeight = style.fontWeight;
+          if (style.fontStyle) el.style.fontStyle = style.fontStyle;
+          if (style.textDecoration) el.style.textDecoration = style.textDecoration;
+          if (style.color) el.style.color = style.color;
+        }
+      }
+    } else {
+      let node: Node | null = range.commonAncestorContainer;
+      if (node.nodeType === Node.TEXT_NODE) node = node.parentElement;
+      const el = node as HTMLElement | null;
+      if (el && el !== visualEditorRef.current && visualEditorRef.current.contains(el)) {
+        if (style.fontFamily) el.style.fontFamily = style.fontFamily;
+        if (style.fontSize) el.style.fontSize = style.fontSize;
+        if (style.fontWeight) el.style.fontWeight = style.fontWeight;
+        if (style.fontStyle) el.style.fontStyle = style.fontStyle;
+        if (style.textDecoration) el.style.textDecoration = style.textDecoration;
+        if (style.color) el.style.color = style.color;
+      }
+    }
+
+    if (style.lineHeight) {
+      let block: Node | null = range.commonAncestorContainer;
+      if (block.nodeType === Node.TEXT_NODE) block = block.parentElement;
+      while (block && block !== visualEditorRef.current) {
+        if (['P', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'LI', 'BLOCKQUOTE', 'DIV', 'TD', 'TH'].includes((block as HTMLElement).tagName)) {
+          (block as HTMLElement).style.lineHeight = style.lineHeight;
+          break;
+        }
+        block = block.parentNode;
+      }
+    }
+
+    setFormatPainterStyle(null);
+    handleVisualInput();
+    saveSelection();
+    setNotice('Format applied!');
+  };
+
+  const applyLineSpacing = (spacingVal: string) => {
+    setCurrentLineSpacing(spacingVal);
+    if (editorMode === 'code') {
+      const textarea = codeEditorRef.current;
+      if (!textarea) return;
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const selected = textarea.value.substring(start, end) || 'Paragraph text';
+      const replacement = `<p style="line-height: ${spacingVal};">${selected}</p>`;
+      const nextVal = textarea.value.substring(0, start) + replacement + textarea.value.substring(end);
+      setContent(nextVal);
+      contentRef.current = nextVal;
+      setTimeout(() => {
+        textarea.selectionStart = start;
+        textarea.selectionEnd = start + replacement.length;
+        textarea.focus();
+      }, 0);
+      return;
+    }
+
+    if (!visualEditorRef.current) return;
+    restoreSelection();
+    const sel = window.getSelection();
+    const range = (sel && sel.rangeCount > 0) ? sel.getRangeAt(0) : savedRangeRef.current;
+
+    if (range && visualEditorRef.current) {
+      const blocks: HTMLElement[] = [];
+      const blockSelector = 'p, h1, h2, h3, h4, h5, h6, li, blockquote, div, td, th';
+
+      if (!range.collapsed) {
+        const allBlocks = Array.from(visualEditorRef.current.querySelectorAll(blockSelector));
+        allBlocks.forEach((b) => {
+          if (range.intersectsNode(b)) {
+            blocks.push(b as HTMLElement);
+          }
+        });
+      }
+
+      if (blocks.length === 0) {
+        let node: Node | null = range.commonAncestorContainer;
+        if (node.nodeType === Node.TEXT_NODE) node = node.parentElement;
+        while (node && node !== visualEditorRef.current) {
+          if (['P', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'LI', 'BLOCKQUOTE', 'DIV', 'TD', 'TH'].includes((node as HTMLElement).tagName)) {
+            blocks.push(node as HTMLElement);
+            break;
+          }
+          node = node.parentNode;
+        }
+      }
+
+      if (blocks.length > 0) {
+        blocks.forEach((b) => {
+          b.style.lineHeight = spacingVal;
+        });
+      } else {
+        visualEditorRef.current.style.lineHeight = spacingVal;
+      }
+    }
+    handleVisualInput();
+    saveSelection();
   };
 
   function getActiveTableCell(): HTMLTableCellElement | null {
@@ -1113,12 +1505,77 @@ function StudyMaterialEditorModal({
       updateTableSelection(cell);
     }
     const sel = window.getSelection();
-    if (sel && sel.rangeCount > 0) {
-      const node = sel.getRangeAt(0).commonAncestorContainer;
-      const elem = node.nodeType === Node.ELEMENT_NODE ? (node as HTMLElement) : node.parentElement;
-      if (elem && elem !== visualEditorRef.current) {
-        if (!visualEditorRef.current?.querySelector('img.is-selected')) {
-          lastSelectedElementRef.current = elem;
+    if (sel && sel.rangeCount > 0 && visualEditorRef.current) {
+      const range = sel.getRangeAt(0);
+      if (visualEditorRef.current.contains(range.commonAncestorContainer)) {
+        let node: Node | null = range.commonAncestorContainer;
+        if (node.nodeType === Node.TEXT_NODE) {
+          node = node.parentElement;
+        }
+        const elem = node as HTMLElement | null;
+        if (elem && elem !== visualEditorRef.current) {
+          if (!visualEditorRef.current?.querySelector('img.is-selected')) {
+            lastSelectedElementRef.current = elem;
+          }
+
+          // Detect active font family & font size from element at cursor
+          try {
+            const computed = window.getComputedStyle(elem);
+            const detectedFont = computed.fontFamily;
+            const detectedSize = computed.fontSize;
+
+            if (detectedFont) {
+              const matched = FONT_FAMILY_OPTIONS.find((f) => {
+                const primary = f.value.split(',')[0].replace(/["']/g, '').trim().toLowerCase();
+                return detectedFont.toLowerCase().includes(primary);
+              });
+              if (matched) {
+                setCurrentFontFamily(matched.value);
+              }
+            }
+
+            if (detectedSize) {
+              const pxVal = parseInt(detectedSize, 10);
+              if (!isNaN(pxVal)) {
+                let closest = FONT_SIZE_STEPS[2];
+                let minDiff = 9999;
+                FONT_SIZE_STEPS.forEach((s) => {
+                  const sPx = parseInt(s, 10);
+                  const diff = Math.abs(sPx - pxVal);
+                  if (diff < minDiff) {
+                    minDiff = diff;
+                    closest = s;
+                  }
+                });
+                setCurrentFontSize(closest);
+              }
+            }
+
+            // Detect line-height from enclosing block
+            let blockNode: Node | null = elem;
+            while (blockNode && blockNode !== visualEditorRef.current) {
+              const tag = (blockNode as HTMLElement).tagName;
+              if (['P', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'LI', 'BLOCKQUOTE', 'DIV', 'TD', 'TH'].includes(tag)) {
+                const el = blockNode as HTMLElement;
+                const rawLh = el.style.lineHeight || window.getComputedStyle(el).lineHeight;
+                if (rawLh) {
+                  const num = parseFloat(rawLh);
+                  if (!isNaN(num)) {
+                    const fs = parseFloat(window.getComputedStyle(el).fontSize);
+                    const ratio = num > 5 && !isNaN(fs) && fs > 0 ? (num / fs) : num;
+                    const matched = LINE_SPACING_OPTIONS.find((opt) => Math.abs(parseFloat(opt.value) - ratio) < 0.18);
+                    if (matched) {
+                      setCurrentLineSpacing(matched.value);
+                    }
+                  }
+                }
+                break;
+              }
+              blockNode = blockNode.parentNode;
+            }
+          } catch {
+            // quiet
+          }
         }
       }
     }
@@ -1497,11 +1954,41 @@ function StudyMaterialEditorModal({
     }
 
     if (target.tagName === 'IMG') {
+      const img = target as HTMLImageElement;
+      visualEditorRef.current?.querySelectorAll('img.is-selected').forEach((i) => i.classList.remove('is-selected'));
+      img.classList.add('is-selected');
+      setSelectedImg(img);
+      lastSelectedElementRef.current = img;
+      updateTableSelection(null);
+
+      const styleW = img.style.width || (img.getAttribute('width') ? `${img.getAttribute('width')}px` : '100%');
+      const styleH = img.style.height || (img.getAttribute('height') ? `${img.getAttribute('height')}px` : 'auto');
+      setImgWidth(styleW);
+      setImgHeight(styleH);
+
+      const ml = img.style.marginLeft;
+      const mr = img.style.marginRight;
+      const fig = img.closest('figure');
+      const figAlign = fig ? fig.style.textAlign : '';
+
+      if (figAlign === 'left') {
+        setImgAlign('left');
+      } else if (figAlign === 'right') {
+        setImgAlign('right');
+      } else if (figAlign === 'center') {
+        setImgAlign('center');
+      } else if (ml === 'auto' && mr === 'auto') {
+        setImgAlign('center');
+      } else if (ml === 'auto' && (mr === '0px' || mr === '0')) {
+        setImgAlign('right');
+      } else if ((ml === '0px' || ml === '0') && mr === 'auto') {
+        setImgAlign('left');
+      } else {
+        setImgAlign('center');
+      }
+    } else if (!target.closest('.study-article-image-toolbar')) {
       visualEditorRef.current?.querySelectorAll('img.is-selected').forEach((img) => img.classList.remove('is-selected'));
-      target.classList.add('is-selected');
-      lastSelectedElementRef.current = target;
-    } else {
-      visualEditorRef.current?.querySelectorAll('img.is-selected').forEach((img) => img.classList.remove('is-selected'));
+      setSelectedImg(null);
       if (target.closest('figure')) {
         lastSelectedElementRef.current = target.closest('figure');
       } else if (target.closest('table')) {
@@ -1514,6 +2001,8 @@ function StudyMaterialEditorModal({
 
   function toggleMode(newMode: 'visual' | 'code') {
     if (newMode === editorMode) return;
+    setSelectedImg(null);
+    updateTableSelection(null);
     if (newMode === 'code') {
       const html = visualEditorRef.current ? visualEditorRef.current.innerHTML : contentRef.current;
       contentRef.current = html;
@@ -1892,7 +2381,7 @@ function StudyMaterialEditorModal({
             <div className="article-editor-container">
               {/* Rich formatting toolbar */}
               <div className="article-editor-toolbar">
-                {/* Group: History (Undo / Redo) */}
+                {/* Group: History (Undo / Redo / Format Painter) */}
                 <div className="toolbar-btn-group">
                   <button
                     type="button"
@@ -1930,6 +2419,18 @@ function StudyMaterialEditorModal({
                   >
                     <Redo size={13} />
                   </button>
+                  <button
+                    type="button"
+                    className={`toolbar-btn ${formatPainterStyle ? 'btn-active-painter' : ''}`}
+                    title={
+                      formatPainterStyle
+                        ? 'Format Painter Active: Select text or click to apply style (Click to Cancel)'
+                        : 'Format Painter: Copy formatting from selected text and paint onto another'
+                    }
+                    onMouseDown={handleToggleFormatPainter}
+                  >
+                    <Paintbrush size={13} />
+                  </button>
                 </div>
 
                 <div className="toolbar-separator" />
@@ -1941,6 +2442,7 @@ function StudyMaterialEditorModal({
                     <select
                       value={currentFontFamily}
                       onChange={(e) => applyFontFamily(e.target.value)}
+                      onFocus={saveSelection}
                       onMouseDown={saveSelection}
                       aria-label="Font Style"
                       className="toolbar-select-control font-family-select"
@@ -1958,6 +2460,7 @@ function StudyMaterialEditorModal({
                     <select
                       value={currentFontSize}
                       onChange={(e) => applyFontSize(e.target.value)}
+                      onFocus={saveSelection}
                       onMouseDown={saveSelection}
                       aria-label="Font Size"
                       className="toolbar-select-control font-size-select"
@@ -2025,11 +2528,27 @@ function StudyMaterialEditorModal({
                   <button type="button" className="toolbar-btn" title="Strikethrough" onMouseDown={(e) => execFormat(e, 'strikeThrough')}>
                     <s>S</s>
                   </button>
+                  <button
+                    type="button"
+                    className="toolbar-btn"
+                    title="Superscript (x² / power/index)"
+                    onMouseDown={(e) => execFormat(e, 'superscript')}
+                  >
+                    <Superscript size={13} />
+                  </button>
+                  <button
+                    type="button"
+                    className="toolbar-btn"
+                    title="Subscript (x₂ / chemical formula/base)"
+                    onMouseDown={(e) => execFormat(e, 'subscript')}
+                  >
+                    <Subscript size={13} />
+                  </button>
                 </div>
 
                 <div className="toolbar-separator" />
 
-                {/* Group: Alignment (Left, Mid, Right) */}
+                {/* Group: Alignment & Line Spacing */}
                 <div className="toolbar-btn-group">
                   <button
                     type="button"
@@ -2055,6 +2574,23 @@ function StudyMaterialEditorModal({
                   >
                     <AlignRight size={13} /> Right
                   </button>
+                  <div className="toolbar-btn toolbar-select-btn" title="Line Spacing (Line Height)">
+                    <StretchVertical size={13} color="#64748b" style={{ flexShrink: 0 }} />
+                    <select
+                      value={currentLineSpacing}
+                      onChange={(e) => applyLineSpacing(e.target.value)}
+                      onFocus={saveSelection}
+                      onMouseDown={saveSelection}
+                      aria-label="Line Spacing"
+                      className="toolbar-select-control line-spacing-select"
+                    >
+                      {LINE_SPACING_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
 
                 <div className="toolbar-separator" />
@@ -2248,6 +2784,136 @@ function StudyMaterialEditorModal({
                 </div>
               </div>
 
+              {/* Contextual Image Format Toolbar */}
+              {editorMode === 'visual' && selectedImg && (
+                <div className="study-article-image-toolbar word-doc-image-toolbar">
+                  <div className="image-toolbar-label">
+                    <PenTool size={14} color="#0284c7" /> <strong>Image Format:</strong>
+                  </div>
+
+                  <div className="image-toolbar-group">
+                    <span>Width:</span>
+                    <button
+                      type="button"
+                      className={imgWidth === '25%' ? 'active' : ''}
+                      onMouseDown={(e) => { e.preventDefault(); applyImageStyle('25%', imgHeight, imgAlign); }}
+                    >
+                      25%
+                    </button>
+                    <button
+                      type="button"
+                      className={imgWidth === '50%' ? 'active' : ''}
+                      onMouseDown={(e) => { e.preventDefault(); applyImageStyle('50%', imgHeight, imgAlign); }}
+                    >
+                      50%
+                    </button>
+                    <button
+                      type="button"
+                      className={imgWidth === '75%' ? 'active' : ''}
+                      onMouseDown={(e) => { e.preventDefault(); applyImageStyle('75%', imgHeight, imgAlign); }}
+                    >
+                      75%
+                    </button>
+                    <button
+                      type="button"
+                      className={imgWidth === '100%' ? 'active' : ''}
+                      onMouseDown={(e) => { e.preventDefault(); applyImageStyle('100%', imgHeight, imgAlign); }}
+                    >
+                      100%
+                    </button>
+                    <input
+                      type="text"
+                      placeholder="100%"
+                      value={imgWidth}
+                      onChange={(e) => applyImageStyle(e.target.value, imgHeight, imgAlign)}
+                      className="img-dim-input"
+                    />
+                  </div>
+
+                  <div className="image-toolbar-group">
+                    <span>Height:</span>
+                    <button
+                      type="button"
+                      className={imgHeight === 'auto' ? 'active' : ''}
+                      onMouseDown={(e) => { e.preventDefault(); applyImageStyle(imgWidth, 'auto', imgAlign); }}
+                    >
+                      Auto
+                    </button>
+                    <input
+                      type="text"
+                      placeholder="auto"
+                      value={imgHeight}
+                      onChange={(e) => applyImageStyle(imgWidth, e.target.value, imgAlign)}
+                      className="img-dim-input"
+                    />
+                  </div>
+
+                  <div className="image-toolbar-group">
+                    <span>Align:</span>
+                    <button
+                      type="button"
+                      className={imgAlign === 'left' ? 'active' : ''}
+                      title="Align Left"
+                      onMouseDown={(e) => { e.preventDefault(); applyImageStyle(imgWidth, imgHeight, 'left'); }}
+                    >
+                      Left
+                    </button>
+                    <button
+                      type="button"
+                      className={imgAlign === 'center' ? 'active' : ''}
+                      title="Align Center"
+                      onMouseDown={(e) => { e.preventDefault(); applyImageStyle(imgWidth, imgHeight, 'center'); }}
+                    >
+                      🎯 Center
+                    </button>
+                    <button
+                      type="button"
+                      className={imgAlign === 'right' ? 'active' : ''}
+                      title="Align Right"
+                      onMouseDown={(e) => { e.preventDefault(); applyImageStyle(imgWidth, imgHeight, 'right'); }}
+                    >
+                      Right
+                    </button>
+                  </div>
+
+                  <div className="image-toolbar-group" style={{ marginLeft: 'auto' }}>
+                    <button
+                      type="button"
+                      className="btn-delete-img"
+                      title="Delete Image"
+                      onClick={() => {
+                        if (selectedImg) {
+                          const fig = selectedImg.closest('figure');
+                          if (fig && fig.contains(selectedImg) && fig.children.length <= 2) {
+                            fig.remove();
+                          } else {
+                            selectedImg.remove();
+                          }
+                          setSelectedImg(null);
+                          handleVisualInput();
+                          setNotice('Image removed.');
+                        }
+                      }}
+                    >
+                      <Trash2 size={13} /> Delete Image
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-close-img-tool"
+                      title="Done formatting image"
+                      onClick={() => {
+                        if (visualEditorRef.current) {
+                          visualEditorRef.current.querySelectorAll('img').forEach((i) => i.classList.remove('is-selected'));
+                        }
+                        setSelectedImg(null);
+                      }}
+                    >
+                      <X size={14} /> Done
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* Contextual Table Column Width Toolbar */}
               {editorMode === 'visual' && selectedTableInfo && (
                 <div className="study-article-table-toolbar">
@@ -2381,16 +3047,27 @@ function StudyMaterialEditorModal({
               {editorMode === 'visual' ? (
                 <div
                   ref={visualEditorRef}
-                  className="study-article-visual-canvas"
+                  className={`study-article-visual-canvas ${formatPainterStyle ? 'has-format-painter' : ''}`}
                   contentEditable
                   suppressContentEditableWarning
                   onInput={handleVisualInput}
                   onBlur={handleVisualInput}
                   onMouseMove={handleCanvasMouseMove}
                   onMouseDown={handleCanvasMouseDown}
-                  onMouseUp={handleEditorSelectionChange}
+                  onMouseUp={() => {
+                    if (formatPainterStyle) {
+                      applyCopiedFormat();
+                    } else {
+                      handleEditorSelectionChange();
+                    }
+                  }}
                   onKeyUp={handleEditorSelectionChange}
                   onKeyDown={(e) => {
+                    if (e.key === 'Escape' && formatPainterStyle) {
+                      setFormatPainterStyle(null);
+                      setNotice('Format Painter cancelled.');
+                      return;
+                    }
                     if ((e.ctrlKey || e.metaKey) && (e.key === 'l' || e.key === 'L')) {
                       e.preventDefault();
                       applyAlignment(e as any, 'left');

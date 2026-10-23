@@ -434,10 +434,20 @@ function App() {
             sessionStorage.setItem(SESSION_ACTIVE_KEY, '1');
             setUser(result.user);
             if (result.user.role === 'superadmin') {
-              setView('superadmin');
+              const savedView = localStorage.getItem('maths_mentor_view');
+              if (savedView === 'portal' && !window.location.search.includes('admin') && !window.location.search.includes('superadmin')) {
+                setView('portal');
+              } else {
+                setView('superadmin');
+              }
             } else {
-              setView('dashboard');
-              localStorage.setItem('maths_mentor_view', 'dashboard');
+              const savedView = localStorage.getItem('maths_mentor_view');
+              if (savedView === 'portal') {
+                setView('portal');
+              } else {
+                setView('dashboard');
+                localStorage.setItem('maths_mentor_view', 'dashboard');
+              }
             }
           } else {
             sessionStorage.removeItem(SESSION_ACTIVE_KEY);
@@ -522,7 +532,7 @@ function App() {
   }
 
   // View 1: Super Admin Console
-  if (view === 'superadmin' || user?.role === 'superadmin') {
+  if (view !== 'portal' && (view === 'superadmin' || user?.role === 'superadmin')) {
     return (
       <>
         <SuperAdminConsole
@@ -534,7 +544,10 @@ function App() {
           }}
           onBackToPortal={() => {
             setView('portal');
-            localStorage.removeItem('maths_mentor_view');
+            localStorage.setItem('maths_mentor_view', 'portal');
+            if (typeof window !== 'undefined' && (window.location.search.includes('admin') || window.location.search.includes('superadmin') || window.location.pathname.includes('admin'))) {
+              window.history.replaceState({}, '', '/');
+            }
           }}
         />
       </>
@@ -554,14 +567,22 @@ function App() {
             else if (m === 'teacher_signup') window.history.replaceState({}, '', '/teacher/signup');
             else if (m === 'teacher_login') window.history.replaceState({}, '', '/teacher/login');
           }}
-          onOpenSuperAdmin={() => setView('superadmin')}
+          onOpenSuperAdmin={() => {
+            setView('superadmin');
+            localStorage.removeItem('maths_mentor_view');
+          }}
           onOpenUserGuide={() => {
-            setPreviousView(user ? 'dashboard' : 'portal');
+            setPreviousView('portal');
             setView('user_guide');
           }}
           onGoToDashboard={() => {
-            setView('dashboard');
-            localStorage.setItem('maths_mentor_view', 'dashboard');
+            if (user?.role === 'superadmin') {
+              setView('superadmin');
+              localStorage.removeItem('maths_mentor_view');
+            } else {
+              setView('dashboard');
+              localStorage.setItem('maths_mentor_view', 'dashboard');
+            }
           }}
           onSignOut={signOut}
         />
@@ -9291,22 +9312,119 @@ function WordDocEditorModal({
     }
   };
 
+  const updateToolbarFromSelection = () => {
+    saveSelection();
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0 && canvasRef.current) {
+      const range = sel.getRangeAt(0);
+      if (canvasRef.current.contains(range.commonAncestorContainer)) {
+        let node: Node | null = range.commonAncestorContainer;
+        if (node.nodeType === Node.TEXT_NODE) {
+          node = node.parentElement;
+        }
+        const elem = node as HTMLElement | null;
+        if (elem && elem !== canvasRef.current) {
+          try {
+            const computed = window.getComputedStyle(elem);
+            const detectedFont = computed.fontFamily;
+            const detectedSize = computed.fontSize;
+
+            if (detectedFont) {
+              const matched = FONT_FAMILY_OPTIONS.find((f) => {
+                const primary = f.value.split(',')[0].replace(/["']/g, '').trim().toLowerCase();
+                return detectedFont.toLowerCase().includes(primary);
+              });
+              if (matched) {
+                setCurrentFontFamily(matched.value);
+              }
+            }
+
+            if (detectedSize) {
+              const pxVal = parseInt(detectedSize, 10);
+              if (!isNaN(pxVal)) {
+                let closest = FONT_SIZE_STEPS[2];
+                let minDiff = 9999;
+                FONT_SIZE_STEPS.forEach((s) => {
+                  const sPx = parseInt(s, 10);
+                  const diff = Math.abs(sPx - pxVal);
+                  if (diff < minDiff) {
+                    minDiff = diff;
+                    closest = s;
+                  }
+                });
+                setCurrentFontSize(closest);
+              }
+            }
+          } catch {
+            // quiet
+          }
+        }
+      }
+    }
+  };
+
   const applyFontFamily = (fontVal: string) => {
     setCurrentFontFamily(fontVal);
     if (!canvasRef.current) return;
     restoreSelection();
-    try {
-      document.execCommand('styleWithCSS', false, 'true');
-      document.execCommand('fontName', false, fontVal);
-      const targets = canvasRef.current.querySelectorAll(`font[face], font`);
+    const sel = window.getSelection();
+    const range = (sel && sel.rangeCount > 0) ? sel.getRangeAt(0) : savedRangeRef.current;
+    const primaryFont = fontVal.split(',')[0].replace(/["']/g, '').trim();
+
+    if (range && !range.collapsed) {
+      try {
+        document.execCommand('styleWithCSS', false, 'false');
+        document.execCommand('fontName', false, primaryFont);
+      } catch {
+        // fallback
+      }
+
+      const targets = Array.from(canvasRef.current.querySelectorAll(`font[face], font`));
+      const createdSpans: HTMLElement[] = [];
       targets.forEach((node) => {
-        const el = node as HTMLElement;
-        el.style.fontFamily = fontVal;
-        el.removeAttribute('face');
+        const fontEl = node as HTMLElement;
+        fontEl.removeAttribute('face');
+        const span = document.createElement('span');
+        span.style.fontFamily = fontVal;
+        if (fontEl.style.fontSize) span.style.fontSize = fontEl.style.fontSize;
+        if (fontEl.style.color) span.style.color = fontEl.style.color;
+        while (fontEl.firstChild) {
+          span.appendChild(fontEl.firstChild);
+        }
+        fontEl.parentNode?.replaceChild(span, fontEl);
+        createdSpans.push(span);
       });
-    } catch {
-      // fallback
+
+      if (createdSpans.length === 0) {
+        const spanTargets = Array.from(canvasRef.current.querySelectorAll(`span[style*="font-family"]`));
+        spanTargets.forEach((s) => {
+          const el = s as HTMLElement;
+          if (el.style.fontFamily.toLowerCase().includes(primaryFont.toLowerCase())) {
+            el.style.fontFamily = fontVal;
+            createdSpans.push(el);
+          }
+        });
+      }
+
+      if (createdSpans.length > 0 && sel) {
+        const newRange = document.createRange();
+        newRange.setStartBefore(createdSpans[0]);
+        newRange.setEndAfter(createdSpans[createdSpans.length - 1]);
+        sel.removeAllRanges();
+        sel.addRange(newRange);
+        savedRangeRef.current = newRange.cloneRange();
+      }
+    } else if (range && range.collapsed) {
+      let node: Node | null = range.commonAncestorContainer;
+      if (node.nodeType === Node.TEXT_NODE) {
+        node = node.parentElement;
+      }
+      const currentElem = node as HTMLElement | null;
+      if (currentElem && canvasRef.current.contains(currentElem) && currentElem !== canvasRef.current) {
+        currentElem.style.fontFamily = fontVal;
+      }
     }
+
     saveSelection();
   };
 
@@ -9314,31 +9432,91 @@ function WordDocEditorModal({
     setCurrentFontSize(sizeVal);
     if (!canvasRef.current) return;
     restoreSelection();
-    try {
-      document.execCommand('styleWithCSS', false, 'false');
-      document.execCommand('fontSize', false, '7');
-      const targets = canvasRef.current.querySelectorAll('font[size="7"], [style*="-webkit-xxx-large"]');
+    const sel = window.getSelection();
+    const range = (sel && sel.rangeCount > 0) ? sel.getRangeAt(0) : savedRangeRef.current;
+
+    if (range && !range.collapsed) {
+      try {
+        document.execCommand('styleWithCSS', false, 'false');
+        document.execCommand('fontSize', false, '7');
+      } catch {
+        // fallback
+      }
+
+      const targets = Array.from(canvasRef.current.querySelectorAll('font[size="7"], font[size="xxx-large"], [style*="-webkit-xxx-large"]'));
+      const createdSpans: HTMLElement[] = [];
       targets.forEach((node) => {
         const el = node as HTMLElement;
         el.removeAttribute('size');
-        el.style.fontSize = sizeVal;
-        if (el.tagName.toLowerCase() === 'font') {
-          const span = document.createElement('span');
-          span.style.fontSize = sizeVal;
-          while (el.firstChild) {
-            span.appendChild(el.firstChild);
-          }
-          el.parentNode?.replaceChild(span, el);
+        const span = document.createElement('span');
+        span.style.fontSize = sizeVal;
+        if (el.style.fontFamily) span.style.fontFamily = el.style.fontFamily;
+        if (el.style.color) span.style.color = el.style.color;
+        while (el.firstChild) {
+          span.appendChild(el.firstChild);
         }
+        el.parentNode?.replaceChild(span, el);
+        createdSpans.push(span);
       });
-    } catch {
-      // fallback
+
+      if (createdSpans.length > 0 && sel) {
+        const newRange = document.createRange();
+        newRange.setStartBefore(createdSpans[0]);
+        newRange.setEndAfter(createdSpans[createdSpans.length - 1]);
+        sel.removeAllRanges();
+        sel.addRange(newRange);
+        savedRangeRef.current = newRange.cloneRange();
+      }
+    } else if (range && range.collapsed) {
+      let node: Node | null = range.commonAncestorContainer;
+      if (node.nodeType === Node.TEXT_NODE) {
+        node = node.parentElement;
+      }
+      const currentElem = node as HTMLElement | null;
+      if (currentElem && canvasRef.current.contains(currentElem) && currentElem !== canvasRef.current) {
+        currentElem.style.fontSize = sizeVal;
+      }
     }
+
     saveSelection();
   };
 
   const stepFontSize = (delta: number) => {
-    const idx = FONT_SIZE_STEPS.indexOf(currentFontSize);
+    let activeSize = currentFontSize;
+    const sel = window.getSelection();
+    const range = (sel && sel.rangeCount > 0) ? sel.getRangeAt(0) : savedRangeRef.current;
+    if (range && canvasRef.current) {
+      let node: Node | null = range.commonAncestorContainer;
+      if (node.nodeType === Node.TEXT_NODE) {
+        node = node.parentElement;
+      }
+      const elem = node as HTMLElement | null;
+      if (elem && canvasRef.current.contains(elem)) {
+        try {
+          const computed = window.getComputedStyle(elem);
+          if (computed.fontSize) {
+            const px = parseInt(computed.fontSize, 10);
+            if (!isNaN(px)) {
+              let closest = FONT_SIZE_STEPS[2];
+              let minDiff = 9999;
+              FONT_SIZE_STEPS.forEach((s) => {
+                const sPx = parseInt(s, 10);
+                const diff = Math.abs(sPx - px);
+                if (diff < minDiff) {
+                  minDiff = diff;
+                  closest = s;
+                }
+              });
+              activeSize = closest;
+            }
+          }
+        } catch {
+          // quiet
+        }
+      }
+    }
+
+    const idx = FONT_SIZE_STEPS.indexOf(activeSize);
     let nextIdx = idx >= 0 ? idx + delta : (delta > 0 ? 3 : 1);
     if (nextIdx < 0) nextIdx = 0;
     if (nextIdx >= FONT_SIZE_STEPS.length) nextIdx = FONT_SIZE_STEPS.length - 1;
@@ -10035,6 +10213,7 @@ function WordDocEditorModal({
             <select
               value={currentFontFamily}
               onChange={(e) => applyFontFamily(e.target.value)}
+              onFocus={saveSelection}
               onMouseDown={saveSelection}
               aria-label="Font Style"
               className="toolbar-select-control font-family-select"
@@ -10053,6 +10232,7 @@ function WordDocEditorModal({
             <select
               value={currentFontSize}
               onChange={(e) => applyFontSize(e.target.value)}
+              onFocus={saveSelection}
               onMouseDown={saveSelection}
               aria-label="Font Size"
               className="toolbar-select-control font-size-select"
@@ -10462,12 +10642,12 @@ function WordDocEditorModal({
             onMouseMove={handleCanvasMouseMove}
             onMouseDown={handleCanvasMouseDown}
             onMouseUp={() => {
-              saveSelection();
+              updateToolbarFromSelection();
               const cell = getActiveTableCell();
               if (cell) updateTableSelection(cell);
             }}
             onKeyUp={() => {
-              saveSelection();
+              updateToolbarFromSelection();
               const cell = getActiveTableCell();
               if (cell) updateTableSelection(cell);
             }}
@@ -10695,6 +10875,45 @@ function AIWorksheetModal({ onClose, onGenerated, onNavigateToAISettings }: { on
   );
 }
 
+async function compressImageFile(file: File, maxDim = 2048, quality = 0.90): Promise<string> {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onerror = () => resolve('');
+    reader.onload = (e) => {
+      const rawData = e.target?.result as string;
+      if (!rawData) return resolve('');
+      const img = new Image();
+      img.onerror = () => resolve(rawData);
+      img.onload = () => {
+        let { width, height } = img;
+        if (width <= maxDim && height <= maxDim && file.size < 800 * 1024) {
+          return resolve(rawData);
+        }
+        if (width > maxDim || height > maxDim) {
+          if (width > height) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          } else {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return resolve(rawData);
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, width, height);
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.src = rawData;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
 function WorksheetSubmissionsModal({
   paper,
   onClose,
@@ -10735,21 +10954,21 @@ function WorksheetSubmissionsModal({
     void loadStudents();
   }, []);
 
-  function handleTeacherFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleTeacherFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
     setUploadError('');
 
-    files.forEach((file) => {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const base64 = event.target?.result as string;
-        if (base64) {
-          setTeacherImages((prev) => [...prev, base64]);
+    for (const file of files) {
+      try {
+        const compressed = await compressImageFile(file);
+        if (compressed) {
+          setTeacherImages((prev) => [...prev, compressed]);
         }
-      };
-      reader.readAsDataURL(file);
-    });
+      } catch {
+        // quiet
+      }
+    }
   }
 
   async function handleTeacherUpload() {
@@ -11486,14 +11705,20 @@ function WorksheetSubmissionsModal({
                                     </span>
                                   </div>
                                   {item.studentWorking && (
-                                    <div style={{ color: '#475569', fontSize: '12px', marginBottom: '2px' }}>
-                                      <span style={{ fontWeight: 600, color: '#334155' }}>Working: </span>
-                                      {item.studentWorking}
+                                    <div style={{ color: '#334155', fontSize: '12.5px', marginBottom: '3px' }}>
+                                      <span style={{ fontWeight: 600, color: '#475569' }}>Student Answer: </span>
+                                      <span style={{ fontWeight: isCorrect ? 600 : 500, color: isCorrect ? '#047857' : '#991b1b' }}>{item.studentWorking}</span>
+                                    </div>
+                                  )}
+                                  {item.correctAnswer && (
+                                    <div style={{ color: '#0369a1', fontSize: '12px', marginBottom: '3px' }}>
+                                      <span style={{ fontWeight: 600, color: '#0284c7' }}>Correct Answer: </span>
+                                      <span>{item.correctAnswer}</span>
                                     </div>
                                   )}
                                   {item.feedback && (
-                                    <div style={{ color: '#047857', fontSize: '12px', fontStyle: 'italic' }}>
-                                      <span style={{ fontWeight: 600 }}>Note: </span>
+                                    <div style={{ color: isCorrect ? '#047857' : isPartial ? '#b45309' : '#b91c1c', fontSize: '12px', fontStyle: 'italic', marginTop: '2px' }}>
+                                      <span style={{ fontWeight: 600 }}>Examiner Feedback: </span>
                                       {item.feedback}
                                     </div>
                                   )}
@@ -11849,25 +12074,34 @@ function StudentPaperModal({
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
   const [previewImg, setPreviewImg] = useState<string | null>(null);
+  const [showStudentBreakdown, setShowStudentBreakdown] = useState(false);
 
   const sub = paper.submission;
   let existingImages: string[] = [];
   try { existingImages = JSON.parse(sub?.images || '[]'); } catch { existingImages = []; }
 
-  function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+  let studentBreakdownList: any[] = [];
+  try {
+    if (sub?.aiDraftBreakdown) studentBreakdownList = JSON.parse(sub.aiDraftBreakdown);
+  } catch {
+    studentBreakdownList = [];
+  }
+
+  async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
+    setError('');
 
-    files.forEach((file) => {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const base64 = event.target?.result as string;
-        if (base64) {
-          setImages((prev) => [...prev, base64]);
+    for (const file of files) {
+      try {
+        const compressed = await compressImageFile(file);
+        if (compressed) {
+          setImages((prev) => [...prev, compressed]);
         }
-      };
-      reader.readAsDataURL(file);
-    });
+      } catch {
+        // quiet
+      }
+    }
   }
 
   async function handleSubmit() {
@@ -11925,6 +12159,58 @@ function StudentPaperModal({
               ) : (
                 <div style={{ marginTop: '10px', fontSize: '13px', color: '#047857' }}>
                   No written remarks provided by teacher.
+                </div>
+              )}
+
+              {studentBreakdownList.length > 0 && (
+                <div style={{ marginTop: '14px' }}>
+                  <button
+                    type="button"
+                    className="button button-secondary"
+                    style={{ fontSize: '12.5px', padding: '6px 14px', background: '#ffffff', borderColor: '#6ee7b7', color: '#047857', borderRadius: '9px', fontWeight: 600 }}
+                    onClick={() => setShowStudentBreakdown((prev) => !prev)}
+                  >
+                    {showStudentBreakdown ? 'Hide Question-by-Question Analysis' : `View Question-by-Question Analysis (${studentBreakdownList.length} Questions)`}
+                  </button>
+                  {showStudentBreakdown && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '12px' }}>
+                      {studentBreakdownList.map((item: any, bIdx: number) => {
+                        const isCorrect = item.status === 'CORRECT';
+                        const isPartial = item.status === 'PARTIAL';
+                        const badgeBg = isCorrect ? '#ecfdf5' : isPartial ? '#fffbeb' : '#fef2f2';
+                        const badgeColor = isCorrect ? '#047857' : isPartial ? '#b45309' : '#b91c1c';
+                        const badgeBorder = isCorrect ? '#a7f3d0' : isPartial ? '#fde68a' : '#fecaca';
+                        return (
+                          <div key={bIdx} style={{ background: '#ffffff', border: '1px solid #d1fae5', borderRadius: '10px', padding: '10px 14px', fontSize: '12.5px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+                              <strong style={{ color: '#0f172a' }}>{item.question || `Question ${bIdx + 1}`}</strong>
+                              <span style={{ background: badgeBg, color: badgeColor, border: `1px solid ${badgeBorder}`, padding: '2px 8px', borderRadius: '12px', fontWeight: 700, fontSize: '11px' }}>
+                                {item.marksAwarded ?? 0} / {item.maxMarks ?? '?'} marks · {item.status || 'CHECKED'}
+                              </span>
+                            </div>
+                            {item.studentWorking && (
+                              <div style={{ color: '#334155', fontSize: '12px', marginBottom: '3px' }}>
+                                <span style={{ fontWeight: 600, color: '#475569' }}>Your Answer: </span>
+                                <span style={{ fontWeight: isCorrect ? 600 : 500, color: isCorrect ? '#047857' : '#991b1b' }}>{item.studentWorking}</span>
+                              </div>
+                            )}
+                            {item.correctAnswer && (
+                              <div style={{ color: '#0369a1', fontSize: '12px', marginBottom: '3px' }}>
+                                <span style={{ fontWeight: 600, color: '#0284c7' }}>Correct Answer: </span>
+                                <span>{item.correctAnswer}</span>
+                              </div>
+                            )}
+                            {item.feedback && (
+                              <div style={{ color: isCorrect ? '#047857' : isPartial ? '#b45309' : '#b91c1c', fontSize: '12px', fontStyle: 'italic', marginTop: '2px' }}>
+                                <span style={{ fontWeight: 600 }}>Examiner Feedback: </span>
+                                {item.feedback}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
