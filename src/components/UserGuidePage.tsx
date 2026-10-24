@@ -207,6 +207,8 @@ Teacher: Gaurav Kumar Singh`;
                 <a href="#teacher-reports" onClick={(e) => { e.preventDefault(); scrollToSection('teacher-reports'); }}>2.10 Academic Progress Reports</a>
                 <a href="#teacher-results" onClick={(e) => { e.preventDefault(); scrollToSection('teacher-results'); }}>2.11 Quiz Results & CSV Export</a>
                 <a href="#teacher-archive" onClick={(e) => { e.preventDefault(); scrollToSection('teacher-archive'); }}>2.12 Classroom Archive</a>
+                <a href="#teacher-whiteboard" onClick={(e) => { e.preventDefault(); scrollToSection('teacher-whiteboard'); }}>2.13 Online Whiteboard & Live Stream</a>
+                <a href="#teacher-materials" onClick={(e) => { e.preventDefault(); scrollToSection('teacher-materials'); }}>2.14 Study Materials & AI Image Studio</a>
               </div>
             )}
 
@@ -219,6 +221,7 @@ Teacher: Gaurav Kumar Singh`;
                 <a href="#student-papers" onClick={(e) => { e.preventDefault(); scrollToSection('student-papers'); }}>3.4 Solving Papers & Uploading Photos</a>
                 <a href="#student-history" onClick={(e) => { e.preventDefault(); scrollToSection('student-history'); }}>3.5 Past Scores & Teacher Feedback</a>
                 <a href="#student-calendar" onClick={(e) => { e.preventDefault(); scrollToSection('student-calendar'); }}>3.6 Class Calendar & Deadlines</a>
+                <a href="#student-whiteboard" onClick={(e) => { e.preventDefault(); scrollToSection('student-whiteboard'); }}>3.7 Live Whiteboard & PDF Export</a>
               </div>
             )}
 
@@ -438,6 +441,9 @@ Teacher: Gaurav Kumar Singh`;
                   <li>Click <strong>"Next Question"</strong> to advance the whole class together.</li>
                   <li>Click <strong>"End Quiz"</strong> to finalize scores and send results to the analytics ledger.</li>
                 </ol>
+
+                <h4 style={{ marginTop: '16px' }}>Live Quiz Sound Effects & Audio Countdown:</h4>
+                <p>Live classroom rounds feature energetic sound effects (ticking countdowns, suspense audio, and correct-answer celebrations). Teachers and students can mute or unmute audio at any time via the sound icon on the live monitor.</p>
               </div>
 
               {/* 2.5 Word-Style Question Papers */}
@@ -469,6 +475,12 @@ Teacher: Gaurav Kumar Singh`;
                   <li>Enter the <strong>Score Awarded</strong> (e.g., <code>46 / 50</code>) and write personalized <strong>Teacher Remarks</strong>.</li>
                   <li>Click <strong>"Save Grade & Remarks"</strong>. The student immediately sees their evaluated paper in their portal.</li>
                 </ol>
+
+                <h4 style={{ marginTop: '16px' }}>4. AI Auto-Evaluation for Handwritten Submissions:</h4>
+                <p>Click <strong>"Auto-Evaluate with AI"</strong> on any student submission. Google Gemini Vision analyzes the handwritten steps against the question paper and answer key, grades each problem, detects arithmetic or sign mistakes, and drafts personalized remarks. Teachers can review, tweak marks, and approve in 1 click.</p>
+
+                <h4 style={{ marginTop: '16px' }}>5. Teacher Mobile Uploads via Dynamic QR Code:</h4>
+                <p>When collecting offline paper sheets in class, click <strong>"Upload via Mobile Camera"</strong> to generate a dynamic QR code. Scan it with any smartphone camera to snap and upload multiple pages directly from your phone — syncing in real time to the desktop gallery without requiring cable transfer or phone logins.</p>
               </div>
 
               {/* 2.6 Students & Passkeys */}
@@ -618,6 +630,31 @@ Teacher: Gaurav Kumar Singh`;
                   You can review or restore archived assessments anytime.
                 </p>
               </div>
+
+              {/* 2.13 Online Whiteboard & Live Broadcasting */}
+              <div className="guide-card" id="teacher-whiteboard">
+                <h3><span className="step-num">2.13</span> Online Teaching Whiteboard & Live Class Broadcasting</h3>
+                <p>An infinite vertical digital canvas equipped for mathematical and scientific instruction:</p>
+                <ul>
+                  <li><strong>Canvas Backgrounds</strong>: Switch between Ruled Notebook, Square Grid (algebra/geometry), Dot Grid, Dark Chalkboard, or Cartesian Graph with custom intervals.</li>
+                  <li><strong>Geometry Tools</strong>: Virtual Ruler, Compass, 180°/360° Protractor, and Set Squares for accurate on-screen diagrams.</li>
+                  <li><strong>Drawing & Notes</strong>: Freehand pens, highlighters, geometric shape auto-detection, sticky notes, LaTeX math formulas, and PPT/PDF slide imports.</li>
+                  <li><strong>Live Broadcasting</strong>: Select your target grade or <em>All Grades</em> and click <strong>"Go Live"</strong>. Your strokes, pages, background grid changes, and scroll coordinates broadcast in real time to connected students.</li>
+                  <li><strong>Background Session Persistence</strong>: Switching tabs to check calendar, quizzes, or students does not stop your broadcast. A floating banner displays with a quick <em>Return to Whiteboard</em> button.</li>
+                  <li><strong>Standalone Pop-Out Window</strong>: Click <em>Open in Window</em> to snap the whiteboard alongside Zoom, reference books, or presentation windows.</li>
+                </ul>
+              </div>
+
+              {/* 2.14 Study Materials & AI Image Studio */}
+              <div className="guide-card" id="teacher-materials">
+                <h3><span className="step-num">2.14</span> Public Study Materials Hub & AI Article Image Studio</h3>
+                <ul>
+                  <li><strong>Publishing Notes & Guides</strong>: Create formatted chapter notes, formula sheets, and video lessons with LaTeX math equations and embedded YouTube videos.</li>
+                  <li><strong>AI Article Image Studio</strong>: Click <em>"Generate Image with AI"</em> inside the editor to generate custom mathematical diagrams, 3D geometric visuals, or science figures from text prompts.</li>
+                  <li><strong>Custom Card Formats</strong>: Choose between thumbnail cards and wide hero banners for responsive presentation across mobile and desktop.</li>
+                  <li><strong>Public & Student Access</strong>: Materials are instantly published to the classroom Study Materials Hub for revision.</li>
+                </ul>
+              </div>
             </section>
           )}
 
@@ -706,6 +743,18 @@ Teacher: Gaurav Kumar Singh`;
                   Click <strong>"Class Calendar & Reminders"</strong> to check upcoming quiz dates, homework submission deadlines, and school holidays scheduled by your teacher.
                 </p>
               </div>
+
+              {/* 3.7 Student Live Whiteboard */}
+              <div className="guide-card" id="student-whiteboard">
+                <h3><span className="step-num">3.7</span> Live Whiteboard & Notes PDF Export</h3>
+                <p>Follow along with your teacher's digital chalkboard in real time during live lectures:</p>
+                <ul>
+                  <li><strong>Join Live Stream</strong>: When class starts, click the red <em>"Join Live Board →"</em> banner on your dashboard or the <em>Live Whiteboard</em> tab in the sidebar.</li>
+                  <li><strong>Real-Time Notes</strong>: Teacher's strokes, diagrams, formulas, background grid switches, and infinite page scrolling appear on your screen instantly.</li>
+                  <li><strong>Follow Teacher Mode</strong>: By default, the screen auto-scrolls to where the teacher is writing. You can disable this to review previous pages and click <em>"Jump to Teacher"</em> when ready.</li>
+                  <li><strong>Download PDF</strong>: Click <strong>"Download PDF"</strong> anytime to save all whiteboard pages as an offline study guide on your device.</li>
+                </ul>
+              </div>
             </section>
           )}
 
@@ -728,6 +777,16 @@ Teacher: Gaurav Kumar Singh`;
                 <div className="faq-card">
                   <h4>Q: Can students see other students' marks?</h4>
                   <p><strong>A:</strong> No. Each student logs in with their private 6-character passkey. Students can only see their own test papers, answers, and teacher feedback.</p>
+                </div>
+
+                <div className="faq-card">
+                  <h4>Q: Does the Live Whiteboard consume heavy internet data?</h4>
+                  <p><strong>A:</strong> No. Unlike screen-sharing video feeds, EduAshram transmits lightweight vector coordinates via WebSockets, consuming only a fraction of regular data and working smoothly over 4G/hotspot connections.</p>
+                </div>
+
+                <div className="faq-card">
+                  <h4>Q: How accurate is AI Auto-Evaluation for student handwriting?</h4>
+                  <p><strong>A:</strong> Powered by Google Gemini Vision fine-tuned for math, it accurately transcribes equations, step proofs, and fractions from phone photos. Teachers always retain full authority to review, tweak, and approve marks.</p>
                 </div>
 
                 <div className="faq-card">

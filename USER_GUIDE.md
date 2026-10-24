@@ -49,10 +49,11 @@ The **Teacher's Space** is your complete digital classroom command center. Once 
 │ Overview     │ Summary metrics, quick action launcher, recent tests    │
 │ AI Assistant │ Live teaching canvas, LaTeX formula solver, AI quiz gen │
 │ Calendar     │ Class test schedules, assignment deadlines, holidays    │
-│ Whiteboard   │ Real-time digital drawing board with geometry tools     │
-│ Quizzes      │ Live classroom rounds, timed tests, classroom monitor   │
-│ Papers       │ Word-like exam builder, printing, photo grading         │
-│ Students     │ Directory, WhatsApp parent chat, attendance, fees, report│
+│ Whiteboard   │ Multi-page infinite canvas, geometry tools, Live Stream │
+│ Quizzes      │ Live classroom rounds, sound FX, classroom monitor      │
+│ Papers       │ Word-like exam builder, printing, AI Auto-Evaluation    │
+│ Materials    │ Study Materials Hub, revision notes, AI Image Studio    │
+│ Students     │ Directory, WhatsApp parent chat, attendance, fees       │
 │ Results      │ Assessment analytics, answer review, WhatsApp scorecard │
 │ Archive      │ Completed quizzes & papers safely preserved             │
 │ Settings     │ Personal AI API Key, school name, active grade levels   │
@@ -162,6 +163,10 @@ EduAshram supports **three distinct test modes** to fit every teaching scenario:
 4. Click **Next Question** to broadcast the next problem to all connected student screens.
 5. Click **End Quiz** when finished. All student attempts are safely finalized and transferred to Results.
 
+### Live Quiz Sound Effects & Audio Countdown
+- **Audio Experience**: Live classroom quizzes feature dynamic Web Audio sound effects including suspenseful countdown ticks, celebratory fanfares for correct answers, and gentle chimes for round transitions.
+- **Audio Toggle**: Teachers and students can mute or unmute quiz audio at any time via the sound icon on the live monitor.
+
 ---
 
 ## 2.5 Word-Style Question Papers Studio
@@ -192,6 +197,23 @@ For formal exams, descriptive math tests, and printable physical worksheets, Edu
 3. Enter the **Score Obtained** (e.g., `45 / 50`).
 4. Enter **Teacher Remarks** (e.g., *"Good presentation. Pay attention to signs in Question 4"*).
 5. Click **Save Grade & Feedback**. The student can now see their evaluated paper in their portal.
+
+### AI Auto-Evaluation of Handwritten Answer Sheets
+1. On any submitted student answer sheet, click **"Auto-Evaluate with AI"**.
+2. The AI Vision model scans the handwritten workbook pages against the question paper and answer key:
+   - Accurately reads mathematical steps, equations, and diagrams.
+   - Checks calculations, identifies mistakes, and recommends marks for each problem.
+   - Automatically drafts constructive teacher feedback highlighting student strengths and areas to review.
+3. Teachers can review the score breakdown, edit remarks, and approve the evaluation in 1 click.
+
+### Teacher Mobile Camera Uploads (via QR Code)
+For offline tests where students hand in paper sheets in class:
+1. In the submissions screen, click **"Upload via Mobile Camera"**.
+2. A dynamic QR code displays on the screen.
+3. Scan the QR code using any smartphone camera:
+   - Opens a dedicated mobile upload screen on your phone without requiring any app installation or passwords.
+   - Snap photos of student pages directly using your phone's camera.
+   - Photos upload immediately and appear in the student's submission gallery on your desktop in real time.
 
 ---
 
@@ -324,6 +346,58 @@ When a quiz or question paper is completed:
 
 ---
 
+## 2.13 Online Teaching Whiteboard & Live Class Broadcasting
+
+The built-in **EduAshram Whiteboard** is a modern, infinite vertical digital canvas designed specifically for mathematics and science instruction.
+
+### Core Canvas Features:
+- **Infinite Vertical Scrolling**: Expand the page downwards without running out of writing room.
+- **Board Backgrounds**: Toggle between **Ruled Notebook** (standard lined paper), **Square Grid** (for geometry & algebra), **Dot Grid**, **Dark Blackboard** (chalkboard aesthetic), and **Coordinate Cartesian Graph** with customizable intervals.
+- **Geometry & Drawing Instruments**:
+  - Virtual Ruler with millimeter/inch markings.
+  - Compass for accurate circle drawing.
+  - 180° / 360° Protractor for angle measurement.
+  - 45° and 60° Set Squares.
+- **Drawing Tools**: Pressure-sensitive pens, multi-color highlighters, geometric shape auto-detection, text boxes, sticky notes, LaTeX equation insertion, and image upload.
+- **Presentation & PPT Import**: Load PowerPoint slides or PDF pages directly into sequential whiteboard pages.
+- **Standalone Window (Split-Screen)**: Click **"Open in Window"** to detach the whiteboard into a standalone browser window, allowing you to position it side-by-side with Zoom meetings, reference materials, or browser tabs.
+
+### Live Broadcasting to Students
+1. At the top of the whiteboard, select your target audience from the dropdown:
+   - Specific grade level (e.g., *Grade 6*, *Grade 10*), or
+   - **All Grades**.
+2. Click **Go Live** (green button):
+   - Real-time vector strokes, eraser actions, page transitions, background grid changes, and vertical scroll positions are broadcast immediately to connected students.
+   - A live viewer counter shows how many students are currently tuned into your board.
+3. **Background Session Persistence**:
+   - If you need to switch tabs to check an attendance record, view a quiz submission, or check the calendar, the live whiteboard **continues broadcasting in the background**.
+   - A green banner across other teacher tabs reminds you: *"Your Live Whiteboard is broadcasting to students in the background"* with an instant **"Return to Whiteboard"** button.
+4. Click **Stop Live** when you are ready to conclude the live broadcast.
+
+---
+
+## 2.14 Public Study Materials Hub & AI Article Image Studio
+
+EduAshram includes a content authoring suite allowing teachers to publish rich academic notes, formula guides, and video lessons accessible to students and the public.
+
+### Creating & Publishing Study Materials:
+1. In the sidebar, click **Study Materials** (or access via the top bar).
+2. Click **New Article / Material**:
+   - Enter **Title**, **Grade / Class**, **Academic Subject**, and **Chapter Name**.
+   - Write structured explanations using rich headings, bullet lists, callout boxes, and formatted math formulas.
+   - Insert embedded YouTube video lessons directly into the text.
+3. **Custom Image Formats**: Choose between **Thumbnail Card** or **Wide Hero Banner** for how the article displays on student and public portal feeds.
+4. Click **Publish** to make it available to your classroom and public visitors.
+
+### AI Article Image Studio
+Generate custom pedagogical diagrams and concept illustrations without searching the web or using stock photos:
+1. Inside the material editor, click **"Generate Image with AI"**.
+2. Type a descriptive educational prompt (e.g., *"3D visual of a cylinder showing radius and height with cross-section"*).
+3. The AI generates a sharp, classroom-ready mathematical diagram.
+4. Click **Insert into Article** to embed it directly at your cursor position.
+
+---
+
 # Part 3: Student's Space
 
 The **Student's Space** is clean, distraction-free, and designed so that children of all ages (Grades 1 to 12) can participate without confusion.
@@ -333,6 +407,7 @@ The **Student's Space** is clean, distraction-free, and designed so that childre
 │                     STUDENT PORTAL                      │
 ├─────────────────┬───────────────────────────────────────┤
 │ Open Classroom  │ Active live quizzes & open worksheets │
+│ Live Whiteboard │ Real-time teacher board notes & PDF   │
 │ Quiz History    │ Past quiz scores, reviews & answers   │
 │ Paper History   │ Graded workbook sheets & remarks      │
 │ Class Calendar  │ Upcoming tests & homework deadlines   │
@@ -424,6 +499,26 @@ For descriptive homework and exam papers:
 
 ---
 
+## 3.7 Student Live Whiteboard & Notes PDF Export
+
+When your teacher conducts a live lecture using the digital whiteboard, students can follow along live from any computer, tablet, or mobile phone.
+
+### 1. Joining the Live Whiteboard:
+- When a live class begins, a prominent **"LIVE CLASS IN PROGRESS"** banner appears on your dashboard, and a **Live Whiteboard** tab appears in the sidebar.
+- Click **"Join Live Board →"** to enter the live stream.
+
+### 2. Live Interaction & Viewing:
+- **Real-Time Synchronisation**: Every stroke, formula, geometric diagram, and page change made by the teacher appears instantly on your screen.
+- **Follow Teacher Mode**: By default, your screen automatically scrolls and follows where the teacher is writing.
+- **Independent Exploration**: You can temporarily disable "Follow Teacher" to scroll back up or inspect previous pages at your own reading speed. Click **"Jump to Teacher"** at any time to re-sync.
+- **Zoom & View Controls**: Use the Zoom (+ / -) or Fit-to-Width controls to adjust the board size to your device.
+
+### 3. One-Click PDF Export:
+- At any point during or after the lecture, click **"Download PDF"** in the top-right corner.
+- All whiteboard pages and notes are instantly saved to your device as a crisp, multi-page vector PDF for easy offline homework and revision.
+
+---
+
 # Frequently Asked Questions (FAQ)
 
 ### For Teachers:
@@ -435,13 +530,20 @@ For descriptive homework and exam papers:
   - *A:* No. When clicking WhatsApp next to a student's name, the scorecard is sent exclusively to that individual child's parent number.
 - **Q: What happens if a student accidentally closes their browser during a timed quiz?**
   - *A:* Their progress is saved automatically on the server. When they re-enter their 6-character passkey, they resume right where they left off with their remaining time intact.
+- **Q: Does the live whiteboard consume heavy internet data?**
+  - *A:* No. Unlike video streaming which transmits heavy video frames, EduAshram streams lightweight vector strokes and coordinates via WebSockets. It works smoothly even on standard 4G and mobile hotspot connections.
+- **Q: How accurate is AI Auto-Evaluation for student handwriting?**
+  - *A:* EduAshram uses Google Gemini Vision fine-tuned for mathematics. It accurately transcribes mathematical steps and fractions from clean phone camera photos. The teacher always has full control to review, edit, or adjust marks before final approval.
 
 ### For Students:
 - **Q: I forgot my passkey. How can I log in?**
   - *A:* Ask your teacher! In the teacher's Student Directory, your teacher can view or regenerate your passkey in 1 click.
 - **Q: Can other students see my scores?**
   - *A:* No. Passkeys are private to each student. Other students can never view your scores or submitted workbook photos.
+- **Q: Can I download the teacher's whiteboard notes if I missed something?**
+  - *A:* Yes! Click **"Download PDF"** at any time during or after the live session to download the complete set of whiteboard pages to your device.
 
 ---
 
 *EduAshram — Empowering Teachers. Inspiring Students.*
+
