@@ -4851,7 +4851,7 @@ interface AIGeneratedArticleImage {
   fileUrl: string;
   prompt: string;
   fullPrompt: string;
-  provider: 'gemini' | 'openai';
+  provider: 'gemini' | 'gemini_vector' | 'openai' | string;
   aspectRatio: string;
   stylePreset: string;
   createdAt: string;
@@ -4883,8 +4883,9 @@ function cleanAndNormalizeSvg(rawText: string, width = 800, height = 450): strin
   if (!rawText) return null;
   let text = rawText.replace(/```(?:xml|svg|html)?/gi, '').replace(/```/g, '').trim();
 
-  const startIdx = text.indexOf('<svg');
-  const endIdx = text.lastIndexOf('</svg>');
+  const lower = text.toLowerCase();
+  const startIdx = lower.indexOf('<svg');
+  const endIdx = lower.lastIndexOf('</svg>');
   if (startIdx === -1 || endIdx === -1 || endIdx <= startIdx) {
     return null;
   }
@@ -4896,24 +4897,24 @@ function cleanAndNormalizeSvg(rawText: string, width = 800, height = 450): strin
   let openTag = svg.substring(0, closeOpenTag + 1);
   let rest = svg.substring(closeOpenTag + 1);
 
-  if (!openTag.includes('xmlns=')) {
-    openTag = openTag.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"');
+  if (!/xmlns\s*=/i.test(openTag)) {
+    openTag = openTag.replace(/<svg/i, '<svg xmlns="http://www.w3.org/2000/svg"');
   }
-  if (!openTag.includes('xmlns:xlink=')) {
-    openTag = openTag.replace('<svg', '<svg xmlns:xlink="http://www.w3.org/1999/xlink"');
+  if (!/xmlns:xlink\s*=/i.test(openTag)) {
+    openTag = openTag.replace(/<svg/i, '<svg xmlns:xlink="http://www.w3.org/1999/xlink"');
   }
-  if (!openTag.includes('viewBox=') && !openTag.includes('viewbox=')) {
-    openTag = openTag.replace('<svg', `<svg viewBox="0 0 ${width} ${height}"`);
+  if (!/viewBox\s*=/i.test(openTag)) {
+    openTag = openTag.replace(/<svg/i, `<svg viewBox="0 0 ${width} ${height}"`);
   }
-  if (!openTag.includes('width=')) {
-    openTag = openTag.replace('<svg', '<svg width="100%"');
+  if (!/\bwidth\s*=/i.test(openTag)) {
+    openTag = openTag.replace(/<svg/i, '<svg width="100%"');
   }
-  if (!openTag.includes('height=')) {
-    openTag = openTag.replace('<svg', '<svg height="100%"');
+  if (!/\bheight\s*=/i.test(openTag)) {
+    openTag = openTag.replace(/<svg/i, '<svg height="100%"');
   }
 
   // Ensure solid white background rect is present so graphic is always bright, clear, and visible
-  if (!rest.includes('<rect') || (!rest.includes('fill="#ffffff"') && !rest.includes('fill="#fff"') && !rest.includes('fill="white"'))) {
+  if (!rest.includes('fill="#ffffff"') && !rest.includes('fill="#fff"') && !rest.includes('fill="white"')) {
     rest = `<rect width="100%" height="100%" fill="#ffffff" rx="6" />\n` + rest;
   }
 
@@ -4946,7 +4947,7 @@ app.post('/api/superadmin/generate-article-image', superAdminOnly, async (req: R
   try {
     const schema = z.object({
       prompt: z.string().trim().min(3).max(2500),
-      provider: z.enum(['gemini', 'openai']).default('gemini'),
+      provider: z.enum(['gemini', 'gemini_vector', 'openai']).default('gemini'),
       aspectRatio: z.enum(['16:9', '1:1', '4:3']).default('16:9'),
       stylePreset: z.string().optional().default('splashlearn_vector'),
       customApiKey: z.string().optional(),
@@ -4973,100 +4974,15 @@ app.post('/api/superadmin/generate-article-image', superAdminOnly, async (req: R
     let providerUsed = data.provider;
     let detectedExt = '.webp';
 
-    if (data.provider === 'gemini') {
+    if (data.provider === 'gemini' || data.provider === 'gemini_vector') {
       if (!geminiKey) {
         throw new Error('Google Gemini API Key is required. Please enter your Gemini API Key in the Studio or configure GEMINI_API_KEY in the server .env.');
       }
 
-      // Multi-strategy cascade for Google Gemini image generation:
-      // 1. Google Gemini Interactions API (Latest native multimodal image generation)
-      // 2. Google Gemini generateContent with responseModalities: ["IMAGE", "TEXT"]
-      // 3. Legacy Imagen 3 :predict endpoint
       let lastErr = '';
 
-      // Strategy 1: Interactions API
-      const interactionModels = ['gemini-3.1-flash-image', 'gemini-2.5-flash-image', 'gemini-nano-banana-2.1'];
-      for (const model of interactionModels) {
-        try {
-          const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/interactions?key=${geminiKey}`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'x-goog-api-key': geminiKey,
-            },
-            body: JSON.stringify({
-              model,
-              input: [{ type: 'text', text: fullPrompt }],
-            }),
-          });
-          const json: any = await resp.json().catch(() => ({}));
-          if (resp.ok && json.steps) {
-            for (const step of json.steps) {
-              if (step.content) {
-                for (const part of step.content) {
-                  if (part.type === 'image' && part.data) {
-                    imageBuffer = Buffer.from(part.data, 'base64');
-                    const mime = part.mime_type || 'image/webp';
-                    if (mime.includes('webp')) detectedExt = '.webp';
-                    else if (mime.includes('jpeg') || mime.includes('jpg')) detectedExt = '.jpg';
-                    else detectedExt = '.png';
-                    break;
-                  }
-                }
-              }
-              if (imageBuffer) break;
-            }
-            if (imageBuffer) break;
-          } else {
-            lastErr = json?.error?.message || resp.statusText;
-          }
-        } catch (e: any) {
-          lastErr = e.message || String(e);
-        }
-      }
-
-      // Strategy 2: generateContent with responseModalities: ["IMAGE", "TEXT"]
-      if (!imageBuffer) {
-        const generateContentModels = ['gemini-2.5-flash-image', 'gemini-3.1-flash-image', 'gemini-2.0-flash'];
-        for (const model of generateContentModels) {
-          try {
-            const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'x-goog-api-key': geminiKey,
-              },
-              body: JSON.stringify({
-                contents: [{ parts: [{ text: fullPrompt }] }],
-                generationConfig: {
-                  responseModalities: ['IMAGE', 'TEXT'],
-                },
-              }),
-            });
-            const json: any = await resp.json().catch(() => ({}));
-            if (resp.ok && json.candidates?.[0]?.content?.parts) {
-              for (const part of json.candidates[0].content.parts) {
-                if (part.inlineData?.data) {
-                  imageBuffer = Buffer.from(part.inlineData.data, 'base64');
-                  const mime = part.inlineData.mimeType || 'image/png';
-                  if (mime.includes('webp')) detectedExt = '.webp';
-                  else if (mime.includes('jpeg') || mime.includes('jpg')) detectedExt = '.jpg';
-                  else detectedExt = '.png';
-                  break;
-                }
-              }
-              if (imageBuffer) break;
-            } else {
-              lastErr = json?.error?.message || resp.statusText;
-            }
-          } catch (e: any) {
-            lastErr = e.message || String(e);
-          }
-        }
-      }
-
-      // Strategy 3: Legacy Imagen 3 :predict
-      if (!imageBuffer) {
+      // Strategy A: Only attempt native Imagen 3 photorealistic generation if provider is 'gemini' (and not 'gemini_vector')
+      if (data.provider === 'gemini') {
         const legacyModels = ['imagen-3.0-generate-002'];
         for (const model of legacyModels) {
           try {
@@ -5094,6 +5010,7 @@ app.post('/api/superadmin/generate-article-image', superAdminOnly, async (req: R
               break;
             } else {
               lastErr = json?.error?.message || resp.statusText;
+              console.warn(`[AI Article Image] Imagen 3 returned HTTP ${resp.status}: ${lastErr}`);
             }
           } catch (e: any) {
             lastErr = e.message || String(e);
@@ -5101,10 +5018,16 @@ app.post('/api/superadmin/generate-article-image', superAdminOnly, async (req: R
         }
       }
 
-      // Strategy 4: High-Resolution Educational SVG Vector Graphic via Gemini 2.0 Flash / 1.5 Flash
-      // (Bypasses Google Cloud billing requirements completely! Generates crisp, publication-grade SVG graphics for free)
+      // Strategy B: High-Resolution Educational SVG Vector Graphic via Gemini 2.5 Flash / Flash Lite
+      // (Bypasses Google Cloud billing requirements completely! Generates crisp, publication-grade SVG graphics for 100% free with any Gemini API Key)
       if (!imageBuffer) {
-        const textModels = ['gemini-2.0-flash', 'gemini-1.5-flash'];
+        const textModels = [
+          'gemini-2.5-flash',
+          'gemini-2.5-flash-lite',
+          'gemini-flash-latest',
+          'gemini-2.0-flash',
+          'gemini-2.5-pro',
+        ];
         const w = data.aspectRatio === '16:9' ? 800 : (data.aspectRatio === '1:1' ? 600 : 800);
         const h = data.aspectRatio === '16:9' ? 450 : (data.aspectRatio === '1:1' ? 600 : 600);
         const svgPrompt = `You are an elite educational graphic designer and SVG artist.
@@ -5122,26 +5045,42 @@ Design requirements:
 
         for (const model of textModels) {
           try {
+            console.log(`[AI Article Image] Generating vector graphic with model: ${model}...`);
             const svgResp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`, {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers: {
+                'Content-Type': 'application/json',
+                'x-goog-api-key': geminiKey,
+              },
               body: JSON.stringify({
-                contents: [{ parts: [{ text: svgPrompt }] }],
+                contents: [{
+                  role: 'user',
+                  parts: [{ text: svgPrompt }],
+                }],
                 generationConfig: {
                   temperature: 0.2,
                 },
               }),
             });
             const svgJson: any = await svgResp.json().catch(() => ({}));
+            if (!svgResp.ok) {
+              const errMsg = svgJson?.error?.message || svgResp.statusText;
+              console.warn(`[AI Article Image] Vector model ${model} HTTP ${svgResp.status}: ${errMsg}`);
+              lastErr = errMsg;
+              continue;
+            }
             const rawText = svgJson?.candidates?.[0]?.content?.parts?.[0]?.text || '';
             const normalized = cleanAndNormalizeSvg(rawText, w, h);
             if (normalized) {
               imageBuffer = Buffer.from(normalized, 'utf-8');
               detectedExt = '.svg';
+              providerUsed = data.provider === 'gemini' ? 'gemini' : 'gemini_vector';
+              console.log(`[AI Article Image] Successfully generated vector SVG graphic with model ${model}`);
               break;
             }
-          } catch {
-            // try next model
+          } catch (e: any) {
+            console.warn(`[AI Article Image] Vector model ${model} fetch exception:`, e.message);
+            lastErr = e.message || String(e);
           }
         }
       }
@@ -5152,9 +5091,10 @@ Design requirements:
           lastErr.toLowerCase().includes('not found') ||
           lastErr.toLowerCase().includes('not supported') ||
           lastErr.includes('404') ||
-          lastErr.toLowerCase().includes('predict')
+          lastErr.toLowerCase().includes('predict') ||
+          lastErr.toLowerCase().includes('billing')
         ) {
-          friendlyMsg = `Google Gemini Image Generation is not active on this Gemini API Key. Google AI Studio restricts native image generation to accounts with Google Cloud billing enabled. Please switch to the "ChatGPT DALL·E 3 (OpenAI)" provider option above to generate your image immediately with OpenAI.`;
+          friendlyMsg = `Google Gemini Image Generation is not active on this Gemini API Key. Google AI Studio restricts native Imagen 3 photorealistic generation to accounts with Google Cloud billing enabled. Please switch to "Gemini Vector Art" (100% free with any Gemini key) or choose "ChatGPT DALL·E 3 (OpenAI)".`;
         }
         throw new Error(friendlyMsg);
       }
@@ -5321,7 +5261,7 @@ app.post('/api/superadmin/enhance-image-prompt', superAdminOnly, async (req: Req
       stylePreset: z.string().optional().default('splashlearn_vector'),
       aspectRatio: z.string().optional().default('16:9'),
       customApiKey: z.string().optional(),
-      provider: z.enum(['gemini', 'openai']).optional().default('gemini'),
+      provider: z.enum(['gemini', 'gemini_vector', 'openai']).optional().default('gemini'),
     });
     const data = parse(schema, req.body);
 

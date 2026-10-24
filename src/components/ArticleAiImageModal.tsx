@@ -35,7 +35,7 @@ export function ArticleAiImageModal({ isOpen, onClose, onInsert }: ArticleAiImag
     return localStorage.getItem('maths_mentor_admin_ai_key') || '';
   });
   const [showKeyConfig, setShowKeyConfig] = useState(false);
-  const [provider, setProvider] = useState<'gemini' | 'openai'>('gemini');
+  const [provider, setProvider] = useState<'gemini' | 'gemini_vector' | 'openai'>('gemini_vector');
   const [prompt, setPrompt] = useState('');
   const [selectedPreset, setSelectedPreset] = useState('splashlearn_vector');
   const [aspectRatio, setAspectRatio] = useState<'16:9' | '4:3' | '1:1'>('4:3');
@@ -130,7 +130,9 @@ export function ArticleAiImageModal({ isOpen, onClose, onInsert }: ArticleAiImag
     setGenerating(true);
     setErrorMessage('');
     setStatusMessage(
-      provider === 'openai'
+      provider === 'gemini_vector'
+        ? 'Generating with Google Gemini Vector Art (Free)...'
+        : provider === 'openai'
         ? 'Generating with ChatGPT DALL·E 3...'
         : 'Generating with Google Imagen 3...'
     );
@@ -300,8 +302,9 @@ export function ArticleAiImageModal({ isOpen, onClose, onInsert }: ArticleAiImag
                       background: '#ffffff',
                     }}
                   >
-                    <option value="gemini">Google Gemini AI (SplashLearn Vector - Free)</option>
-                    <option value="openai">ChatGPT DALL·E 3 (Photorealistic - Requires Credits)</option>
+                    <option value="gemini_vector">Google Gemini Vector Art (100% Free - Any Gemini Key)</option>
+                    <option value="gemini">Google Imagen 3 (Photorealistic - Requires Cloud Billing)</option>
+                    <option value="openai">ChatGPT DALL·E 3 (Requires OpenAI Key / Credits)</option>
                   </select>
                 </div>
 

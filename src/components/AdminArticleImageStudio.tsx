@@ -27,7 +27,7 @@ export interface AIGeneratedImageItem {
   fileUrl: string;
   prompt: string;
   fullPrompt: string;
-  provider: 'gemini' | 'openai';
+  provider: 'gemini' | 'gemini_vector' | 'openai' | string;
   aspectRatio: string;
   createdAt: string;
   fileSize?: number;
@@ -94,7 +94,7 @@ const SUGGESTED_PROMPTS = [
 
 export function AdminArticleImageStudio({ onInsertIntoArticle, setNotice }: AdminArticleImageStudioProps) {
   // Provider & API Keys
-  const [provider, setProvider] = useState<'gemini' | 'openai'>('gemini');
+  const [provider, setProvider] = useState<'gemini' | 'gemini_vector' | 'openai'>('gemini_vector');
   const [customApiKey, setCustomApiKey] = useState(() => {
     return localStorage.getItem('maths_mentor_admin_ai_key') || '';
   });
@@ -226,7 +226,9 @@ export function AdminArticleImageStudio({ onInsertIntoArticle, setNotice }: Admi
     setGenerating(true);
     setErrorMessage('');
     setStatusMessage(
-      provider === 'gemini'
+      provider === 'gemini_vector'
+        ? 'Calling Google Gemini AI... (Synthesizing SplashLearn vector art)'
+        : provider === 'gemini'
         ? 'Calling Google Gemini Imagen 3... (Rendering photorealistic art)'
         : 'Calling ChatGPT OpenAI DALL·E 3... (Synthesizing composition)'
     );
@@ -498,9 +500,12 @@ export function AdminArticleImageStudio({ onInsertIntoArticle, setNotice }: Admi
             )}
           </div>
 
-          <div style={{ display: 'flex', gap: '20px', marginTop: '10px', fontSize: '12.5px', color: '#64748b' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '10px', fontSize: '12px', color: '#64748b' }}>
             <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
               <Info size={13} color="#6366f1" /> If left blank, the server will automatically use <code>GEMINI_API_KEY</code> or <code>OPENAI_API_KEY</code> from <code>.env</code>.
+            </span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '5px', color: '#b45309' }}>
+              <AlertCircle size={13} color="#d97706" /> Note: Google AI Studio restricts native Imagen 3 photorealistic generation to projects with Google Cloud billing linked. For standard free Gemini API keys, select <strong>Gemini Vector Art (100% Free)</strong>.
             </span>
           </div>
         </div>
@@ -530,30 +535,58 @@ export function AdminArticleImageStudio({ onInsertIntoArticle, setNotice }: Admi
             <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 700, color: '#334155', marginBottom: '8px' }}>
               AI Model Provider
             </label>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
+              <button
+                type="button"
+                onClick={() => setProvider('gemini_vector')}
+                style={{
+                  padding: '10px 6px',
+                  borderRadius: '10px',
+                  border: '2px solid',
+                  borderColor: provider === 'gemini_vector' ? '#10b981' : '#e2e8f0',
+                  background: provider === 'gemini_vector' ? '#f0fdf4' : '#ffffff',
+                  color: provider === 'gemini_vector' ? '#15803d' : '#475569',
+                  fontWeight: provider === 'gemini_vector' ? 700 : 500,
+                  fontSize: '12px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '4px',
+                  transition: 'all 0.15s',
+                }}
+              >
+                <span>Gemini Vector</span>
+                <span style={{ fontSize: '9.5px', background: '#dcfce7', color: '#166534', padding: '1px 5px', borderRadius: '4px', fontWeight: 800 }}>
+                  100% Free
+                </span>
+              </button>
+
               <button
                 type="button"
                 onClick={() => setProvider('gemini')}
                 style={{
-                  padding: '10px 12px',
+                  padding: '10px 6px',
                   borderRadius: '10px',
                   border: '2px solid',
                   borderColor: provider === 'gemini' ? '#6366f1' : '#e2e8f0',
                   background: provider === 'gemini' ? '#f5f3ff' : '#ffffff',
                   color: provider === 'gemini' ? '#4f46e5' : '#475569',
                   fontWeight: provider === 'gemini' ? 700 : 500,
-                  fontSize: '13px',
+                  fontSize: '12px',
                   cursor: 'pointer',
                   display: 'flex',
+                  flexDirection: 'column',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  gap: '6px',
+                  gap: '4px',
                   transition: 'all 0.15s',
                 }}
               >
                 <span>Google Imagen 3</span>
-                <span style={{ fontSize: '10px', background: '#e0e7ff', color: '#4338ca', padding: '1px 6px', borderRadius: '4px', fontWeight: 800 }}>
-                  Recommended
+                <span style={{ fontSize: '9.5px', background: '#e0e7ff', color: '#4338ca', padding: '1px 5px', borderRadius: '4px', fontWeight: 800 }}>
+                  Cloud Billing
                 </span>
               </button>
 
@@ -561,24 +594,33 @@ export function AdminArticleImageStudio({ onInsertIntoArticle, setNotice }: Admi
                 type="button"
                 onClick={() => setProvider('openai')}
                 style={{
-                  padding: '10px 12px',
+                  padding: '10px 6px',
                   borderRadius: '10px',
                   border: '2px solid',
-                  borderColor: provider === 'openai' ? '#10b981' : '#e2e8f0',
-                  background: provider === 'openai' ? '#ecfdf5' : '#ffffff',
-                  color: provider === 'openai' ? '#047857' : '#475569',
+                  borderColor: provider === 'openai' ? '#0ea5e9' : '#e2e8f0',
+                  background: provider === 'openai' ? '#f0f9ff' : '#ffffff',
+                  color: provider === 'openai' ? '#0369a1' : '#475569',
                   fontWeight: provider === 'openai' ? 700 : 500,
-                  fontSize: '13px',
+                  fontSize: '12px',
                   cursor: 'pointer',
                   display: 'flex',
+                  flexDirection: 'column',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  gap: '6px',
+                  gap: '4px',
                   transition: 'all 0.15s',
                 }}
               >
-                <span>DALL·E 3 (OpenAI)</span>
+                <span>DALL·E 3</span>
+                <span style={{ fontSize: '9.5px', background: '#e0f2fe', color: '#0369a1', padding: '1px 5px', borderRadius: '4px', fontWeight: 800 }}>
+                  OpenAI Key
+                </span>
               </button>
+            </div>
+            <div style={{ marginTop: '8px', fontSize: '11.5px', color: '#64748b', lineHeight: 1.4 }}>
+              {provider === 'gemini_vector' && '✨ 100% Free with any Google Gemini key! Creates crisp 2D SplashLearn-style educational vector SVG illustrations.'}
+              {provider === 'gemini' && 'ℹ️ Photorealistic Google Imagen 3 art. Requires Google Cloud Billing linked in Google AI Studio.'}
+              {provider === 'openai' && '🚀 Generates high-fidelity artwork with OpenAI DALL·E 3 using your OpenAI API key.'}
             </div>
           </div>
 
