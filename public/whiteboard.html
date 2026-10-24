@@ -1009,6 +1009,12 @@ body {
           </span>
           <span class="top-bar__title">Whiteboard</span>
         </div>
+        <div class="top-bar__page-nav" id="topPageNav" style="display:inline-flex;align-items:center;gap:3px;background:#f8fafc;padding:2px 6px;border-radius:6px;border:1px solid #cbd5e1;margin-left:6px;flex-shrink:0;">
+          <button type="button" class="top-bar__button" id="topPrevPageBtn" title="Previous Page (Left Arrow)" style="padding:2px 7px;min-width:26px;font-weight:700;font-size:0.75rem;">◀</button>
+          <span id="topPageIndicator" style="font-size:0.78rem;font-weight:700;color:#0f172a;min-width:75px;text-align:center;">Page 1 / 1</span>
+          <button type="button" class="top-bar__button" id="topNextPageBtn" title="Next Page (Right Arrow)" style="padding:2px 7px;min-width:26px;font-weight:700;font-size:0.75rem;">▶</button>
+          <button type="button" class="top-bar__button" id="topAddPageBtn" title="Add New Blank Page" style="padding:2px 7px;color:#16a34a;font-weight:700;border-color:#86efac;background:#f0fdf4;font-size:0.75rem;">+ Page</button>
+        </div>
         <div class="top-bar__spacer"></div>
         <button class="top-bar__button" id="clearPageButton" title="Clear everything on this page">
           Clear page
@@ -1228,7 +1234,7 @@ body {
   let currentTool = "select";
   const defaultInfinite = localStorage.getItem("whiteboard_infinite_scroll") === "true";
   const defaultPageHeight = defaultInfinite ? 2400 : 800;
-  const pages = [{ strokes: [], shapes: [], texts: [], widgets: [], background: null, height: defaultPageHeight, infiniteScroll: defaultInfinite }];
+  const pages = [{ strokes: [], shapes: [], texts: [], widgets: [], background: null, height: defaultPageHeight, infiniteScroll: defaultInfinite, boardType: currentBoardType }];
   let isDrawing = false;
   let isPanning = false;
   let activeDrawingPointerId = null;
@@ -1314,6 +1320,13 @@ body {
   const PAGES_DB_NAME = "GauravBoardDB";
   const PAGES_STORE_NAME = "pages";
   let savePagesTimeout = null;
+  let notifyParentPagesTimeout = null;
+  function scheduleNotifyParentPages(delay) {
+    clearTimeout(notifyParentPagesTimeout);
+    notifyParentPagesTimeout = setTimeout(() => {
+      notifyParentFullPages();
+    }, delay || 200);
+  }
   let userStamps = [];
   let userStampFileInput = null;
 
@@ -1540,6 +1553,7 @@ body {
         widgets: page.widgets || [],
         background: page.background || null,
         gridVisible: !!page.gridVisible,
+        graphVisible: !!page.graphVisible,
       })
     );
   }
@@ -1553,6 +1567,7 @@ body {
     page.widgets = JSON.parse(JSON.stringify(snapshot.widgets || []));
     page.background = JSON.parse(JSON.stringify(snapshot.background || null));
     page.gridVisible = !!snapshot.gridVisible;
+    page.graphVisible = !!snapshot.graphVisible;
   }
 
   function pushUndo() {
@@ -1612,6 +1627,15 @@ body {
       if (typeof customHeightInputEl !== "undefined" && customHeightInputEl) {
         customHeightInputEl.value = String(page.height);
       }
+      try {
+        if (window.parent && window.parent !== window) {
+          window.parent.postMessage({
+            type: "WHITEBOARD_PAGE_HEIGHT_CHANGED",
+            pageIndex: currentPageIndex,
+            height: page.height
+          }, "*");
+        }
+      } catch (_) {}
       return true;
     }
     return false;
@@ -1697,7 +1721,7 @@ body {
       }
     }
 
-    if (currentTool === "graphs") {
+    if (currentTool === "graphs" || (page && page.graphVisible)) {
       drawGraphBackground(ctx, logicalW, logicalH);
     } else if (page && page.gridVisible) {
       drawGridBackground(ctx, logicalW, logicalH);
@@ -1709,6 +1733,7 @@ body {
 
     clearTimeout(savePagesTimeout);
     savePagesTimeout = setTimeout(savePagesToStorage, 800);
+    scheduleNotifyParentPages(250);
   }
 
   function getBoardBackgroundColor() {
@@ -1782,6 +1807,7 @@ body {
           stickyOpacity: isSticky ? (stickyNotesSettings.fillOpacity ?? 1) : undefined,
         };
         page.texts.push(newItem);
+        notifyParentFullPages();
         currentTool = "select";
         selectedShapes = [];
         selectedTexts = [newItem];
@@ -1891,6 +1917,9 @@ body {
       if (!dataUrl.startsWith("data:") && !dataUrl.startsWith("blob:")) {
         img.crossOrigin = "anonymous";
       }
+      img.onload = () => {
+        updateBoardAppearance();
+      };
       img.src = dataUrl;
       imageCache.set(dataUrl, img);
     }
@@ -4060,9 +4089,14 @@ body {
 
     try {
       if (window.parent && window.parent !== window) {
-        window.parent.postMessage({ type: "BOARD_TYPE_CHANGED", boardType: type }, "*");
+        window.parent.postMessage({
+          type: "WHITEBOARD_BOARD_TYPE_CHANGED",
+          boardType: type,
+          pageIndex: currentPageIndex
+        }, "*");
       }
     } catch (_) {}
+    notifyParentFullPages();
 
     clearTimeout(savePagesTimeout);
     savePagesTimeout = setTimeout(savePagesToStorage, 800);
@@ -6387,13 +6421,8 @@ body {
     });
   }
 
-  function copyImageShapeToOtherPages(shape) {
-    const cur = currentPageIndex;
-    pages.forEach((p, i) => {
-      if (i === cur || !p) return;
-      if (!p.shapes) p.shapes = [];
-      p.shapes.push(JSON.parse(JSON.stringify(shape)));
-    });
+  function copyImageShapeToOtherPages(_shape) {
+    // Keep inserted images on the active page only (do not copy to other pages)
   }
 
   function placeTimeWidget(point) {
@@ -6923,6 +6952,17 @@ body {
     propertiesContent.appendChild(wrap);
   }
 
+  function updateTopPageNav() {
+    const topIndicator = document.getElementById("topPageIndicator");
+    if (topIndicator) {
+      topIndicator.textContent = `Page ${currentPageIndex + 1} / ${Math.max(1, pages.length)}`;
+    }
+    const prevBtn = document.getElementById("topPrevPageBtn");
+    const nextBtn = document.getElementById("topNextPageBtn");
+    if (prevBtn) prevBtn.disabled = currentPageIndex <= 0;
+    if (nextBtn) nextBtn.disabled = currentPageIndex >= pages.length - 1;
+  }
+
   function syncPageStrip() {
     if (!pagesStrip) return;
     pagesStrip.innerHTML = "";
@@ -6932,12 +6972,14 @@ body {
       btn.className = "page-thumbnail";
       btn.textContent = String(i + 1);
       btn.dataset.index = String(i);
+      btn.title = `Switch to Page ${i + 1}`;
       pagesStrip.appendChild(btn);
     });
     const buttons = pagesStrip.querySelectorAll(".page-thumbnail");
     buttons.forEach((btn, i) => {
       btn.classList.toggle("page-thumbnail--active", i === currentPageIndex);
     });
+    updateTopPageNav();
   }
 
   function deletePage(index) {
@@ -6949,50 +6991,161 @@ body {
     else if (currentPageIndex > index) currentPageIndex--;
     syncPageStrip();
     selectPage(currentPageIndex);
+    notifyParentFullPages();
   }
 
   function addNewPage() {
     const newIndex = pages.length;
-    const curPage = pages[currentPageIndex];
     const isInfinite = localStorage.getItem("whiteboard_infinite_scroll") === "true";
     const container = boardCanvas?.closest(".canvas-container");
     const standardH = container ? Math.max(container.clientHeight, 600) : 800;
     const newPage = { strokes: [], shapes: [], texts: [], widgets: [], background: null, height: isInfinite ? 2400 : standardH, infiniteScroll: isInfinite, boardType: currentBoardType };
-    if (curPage) {
-      (curPage.widgets || []).filter((w) => w.type === "clock" || w.type === "timer" || w.type === "stopwatch").forEach((w) => {
-        newPage.widgets.push(cloneTimeWidgetForOtherPage(w));
-      });
-      (curPage.shapes || []).filter((s) => s.type === "image").forEach((s) => {
-        newPage.shapes.push(JSON.parse(JSON.stringify(s)));
-      });
-    }
     pages[newIndex] = newPage;
     syncPageStrip();
     selectPage(newIndex);
+    notifyParentFullPages();
+  }
+
+  function notifyParentPageChange(idx) {
+    try {
+      if (window.parent && window.parent !== window) {
+        const page = pages[idx];
+        window.parent.postMessage({
+          type: "WHITEBOARD_PAGE_CHANGED",
+          activePageIndex: idx,
+          boardType: (page && page.boardType) || currentBoardType,
+          totalPages: pages.length
+        }, "*");
+      }
+    } catch (_) {}
+  }
+
+  function notifyParentStroke(stroke) {
+    try {
+      if (window.parent && window.parent !== window) {
+        window.parent.postMessage({
+          type: "WHITEBOARD_STROKE",
+          pageIndex: currentPageIndex,
+          stroke: stroke,
+          totalPages: pages.length
+        }, "*");
+      }
+    } catch (_) {}
+  }
+
+  function notifyParentClear() {
+    try {
+      if (window.parent && window.parent !== window) {
+        window.parent.postMessage({
+          type: "WHITEBOARD_CLEAR_PAGE",
+          pageIndex: currentPageIndex,
+          totalPages: pages.length
+        }, "*");
+      }
+    } catch (_) {}
+  }
+
+  function notifyParentFullPages() {
+    try {
+      if (window.parent && window.parent !== window) {
+        window.parent.postMessage({
+          type: "WHITEBOARD_ALL_PAGES_RESPONSE",
+          pages: JSON.parse(JSON.stringify(pages)),
+          activePageIndex: currentPageIndex,
+          totalPages: pages.length
+        }, "*");
+      }
+    } catch (_) {}
+  }
+
+  let lastScrollBroadcastTime = 0;
+  let scrollBroadcastTimer = null;
+  function notifyParentScroll(immediate) {
+    const container = boardCanvas?.closest(".canvas-container");
+    if (!container) return;
+    const now = Date.now();
+    if (!immediate && (now - lastScrollBroadcastTime < 35)) {
+      if (!scrollBroadcastTimer) {
+        scrollBroadcastTimer = setTimeout(() => {
+          scrollBroadcastTimer = null;
+          lastScrollBroadcastTime = Date.now();
+          doBroadcastScroll(container);
+        }, 35);
+      }
+      return;
+    }
+    lastScrollBroadcastTime = now;
+    if (scrollBroadcastTimer) {
+      clearTimeout(scrollBroadcastTimer);
+      scrollBroadcastTimer = null;
+    }
+    doBroadcastScroll(container);
+  }
+
+  function doBroadcastScroll(container) {
+    if (!container) return;
+    const st = container.scrollTop || 0;
+    const sh = container.scrollHeight || 1;
+    const ch = container.clientHeight || 1;
+    const maxScroll = Math.max(1, sh - ch);
+    const ratio = Math.min(1, Math.max(0, st / maxScroll));
+    try {
+      if (window.parent && window.parent !== window) {
+        window.parent.postMessage({
+          type: "WHITEBOARD_SCROLL",
+          pageIndex: currentPageIndex,
+          scrollTop: Math.round(st),
+          scrollHeight: Math.round(sh),
+          clientHeight: Math.round(ch),
+          scrollRatio: ratio,
+          zoom: zoom
+        }, "*");
+      }
+    } catch (_) {}
   }
 
   function selectPage(index) {
+    if (typeof index !== "number" || index < 0 || index >= pages.length) return;
     currentPageIndex = index;
     selectedShapes = [];
     selectedTexts = [];
     selectedWidgets = [];
-    const buttons = pagesStrip.querySelectorAll(".page-thumbnail");
-    buttons.forEach((btn, i) => {
-      btn.classList.toggle("page-thumbnail--active", i === index);
-    });
-    const page = pages[currentPageIndex];
-    if (page && page.boardType && page.boardType !== currentBoardType) {
-      setBoardType(page.boardType);
-    } else {
-      updateBoardInfoLabel();
-      resizeCanvas();
-      updateBoardAppearance();
+    isDrawing = false;
+    activeStroke = null;
+    activeShape = null;
+
+    if (pagesStrip) {
+      const buttons = pagesStrip.querySelectorAll(".page-thumbnail");
+      buttons.forEach((btn, i) => {
+        btn.classList.toggle("page-thumbnail--active", i === index);
+      });
+      const activeBtn = buttons[index];
+      if (activeBtn) activeBtn.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
     }
+
+    const page = pages[currentPageIndex];
+    if (page) {
+      if (page.boardType && page.boardType !== currentBoardType) {
+        setBoardType(page.boardType);
+      } else if (!page.boardType) {
+        page.boardType = currentBoardType;
+      }
+    }
+    updateBoardInfoLabel();
+    resizeCanvas();
+    updateBoardAppearance();
+
     const container = boardCanvas?.closest(".canvas-container");
-    if (container) container.scrollTop = 0;
+    if (container) {
+      container.scrollTop = 0;
+      container.scrollLeft = 0;
+    }
+    notifyParentScroll(true);
     if (typeof hideSettingsBanner === "function") hideSettingsBanner();
     if (typeof updateInfiniteToggleBtn === "function") updateInfiniteToggleBtn();
     if (currentTool === "select" && propertiesContent) handleToolSelection("select");
+    updateTopPageNav();
+    notifyParentPageChange(currentPageIndex);
   }
 
   function updateCanvasRect() {
@@ -8408,6 +8561,7 @@ body {
         const len = Math.sqrt(dx * dx + dy * dy);
         if (len >= 10) {
           page.shapes.push(a);
+          notifyParentFullPages();
           currentTool = "select";
           selectedShapes = [a];
           selectedTexts = [];
@@ -8447,6 +8601,7 @@ body {
         }
       }
       finishActiveStroke(activeStroke);
+      notifyParentStroke(activeStroke);
       const finishedPts = activeStroke.points;
       activeStroke = null;
       activeShape = null;
@@ -8720,55 +8875,35 @@ body {
 
       function startRendering() {
         const standardWidth = 1000;
-        let cumulativeHeight = 0;
         const pageLayouts = [];
 
         pageInfos.forEach((info) => {
-          const h = standardWidth / info.aspect;
+          const h = Math.round(standardWidth / info.aspect);
           pageLayouts.push({
             pageNum: info.pageNum,
             w: standardWidth,
-            h: h,
-            y: cumulativeHeight
+            h: h
           });
-          cumulativeHeight += h;
         });
 
-        const newPageObj = {
-          strokes: [],
-          shapes: [],
-          texts: [],
-          widgets: [],
-          width: standardWidth,
-          height: cumulativeHeight,
-          background: null
-        };
+        const isFirstPageBlank = pages.length === 1 && 
+                                 pages[0].strokes.length === 0 && 
+                                 pages[0].shapes.length === 0 && 
+                                 pages[0].texts.length === 0 && 
+                                 pages[0].widgets.length === 0 && 
+                                 pages[0].background === null;
+
+        const startTargetIndex = isFirstPageBlank ? 0 : pages.length;
 
         toast.textContent = `Rendering page 1 of ${numPages}...`;
 
         const renderNextPage = (pageNum) => {
           if (pageNum > numPages) {
-            const isFirstPageBlank = pages.length === 1 && 
-                                     pages[0].strokes.length === 0 && 
-                                     pages[0].shapes.length === 0 && 
-                                     pages[0].texts.length === 0 && 
-                                     pages[0].widgets.length === 0 && 
-                                     pages[0].background === null;
-
-            let targetIndex;
-            if (isFirstPageBlank) {
-              pages[0] = newPageObj;
-              targetIndex = 0;
-            } else {
-              pages.push(newPageObj);
-              targetIndex = pages.length - 1;
-            }
-
-            toast.textContent = "PDF Imported successfully!";
+            toast.textContent = `PDF (${numPages} page${numPages > 1 ? "s" : ""}) imported successfully!`;
             setTimeout(() => toast.remove(), 2000);
-
             syncPageStrip();
-            selectPage(targetIndex);
+            selectPage(startTargetIndex);
+            notifyParentFullPages();
             return;
           }
 
@@ -8789,19 +8924,35 @@ body {
 
             page.render(renderContext).promise.then(() => {
               const dataUrl = canvas.toDataURL("image/png");
+              const thisPageObj = {
+                strokes: [],
+                shapes: [{
+                  id: generateId(),
+                  type: "image",
+                  color: "#ffffff",
+                  width: 1,
+                  fillMode: "solid",
+                  dataUrl,
+                  start: { x: 0, y: 0 },
+                  end: { x: layout.w, y: layout.h },
+                  locked: true,
+                  isPDFPage: true
+                }],
+                texts: [],
+                widgets: [],
+                width: standardWidth,
+                height: Math.max(layout.h, 800),
+                infiniteScroll: false,
+                boardType: currentBoardType,
+                background: null
+              };
 
-              newPageObj.shapes.push({
-                id: generateId(),
-                type: "image",
-                color: "#ffffff",
-                width: 1,
-                fillMode: "solid",
-                dataUrl,
-                start: { x: 0, y: layout.y },
-                end: { x: layout.w, y: layout.y + layout.h },
-                locked: true,
-                isPDFPage: true
-              });
+              const targetPageIndex = startTargetIndex + (pageNum - 1);
+              if (targetPageIndex < pages.length) {
+                pages[targetPageIndex] = thisPageObj;
+              } else {
+                pages.push(thisPageObj);
+              }
 
               toast.textContent = `Rendering page ${pageNum + 1} of ${numPages}...`;
               renderNextPage(pageNum + 1);
@@ -8911,28 +9062,24 @@ body {
       renderCanvas.width = Math.round(standardWidth * renderScale);
       renderCanvas.height = Math.round(slideHeight * renderScale);
 
-      let cumulativeHeight = 0;
       const slideLayouts = [];
 
       for (let i = 0; i < slideCount; i++) {
         slideLayouts.push({
           slideNum: i + 1,
           w: standardWidth,
-          h: slideHeight,
-          y: cumulativeHeight
+          h: slideHeight
         });
-        cumulativeHeight += slideHeight;
       }
 
-      const newPageObj = {
-        strokes: [],
-        shapes: [],
-        texts: [],
-        widgets: [],
-        width: standardWidth,
-        height: cumulativeHeight,
-        background: null
-      };
+      const isFirstPageBlank = pages.length === 1 &&
+                               pages[0].strokes.length === 0 &&
+                               pages[0].shapes.length === 0 &&
+                               pages[0].texts.length === 0 &&
+                               pages[0].widgets.length === 0 &&
+                               pages[0].background === null;
+
+      const startTargetIndex = isFirstPageBlank ? 0 : pages.length;
 
       for (let i = 0; i < slideCount; i++) {
         toast.textContent = `Rendering slide ${i + 1} of ${slideCount}...`;
@@ -8964,35 +9111,36 @@ body {
 
         const dataUrl = renderCanvas.toDataURL("image/png");
 
-        newPageObj.shapes.push({
-          id: generateId(),
-          type: "image",
-          color: "#ffffff",
-          width: 1,
-          fillMode: "solid",
-          dataUrl,
-          start: { x: 0, y: layout.y },
-          end: { x: layout.w, y: layout.y + layout.h },
-          locked: true,
-          isPDFPage: true,
-          isPPTPage: true
-        });
-      }
+        const thisSlidePageObj = {
+          strokes: [],
+          shapes: [{
+            id: generateId(),
+            type: "image",
+            color: "#ffffff",
+            width: 1,
+            fillMode: "solid",
+            dataUrl,
+            start: { x: 0, y: 0 },
+            end: { x: layout.w, y: layout.h },
+            locked: true,
+            isPDFPage: true,
+            isPPTPage: true
+          }],
+          texts: [],
+          widgets: [],
+          width: standardWidth,
+          height: Math.max(layout.h, 800),
+          infiniteScroll: false,
+          boardType: currentBoardType,
+          background: null
+        };
 
-      const isFirstPageBlank = pages.length === 1 &&
-                               pages[0].strokes.length === 0 &&
-                               pages[0].shapes.length === 0 &&
-                               pages[0].texts.length === 0 &&
-                               pages[0].widgets.length === 0 &&
-                               pages[0].background === null;
-
-      let targetIndex;
-      if (isFirstPageBlank) {
-        pages[0] = newPageObj;
-        targetIndex = 0;
-      } else {
-        pages.push(newPageObj);
-        targetIndex = pages.length - 1;
+        const targetIndex = startTargetIndex + i;
+        if (targetIndex < pages.length) {
+          pages[targetIndex] = thisSlidePageObj;
+        } else {
+          pages.push(thisSlidePageObj);
+        }
       }
 
       toast.style.background = "#10b981";
@@ -9000,7 +9148,8 @@ body {
       setTimeout(() => toast.remove(), 2500);
 
       syncPageStrip();
-      selectPage(targetIndex);
+      selectPage(startTargetIndex);
+      notifyParentFullPages();
 
     } catch (err) {
       console.error("PPT Import error, trying fallback extraction:", err);
@@ -9041,17 +9190,15 @@ body {
 
     const standardWidth = 1000;
     const slideHeight = 562.5;
-    let cumulativeHeight = 0;
 
-    const newPageObj = {
-      strokes: [],
-      shapes: [],
-      texts: [],
-      widgets: [],
-      width: standardWidth,
-      height: slideFiles.length * slideHeight,
-      background: null
-    };
+    const isFirstPageBlank = pages.length === 1 &&
+                             pages[0].strokes.length === 0 &&
+                             pages[0].shapes.length === 0 &&
+                             pages[0].texts.length === 0 &&
+                             pages[0].widgets.length === 0 &&
+                             pages[0].background === null;
+
+    const startTargetIndex = isFirstPageBlank ? 0 : pages.length;
 
     const canvas = document.createElement("canvas");
     canvas.width = Math.round(standardWidth * 1.5);
@@ -9153,44 +9300,45 @@ body {
       });
 
       const dataUrl = canvas.toDataURL("image/png");
-      newPageObj.shapes.push({
-        id: generateId(),
-        type: "image",
-        color: "#ffffff",
-        width: 1,
-        fillMode: "solid",
-        dataUrl,
-        start: { x: 0, y: cumulativeHeight },
-        end: { x: standardWidth, y: cumulativeHeight + slideHeight },
-        locked: true,
-        isPDFPage: true,
-        isPPTPage: true
-      });
-      cumulativeHeight += slideHeight;
-    }
+      const thisSlidePageObj = {
+        strokes: [],
+        shapes: [{
+          id: generateId(),
+          type: "image",
+          color: "#ffffff",
+          width: 1,
+          fillMode: "solid",
+          dataUrl,
+          start: { x: 0, y: 0 },
+          end: { x: standardWidth, y: slideHeight },
+          locked: true,
+          isPDFPage: true,
+          isPPTPage: true
+        }],
+        texts: [],
+        widgets: [],
+        width: standardWidth,
+        height: Math.max(slideHeight, 800),
+        infiniteScroll: false,
+        boardType: currentBoardType,
+        background: null
+      };
 
-    const isFirstPageBlank = pages.length === 1 &&
-                             pages[0].strokes.length === 0 &&
-                             pages[0].shapes.length === 0 &&
-                             pages[0].texts.length === 0 &&
-                             pages[0].widgets.length === 0 &&
-                             pages[0].background === null;
-
-    let targetIndex;
-    if (isFirstPageBlank) {
-      pages[0] = newPageObj;
-      targetIndex = 0;
-    } else {
-      pages.push(newPageObj);
-      targetIndex = pages.length - 1;
+      const targetIndex = startTargetIndex + i;
+      if (targetIndex < pages.length) {
+        pages[targetIndex] = thisSlidePageObj;
+      } else {
+        pages.push(thisSlidePageObj);
+      }
     }
 
     toast.style.background = "#10b981";
-    toast.textContent = `PowerPoint (${slideFiles.length} slide${slideFiles.length > 1 ? "s" : ""}) imported!`;
+    toast.textContent = `PowerPoint (${slideFiles.length} slide${slideFiles.length > 1 ? "s" : ""}) imported successfully!`;
     setTimeout(() => toast.remove(), 2500);
 
     syncPageStrip();
-    selectPage(targetIndex);
+    selectPage(startTargetIndex);
+    notifyParentFullPages();
     return true;
   }
 
@@ -9421,6 +9569,7 @@ body {
     if (container) container.scrollTop = 0;
     updateBoardAppearance();
     if (currentTool === "select" && propertiesContent) handleToolSelection("select");
+    notifyParentClear();
   }
 
   function clearDrawingsOnly() {
@@ -9440,6 +9589,7 @@ body {
     hideClearPDFConfirm();
     updateBoardAppearance();
     if (currentTool === "select" && propertiesContent) handleToolSelection("select");
+    notifyParentClear();
   }
 
   function hideClearConfirm() {
@@ -9607,6 +9757,38 @@ body {
     }
   });
 
+  document.getElementById("topPrevPageBtn")?.addEventListener("click", () => {
+    if (currentPageIndex > 0) selectPage(currentPageIndex - 1);
+  });
+  document.getElementById("topNextPageBtn")?.addEventListener("click", () => {
+    if (currentPageIndex < pages.length - 1) selectPage(currentPageIndex + 1);
+  });
+  document.getElementById("topAddPageBtn")?.addEventListener("click", () => {
+    addNewPage();
+  });
+
+  // Keyboard navigation for pages
+  window.addEventListener("keydown", (e) => {
+    if (document.activeElement && (document.activeElement.tagName === "INPUT" || document.activeElement.tagName === "TEXTAREA")) return;
+    if (e.key === "PageDown" || (e.altKey && e.key === "ArrowRight")) {
+      if (currentPageIndex < pages.length - 1) selectPage(currentPageIndex + 1);
+    } else if (e.key === "PageUp" || (e.altKey && e.key === "ArrowLeft")) {
+      if (currentPageIndex > 0) selectPage(currentPageIndex - 1);
+    }
+  });
+
+  // Listen for broadcast requests or page switch commands from parent React app
+  window.addEventListener("message", (e) => {
+    if (!e.data || typeof e.data !== "object") return;
+    if (e.data.type === "REQUEST_ALL_PAGES") {
+      notifyParentFullPages();
+    } else if (e.data.type === "SWITCH_PAGE") {
+      if (typeof e.data.pageIndex === "number") {
+        selectPage(e.data.pageIndex);
+      }
+    }
+  });
+
   if (toggleLeftPanelButton && leftPanel) {
     toggleLeftPanelButton.addEventListener("click", () => {
       const hidden = leftPanel.classList.toggle("is-hidden");
@@ -9692,6 +9874,32 @@ body {
         if (page) {
           pushUndo();
           page.gridVisible = !page.gridVisible;
+          try {
+            if (window.parent && window.parent !== window) {
+              window.parent.postMessage({
+                type: "WHITEBOARD_GRID_CHANGED",
+                pageIndex: currentPageIndex,
+                gridVisible: page.gridVisible
+              }, "*");
+            }
+          } catch (_) {}
+          notifyParentFullPages();
+        }
+      } else if (tool === "graphs") {
+        const page = pages[currentPageIndex];
+        if (page) {
+          pushUndo();
+          page.graphVisible = !page.graphVisible;
+          try {
+            if (window.parent && window.parent !== window) {
+              window.parent.postMessage({
+                type: "WHITEBOARD_GRAPH_CHANGED",
+                pageIndex: currentPageIndex,
+                graphVisible: page.graphVisible
+              }, "*");
+            }
+          } catch (_) {}
+          notifyParentFullPages();
         }
       }
       handleToolSelection(tool);
@@ -9850,6 +10058,7 @@ body {
             scrollTopBtnEl.classList.remove("is-visible");
           }
         }
+        notifyParentScroll(false);
       });
     }
 
@@ -9868,6 +10077,8 @@ body {
   }, 1000);
 
   loadPagesFromStorage().then(() => {
+    syncPageStrip();
+    updateTopPageNav();
     resizeCanvas();
     const currentPage = pages[currentPageIndex];
     const savedType = (currentPage && currentPage.boardType) ||
@@ -9876,6 +10087,7 @@ body {
     updateZoomLabel();
     if (typeof updateInfiniteToggleBtn === "function") updateInfiniteToggleBtn();
     handleToolSelection("select");
+    notifyParentFullPages();
   });
 })();
 

@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { io, type Socket } from 'socket.io-client';
-import { AppWindow, Archive, ArrowLeft, ArrowRight, Award, BarChart3, Bell, BookOpen, BookOpenCheck, Calculator, Calendar, CalendarCheck, Camera, Check, CheckCircle2, CheckCheck, CheckSquare, ChevronDown, ChevronUp, CircleHelp, Clock3, Copy, CreditCard, Download, ExternalLink, Eye, FileSpreadsheet, FileText, Filter, KeyRound, ListChecks, Lock, LogOut, Mail, Maximize2, MessageCircle, Minimize2, Paperclip, Pause, Pencil, PenTool, Phone, Play, Plus, Printer, Radio, RefreshCw, RotateCcw, Save, Search, Send, Settings, ShieldCheck, SlidersHorizontal, Sparkles, Table, Trash2, TrendingUp, Type, UploadCloud, UserCheck, Users, UserX, Volume2, VolumeX, X } from 'lucide-react';
+import { AppWindow, Archive, ArrowLeft, ArrowRight, Award, BarChart3, Bell, BookOpen, BookOpenCheck, Calculator, Calendar, CalendarCheck, Camera, Check, CheckCircle2, CheckCheck, CheckSquare, ChevronDown, ChevronUp, CircleHelp, Clock3, Copy, CreditCard, Download, ExternalLink, Eye, FileSpreadsheet, FileText, Filter, KeyRound, ListChecks, Lock, LogOut, Mail, Maximize2, MessageCircle, Minimize2, Paperclip, Pause, Pencil, PenTool, Phone, Play, Plus, Printer, Radio, RefreshCw, RotateCcw, Save, Search, Send, Settings, ShieldCheck, SlidersHorizontal, Sparkles, Square, Table, Trash2, TrendingUp, Type, UploadCloud, UserCheck, Users, UserX, Volume2, VolumeX, X } from 'lucide-react';
 import { PublicPortal } from './components/PublicPortal';
 import { AuthModal, type AuthMode } from './components/AuthModal';
 import { SuperAdminConsole } from './components/SuperAdminConsole';
 import { ClassroomChatWidget, ClassroomChatHeaderButton } from './components/ClassroomChatWidget';
 import { ClassroomCalendar, type CalendarEventItem } from './components/ClassroomCalendar';
 import { UserGuidePage } from './components/UserGuidePage';
+import { StudentLiveWhiteboard } from './components/StudentLiveWhiteboard';
 import { getActiveGrades, getDefaultGrade, getActiveSubjects, getDefaultSubject } from './utils/teacherPreferences';
 import { cleanIndianPhoneNumber, openWhatsAppChat, generateScorecardMessage, generateQuizAnnouncementMessage, generateWorksheetAnnouncementMessage } from './utils/whatsapp';
 import { playCountdownWarningSound, playAnswerRevealChime, isQuizSoundEnabled, setQuizSoundEnabled, playTestSound, unlockAudio } from './utils/quizSounds';
@@ -811,6 +812,15 @@ function TeacherApp({
     subject?: string | null;
   } | null>(null);
 
+  const [hasVisitedWhiteboard, setHasVisitedWhiteboard] = useState(tab === 'whiteboard');
+  const [isTeacherWhiteboardLive, setIsTeacherWhiteboardLive] = useState(false);
+
+  useEffect(() => {
+    if (tab === 'whiteboard') {
+      setHasVisitedWhiteboard(true);
+    }
+  }, [tab]);
+
   const archivedQuizzes = quizzes.filter((q) => q.status === 'CLOSED');
   const activeQuizzes = quizzes.filter((q) => q.status !== 'CLOSED');
   const archivedWorksheets = worksheets.filter((w) => w.status === 'ARCHIVED');
@@ -911,7 +921,13 @@ function TeacherApp({
         <NavItem active={tab === 'overview'} icon={<BarChart3 size={17} />} label="Overview" onClick={() => setTab('overview')} />
         <NavItem active={tab === 'ai_assistant'} icon={<Sparkles size={17} />} label="AI Teaching Assistant" onClick={() => setTab('ai_assistant')} />
         <NavItem active={tab === 'calendar'} icon={<Calendar size={17} />} label="Calendar & Reminders" onClick={() => setTab('calendar')} />
-        <NavItem active={tab === 'whiteboard'} icon={<PenTool size={17} />} label="Whiteboard" onClick={() => setTab('whiteboard')} />
+        <NavItem
+          active={tab === 'whiteboard'}
+          icon={<PenTool size={17} />}
+          label={isTeacherWhiteboardLive ? 'Live Whiteboard' : 'Whiteboard'}
+          count={isTeacherWhiteboardLive ? 'LIVE' : undefined}
+          onClick={() => setTab('whiteboard')}
+        />
         <NavItem active={tab === 'quizzes'} icon={<BookOpenCheck size={17} />} label="Quizzes and Worksheets" count={activeQuizzes.length} onClick={() => setTab('quizzes')} />
         <NavItem active={tab === 'worksheets'} icon={<FileText size={17} />} label="Question Papers" count={activeWorksheets.length} onClick={() => setTab('worksheets')} />
         <NavItem active={tab === 'archive'} icon={<Archive size={17} />} label="Archive" count={archivedQuizzes.length + archivedWorksheets.length} onClick={() => setTab('archive')} />
@@ -959,6 +975,48 @@ function TeacherApp({
         </div>
       </header>
       <div className={`content-area ${tab === 'whiteboard' ? 'content-area--whiteboard' : ''}`}>
+        {isTeacherWhiteboardLive && tab !== 'whiteboard' && (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '10px 18px',
+            marginBottom: '16px',
+            background: 'linear-gradient(90deg, #ecfdf5 0%, #f0fdf4 100%)',
+            border: '1px solid #86efac',
+            borderRadius: '10px',
+            boxShadow: '0 2px 8px rgba(34, 197, 94, 0.08)'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span style={{
+                display: 'inline-block',
+                width: '10px',
+                height: '10px',
+                borderRadius: '50%',
+                backgroundColor: '#22c55e',
+                boxShadow: '0 0 0 3px rgba(34, 197, 94, 0.25)'
+              }} />
+              <span style={{ fontSize: '13px', fontWeight: 600, color: '#15803d' }}>
+                Your Live Whiteboard is broadcasting to students in the background.
+              </span>
+            </div>
+            <button
+              className="button button-primary"
+              style={{
+                padding: '5px 14px',
+                fontSize: '12px',
+                fontWeight: 600,
+                height: '30px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+              onClick={() => setTab('whiteboard')}
+            >
+              <PenTool size={13} /> Return to Whiteboard
+            </button>
+          </div>
+        )}
         {tab === 'overview' && (() => {
           const openQuizzes = quizzes.filter((q) => q.status === 'ACTIVE');
           const openPapers = worksheets.filter((w) => w.status === 'PUBLISHED');
@@ -1088,7 +1146,17 @@ function TeacherApp({
           />
         )}
         {tab === 'calendar' && <ClassroomCalendar user={user} readOnly={false} onEventsChange={refresh} />}
-        {tab === 'whiteboard' && <TeacherWhiteboard setNotice={setNotice} />}
+        {(hasVisitedWhiteboard || tab === 'whiteboard' || isTeacherWhiteboardLive) && (
+          <div style={{ display: tab === 'whiteboard' ? 'block' : 'none', width: '100%' }}>
+            <TeacherWhiteboard
+              setNotice={setNotice}
+              teacherName={user?.name}
+              defaultGrade={getDefaultGrade()}
+              onBroadcastChange={setIsTeacherWhiteboardLive}
+              isActiveTab={tab === 'whiteboard'}
+            />
+          </div>
+        )}
         {(tab === 'students' || tab === 'results') && (
           <StudentManager
             students={students}
@@ -1902,9 +1970,41 @@ function HelpSupportPanel({ setNotice, user }: { setNotice: (msg: string) => voi
   );
 }
 
-function TeacherWhiteboard({ setNotice }: { setNotice: (msg: string) => void }) {
+function TeacherWhiteboard({
+  setNotice,
+  teacherName,
+  defaultGrade,
+  onBroadcastChange,
+  isActiveTab,
+}: {
+  setNotice: (msg: string) => void;
+  teacherName?: string;
+  defaultGrade?: string;
+  onBroadcastChange?: (isLive: boolean) => void;
+  isActiveTab?: boolean;
+}) {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [iframeKey, setIframeKey] = useState(0);
+  const [selectedGrade, setSelectedGrade] = useState<string>(() => defaultGrade || 'Grade 6');
+  const [isBroadcasting, setIsBroadcasting] = useState(false);
+  const [viewerCount, setViewerCount] = useState(0);
+
+  const socketRef = useRef<Socket | null>(null);
+  const selectedGradeRef = useRef(selectedGrade);
+  selectedGradeRef.current = selectedGrade;
+  const isBroadcastingRef = useRef(isBroadcasting);
+  isBroadcastingRef.current = isBroadcasting;
+  const onBroadcastChangeRef = useRef(onBroadcastChange);
+  onBroadcastChangeRef.current = onBroadcastChange;
+
+  useEffect(() => {
+    if (isActiveTab) {
+      const iframe = document.getElementById('teacher-whiteboard-iframe') as HTMLIFrameElement | null;
+      if (iframe?.contentWindow) {
+        iframe.contentWindow.postMessage({ type: 'RESIZE_CANVAS' }, '*');
+      }
+    }
+  }, [isActiveTab]);
 
   const openInNewWindow = () => {
     const width = Math.min(1360, Math.floor(window.screen.availWidth * 0.75));
@@ -1918,6 +2018,50 @@ function TeacherWhiteboard({ setNotice }: { setNotice: (msg: string) => void }) 
       `width=${width},height=${height},left=${left},top=${top},menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=yes`
     );
     setNotice('Whiteboard opened in a separate window. You can snap it adjacent to another app.');
+  };
+
+  const startBroadcast = () => {
+    isBroadcastingRef.current = true;
+    if (!socketRef.current || !socketRef.current.connected) {
+      const socket = io({ transports: ['websocket', 'polling'] });
+      socketRef.current = socket;
+
+      socket.on('whiteboard:viewer_count', (data: { count: number }) => {
+        if (typeof data?.count === 'number') {
+          setViewerCount(data.count);
+        }
+      });
+
+      socket.on('connect', () => {
+        if (isBroadcastingRef.current) {
+          const iframeEl = document.getElementById('teacher-whiteboard-iframe') as HTMLIFrameElement | null;
+          if (iframeEl?.contentWindow) {
+            iframeEl.contentWindow.postMessage({ type: 'REQUEST_ALL_PAGES' }, '*');
+          }
+        }
+      });
+    }
+
+    const iframe = document.getElementById('teacher-whiteboard-iframe') as HTMLIFrameElement | null;
+    if (iframe?.contentWindow) {
+      iframe.contentWindow.postMessage({ type: 'REQUEST_ALL_PAGES' }, '*');
+    }
+    setIsBroadcasting(true);
+    onBroadcastChangeRef.current?.(true);
+    setNotice(`Live broadcast started for ${selectedGrade === 'ALL' ? 'All Grades' : selectedGrade}. Students can now view your board in real-time.`);
+  };
+
+  const stopBroadcast = () => {
+    isBroadcastingRef.current = false;
+    if (socketRef.current) {
+      socketRef.current.emit('whiteboard:stop_broadcast', { grade: selectedGradeRef.current });
+      socketRef.current.disconnect();
+      socketRef.current = null;
+    }
+    setIsBroadcasting(false);
+    onBroadcastChangeRef.current?.(false);
+    setViewerCount(0);
+    setNotice('Live whiteboard broadcast stopped.');
   };
 
   useEffect(() => {
@@ -1939,6 +2083,115 @@ function TeacherWhiteboard({ setNotice }: { setNotice: (msg: string) => void }) 
     };
   }, [isFullscreen]);
 
+  // Handle postMessage events from the whiteboard iframe to stream real-time vectors
+  useEffect(() => {
+    const handleMessage = (e: MessageEvent) => {
+      if (!e.data || typeof e.data !== 'object') return;
+
+      if (e.data.type === 'WHITEBOARD_ALL_PAGES_RESPONSE') {
+        if (socketRef.current) {
+          socketRef.current.emit('whiteboard:start_broadcast', {
+            grade: selectedGradeRef.current,
+            teacherName: teacherName || 'Teacher',
+            pages: e.data.pages || [{ strokes: [], shapes: [], texts: [], widgets: [] }],
+            activePageIndex: typeof e.data.activePageIndex === 'number' ? e.data.activePageIndex : 0
+          });
+          if (isBroadcastingRef.current) {
+            socketRef.current.emit('whiteboard:full_sync', {
+              grade: selectedGradeRef.current,
+              pages: e.data.pages || [{ strokes: [], shapes: [], texts: [], widgets: [] }],
+              activePageIndex: typeof e.data.activePageIndex === 'number' ? e.data.activePageIndex : 0
+            });
+          }
+        }
+      } else if (e.data.type === 'WHITEBOARD_BOARD_TYPE_CHANGED' || e.data.type === 'BOARD_TYPE_CHANGED') {
+        if (isBroadcastingRef.current && socketRef.current) {
+          socketRef.current.emit('whiteboard:board_type', {
+            grade: selectedGradeRef.current,
+            boardType: e.data.boardType,
+            pageIndex: typeof e.data.pageIndex === 'number' ? e.data.pageIndex : 0
+          });
+        }
+      } else if (e.data.type === 'WHITEBOARD_STROKE') {
+        if (isBroadcastingRef.current && socketRef.current) {
+          socketRef.current.emit('whiteboard:stroke', {
+            grade: selectedGradeRef.current,
+            pageIndex: e.data.pageIndex,
+            stroke: e.data.stroke
+          });
+        }
+      } else if (e.data.type === 'WHITEBOARD_PAGE_CHANGED') {
+        if (isBroadcastingRef.current && socketRef.current) {
+          socketRef.current.emit('whiteboard:page_changed', {
+            grade: selectedGradeRef.current,
+            activePageIndex: e.data.activePageIndex,
+            boardType: e.data.boardType
+          });
+        }
+      } else if (e.data.type === 'WHITEBOARD_CLEAR_PAGE') {
+        if (isBroadcastingRef.current && socketRef.current) {
+          socketRef.current.emit('whiteboard:clear_page', {
+            grade: selectedGradeRef.current,
+            pageIndex: e.data.pageIndex
+          });
+        }
+      } else if (e.data.type === 'WHITEBOARD_GRID_CHANGED') {
+        if (isBroadcastingRef.current && socketRef.current) {
+          socketRef.current.emit('whiteboard:grid', {
+            grade: selectedGradeRef.current,
+            pageIndex: e.data.pageIndex,
+            gridVisible: e.data.gridVisible
+          });
+        }
+      } else if (e.data.type === 'WHITEBOARD_GRAPH_CHANGED') {
+        if (isBroadcastingRef.current && socketRef.current) {
+          socketRef.current.emit('whiteboard:graph', {
+            grade: selectedGradeRef.current,
+            pageIndex: e.data.pageIndex,
+            graphVisible: e.data.graphVisible
+          });
+        }
+      } else if (e.data.type === 'WHITEBOARD_SCROLL') {
+        if (isBroadcastingRef.current && socketRef.current) {
+          socketRef.current.emit('whiteboard:scroll', {
+            grade: selectedGradeRef.current,
+            pageIndex: e.data.pageIndex,
+            scrollTop: e.data.scrollTop,
+            scrollHeight: e.data.scrollHeight,
+            clientHeight: e.data.clientHeight,
+            scrollRatio: e.data.scrollRatio,
+            zoom: e.data.zoom
+          });
+        }
+      } else if (e.data.type === 'WHITEBOARD_PAGE_HEIGHT_CHANGED') {
+        if (isBroadcastingRef.current && socketRef.current) {
+          socketRef.current.emit('whiteboard:page_height', {
+            grade: selectedGradeRef.current,
+            pageIndex: e.data.pageIndex,
+            height: e.data.height
+          });
+        }
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => {
+      window.removeEventListener('message', handleMessage);
+    };
+  }, [teacherName]);
+
+  // Cleanup broadcast on unmount (e.g. when logging out)
+  useEffect(() => {
+    return () => {
+      if (socketRef.current) {
+        socketRef.current.emit('whiteboard:stop_broadcast', { grade: selectedGradeRef.current });
+        socketRef.current.disconnect();
+        socketRef.current = null;
+      }
+      onBroadcastChangeRef.current?.(false);
+    };
+  }, []);
+
   return (
     <section className={`whiteboard-section ${isFullscreen ? 'whiteboard-fullscreen-active' : 'view-enter'}`}>
       {!isFullscreen && (
@@ -1948,6 +2201,53 @@ function TeacherWhiteboard({ setNotice }: { setNotice: (msg: string) => void }) 
             <span className="whiteboard-badge">Interactive Canvas</span>
           </div>
           <div className="whiteboard-top-actions">
+            {/* Live Broadcast Controls in Header */}
+            <div className="teacher-broadcast-header-group">
+              <span className="teacher-broadcast-label">Broadcast Class:</span>
+              <select
+                className="teacher-grade-select"
+                value={selectedGrade}
+                onChange={(e) => setSelectedGrade(e.target.value)}
+                disabled={isBroadcasting}
+                title="Select which Grade / Batch can watch your live whiteboard"
+              >
+                <option value="ALL">All Grades (Global Broadcast)</option>
+                {ALL_STUDENT_GRADES.map((g) => (
+                  <option key={g} value={g}>{g}</option>
+                ))}
+              </select>
+
+              {!isBroadcasting ? (
+                <button
+                  type="button"
+                  className="btn-go-live whiteboard-action-btn"
+                  onClick={startBroadcast}
+                  title="Broadcast your whiteboard strokes and pages to connected students in real-time"
+                >
+                  <Radio size={14} /> Go Live
+                </button>
+              ) : (
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                  <span className="live-pill-indicator">
+                    <span className="live-pulse-dot" /> LIVE ({selectedGrade === 'ALL' ? 'All' : selectedGrade})
+                  </span>
+                  <span style={{ fontSize: '0.8rem', color: '#475569', display: 'inline-flex', alignItems: 'center', gap: '4px', fontWeight: 600 }}>
+                    <Users size={13} /> {viewerCount} viewing
+                  </span>
+                  <button
+                    type="button"
+                    className="btn-stop-live whiteboard-action-btn"
+                    onClick={stopBroadcast}
+                    title="Stop broadcasting this whiteboard session"
+                  >
+                    <Square size={12} /> Stop Broadcast
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <span className="whiteboard-header-separator" />
+
             <button
               type="button"
               className="button button-secondary whiteboard-action-btn"
@@ -1984,9 +2284,33 @@ function TeacherWhiteboard({ setNotice }: { setNotice: (msg: string) => void }) 
           <div className="whiteboard-fullscreen-brand">
             <span className="brand-dot" />
             <strong>EduAshram Whiteboard</strong>
+            {isBroadcasting && (
+              <span className="live-pill-indicator" style={{ marginLeft: '10px' }}>
+                <span className="live-pulse-dot" /> LIVE ({selectedGrade}) · {viewerCount} student{viewerCount === 1 ? '' : 's'}
+              </span>
+            )}
             <span className="badge">Fullscreen Mode (Press Esc or Exit)</span>
           </div>
           <div className="whiteboard-fullscreen-controls">
+            {isBroadcasting ? (
+              <button
+                type="button"
+                className="button button-danger"
+                style={{ background: '#dc2626', color: '#fff', borderColor: '#b91c1c', minHeight: '32px', padding: '4px 12px' }}
+                onClick={stopBroadcast}
+              >
+                <Square size={13} /> Stop Live
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="button button-success"
+                style={{ background: '#16a34a', color: '#fff', borderColor: '#15803d', minHeight: '32px', padding: '4px 12px' }}
+                onClick={startBroadcast}
+              >
+                <Radio size={13} /> Go Live
+              </button>
+            )}
             <button
               type="button"
               className="button button-secondary"
@@ -2034,7 +2358,20 @@ function TeacherWhiteboard({ setNotice }: { setNotice: (msg: string) => void }) 
 }
 
 function tabLabel(tab: string) { return ({ overview: 'Overview', ai_assistant: 'AI Teaching Assistant', calendar: 'Calendar & Reminders', whiteboard: 'Online Whiteboard', quizzes: 'Quizzes and Worksheets', worksheets: 'Question Papers', archive: 'Archive', students: 'Students', results: 'Results', settings: 'Settings', ai_settings: 'Settings' } as Record<string, string>)[tab] ?? tab; }
-function NavItem({ active, icon, label, count, onClick }: { active: boolean; icon: React.ReactNode; label: string; count?: number; onClick: () => void }) { return <button className={`nav-item ${active ? 'active' : ''}`} onClick={onClick}>{icon}<span>{label}</span>{count !== undefined && <small>{count}</small>}</button>; }
+function NavItem({ active, icon, label, count, onClick }: { active: boolean; icon: React.ReactNode; label: string; count?: number | string; onClick: () => void }) {
+  const isLive = count === 'LIVE' || count === 'Live';
+  return (
+    <button className={`nav-item ${active ? 'active' : ''}`} onClick={onClick}>
+      {icon}
+      <span>{label}</span>
+      {count !== undefined && (
+        <small style={isLive ? { background: '#ef4444', color: '#fff', padding: '1px 6px', borderRadius: '999px', fontSize: '10px', fontWeight: 700, letterSpacing: '0.04em' } : undefined}>
+          {count}
+        </small>
+      )}
+    </button>
+  );
+}
 function Metric({ label, value, icon, tint, onClick, title }: { label: string; value: number | string; icon: React.ReactNode; tint: string; onClick?: () => void; title?: string }) { return <div className="metric" onClick={onClick} style={{ cursor: onClick ? 'pointer' : 'default' }} title={title}><div className={`metric-icon ${tint}`}>{icon}</div><div><span>{label}</span><strong>{value}</strong></div><div className="metric-trend">↗</div></div>; }
 
 export type UploadedSourceFile = {
@@ -8049,16 +8386,54 @@ function StudentApp({
   onViewPortal?: () => void;
   onOpenUserGuide?: () => void;
 }) {
-  const [tab, setTabState] = useState<'open' | 'quiz_history' | 'paper_history' | 'calendar'>(() => {
+  const [tab, setTabState] = useState<'open' | 'whiteboard' | 'quiz_history' | 'paper_history' | 'calendar'>(() => {
     const saved = localStorage.getItem('student_active_tab') as any;
-    const validTabs = ['open', 'quiz_history', 'paper_history', 'calendar'];
+    const validTabs = ['open', 'whiteboard', 'quiz_history', 'paper_history', 'calendar'];
     return validTabs.includes(saved) ? saved : 'open';
   });
 
-  const setTab = (newTab: 'open' | 'quiz_history' | 'paper_history' | 'calendar') => {
+  const setTab = (newTab: 'open' | 'whiteboard' | 'quiz_history' | 'paper_history' | 'calendar') => {
     setTabState(newTab);
     localStorage.setItem('student_active_tab', newTab);
   };
+
+  const [liveWhiteboardInfo, setLiveWhiteboardInfo] = useState<{ isLive: boolean; grade?: string; teacherName?: string } | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    const checkLiveStatus = async () => {
+      try {
+        const gradeParam = user.grade ? encodeURIComponent(user.grade) : '';
+        const res = await fetch(`/api/whiteboard/live-status?grade=${gradeParam}`);
+        const data = await res.json();
+        if (isMounted && data.success) {
+          setLiveWhiteboardInfo(data.isLive ? data : null);
+        }
+      } catch (_) {}
+    };
+
+    checkLiveStatus();
+
+    const socket = io({ transports: ['websocket', 'polling'] });
+    socket.on('whiteboard:status_update', (data: any) => {
+      if (!isMounted) return;
+      if (data?.isLive) {
+        if (!data.grade || data.grade === 'ALL' || !user.grade || data.grade === user.grade) {
+          setLiveWhiteboardInfo(data);
+        }
+      } else {
+        if (!data.grade || data.grade === 'ALL' || !user.grade || data.grade === user.grade) {
+          setLiveWhiteboardInfo(null);
+        }
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      socket.disconnect();
+    };
+  }, [user.grade]);
+
   const [quizzes, setQuizzes] = useState<StudentQuiz[]>([]);
   const [activeQuiz, setActiveQuiz] = useState<ActiveQuiz | null>(null);
   const [loading, setLoading] = useState(true);
@@ -8123,13 +8498,6 @@ function StudentApp({
     try {
       const data = await api<{ quizzes: StudentQuiz[] }>('/api/student/quizzes');
       setQuizzes(data.quizzes);
-      const savedId = sessionStorage.getItem('activeQuizId');
-      const inProgress = savedId
-        ? data.quizzes.find((q) => q.id === savedId && q.attempt?.status === 'IN_PROGRESS' && q.status === 'ACTIVE')
-        : data.quizzes.find((q) => q.attempt?.status === 'IN_PROGRESS' && q.status === 'ACTIVE');
-      if (inProgress && !activeQuiz) {
-        void joinQuiz(inProgress.id);
-      }
     }
     catch (cause) { setError(cause instanceof Error ? cause.message : 'Unable to load quizzes.'); }
     finally { setLoading(false); }
@@ -8632,6 +9000,13 @@ function StudentApp({
             onClick={() => setTab('open')}
           />
           <NavItem
+            active={tab === 'whiteboard'}
+            icon={<PenTool size={17} />}
+            label={liveWhiteboardInfo?.isLive ? 'Live Whiteboard' : 'Whiteboard'}
+            count={liveWhiteboardInfo?.isLive ? 'LIVE' : undefined}
+            onClick={() => setTab('whiteboard')}
+          />
+          <NavItem
             active={tab === 'quiz_history'}
             icon={<Clock3 size={17} />}
             label="Quiz History"
@@ -8685,7 +9060,7 @@ function StudentApp({
       <main className="workspace">
         <header className="topbar">
           <div className="breadcrumb">
-            Your classroom <span>/</span> <strong>{tab === 'open' ? 'Open Classroom' : tab === 'quiz_history' ? 'Quiz History' : tab === 'paper_history' ? 'Question Papers History' : 'Class Calendar & Reminders'}</strong>
+            Your classroom <span>/</span> <strong>{tab === 'open' ? 'Open Classroom' : tab === 'whiteboard' ? 'Live Whiteboard' : tab === 'quiz_history' ? 'Quiz History' : tab === 'paper_history' ? 'Question Papers History' : 'Class Calendar & Reminders'}</strong>
           </div>
           <div className="topbar-actions">
             {onViewPortal && (
@@ -8719,11 +9094,11 @@ function StudentApp({
           </div>
         </header>
 
-        <section className={tab === 'calendar' ? 'content-area student-home-content--calendar' : 'student-home-content'}>
+        <section className={tab === 'calendar' ? 'content-area student-home-content--calendar' : tab === 'whiteboard' ? 'content-area content-area--whiteboard' : 'student-home-content'}>
           {error && <div className="inline-error" style={{ marginBottom: '20px' }}>{error}</div>}
 
           {loading ? (
-            <div className="student-loading"><RefreshCw size={17} className="spin" /> Looking for your quizzes...</div>
+            <div className="student-loading"><RefreshCw size={17} className="spin" /> Loading...</div>
           ) : (
             <>
               {/* 1. OPEN CLASSROOM (Open Quizzes & Open Question Papers) */}
@@ -8742,6 +9117,65 @@ function StudentApp({
                     </div>
                     <div className="welcome-mark"><Sparkles size={25} /></div>
                   </div>
+
+                  {/* Live Whiteboard Announcement Banner (if Teacher is Broadcasting) */}
+                  {liveWhiteboardInfo?.isLive && (
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '16px',
+                      background: 'linear-gradient(135deg, #fef2f2 0%, #fff1f2 100%)',
+                      border: '1.5px solid #fecdd3',
+                      borderRadius: '12px',
+                      padding: '16px 20px',
+                      marginBottom: '24px',
+                      boxShadow: '0 4px 12px rgba(239, 68, 68, 0.08)'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                        <div style={{
+                          width: '42px',
+                          height: '42px',
+                          borderRadius: '10px',
+                          background: '#ef4444',
+                          color: '#ffffff',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          boxShadow: '0 2px 8px rgba(239, 68, 68, 0.35)',
+                          flexShrink: 0
+                        }}>
+                          <PenTool size={22} />
+                        </div>
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '3px' }}>
+                            <span className="live-pill-indicator">
+                              <span className="live-pulse-dot" /> LIVE CLASS IN PROGRESS
+                            </span>
+                            {liveWhiteboardInfo.grade && (
+                              <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '8px', background: '#e0f2fe', color: '#0369a1' }}>
+                                {liveWhiteboardInfo.grade === 'ALL' ? 'All Grades' : liveWhiteboardInfo.grade}
+                              </span>
+                            )}
+                          </div>
+                          <strong style={{ fontSize: '15px', color: '#881337', display: 'block' }}>
+                            {liveWhiteboardInfo.teacherName || 'Teacher'} is teaching live on the Whiteboard
+                          </strong>
+                          <span style={{ fontSize: '12.5px', color: '#9f1239' }}>
+                            Open the live whiteboard tab to view real-time notes and drawings alongside your Zoom meeting.
+                          </span>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        className="button button-primary"
+                        style={{ background: '#dc2626', borderColor: '#b91c1c', color: '#ffffff', padding: '8px 18px', fontWeight: 700, whiteSpace: 'nowrap', minHeight: '38px', borderRadius: '8px' }}
+                        onClick={() => setTab('whiteboard')}
+                      >
+                        Join Live Board →
+                      </button>
+                    </div>
+                  )}
 
                   {/* Open Quizzes */}
                   <div className="student-quiz-list">
@@ -8785,7 +9219,8 @@ function StudentApp({
                 </>
               )}
 
-              {/* 2. QUIZ HISTORY */}
+              {/* 2. LIVE CLASSES */}
+              {/* 3. QUIZ HISTORY */}
               {tab === 'quiz_history' && (
                 <div className="student-quiz-list" style={{ marginTop: '0' }}>
                   <div className="section-heading">
@@ -8834,12 +9269,19 @@ function StudentApp({
                   <ClassroomCalendar user={user} readOnly={true} />
                 </div>
               )}
+
+              {/* 5. LIVE WHITEBOARD */}
+              {tab === 'whiteboard' && (
+                <div style={{ marginTop: '0', width: '100%' }}>
+                  <StudentLiveWhiteboard
+                    studentName={user.name || 'Student'}
+                    studentGrade={user.grade || 'Grade 10'}
+                    setNotice={setNotice}
+                  />
+                </div>
+              )}
             </>
           )}
-
-          <div className="student-home-tip" style={{ marginTop: '40px' }}>
-            <ShieldCheck size={16} /> Your work is private and saved as you go.
-          </div>
         </section>
       </main>
     </div>

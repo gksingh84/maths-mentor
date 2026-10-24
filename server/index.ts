@@ -3331,6 +3331,276 @@ io.on('connection', (socket) => {
     else if (session.role === 'student') socket.join(`students:${quizId}`);
     await publishQuizState(quizId);
   });
+
+  // --- LIVE WHITEBOARD BROADCAST SOCKET HANDLERS ---
+  socket.on('whiteboard:start_broadcast', (data: { grade: string; pages: any[]; activePageIndex?: number; teacherName?: string }) => {
+    if (session.role !== 'teacher' && session.role !== 'admin' && session.role !== 'superadmin') return;
+    const grade = (data.grade || 'ALL').trim();
+    const sessionObj: LiveWhiteboardSession = {
+      teacherId: session.id,
+      teacherName: data.teacherName || 'Teacher',
+      grade: grade,
+      isLive: true,
+      activePageIndex: typeof data.activePageIndex === 'number' ? data.activePageIndex : 0,
+      pages: Array.isArray(data.pages) ? data.pages : [],
+      startedAt: Date.now(),
+      viewers: new Set()
+    };
+    activeWhiteboardSessions.set(grade, sessionObj);
+    socket.join(`whiteboard:${grade}`);
+
+    io.emit('whiteboard:status_update', {
+      grade: grade,
+      isLive: true,
+      teacherName: sessionObj.teacherName
+    });
+
+    // Immediately push full pages state to all students in this room
+    socket.to(`whiteboard:${grade}`).emit('whiteboard:full_sync', {
+      pages: sessionObj.pages,
+      activePageIndex: sessionObj.activePageIndex
+    });
+  });
+
+  socket.on('whiteboard:stop_broadcast', (data: { grade: string }) => {
+    if (session.role !== 'teacher' && session.role !== 'admin' && session.role !== 'superadmin') return;
+    const grade = (data?.grade || 'ALL').trim();
+    activeWhiteboardSessions.delete(grade);
+    io.to(`whiteboard:${grade}`).emit('whiteboard:broadcast_stopped', { grade });
+    io.emit('whiteboard:status_update', {
+      grade: grade,
+      isLive: false
+    });
+  });
+
+  socket.on('whiteboard:board_type', (data: { grade: string; boardType: string; pageIndex?: number }) => {
+    if (session.role !== 'teacher' && session.role !== 'admin' && session.role !== 'superadmin') return;
+    const grade = (data.grade || 'ALL').trim();
+    const active = activeWhiteboardSessions.get(grade);
+    if (active) {
+      const pIndex = typeof data.pageIndex === 'number' ? data.pageIndex : active.activePageIndex;
+      if (active.pages[pIndex]) {
+        active.pages[pIndex].boardType = data.boardType;
+      }
+    }
+    socket.to(`whiteboard:${grade}`).emit('whiteboard:board_type', {
+      boardType: data.boardType,
+      pageIndex: data.pageIndex
+    });
+  });
+
+  socket.on('whiteboard:stroke', (data: { grade: string; pageIndex: number; stroke: any }) => {
+    if (session.role !== 'teacher' && session.role !== 'admin' && session.role !== 'superadmin') return;
+    const grade = (data.grade || 'ALL').trim();
+    const active = activeWhiteboardSessions.get(grade);
+    if (active) {
+      if (!active.pages[data.pageIndex]) {
+        active.pages[data.pageIndex] = { strokes: [], shapes: [], texts: [], widgets: [] };
+      }
+      if (!active.pages[data.pageIndex].strokes) active.pages[data.pageIndex].strokes = [];
+      active.pages[data.pageIndex].strokes.push(data.stroke);
+    }
+    socket.to(`whiteboard:${grade}`).emit('whiteboard:stroke', {
+      pageIndex: data.pageIndex,
+      stroke: data.stroke
+    });
+  });
+
+  socket.on('whiteboard:page_changed', (data: { grade: string; activePageIndex: number; boardType?: string }) => {
+    if (session.role !== 'teacher' && session.role !== 'admin' && session.role !== 'superadmin') return;
+    const grade = (data.grade || 'ALL').trim();
+    const active = activeWhiteboardSessions.get(grade);
+    if (active) {
+      active.activePageIndex = data.activePageIndex;
+      if (data.boardType && active.pages[data.activePageIndex]) {
+        active.pages[data.activePageIndex].boardType = data.boardType;
+      }
+    }
+    socket.to(`whiteboard:${grade}`).emit('whiteboard:teacher_page_changed', {
+      activePageIndex: data.activePageIndex,
+      boardType: data.boardType
+    });
+  });
+
+  socket.on('whiteboard:clear_page', (data: { grade: string; pageIndex: number }) => {
+    if (session.role !== 'teacher' && session.role !== 'admin' && session.role !== 'superadmin') return;
+    const grade = (data.grade || 'ALL').trim();
+    const active = activeWhiteboardSessions.get(grade);
+    if (active && active.pages[data.pageIndex]) {
+      active.pages[data.pageIndex].strokes = [];
+      active.pages[data.pageIndex].shapes = [];
+      active.pages[data.pageIndex].texts = [];
+    }
+    socket.to(`whiteboard:${grade}`).emit('whiteboard:clear_page', {
+      pageIndex: data.pageIndex
+    });
+  });
+
+  socket.on('whiteboard:grid', (data: { grade: string; pageIndex: number; gridVisible: boolean }) => {
+    if (session.role !== 'teacher' && session.role !== 'admin' && session.role !== 'superadmin') return;
+    const grade = (data.grade || 'ALL').trim();
+    const active = activeWhiteboardSessions.get(grade);
+    if (active && active.pages[data.pageIndex]) {
+      active.pages[data.pageIndex].gridVisible = data.gridVisible;
+    }
+    socket.to(`whiteboard:${grade}`).emit('whiteboard:grid', {
+      pageIndex: data.pageIndex,
+      gridVisible: data.gridVisible
+    });
+  });
+
+  socket.on('whiteboard:graph', (data: { grade: string; pageIndex: number; graphVisible: boolean }) => {
+    if (session.role !== 'teacher' && session.role !== 'admin' && session.role !== 'superadmin') return;
+    const grade = (data.grade || 'ALL').trim();
+    const active = activeWhiteboardSessions.get(grade);
+    if (active && active.pages[data.pageIndex]) {
+      active.pages[data.pageIndex].graphVisible = data.graphVisible;
+    }
+    socket.to(`whiteboard:${grade}`).emit('whiteboard:graph', {
+      pageIndex: data.pageIndex,
+      graphVisible: data.graphVisible
+    });
+  });
+
+  socket.on('whiteboard:full_sync', (data: { grade: string; pages: any[]; activePageIndex: number }) => {
+    if (session.role !== 'teacher' && session.role !== 'admin' && session.role !== 'superadmin') return;
+    const grade = (data.grade || 'ALL').trim();
+    const active = activeWhiteboardSessions.get(grade);
+    if (active) {
+      active.pages = Array.isArray(data.pages) ? data.pages : [];
+      active.activePageIndex = data.activePageIndex;
+    }
+    socket.to(`whiteboard:${grade}`).emit('whiteboard:full_sync', {
+      pages: data.pages,
+      activePageIndex: data.activePageIndex
+    });
+  });
+
+  socket.on('whiteboard:scroll', (data: { grade: string; pageIndex: number; scrollTop: number; scrollRatio?: number; zoom?: number }) => {
+    if (session.role !== 'teacher' && session.role !== 'admin' && session.role !== 'superadmin') return;
+    const grade = (data.grade || 'ALL').trim();
+    const active = activeWhiteboardSessions.get(grade);
+    if (active) {
+      active.scrollTop = data.scrollTop;
+      active.scrollRatio = data.scrollRatio;
+    }
+    socket.to(`whiteboard:${grade}`).emit('whiteboard:scroll', {
+      pageIndex: data.pageIndex,
+      scrollTop: data.scrollTop,
+      scrollRatio: data.scrollRatio,
+      zoom: data.zoom
+    });
+  });
+
+  socket.on('whiteboard:page_height', (data: { grade: string; pageIndex: number; height: number }) => {
+    if (session.role !== 'teacher' && session.role !== 'admin' && session.role !== 'superadmin') return;
+    const grade = (data.grade || 'ALL').trim();
+    const active = activeWhiteboardSessions.get(grade);
+    if (active && active.pages[data.pageIndex]) {
+      active.pages[data.pageIndex].height = data.height;
+    }
+    socket.to(`whiteboard:${grade}`).emit('whiteboard:page_height', {
+      pageIndex: data.pageIndex,
+      height: data.height
+    });
+  });
+
+  socket.on('whiteboard:join', (data: { grade: string }) => {
+    const grade = (data?.grade || 'ALL').trim();
+    socket.join(`whiteboard:${grade}`);
+    if (grade !== 'ALL') {
+      socket.join('whiteboard:ALL');
+    }
+    const active = activeWhiteboardSessions.get(grade) || activeWhiteboardSessions.get('ALL');
+    if (active && active.isLive) {
+      active.viewers.add(socket.id);
+      socket.emit('whiteboard:initial_state', {
+        isLive: true,
+        teacherName: active.teacherName,
+        grade: active.grade,
+        activePageIndex: active.activePageIndex,
+        pages: active.pages,
+        startedAt: active.startedAt,
+        scrollTop: active.scrollTop || 0,
+        scrollRatio: active.scrollRatio || 0
+      });
+      io.to(`whiteboard:${active.grade}`).emit('whiteboard:viewer_count', { count: active.viewers.size });
+    } else {
+      socket.emit('whiteboard:initial_state', { isLive: false });
+    }
+  });
+
+  socket.on('whiteboard:leave', (data: { grade: string }) => {
+    const grade = (data?.grade || 'ALL').trim();
+    socket.leave(`whiteboard:${grade}`);
+    if (grade !== 'ALL') {
+      socket.leave('whiteboard:ALL');
+    }
+    const active = activeWhiteboardSessions.get(grade) || activeWhiteboardSessions.get('ALL');
+    if (active) {
+      active.viewers.delete(socket.id);
+      io.to(`whiteboard:${active.grade}`).emit('whiteboard:viewer_count', { count: active.viewers.size });
+    }
+  });
+
+  socket.on('disconnect', () => {
+    activeWhiteboardSessions.forEach((sessionObj, grade) => {
+      if (sessionObj.viewers.has(socket.id)) {
+        sessionObj.viewers.delete(socket.id);
+        io.to(`whiteboard:${grade}`).emit('whiteboard:viewer_count', { count: sessionObj.viewers.size });
+      }
+      if (sessionObj.teacherId === socket.data.session?.id) {
+        activeWhiteboardSessions.delete(grade);
+        io.to(`whiteboard:${grade}`).emit('whiteboard:broadcast_stopped', { grade });
+        io.emit('whiteboard:status_update', { grade, isLive: false });
+      }
+    });
+  });
+});
+
+interface LiveWhiteboardSession {
+  teacherId: string;
+  teacherName: string;
+  grade: string;
+  isLive: boolean;
+  activePageIndex: number;
+  pages: any[];
+  startedAt: number;
+  viewers: Set<string>;
+  scrollTop?: number;
+  scrollRatio?: number;
+}
+const activeWhiteboardSessions = new Map<string, LiveWhiteboardSession>();
+
+app.get('/api/whiteboard/live-status', authenticate(), async (req: AuthRequest, res: Response) => {
+  try {
+    const role = req.session!.role;
+    let targetGrade: string | null = null;
+    if (role === 'student') {
+      const student = await db.student.findUnique({ where: { id: req.session!.id }, select: { grade: true } });
+      targetGrade = student?.grade || null;
+    }
+    const gradeToCheck = targetGrade || (typeof req.query.grade === 'string' ? req.query.grade : null);
+    let active: LiveWhiteboardSession | null = null;
+    if (gradeToCheck) {
+      active = activeWhiteboardSessions.get(gradeToCheck) || activeWhiteboardSessions.get('ALL') || null;
+    } else {
+      for (const sess of activeWhiteboardSessions.values()) {
+        if (sess.isLive) { active = sess; break; }
+      }
+    }
+    if (active && active.isLive) {
+      return res.json({
+        isLive: true,
+        teacherName: active.teacherName,
+        grade: active.grade,
+        startedAt: active.startedAt,
+        pageCount: active.pages.length,
+        activePageIndex: active.activePageIndex
+      });
+    }
+    res.json({ isLive: false });
+  } catch (error) { errorResponse(res, error); }
 });
 
 // --- CLASSROOM CHAT ROUTES (Everyone & One-to-One) ---
@@ -4316,7 +4586,7 @@ async function evaluateAnswerSheetSubmissionWithAI(submissionId: string) {
     ];
 
     // Helper to query Gemini with candidate models fallback
-    async function queryGemini(contents: any[]): Promise<any> {
+    const queryGemini = async (contents: any[]): Promise<any> => {
       let lastErr = '';
       for (const modelName of candidateModels) {
         try {
@@ -4363,7 +4633,7 @@ async function evaluateAnswerSheetSubmissionWithAI(submissionId: string) {
         }
       }
       throw new Error(lastErr || 'No response from Google Gemini models.');
-    }
+    };
 
     // --- STAGE 1: Pure Visual Document & Optical Mark Reading (OMR & Handwriting OCR) ---
     console.log(`[AI Auto-Evaluation] Stage 1: Reading answer sheet images for student ${sub.student?.name || 'Student'}...`);

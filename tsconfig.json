@@ -18,5 +18,5 @@
     "noUnusedParameters": true,
     "types": ["vite/client", "node"]
   },
-  "include": ["src", "server", "prisma"]
+  "include": ["src", "server", "prisma", "scratch"]
 }

@@ -34,6 +34,11 @@ model Teacher {
   subject         String?
   phone           String?
   apiKey          String?
+  zoomAccessToken    String?
+  zoomRefreshToken   String?
+  zoomTokenExpiresAt DateTime?
+  zoomEmail          String?
+  zoomAccountId      String?
   active          Boolean           @default(false)
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
@@ -45,6 +50,7 @@ model Teacher {
   attendances     StudentAttendance[]
   fees            StudentFee[]
   scoreRecords    StudentScoreRecord[]
+  liveClasses     LiveClass[]
 }
 
 model Student {
@@ -67,6 +73,7 @@ model Student {
   attendances          StudentAttendance[]
   fees                 StudentFee[]
   scoreRecords         StudentScoreRecord[]
+  liveAttendances      LiveClassAttendance[]
 }
 
 model Quiz {
@@ -339,5 +346,54 @@ model StudentScoreRecord {
   @@index([studentId, academicYear])
   @@index([teacherId, academicYear])
 }
+
+enum LiveClassStatus {
+  SCHEDULED
+  LIVE
+  COMPLETED
+  CANCELLED
+}
+
+model LiveClass {
+  id                  String                @id @default(cuid())
+  title               String
+  description         String?
+  grade               String?               @default("Grade 6")
+  subject             String                @default("Mathematics")
+  zoomMeetingId       String
+  zoomMeetingPasscode String?
+  zoomStartUrl        String?               @db.Text
+  zoomJoinUrl         String?               @db.Text
+  startTime           DateTime
+  durationMinutes     Int                   @default(60)
+  status              LiveClassStatus       @default(SCHEDULED)
+  recordingUrl        String?
+  teacherId           String
+  teacher             Teacher               @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
+  attendances         LiveClassAttendance[]
+
+  @@index([teacherId, status])
+  @@index([grade, status])
+  @@index([startTime])
+}
+
+model LiveClassAttendance {
+  id              String    @id @default(cuid())
+  liveClassId     String
+  studentId       String
+  joinedAt        DateTime  @default(now())
+  leftAt          DateTime?
+  durationSeconds Int       @default(0)
+
+  liveClass       LiveClass @relation(fields: [liveClassId], references: [id], onDelete: Cascade)
+  student         Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([liveClassId, studentId])
+  @@index([liveClassId])
+  @@index([studentId])
+}
+
 
 
