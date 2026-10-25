@@ -2231,6 +2231,13 @@ function TeacherWhiteboard({
           height: data.height
         });
       }
+    } else if (data.type === 'WHITEBOARD_VIDEO_ACTION') {
+      if (isBroadcastingRef.current && socketRef.current) {
+        socketRef.current.emit('whiteboard:video_action', {
+          grade: selectedGradeRef.current,
+          ...data
+        });
+      }
     }
   }, [teacherName]);
 
@@ -2443,7 +2450,7 @@ function TeacherWhiteboard({
           title="Online Teaching Whiteboard"
           src="/whiteboard.html"
           className="whiteboard-iframe"
-          allow="clipboard-read; clipboard-write; fullscreen"
+          allow="clipboard-read; clipboard-write; fullscreen; autoplay; encrypted-media; picture-in-picture"
         />
       </div>
     </section>

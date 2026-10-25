@@ -10,6 +10,286 @@ interface StudentLiveWhiteboardProps {
   setNotice?: (msg: string) => void;
 }
 
+const buildStudentIframeUrl = (src: string, isPlaying: boolean, muted: boolean, currentTime?: number): string => {
+  try {
+    const url = new URL(src);
+    if (url.hostname.includes('youtube-nocookie.com')) {
+      url.hostname = 'www.youtube.com';
+    }
+    url.searchParams.set('enablejsapi', '1');
+    url.searchParams.set('rel', '0');
+    if (typeof window !== 'undefined' && window.location?.origin) {
+      url.searchParams.set('origin', window.location.origin);
+    }
+    if (isPlaying) {
+      url.searchParams.set('autoplay', '1');
+    } else {
+      url.searchParams.delete('autoplay');
+    }
+    if (muted) {
+      url.searchParams.set('mute', '1');
+    }
+    if (typeof currentTime === 'number' && currentTime > 1) {
+      url.searchParams.set('start', String(Math.floor(currentTime)));
+    }
+    return url.toString();
+  } catch (_) {
+    return src;
+  }
+};
+
+const StudentVideoPlayer: React.FC<{ widget: any; syncEvent?: any }> = ({ widget, syncEvent }) => {
+  const [minimized, setMinimized] = useState(Boolean(widget.minimized));
+  const [muted, setMuted] = useState(true);
+  const [volume, setVolume] = useState(0.85);
+  const [isPlaying, setIsPlaying] = useState(Boolean(widget.playing));
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const iframeRef = useRef<HTMLIFrameElement | null>(null);
+
+  useEffect(() => {
+    if (typeof widget.minimized === 'boolean') {
+      setMinimized(widget.minimized);
+    }
+  }, [widget.minimized]);
+
+  useEffect(() => {
+    if (typeof widget.playing === 'boolean') {
+      setIsPlaying(widget.playing);
+    }
+  }, [widget.playing]);
+
+  const handleIframeLoad = () => {
+    const iframe = iframeRef.current;
+    if (!iframe?.contentWindow) return;
+    try {
+      iframe.contentWindow.postMessage(JSON.stringify({ event: 'listening', id: widget.id }), '*');
+      iframe.contentWindow.postMessage(JSON.stringify({ event: 'listening' }), '*');
+      if (muted) {
+        iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'mute', args: [] }), '*');
+        iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'mute', args: '' }), '*');
+      }
+      if (widget.playing || isPlaying) {
+        if (typeof widget.currentTime === 'number' && widget.currentTime > 0) {
+          iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'seekTo', args: [widget.currentTime, true] }), '*');
+        }
+        iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'playVideo', args: [] }), '*');
+        iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'playVideo', args: '' }), '*');
+        iframe.contentWindow.postMessage(JSON.stringify({ method: 'play' }), '*');
+      }
+    } catch (_) {}
+  };
+
+  useEffect(() => {
+    if (widget.videoType !== 'youtube' && widget.videoType !== 'vimeo') {
+      const vid = videoRef.current;
+      if (vid) {
+        vid.muted = muted;
+        vid.volume = muted ? 0 : volume;
+        if (widget.playing || isPlaying) {
+          if (typeof widget.currentTime === 'number' && widget.currentTime > 0) {
+            vid.currentTime = widget.currentTime;
+          }
+          vid.play().catch(() => {
+            vid.muted = true;
+            setMuted(true);
+            vid.play().catch(() => {});
+          });
+        }
+      }
+    }
+  }, [widget.videoType]);
+
+  useEffect(() => {
+    if (widget.videoType === 'youtube' || widget.videoType === 'vimeo') {
+      const iframe = iframeRef.current;
+      if (iframe?.contentWindow) {
+        try {
+          if (isPlaying) {
+            if (muted) {
+              iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'mute', args: [] }), '*');
+              iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'mute', args: '' }), '*');
+            }
+            if (typeof widget.currentTime === 'number' && widget.currentTime > 0) {
+              iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'seekTo', args: [widget.currentTime, true] }), '*');
+            }
+            iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'playVideo', args: [] }), '*');
+            iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'playVideo', args: '' }), '*');
+            iframe.contentWindow.postMessage(JSON.stringify({ method: 'play' }), '*');
+          } else {
+            iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'pauseVideo', args: [] }), '*');
+            iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'pauseVideo', args: '' }), '*');
+            iframe.contentWindow.postMessage(JSON.stringify({ method: 'pause' }), '*');
+          }
+        } catch (_) {}
+      }
+    } else {
+      const vid = videoRef.current;
+      if (vid) {
+        if (isPlaying) {
+          vid.play().catch(() => {
+            vid.muted = true;
+            setMuted(true);
+            vid.play().catch(() => {});
+          });
+        } else {
+          vid.pause();
+        }
+      }
+    }
+  }, [isPlaying, widget.videoType]);
+
+  useEffect(() => {
+    if (!syncEvent) return;
+    if (syncEvent.action === 'minimize') {
+      setMinimized(true);
+      return;
+    }
+    if (syncEvent.action === 'expand') {
+      setMinimized(false);
+      return;
+    }
+    if (syncEvent.action === 'play') {
+      setIsPlaying(true);
+    } else if (syncEvent.action === 'pause') {
+      setIsPlaying(false);
+    } else if (syncEvent.action === 'seek' || syncEvent.action === 'time_sync') {
+      if (typeof syncEvent.currentTime === 'number') {
+        if (widget.videoType === 'youtube' || widget.videoType === 'vimeo') {
+          const iframe = iframeRef.current;
+          if (iframe?.contentWindow) {
+            try {
+              iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'seekTo', args: [syncEvent.currentTime, true] }), '*');
+              iframe.contentWindow.postMessage(JSON.stringify({ method: 'setCurrentTime', value: syncEvent.currentTime }), '*');
+            } catch (_) {}
+          }
+        } else if (videoRef.current) {
+          if (Math.abs(videoRef.current.currentTime - syncEvent.currentTime) > 2) {
+            videoRef.current.currentTime = syncEvent.currentTime;
+          }
+        }
+      }
+    }
+  }, [syncEvent, widget.videoType]);
+
+  useEffect(() => {
+    if (widget.videoType === 'youtube' || widget.videoType === 'vimeo') {
+      const iframe = iframeRef.current;
+      if (iframe?.contentWindow) {
+        try {
+          if (muted) {
+            iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'mute', args: [] }), '*');
+            iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'mute', args: '' }), '*');
+          } else {
+            iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'unMute', args: [] }), '*');
+            iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'setVolume', args: [Math.round(volume * 100)] }), '*');
+          }
+        } catch (_) {}
+      }
+    } else if (videoRef.current) {
+      videoRef.current.volume = muted ? 0 : volume;
+      videoRef.current.muted = muted;
+    }
+  }, [muted, volume, widget.videoType]);
+
+  return (
+    <div
+      className={`student-board-video-widget ${minimized ? 'is-minimized' : ''}`}
+      style={{
+        position: 'absolute',
+        left: widget.x,
+        top: widget.y,
+        width: widget.w,
+        height: minimized ? 'auto' : widget.h,
+        zIndex: 10
+      }}
+    >
+      <div className="video-widget-header">
+        <span className="video-widget-drag-handle">
+          📹 <span>{widget.title || 'Teacher Video'}</span>
+          <span style={{
+            fontSize: '0.62rem',
+            padding: '2px 7px',
+            borderRadius: '9999px',
+            background: isPlaying ? 'rgba(34, 197, 94, 0.2)' : 'rgba(148, 163, 184, 0.2)',
+            color: isPlaying ? '#4ade80' : '#94a3b8',
+            border: isPlaying ? '1px solid rgba(74, 222, 128, 0.4)' : '1px solid rgba(148, 163, 184, 0.3)',
+            marginLeft: '6px',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '4px',
+            fontWeight: 700
+          }}>
+            {isPlaying ? '▶ In sync' : '⏸ Paused'}
+          </span>
+        </span>
+        <div className="video-widget-actions">
+          <button
+            type="button"
+            className="video-action-btn"
+            title={muted ? 'Click to Unmute Sound' : 'Mute Sound'}
+            onClick={() => setMuted(!muted)}
+            style={{
+              background: muted ? 'rgba(239, 68, 68, 0.25)' : 'rgba(34, 197, 94, 0.25)',
+              color: muted ? '#fca5a5' : '#86efac',
+              borderColor: muted ? 'rgba(239, 68, 68, 0.4)' : 'rgba(34, 197, 94, 0.4)',
+              width: 'auto',
+              padding: '0 8px',
+              fontSize: '0.7rem',
+              fontWeight: 700,
+              cursor: 'pointer'
+            }}
+          >
+            {muted ? '🔇 Unmute' : '🔊 Sound'}
+          </button>
+          <input
+            type="range"
+            min="0"
+            max="1"
+            step="0.05"
+            value={muted ? 0 : volume}
+            onChange={(e) => {
+              setVolume(Number(e.target.value));
+              if (muted) setMuted(false);
+            }}
+            title="Volume"
+            style={{ width: '45px', height: '14px', cursor: 'pointer' }}
+          />
+          <button
+            type="button"
+            className="video-action-btn"
+            title={minimized ? 'Expand Video' : 'Minimize Video'}
+            onClick={() => setMinimized(!minimized)}
+          >
+            {minimized ? '▢' : '–'}
+          </button>
+        </div>
+      </div>
+      {!minimized && (
+        <div className="video-widget-body">
+          {widget.videoType === 'youtube' || widget.videoType === 'vimeo' ? (
+            <iframe
+              ref={iframeRef}
+              src={buildStudentIframeUrl(widget.src, isPlaying, muted, widget.currentTime)}
+              title={widget.title || 'Teacher Video'}
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              allowFullScreen
+              onLoad={handleIframeLoad}
+            />
+          ) : (
+            <video
+              ref={videoRef}
+              src={widget.src}
+              controls
+              playsInline
+              controlsList="nodownload"
+            />
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
 export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
   studentGrade = 'Grade 10',
   teacherId,
@@ -23,6 +303,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
   const [viewerCount, setViewerCount] = useState(1);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [followTeacher, setFollowTeacher] = useState(true);
+  const [videoSyncEvents, setVideoSyncEvents] = useState<Record<string, any>>({});
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -72,6 +353,8 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
         }
       } else {
         setIsLive(false);
+        setPages([]);
+        setVideoSyncEvents({});
       }
     });
 
@@ -95,6 +378,8 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
 
     socket.on('whiteboard:broadcast_stopped', () => {
       setIsLive(false);
+      setPages([]);
+      setVideoSyncEvents({});
       if (setNotice) setNotice('Teacher concluded the live whiteboard session.');
     });
 
@@ -153,7 +438,8 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
             ...next[data.pageIndex],
             strokes: [],
             shapes: (next[data.pageIndex].shapes || []).filter((s: any) => s.isPDFPage || s.isPPTPage),
-            texts: []
+            texts: [],
+            widgets: (next[data.pageIndex].widgets || []).filter((w: any) => w.type === 'clock' || w.type === 'timer' || w.type === 'stopwatch')
           };
         }
         return next;
@@ -236,6 +522,79 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
     socket.on('whiteboard:viewer_count', (data: { count: number }) => {
       if (typeof data?.count === 'number') {
         setViewerCount(data.count);
+      }
+    });
+
+    socket.on('whiteboard:video_action', (data: { pageIndex: number; action: string; widgetId?: string; widget?: any; currentTime?: number; playing?: boolean; [key: string]: any }) => {
+      const widgetId = data.widgetId || data.widget?.id;
+      if (widgetId) {
+        if (data.action === 'remove') {
+          setVideoSyncEvents((prev) => {
+            const copy = { ...prev };
+            delete copy[widgetId];
+            return copy;
+          });
+        } else {
+          setVideoSyncEvents((prev) => ({ ...prev, [widgetId]: { ...data, widgetId } }));
+        }
+      }
+      if (data.action === 'remove' && widgetId) {
+        setPages((prevPages) =>
+          prevPages.map((pg) => ({
+            ...pg,
+            widgets: Array.isArray(pg.widgets) ? pg.widgets.filter((w: any) => w.id !== widgetId) : []
+          }))
+        );
+      } else if (data.action === 'play' || data.action === 'pause' || data.action === 'time_sync' || data.action === 'seek') {
+        const isPlay = data.action === 'play';
+        const isPause = data.action === 'pause';
+        setPages((prevPages) =>
+          prevPages.map((pg) => ({
+            ...pg,
+            widgets: Array.isArray(pg.widgets)
+              ? pg.widgets.map((w: any) =>
+                  w.id === widgetId
+                    ? {
+                        ...w,
+                        ...(isPlay ? { playing: true } : isPause ? { playing: false } : {}),
+                        currentTime: typeof data.currentTime === 'number' ? data.currentTime : w.currentTime
+                      }
+                    : w
+                )
+              : []
+          }))
+        );
+      } else if (typeof data.pageIndex === 'number') {
+        setPages((prevPages) => {
+          const next = [...prevPages];
+          while (next.length <= data.pageIndex) {
+            next.push({ strokes: [], shapes: [], texts: [], widgets: [] });
+          }
+          const targetPage = { ...next[data.pageIndex] };
+          const widgets = Array.isArray(targetPage.widgets) ? [...targetPage.widgets] : [];
+          if (data.action === 'add' && data.widget) {
+            const idx = widgets.findIndex((w: any) => w.id === (widgetId || data.widget.id));
+            if (idx >= 0) {
+              widgets[idx] = data.widget;
+            } else {
+              widgets.push(data.widget);
+            }
+          } else if ((data.action === 'move' || data.action === 'resize') && widgetId) {
+            const idx = widgets.findIndex((w: any) => w.id === widgetId);
+            if (idx >= 0) {
+              widgets[idx] = {
+                ...widgets[idx],
+                ...(typeof data.x === 'number' ? { x: data.x } : {}),
+                ...(typeof data.y === 'number' ? { y: data.y } : {}),
+                ...(typeof data.w === 'number' ? { w: data.w } : {}),
+                ...(typeof data.h === 'number' ? { h: data.h } : {})
+              };
+            }
+          }
+          targetPage.widgets = widgets;
+          next[data.pageIndex] = targetPage;
+          return next;
+        });
       }
     });
 
@@ -1074,11 +1433,22 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
       {/* Main Board View */}
       <div ref={containerRef} className="student-whiteboard-canvas-wrap">
         {isLive ? (
-          <canvas
-            ref={canvasRef}
-            className="student-whiteboard-canvas"
-            style={{ pointerEvents: 'none', display: 'block' }}
-          />
+          <div style={{ position: 'relative', margin: '0 auto', flexShrink: 0 }}>
+            <canvas
+              ref={canvasRef}
+              className="student-whiteboard-canvas"
+              style={{ pointerEvents: 'none', display: 'block' }}
+            />
+            {(pages[viewingPageIndex]?.widgets || [])
+              .filter((w: any) => w.type === 'video')
+              .map((w: any) => (
+                <StudentVideoPlayer
+                  key={w.id}
+                  widget={w}
+                  syncEvent={videoSyncEvents[w.id]}
+                />
+              ))}
+          </div>
         ) : (
           <div className="student-whiteboard-standby">
             <div className="student-standby-icon">

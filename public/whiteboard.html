@@ -552,6 +552,10 @@
       background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23475569' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect width='18' height='18' x='3' y='3' rx='2' ry='2'/%3E%3Ccircle cx='9' cy='9' r='2'/%3E%3Cpath d='m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21'/%3E%3C/svg%3E");
     }
 
+    [data-tool="video"]::before {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23475569' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m22 8-6 4 6 4V8Z'/%3E%3Crect width='14' height='12' x='2' y='6' rx='2' ry='2'/%3E%3C/svg%3E");
+    }
+
     [data-tool="time"]::before {
       background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23475569' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cpolyline points='12 6 12 12 16 14'/%3E%3C/svg%3E");
     }
@@ -1115,6 +1119,190 @@
         flex-shrink: 0;
       }
     }
+
+    /* ==========================================================================
+       Board Video Widget & Overlay
+       ========================================================================== */
+    .video-widgets-container {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 10;
+      overflow: visible;
+    }
+
+    .board-video-widget {
+      position: absolute;
+      background: #090d16;
+      border: 2px solid #0284c7;
+      border-radius: 12px;
+      box-shadow: 0 16px 44px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(56, 189, 248, 0.35), 0 0 20px rgba(2, 132, 199, 0.18);
+      display: flex;
+      flex-direction: column;
+      overflow: visible;
+      user-select: none;
+      pointer-events: auto;
+      transition: box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease, transform 0.15s ease;
+    }
+
+    .board-video-widget:hover,
+    .board-video-widget.is-selected {
+      border-color: #38bdf8;
+      box-shadow: 0 22px 54px rgba(0, 0, 0, 0.6), 0 0 0 2px #38bdf8, 0 0 28px rgba(56, 189, 248, 0.35);
+    }
+
+    .board-video-widget.is-minimized {
+      height: auto !important;
+      min-height: 0 !important;
+    }
+
+    .board-video-widget.is-minimized .video-widget-body,
+    .board-video-widget.is-minimized .video-resize-handle {
+      display: none !important;
+    }
+
+    .video-widget-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 7px 12px;
+      background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+      border-top-left-radius: 10px;
+      border-top-right-radius: 10px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      cursor: grab;
+      touch-action: none;
+    }
+
+    .video-widget-header:active {
+      cursor: grabbing;
+    }
+
+    .video-widget-drag-handle {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: #e2e8f0;
+      font-size: 0.76rem;
+      font-weight: 600;
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .video-widget-actions {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .video-action-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 22px;
+      padding: 0;
+      border-radius: 4px;
+      border: 1px solid transparent;
+      background: rgba(255, 255, 255, 0.08);
+      color: #cbd5e1;
+      font-size: 0.7rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.12s ease;
+    }
+
+    .video-action-btn:hover {
+      background: rgba(255, 255, 255, 0.18);
+      color: #fff;
+    }
+
+    .video-action-btn--active {
+      background: #0284c7;
+      color: #fff;
+      border-color: #38bdf8;
+    }
+
+    .video-play-sync-btn {
+      width: 26px;
+      font-size: 0.8rem;
+    }
+
+    .video-play-sync-btn.video-action-btn--active {
+      background: #16a34a;
+      border-color: #4ade80;
+      color: #fff;
+    }
+
+    .video-action-btn--close:hover {
+      background: #ef4444;
+      color: #fff;
+    }
+
+    .video-widget-body {
+      flex: 1;
+      width: 100%;
+      height: calc(100% - 35px);
+      min-height: 100px;
+      position: relative;
+      background: #000;
+      border-bottom-left-radius: 10px;
+      border-bottom-right-radius: 10px;
+      overflow: hidden;
+    }
+
+    .video-widget-body iframe,
+    .video-widget-body video {
+      width: 100%;
+      height: 100%;
+      display: block;
+      border: none;
+      outline: none;
+    }
+
+    /* Size handlers: hidden by default, appear smoothly once mouse hovers over corners */
+    .video-resize-handle {
+      position: absolute;
+      width: 13px;
+      height: 13px;
+      background: #ffffff;
+      border: 2.5px solid #0284c7;
+      border-radius: 4px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+      z-index: 30;
+      opacity: 0;
+      pointer-events: auto;
+      cursor: pointer;
+      touch-action: none;
+      transition: opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1), transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.15s ease, border-color 0.15s ease;
+    }
+
+    /* Generous corner hitbox so approaching corner reveals the handle immediately */
+    .video-resize-handle::before {
+      content: "";
+      position: absolute;
+      top: -16px;
+      left: -16px;
+      right: -16px;
+      bottom: -16px;
+      border-radius: 50%;
+    }
+
+    .video-resize-handle:hover,
+    .video-resize-handle.is-active-resizing {
+      opacity: 1 !important;
+      transform: scale(1.3);
+      border-color: #38bdf8;
+      background: #f0f9ff;
+      box-shadow: 0 4px 14px rgba(2, 132, 199, 0.6), 0 0 0 3px rgba(56, 189, 248, 0.35);
+    }
+
+    .video-resize-handle.handle-nw { top: -7px; left: -7px; cursor: nwse-resize; }
+    .video-resize-handle.handle-ne { top: -7px; right: -7px; cursor: nesw-resize; }
+    .video-resize-handle.handle-sw { bottom: -7px; left: -7px; cursor: nesw-resize; }
+    .video-resize-handle.handle-se { bottom: -7px; right: -7px; cursor: nwse-resize; }
   </style>
 </head>
 
@@ -1218,7 +1406,7 @@
         page</button>
     </div>
     <div id="clearPDFConfirm" class="clear-confirm" aria-hidden="true">
-      <span class="clear-confirm__text">This page contains an imported PDF. What would you like to clear?</span>
+      <span class="clear-confirm__text" id="clearPDFConfirmText">This page contains an imported PDF. What would you like to clear?</span>
       <button type="button" class="clear-confirm__btn clear-confirm__btn--clear" id="clearEverythingBtn">Clear
         everything (including PDF)</button>
       <button type="button" class="clear-confirm__btn clear-confirm__btn--keep" id="clearDrawingsOnlyBtn">Clear drawings
@@ -1269,6 +1457,7 @@
         <button class="tool-button" data-tool="math">Symbols</button>
         <button class="tool-button" data-tool="charts">Charts</button>
         <button class="tool-button" data-tool="stamps">Images</button>
+        <button class="tool-button" data-tool="video">Video</button>
         <button class="tool-button" data-tool="time">Clock</button>
         <button class="tool-button" data-tool="poll">Poll</button>
         <button class="tool-button" data-tool="grid">Grid</button>
@@ -1286,6 +1475,7 @@
         <div class="canvas-wrapper">
           <canvas id="boardCanvas"></canvas>
           <div id="textInputAnchor" class="text-input-anchor" aria-hidden="true"></div>
+          <div id="videoWidgetsContainer" class="video-widgets-container"></div>
           <div class="board-overlay">
             <span id="boardInfoLabel" class="board-info-label">
               Whiteboard - Page 1
@@ -1376,6 +1566,8 @@
       const defaultInfinite = localStorage.getItem("whiteboard_infinite_scroll") === "true";
       const defaultPageHeight = defaultInfinite ? 2400 : 800;
       const pages = [{ strokes: [], shapes: [], texts: [], widgets: [], background: null, height: defaultPageHeight, infiniteScroll: defaultInfinite, boardType: currentBoardType }];
+      window._whiteboardPages = pages;
+      window._getWhiteboardCurrentPageIndex = () => currentPageIndex;
       let isDrawing = false;
       let isPanning = false;
       let activeDrawingPointerId = null;
@@ -2231,9 +2423,9 @@
           page.texts.forEach((item) => drawTextItem(ctx, item, false));
         }
         if (page.widgets && page.widgets.length) {
-          const widgetsToDraw = skipTimeWidgets
+          const widgetsToDraw = (skipTimeWidgets
             ? page.widgets.filter((w) => w.type !== "clock" && w.type !== "timer" && w.type !== "stopwatch")
-            : page.widgets;
+            : page.widgets).filter((w) => w.type !== "video");
           widgetsToDraw.forEach((widget) => {
             if (widget.type === "poll") {
               drawPollWidget(ctx, widget, zoom);
@@ -2254,7 +2446,15 @@
         (page.strokes || []).forEach((stroke) => {
           drawSingleStroke(ctx, stroke);
         });
+
+        // 4) Render interactive board video player DOM widgets
+        if (typeof renderBoardVideoWidgets === "function") {
+          renderBoardVideoWidgets();
+        } else if (typeof window !== "undefined" && typeof window.renderBoardVideoWidgets === "function") {
+          window.renderBoardVideoWidgets();
+        }
       }
+      window.updateBoardAppearance = updateBoardAppearance;
 
       function getTextFontString(item, fontSize) {
         const fs = fontSize ?? item.fontSize ?? 24;
@@ -4297,6 +4497,9 @@
           renderChartOptions();
         } else if (tool === "stamps") {
           renderStampOptions();
+        } else if (tool === "video") {
+          heading.textContent = "Video Player";
+          renderVideoOptions();
         } else if (tool === "time") {
           heading.textContent = "Clock, timer & stopwatch";
           renderTimeOptions();
@@ -7130,6 +7333,7 @@
         else if (currentPageIndex > index) currentPageIndex--;
         syncPageStrip();
         selectPage(currentPageIndex);
+        if (typeof savePagesToStorage === "function") savePagesToStorage();
         notifyParentFullPages();
       }
 
@@ -7203,6 +7407,1079 @@
             totalPages: pages.length
           });
         } catch (_) { }
+      }
+
+      function notifyParentVideoAction(action, data) {
+        try {
+          postMessageToHost({
+            type: "WHITEBOARD_VIDEO_ACTION",
+            pageIndex: currentPageIndex,
+            action,
+            ...data
+          });
+        } catch (_) { }
+      }
+
+      const videoToolSettings = {
+        mode: "url",
+        url: "",
+        width: 560,
+        height: 315,
+        lockRatio: true
+      };
+
+      function parseVideoSource(inputUrl) {
+        if (!inputUrl) return { type: "direct", embedUrl: "" };
+        const url = inputUrl.trim();
+        const ytMatch = url.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/|youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})/i);
+        if (ytMatch && ytMatch[1]) {
+          return {
+            type: "youtube",
+            id: ytMatch[1],
+            embedUrl: `https://www.youtube.com/embed/${ytMatch[1]}?enablejsapi=1&rel=0`
+          };
+        }
+        const vimeoMatch = url.match(/vimeo\.com\/(?:channels\/(?:\w+\/)?|groups\/([^\/]*)\/videos\/|album\/(\d+)\/video\/|)(\d+)(?:$|\/|\?)/i);
+        if (vimeoMatch && vimeoMatch[3]) {
+          return {
+            type: "vimeo",
+            id: vimeoMatch[3],
+            embedUrl: `https://player.vimeo.com/video/${vimeoMatch[3]}?api=1`
+          };
+        }
+        return {
+          type: "direct",
+          embedUrl: url
+        };
+      }
+
+      function insertVideoWidget({ src, videoType, title, w, h, aspectRatioLocked }) {
+        const page = pages[currentPageIndex];
+        if (!page) return;
+        if (!page.widgets) page.widgets = [];
+
+        const width = w || 560;
+        const height = h || 315;
+        const center = getVisibleBoardCenter();
+        const startX = Math.max(20, Math.round(center.x - width / 2));
+        const startY = Math.max(20, Math.round(center.y - height / 2));
+
+        pushUndo();
+        const widget = {
+          id: generateId(),
+          type: "video",
+          src,
+          videoType: videoType || "direct",
+          title: title || "Video Explanation",
+          x: startX,
+          y: startY,
+          w: width,
+          h: height,
+          minimized: false,
+          playing: false,
+          currentTime: 0,
+          aspectRatioLocked: aspectRatioLocked !== false
+        };
+
+        page.widgets.push(widget);
+        updateBoardAppearance();
+        if (typeof renderBoardVideoWidgets === "function") {
+          renderBoardVideoWidgets();
+        }
+        if (typeof savePagesToStorage === "function") savePagesToStorage();
+        notifyParentPageUpdate(currentPageIndex, true);
+        notifyParentFullPages();
+        notifyParentVideoAction("add", { widgetId: widget.id, widget });
+        handleToolSelection("select");
+      }
+      window.insertVideoWidget = insertVideoWidget;
+
+      function renderVideoOptions() {
+        if (!propertiesContent) return;
+        const wrap = document.createElement("div");
+        wrap.className = "tool-options-group";
+        wrap.style.padding = "0.75rem 0.65rem";
+        wrap.style.display = "flex";
+        wrap.style.flexDirection = "column";
+        wrap.style.gap = "0.75rem";
+
+        // Explanatory Subtitle
+        const intro = document.createElement("p");
+        intro.style.fontSize = "0.75rem";
+        intro.style.color = "#475569";
+        intro.style.margin = "0";
+        intro.style.lineHeight = "1.4";
+        intro.textContent = "Embed a resizable video player onto the board to explain topics while sketching.";
+        wrap.appendChild(intro);
+
+        // Segmented Tabs (URL vs Local File)
+        const tabContainer = document.createElement("div");
+        tabContainer.style.display = "flex";
+        tabContainer.style.background = "#e2e8f0";
+        tabContainer.style.padding = "3px";
+        tabContainer.style.borderRadius = "8px";
+        tabContainer.style.gap = "3px";
+
+        const tabUrl = document.createElement("button");
+        tabUrl.type = "button";
+        tabUrl.innerHTML = `
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="vertical-align:middle;margin-right:4px;">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="2" y1="12" x2="22" y2="12"></line>
+            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+          </svg>Video URL
+        `;
+        tabUrl.style.flex = "1";
+        tabUrl.style.padding = "0.42rem 0.4rem";
+        tabUrl.style.fontSize = "0.75rem";
+        tabUrl.style.borderRadius = "6px";
+        tabUrl.style.border = "none";
+        tabUrl.style.cursor = "pointer";
+        tabUrl.style.transition = "all 0.15s ease";
+
+        const tabFile = document.createElement("button");
+        tabFile.type = "button";
+        tabFile.innerHTML = `
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="vertical-align:middle;margin-right:4px;">
+            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+          </svg>Local File
+        `;
+        tabFile.style.flex = "1";
+        tabFile.style.padding = "0.42rem 0.4rem";
+        tabFile.style.fontSize = "0.75rem";
+        tabFile.style.borderRadius = "6px";
+        tabFile.style.border = "none";
+        tabFile.style.cursor = "pointer";
+        tabFile.style.transition = "all 0.15s ease";
+
+        tabContainer.appendChild(tabUrl);
+        tabContainer.appendChild(tabFile);
+        wrap.appendChild(tabContainer);
+
+        // Tab 1: Web Video URL
+        const urlContainer = document.createElement("div");
+        urlContainer.style.display = "flex";
+        urlContainer.style.flexDirection = "column";
+        urlContainer.style.gap = "0.35rem";
+
+        const urlLabel = document.createElement("label");
+        urlLabel.className = "tool-options-label";
+        urlLabel.textContent = "Web Video URL";
+        urlLabel.style.margin = "0";
+        urlContainer.appendChild(urlLabel);
+
+        const urlInput = document.createElement("input");
+        urlInput.type = "text";
+        urlInput.placeholder = "Paste YouTube, Vimeo, or .mp4 URL...";
+        urlInput.value = videoToolSettings.url || "";
+        urlInput.style.width = "100%";
+        urlInput.style.boxSizing = "border-box";
+        urlInput.style.padding = "0.48rem 0.6rem";
+        urlInput.style.background = "#ffffff";
+        urlInput.style.color = "#0f172a";
+        urlInput.style.border = "1.5px solid #cbd5e1";
+        urlInput.style.borderRadius = "6px";
+        urlInput.style.fontSize = "0.8rem";
+        urlInput.style.fontFamily = "inherit";
+        urlInput.style.outline = "none";
+        urlInput.style.transition = "border-color 0.15s, box-shadow 0.15s";
+        urlInput.addEventListener("focus", () => {
+          urlInput.style.borderColor = "#0284c7";
+          urlInput.style.boxShadow = "0 0 0 3px rgba(2, 132, 199, 0.15)";
+        });
+        urlInput.addEventListener("blur", () => {
+          urlInput.style.borderColor = "#cbd5e1";
+          urlInput.style.boxShadow = "none";
+        });
+        urlInput.addEventListener("input", (e) => {
+          videoToolSettings.url = e.target.value.trim();
+        });
+        urlContainer.appendChild(urlInput);
+
+        const badgesRow = document.createElement("div");
+        badgesRow.style.display = "flex";
+        badgesRow.style.gap = "4px";
+        badgesRow.style.flexWrap = "wrap";
+        badgesRow.style.marginTop = "2px";
+
+        const platforms = [
+          { name: "YouTube", color: "#dc2626", bg: "#fef2f2", border: "#fecaca" },
+          { name: "Vimeo", color: "#0284c7", bg: "#f0f9ff", border: "#bae6fd" },
+          { name: "Direct MP4 / WebM", color: "#059669", bg: "#ecfdf5", border: "#a7f3d0" }
+        ];
+        platforms.forEach((p) => {
+          const badge = document.createElement("span");
+          badge.textContent = p.name;
+          badge.style.fontSize = "0.64rem";
+          badge.style.fontWeight = "600";
+          badge.style.color = p.color;
+          badge.style.background = p.bg;
+          badge.style.border = `1px solid ${p.border}`;
+          badge.style.borderRadius = "4px";
+          badge.style.padding = "1px 5px";
+          badgesRow.appendChild(badge);
+        });
+        urlContainer.appendChild(badgesRow);
+        wrap.appendChild(urlContainer);
+
+        // Tab 2: Local Video File
+        const fileContainer = document.createElement("div");
+        fileContainer.style.display = "none";
+        fileContainer.style.flexDirection = "column";
+        fileContainer.style.gap = "0.35rem";
+
+        const fileLabel = document.createElement("label");
+        fileLabel.className = "tool-options-label";
+        fileLabel.textContent = "Select Video from Computer";
+        fileLabel.style.margin = "0";
+        fileContainer.appendChild(fileLabel);
+
+        const fileInput = document.createElement("input");
+        fileInput.type = "file";
+        fileInput.accept = "video/mp4,video/webm,video/ogg,video/quicktime";
+        fileInput.style.display = "none";
+
+        let selectedFileObj = null;
+
+        const fileDropCard = document.createElement("div");
+        fileDropCard.style.border = "1.5px dashed #94a3b8";
+        fileDropCard.style.background = "#ffffff";
+        fileDropCard.style.borderRadius = "8px";
+        fileDropCard.style.padding = "0.85rem 0.5rem";
+        fileDropCard.style.textAlign = "center";
+        fileDropCard.style.cursor = "pointer";
+        fileDropCard.style.transition = "all 0.2s ease";
+
+        fileDropCard.innerHTML = `
+          <div style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:50%;background:#e0f2fe;color:#0284c7;margin-bottom:0.4rem;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="17 8 12 3 7 8"></polyline>
+              <line x1="12" y1="3" x2="12" y2="15"></line>
+            </svg>
+          </div>
+          <div style="font-size:0.78rem;font-weight:600;color:#0f172a;line-height:1.3;">Choose Video File</div>
+          <div style="font-size:0.68rem;color:#64748b;margin-top:2px;">MP4, WebM, MOV (up to 150MB)</div>
+        `;
+
+        fileDropCard.addEventListener("mouseenter", () => {
+          fileDropCard.style.borderColor = "#0284c7";
+          fileDropCard.style.background = "#f0f9ff";
+        });
+        fileDropCard.addEventListener("mouseleave", () => {
+          fileDropCard.style.borderColor = selectedFileObj ? "#10b981" : "#94a3b8";
+          fileDropCard.style.background = selectedFileObj ? "#ecfdf5" : "#ffffff";
+        });
+        fileDropCard.addEventListener("click", () => fileInput.click());
+
+        fileInput.addEventListener("change", () => {
+          if (fileInput.files && fileInput.files[0]) {
+            selectedFileObj = fileInput.files[0];
+            const sizeMb = (selectedFileObj.size / (1024 * 1024)).toFixed(1);
+            fileDropCard.style.borderColor = "#10b981";
+            fileDropCard.style.background = "#ecfdf5";
+            fileDropCard.innerHTML = `
+              <div style="display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:50%;background:#d1fae5;color:#059669;margin-bottom:0.35rem;">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                  <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
+              </div>
+              <div style="font-size:0.78rem;font-weight:700;color:#065f46;word-break:break-all;">${selectedFileObj.name}</div>
+              <div style="font-size:0.68rem;color:#047857;margin-top:2px;">Ready to insert (${sizeMb} MB) • <span style="text-decoration:underline;">Change</span></div>
+            `;
+          }
+        });
+
+        fileContainer.appendChild(fileInput);
+        fileContainer.appendChild(fileDropCard);
+        wrap.appendChild(fileContainer);
+
+        function updateTabStyles() {
+          const isUrl = videoToolSettings.mode === "url";
+          tabUrl.style.background = isUrl ? "#ffffff" : "transparent";
+          tabUrl.style.color = isUrl ? "#0284c7" : "#475569";
+          tabUrl.style.fontWeight = isUrl ? "700" : "600";
+          tabUrl.style.boxShadow = isUrl ? "0 1px 3px rgba(0,0,0,0.12)" : "none";
+
+          tabFile.style.background = !isUrl ? "#ffffff" : "transparent";
+          tabFile.style.color = !isUrl ? "#0284c7" : "#475569";
+          tabFile.style.fontWeight = !isUrl ? "700" : "600";
+          tabFile.style.boxShadow = !isUrl ? "0 1px 3px rgba(0,0,0,0.12)" : "none";
+
+          urlContainer.style.display = isUrl ? "flex" : "none";
+          fileContainer.style.display = !isUrl ? "flex" : "none";
+        }
+
+        tabUrl.addEventListener("click", () => {
+          videoToolSettings.mode = "url";
+          updateTabStyles();
+        });
+
+        tabFile.addEventListener("click", () => {
+          videoToolSettings.mode = "file";
+          updateTabStyles();
+        });
+
+        updateTabStyles();
+
+        // Dimensions Section
+        const dimSection = document.createElement("div");
+        dimSection.style.display = "flex";
+        dimSection.style.flexDirection = "column";
+        dimSection.style.gap = "0.35rem";
+
+        const sizeHeading = document.createElement("label");
+        sizeHeading.className = "tool-options-label";
+        sizeHeading.textContent = "Player Dimensions";
+        sizeHeading.style.margin = "0";
+        dimSection.appendChild(sizeHeading);
+
+        const sizeInputsRow = document.createElement("div");
+        sizeInputsRow.style.display = "flex";
+        sizeInputsRow.style.gap = "8px";
+        sizeInputsRow.style.alignItems = "center";
+
+        const widthWrap = document.createElement("div");
+        widthWrap.style.flex = "1";
+        widthWrap.innerHTML = `<span style="font-size:0.7rem;font-weight:600;color:#64748b;display:block;margin-bottom:3px;">Width (px)</span>`;
+        const widthInput = document.createElement("input");
+        widthInput.type = "number";
+        widthInput.min = "240";
+        widthInput.max = "1600";
+        widthInput.step = "20";
+        widthInput.value = String(videoToolSettings.width);
+        widthInput.style.width = "100%";
+        widthInput.style.boxSizing = "border-box";
+        widthInput.style.padding = "0.42rem 0.5rem";
+        widthInput.style.background = "#ffffff";
+        widthInput.style.color = "#0f172a";
+        widthInput.style.border = "1.5px solid #cbd5e1";
+        widthInput.style.borderRadius = "6px";
+        widthInput.style.fontSize = "0.82rem";
+        widthInput.style.fontFamily = "inherit";
+        widthInput.style.outline = "none";
+        widthInput.style.transition = "border-color 0.15s, box-shadow 0.15s";
+        widthInput.addEventListener("focus", () => {
+          widthInput.style.borderColor = "#0284c7";
+          widthInput.style.boxShadow = "0 0 0 3px rgba(2, 132, 199, 0.15)";
+        });
+        widthInput.addEventListener("blur", () => {
+          widthInput.style.borderColor = "#cbd5e1";
+          widthInput.style.boxShadow = "none";
+        });
+        widthWrap.appendChild(widthInput);
+
+        const heightWrap = document.createElement("div");
+        heightWrap.style.flex = "1";
+        heightWrap.innerHTML = `<span style="font-size:0.7rem;font-weight:600;color:#64748b;display:block;margin-bottom:3px;">Height (px)</span>`;
+        const heightInput = document.createElement("input");
+        heightInput.type = "number";
+        heightInput.min = "135";
+        heightInput.max = "1200";
+        heightInput.step = "20";
+        heightInput.value = String(videoToolSettings.height);
+        heightInput.style.width = "100%";
+        heightInput.style.boxSizing = "border-box";
+        heightInput.style.padding = "0.42rem 0.5rem";
+        heightInput.style.background = "#ffffff";
+        heightInput.style.color = "#0f172a";
+        heightInput.style.border = "1.5px solid #cbd5e1";
+        heightInput.style.borderRadius = "6px";
+        heightInput.style.fontSize = "0.82rem";
+        heightInput.style.fontFamily = "inherit";
+        heightInput.style.outline = "none";
+        heightInput.style.transition = "border-color 0.15s, box-shadow 0.15s";
+        heightInput.addEventListener("focus", () => {
+          heightInput.style.borderColor = "#0284c7";
+          heightInput.style.boxShadow = "0 0 0 3px rgba(2, 132, 199, 0.15)";
+        });
+        heightInput.addEventListener("blur", () => {
+          heightInput.style.borderColor = "#cbd5e1";
+          heightInput.style.boxShadow = "none";
+        });
+        heightWrap.appendChild(heightInput);
+
+        sizeInputsRow.appendChild(widthWrap);
+        sizeInputsRow.appendChild(heightWrap);
+        dimSection.appendChild(sizeInputsRow);
+
+        // Aspect ratio lock checkbox
+        const ratioLabel = document.createElement("label");
+        ratioLabel.style.display = "flex";
+        ratioLabel.style.alignItems = "flex-start";
+        ratioLabel.style.gap = "8px";
+        ratioLabel.style.cursor = "pointer";
+        ratioLabel.style.marginTop = "4px";
+
+        const ratioCheckbox = document.createElement("input");
+        ratioCheckbox.type = "checkbox";
+        ratioCheckbox.checked = videoToolSettings.lockRatio;
+        ratioCheckbox.style.accentColor = "#0284c7";
+        ratioCheckbox.style.width = "15px";
+        ratioCheckbox.style.height = "15px";
+        ratioCheckbox.style.marginTop = "2px";
+        ratioCheckbox.style.cursor = "pointer";
+        ratioCheckbox.addEventListener("change", () => {
+          videoToolSettings.lockRatio = ratioCheckbox.checked;
+        });
+
+        const ratioTextWrap = document.createElement("div");
+        ratioTextWrap.style.lineHeight = "1.25";
+        ratioTextWrap.innerHTML = `
+          <div style="font-size:0.75rem;font-weight:600;color:#1e293b;">Lock 16:9 Aspect Ratio</div>
+          <div style="font-size:0.65rem;color:#64748b;font-weight:400;margin-top:1px;">Maintains proportions (Recommended)</div>
+        `;
+
+        ratioLabel.appendChild(ratioCheckbox);
+        ratioLabel.appendChild(ratioTextWrap);
+        dimSection.appendChild(ratioLabel);
+
+        // Quick Presets
+        const presetHeading = document.createElement("label");
+        presetHeading.className = "tool-options-label";
+        presetHeading.textContent = "Quick Presets";
+        presetHeading.style.margin = "0.4rem 0 0 0";
+        dimSection.appendChild(presetHeading);
+
+        const presetRow = document.createElement("div");
+        presetRow.style.display = "flex";
+        presetRow.style.gap = "5px";
+
+        const presets = [
+          { label: "Small", w: 400, h: 225 },
+          { label: "Medium", w: 560, h: 315 },
+          { label: "Large", w: 720, h: 405 }
+        ];
+
+        const presetBtns = [];
+        function refreshPresetStyles() {
+          presetBtns.forEach((btn, idx) => {
+            const p = presets[idx];
+            const isMatch = videoToolSettings.width === p.w && videoToolSettings.height === p.h;
+            btn.style.background = isMatch ? "#e0f2fe" : "#ffffff";
+            btn.style.borderColor = isMatch ? "#0284c7" : "#cbd5e1";
+            btn.style.color = isMatch ? "#0284c7" : "#1e293b";
+            const sub = btn.querySelector(".preset-dim");
+            if (sub) sub.style.color = isMatch ? "#0369a1" : "#64748b";
+          });
+        }
+
+        presets.forEach((p) => {
+          const pBtn = document.createElement("button");
+          pBtn.type = "button";
+          pBtn.style.flex = "1";
+          pBtn.style.padding = "0.36rem 0.15rem";
+          pBtn.style.borderRadius = "6px";
+          pBtn.style.border = "1px solid #cbd5e1";
+          pBtn.style.background = "#ffffff";
+          pBtn.style.cursor = "pointer";
+          pBtn.style.textAlign = "center";
+          pBtn.style.transition = "all 0.15s ease";
+          pBtn.innerHTML = `
+            <div style="font-size:0.73rem;font-weight:700;white-space:nowrap;">${p.label}</div>
+            <div class="preset-dim" style="font-size:0.63rem;color:#64748b;margin-top:2px;white-space:nowrap;">${p.w}×${p.h}</div>
+          `;
+
+          pBtn.addEventListener("click", () => {
+            videoToolSettings.width = p.w;
+            videoToolSettings.height = p.h;
+            widthInput.value = String(p.w);
+            heightInput.value = String(p.h);
+            refreshPresetStyles();
+          });
+          presetBtns.push(pBtn);
+          presetRow.appendChild(pBtn);
+        });
+
+        widthInput.addEventListener("input", () => {
+          const w = Math.max(200, Number(widthInput.value) || 560);
+          videoToolSettings.width = w;
+          if (videoToolSettings.lockRatio) {
+            const h = Math.round(w * 9 / 16);
+            videoToolSettings.height = h;
+            heightInput.value = String(h);
+          }
+          refreshPresetStyles();
+        });
+
+        heightInput.addEventListener("input", () => {
+          const h = Math.max(120, Number(heightInput.value) || 315);
+          videoToolSettings.height = h;
+          if (videoToolSettings.lockRatio) {
+            const w = Math.round(h * 16 / 9);
+            videoToolSettings.width = w;
+            widthInput.value = String(w);
+          }
+          refreshPresetStyles();
+        });
+
+        refreshPresetStyles();
+        dimSection.appendChild(presetRow);
+        wrap.appendChild(dimSection);
+
+        // Action Button & Status
+        const insertBtn = document.createElement("button");
+        insertBtn.type = "button";
+        insertBtn.id = "boardInsertVideoBtn";
+        insertBtn.className = "top-bar__button";
+        insertBtn.style.width = "100%";
+        insertBtn.style.boxSizing = "border-box";
+        insertBtn.style.padding = "0.6rem 0.8rem";
+        insertBtn.style.background = "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)";
+        insertBtn.style.color = "#ffffff";
+        insertBtn.style.fontWeight = "700";
+        insertBtn.style.fontSize = "0.82rem";
+        insertBtn.style.border = "none";
+        insertBtn.style.borderRadius = "7px";
+        insertBtn.style.cursor = "pointer";
+        insertBtn.style.display = "flex";
+        insertBtn.style.alignItems = "center";
+        insertBtn.style.justifyContent = "center";
+        insertBtn.style.gap = "6px";
+        insertBtn.style.boxShadow = "0 4px 12px rgba(2, 132, 199, 0.35)";
+        insertBtn.style.transition = "all 0.15s ease";
+        insertBtn.innerHTML = `
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+          </svg>
+          <span>Insert Video on Canvas</span>
+        `;
+        insertBtn.addEventListener("mouseenter", () => {
+          insertBtn.style.transform = "translateY(-1px)";
+          insertBtn.style.boxShadow = "0 6px 16px rgba(2, 132, 199, 0.45)";
+        });
+        insertBtn.addEventListener("mouseleave", () => {
+          insertBtn.style.transform = "translateY(0)";
+          insertBtn.style.boxShadow = "0 4px 12px rgba(2, 132, 199, 0.35)";
+        });
+
+        const statusMsg = document.createElement("div");
+        statusMsg.style.display = "none";
+        statusMsg.style.fontSize = "0.74rem";
+        statusMsg.style.padding = "0.45rem 0.6rem";
+        statusMsg.style.borderRadius = "6px";
+        statusMsg.style.lineHeight = "1.35";
+
+        function showStatus(text, type = "info") {
+          statusMsg.style.display = "block";
+          statusMsg.textContent = text;
+          if (type === "error") {
+            statusMsg.style.background = "#fef2f2";
+            statusMsg.style.color = "#b91c1c";
+            statusMsg.style.border = "1px solid #fecaca";
+          } else if (type === "success") {
+            statusMsg.style.background = "#ecfdf5";
+            statusMsg.style.color = "#047857";
+            statusMsg.style.border = "1px solid #a7f3d0";
+          } else {
+            statusMsg.style.background = "#eff6ff";
+            statusMsg.style.color = "#1d4ed8";
+            statusMsg.style.border = "1px solid #bfdbfe";
+          }
+        }
+
+        insertBtn.addEventListener("click", async () => {
+          const w = Math.max(200, Number(widthInput.value) || videoToolSettings.width || 560);
+          const h = Math.max(120, Number(heightInput.value) || videoToolSettings.height || 315);
+
+          if (videoToolSettings.mode === "url") {
+            const rawUrl = (urlInput.value || videoToolSettings.url || "").trim();
+            if (!rawUrl) {
+              showStatus("Please enter a video URL to insert.", "error");
+              return;
+            }
+            const parsed = parseVideoSource(rawUrl);
+            insertVideoWidget({
+              src: parsed.embedUrl,
+              videoType: parsed.type,
+              title: parsed.type === "youtube" ? "YouTube Video" : parsed.type === "vimeo" ? "Vimeo Video" : "Video Player",
+              w: w,
+              h: h,
+              aspectRatioLocked: videoToolSettings.lockRatio
+            });
+            showStatus("✓ Video inserted! Drag or resize on canvas.", "success");
+          } else {
+            if (!selectedFileObj) {
+              showStatus("Please select a video file first.", "error");
+              return;
+            }
+
+            showStatus("Uploading video for classroom streaming...", "info");
+            insertBtn.disabled = true;
+
+            try {
+              const reader = new FileReader();
+              const base64Promise = new Promise((resolve, reject) => {
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = reject;
+              });
+              reader.readAsDataURL(selectedFileObj);
+              const dataUrl = await base64Promise;
+
+              const res = await fetch("/api/whiteboard/upload-video", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ name: selectedFileObj.name, data: dataUrl })
+              });
+
+              if (!res.ok) {
+                const errJson = await res.json().catch(() => ({}));
+                throw new Error(errJson.error || "Upload failed");
+              }
+
+              const result = await res.json();
+              insertVideoWidget({
+                src: result.url,
+                videoType: "direct",
+                title: selectedFileObj.name,
+                w: w,
+                h: h,
+                aspectRatioLocked: videoToolSettings.lockRatio
+              });
+
+              showStatus("✓ Video uploaded and placed on board!", "success");
+            } catch (uploadErr) {
+              console.warn("Upload failed, falling back to local object URL:", uploadErr);
+              const localBlobUrl = URL.createObjectURL(selectedFileObj);
+              insertVideoWidget({
+                src: localBlobUrl,
+                videoType: "local",
+                title: selectedFileObj.name,
+                w: w,
+                h: h,
+                aspectRatioLocked: videoToolSettings.lockRatio
+              });
+              showStatus("✓ Video placed on board (playing locally).", "success");
+            } finally {
+              insertBtn.disabled = false;
+            }
+          }
+        });
+
+        wrap.appendChild(insertBtn);
+        wrap.appendChild(statusMsg);
+        propertiesContent.appendChild(wrap);
+      }
+
+      function renderBoardVideoWidgets() {
+        const container = document.getElementById("videoWidgetsContainer");
+        if (!container) return;
+
+        const page = pages[currentPageIndex];
+        const videoWidgets = (page && page.widgets) ? page.widgets.filter((w) => w.type === "video") : [];
+        const currentIds = new Set(videoWidgets.map((w) => w.id));
+
+        const existingNodes = Array.from(container.querySelectorAll(".board-video-widget"));
+        existingNodes.forEach((node) => {
+          const id = node.getAttribute("data-widget-id");
+          if (!currentIds.has(id)) {
+            node.remove();
+          }
+        });
+
+        videoWidgets.forEach((w) => {
+          let node = container.querySelector(`.board-video-widget[data-widget-id="${w.id}"]`);
+          if (!node) {
+            node = createVideoWidgetElement(w);
+            container.appendChild(node);
+          }
+          updateVideoWidgetElement(node, w);
+        });
+      }
+      window.renderBoardVideoWidgets = renderBoardVideoWidgets;
+
+      function startVideoTimeSyncInterval(w) {
+        stopVideoTimeSyncInterval(w);
+        w._timeSyncTimer = setInterval(() => {
+          if (!w.playing) {
+            stopVideoTimeSyncInterval(w);
+            return;
+          }
+          let curTime = w.currentTime || 0;
+          const el = document.querySelector(`.board-video-widget[data-widget-id="${w.id}"]`);
+          if (w.videoType === "direct" || w.videoType === "local") {
+            const vid = el?.querySelector("video");
+            if (vid && typeof vid.currentTime === "number") curTime = vid.currentTime;
+          }
+          w.currentTime = curTime;
+          notifyParentVideoAction("time_sync", { widgetId: w.id, currentTime: curTime });
+        }, 2500);
+      }
+
+      function stopVideoTimeSyncInterval(w) {
+        if (w && w._timeSyncTimer) {
+          clearInterval(w._timeSyncTimer);
+          w._timeSyncTimer = null;
+        }
+      }
+
+      function handleVideoStateChange(w, state, playBtn) {
+        if (state === 1) { // 1 = Playing
+          if (!w.playing) {
+            w.playing = true;
+            if (playBtn) {
+              playBtn.textContent = "⏸";
+              playBtn.title = "Pause Video for Students";
+              playBtn.classList.add("video-action-btn--active");
+            }
+            notifyParentVideoAction("play", { widgetId: w.id, currentTime: w.currentTime || 0 });
+            startVideoTimeSyncInterval(w);
+          }
+        } else if (state === 2 || state === 0) { // 2 = Paused, 0 = Ended
+          if (w.playing) {
+            w.playing = false;
+            if (playBtn) {
+              playBtn.textContent = "▶";
+              playBtn.title = "Play & Sync Video to Students";
+              playBtn.classList.remove("video-action-btn--active");
+            }
+            notifyParentVideoAction("pause", { widgetId: w.id, currentTime: w.currentTime || 0 });
+            stopVideoTimeSyncInterval(w);
+          }
+        }
+      }
+
+      function createVideoWidgetElement(w) {
+        const el = document.createElement("div");
+        el.className = "board-video-widget";
+        el.setAttribute("data-widget-id", w.id);
+
+        const header = document.createElement("div");
+        header.className = "video-widget-header";
+
+        const dragHandle = document.createElement("div");
+        dragHandle.className = "video-widget-drag-handle";
+        dragHandle.innerHTML = `
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="5 3 19 12 5 21 5 3"></polygon>
+          </svg>
+          <span class="video-title-text">${w.title || "Video Explanation"}</span>
+        `;
+
+        const actions = document.createElement("div");
+        actions.className = "video-widget-actions";
+
+        const playBtn = document.createElement("button");
+        playBtn.type = "button";
+        playBtn.className = "video-action-btn video-play-sync-btn" + (w.playing ? " video-action-btn--active" : "");
+        playBtn.title = w.playing ? "Pause Video for Students" : "Play & Sync Video to Students";
+        playBtn.textContent = w.playing ? "⏸" : "▶";
+        playBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          toggleVideoPlayState(w, el);
+        });
+
+        const ratioBtn = document.createElement("button");
+        ratioBtn.type = "button";
+        ratioBtn.className = "video-action-btn video-lock-ratio-btn" + (w.aspectRatioLocked !== false ? " video-action-btn--active" : "");
+        ratioBtn.title = "Toggle 16:9 Aspect Ratio Lock";
+        ratioBtn.textContent = "16:9";
+        ratioBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          w.aspectRatioLocked = !w.aspectRatioLocked;
+          ratioBtn.classList.toggle("video-action-btn--active", w.aspectRatioLocked);
+        });
+
+        const minBtn = document.createElement("button");
+        minBtn.type = "button";
+        minBtn.className = "video-action-btn video-minimize-btn";
+        minBtn.title = "Minimize / Expand Video";
+        minBtn.textContent = w.minimized ? "▢" : "–";
+        minBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          w.minimized = !w.minimized;
+          minBtn.textContent = w.minimized ? "▢" : "–";
+          el.classList.toggle("is-minimized", w.minimized);
+          updateVideoWidgetElement(el, w);
+          notifyParentPageUpdate(currentPageIndex, true);
+        });
+
+        const closeBtn = document.createElement("button");
+        closeBtn.type = "button";
+        closeBtn.className = "video-action-btn video-action-btn--close";
+        closeBtn.title = "Remove Video";
+        closeBtn.textContent = "✕";
+        closeBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          stopVideoTimeSyncInterval(w);
+          const p = pages[currentPageIndex];
+          if (p && p.widgets) {
+            pushUndo();
+            p.widgets = p.widgets.filter((item) => item.id !== w.id);
+            el.remove();
+            if (typeof savePagesToStorage === "function") savePagesToStorage();
+            notifyParentPageUpdate(currentPageIndex, true);
+            notifyParentFullPages();
+            notifyParentVideoAction("remove", { widgetId: w.id });
+          }
+        });
+
+        actions.appendChild(playBtn);
+        actions.appendChild(ratioBtn);
+        actions.appendChild(minBtn);
+        actions.appendChild(closeBtn);
+        header.appendChild(dragHandle);
+        header.appendChild(actions);
+        el.appendChild(header);
+
+        const body = document.createElement("div");
+        body.className = "video-widget-body";
+
+        if (w.videoType === "youtube" || w.videoType === "vimeo") {
+          const iframe = document.createElement("iframe");
+          iframe.id = "board_yt_frame_" + w.id;
+          const origin = typeof window !== "undefined" && window.location ? window.location.origin : "";
+          let finalSrc = w.src;
+          if (w.videoType === "youtube") {
+            if (!finalSrc.includes("origin=") && origin) {
+              finalSrc += (finalSrc.includes("?") ? "&" : "?") + `origin=${encodeURIComponent(origin)}`;
+            }
+          }
+          iframe.src = finalSrc;
+          iframe.setAttribute("allow", "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share");
+          iframe.setAttribute("allowfullscreen", "true");
+
+          let handshakeAttempts = 0;
+          const sendHandshake = () => {
+            if (!iframe.contentWindow || handshakeAttempts > 25 || w._handshakeAcked) return;
+            handshakeAttempts++;
+            try {
+              iframe.contentWindow.postMessage(JSON.stringify({ event: "listening", id: w.id }), "*");
+              iframe.contentWindow.postMessage(JSON.stringify({ event: "listening" }), "*");
+            } catch (_) {}
+          };
+
+          iframe.onload = () => {
+            sendHandshake();
+          };
+
+          const handshakeInterval = setInterval(() => {
+            if (w._handshakeAcked || handshakeAttempts > 25) {
+              clearInterval(handshakeInterval);
+              return;
+            }
+            sendHandshake();
+          }, 450);
+
+          body.appendChild(iframe);
+        } else {
+          const vid = document.createElement("video");
+          vid.src = w.src;
+          vid.controls = true;
+          vid.playsInline = true;
+          vid.setAttribute("controlsList", "nodownload");
+          vid.addEventListener("play", () => {
+            w.playing = true;
+            playBtn.textContent = "⏸";
+            playBtn.title = "Pause Video for Students";
+            playBtn.classList.add("video-action-btn--active");
+            notifyParentVideoAction("play", { widgetId: w.id, currentTime: vid.currentTime });
+            startVideoTimeSyncInterval(w);
+          });
+          vid.addEventListener("pause", () => {
+            w.playing = false;
+            playBtn.textContent = "▶";
+            playBtn.title = "Play & Sync Video to Students";
+            playBtn.classList.remove("video-action-btn--active");
+            notifyParentVideoAction("pause", { widgetId: w.id, currentTime: vid.currentTime });
+            stopVideoTimeSyncInterval(w);
+          });
+          vid.addEventListener("seeked", () => {
+            w.currentTime = vid.currentTime;
+            notifyParentVideoAction("seek", { widgetId: w.id, currentTime: vid.currentTime });
+          });
+          body.appendChild(vid);
+        }
+
+        el.appendChild(body);
+
+        ["nw", "ne", "sw", "se"].forEach((dir) => {
+          const handle = document.createElement("div");
+          handle.className = `video-resize-handle handle-${dir}`;
+          handle.setAttribute("data-handle", dir);
+          setupResizeHandleEvents(handle, w, el);
+          el.appendChild(handle);
+        });
+
+        setupWidgetDragEvents(header, w, el);
+        return el;
+      }
+
+      function toggleVideoPlayState(w, el) {
+        const shouldPlay = !w.playing;
+        w.playing = shouldPlay;
+        const playBtn = el?.querySelector(".video-play-sync-btn");
+        if (playBtn) {
+          playBtn.textContent = shouldPlay ? "⏸" : "▶";
+          playBtn.title = shouldPlay ? "Pause Video for Students" : "Play & Sync Video to Students";
+          playBtn.classList.toggle("video-action-btn--active", shouldPlay);
+        }
+        if (w.videoType === "youtube" || w.videoType === "vimeo") {
+          const iframe = el?.querySelector("iframe");
+          if (iframe && iframe.contentWindow) {
+            const func = shouldPlay ? "playVideo" : "pauseVideo";
+            iframe.contentWindow.postMessage(JSON.stringify({ event: "command", func: func, args: [] }), "*");
+            iframe.contentWindow.postMessage(JSON.stringify({ event: "command", func: func, args: "" }), "*");
+            iframe.contentWindow.postMessage(JSON.stringify({ method: shouldPlay ? "play" : "pause" }), "*");
+          }
+          if (shouldPlay) startVideoTimeSyncInterval(w);
+          else stopVideoTimeSyncInterval(w);
+        } else {
+          const vid = el?.querySelector("video");
+          if (vid) {
+            if (shouldPlay) {
+              vid.play().catch(() => {});
+              startVideoTimeSyncInterval(w);
+            } else {
+              vid.pause();
+              stopVideoTimeSyncInterval(w);
+            }
+          }
+        }
+        notifyParentVideoAction(shouldPlay ? "play" : "pause", {
+          widgetId: w.id,
+          currentTime: w.currentTime || 0
+        });
+      }
+
+      function updateVideoWidgetElement(node, w) {
+        node.style.left = (w.x * zoom) + "px";
+        node.style.top = (w.y * zoom) + "px";
+        node.style.width = (w.w * zoom) + "px";
+        node.style.height = w.minimized ? "auto" : ((w.h * zoom) + "px");
+        node.classList.toggle("is-minimized", Boolean(w.minimized));
+      }
+
+      function setupWidgetDragEvents(header, w, node) {
+        let isDragging = false;
+        let startClientX = 0;
+        let startClientY = 0;
+        let origX = 0;
+        let origY = 0;
+
+        header.addEventListener("pointerdown", (e) => {
+          if (e.target.closest(".video-action-btn")) return;
+          e.preventDefault();
+          e.stopPropagation();
+          isDragging = true;
+          startClientX = e.clientX;
+          startClientY = e.clientY;
+          origX = w.x;
+          origY = w.y;
+          header.setPointerCapture(e.pointerId);
+          node.classList.add("is-selected");
+        });
+
+        header.addEventListener("pointermove", (e) => {
+          if (!isDragging) return;
+          e.preventDefault();
+          e.stopPropagation();
+          const dx = (e.clientX - startClientX) / zoom;
+          const dy = (e.clientY - startClientY) / zoom;
+          w.x = Math.max(0, Math.round(origX + dx));
+          w.y = Math.max(0, Math.round(origY + dy));
+          updateVideoWidgetElement(node, w);
+        });
+
+        const stopDrag = (e) => {
+          if (!isDragging) return;
+          isDragging = false;
+          try { header.releasePointerCapture(e.pointerId); } catch (_) {}
+          node.classList.remove("is-selected");
+          pushUndo();
+          notifyParentPageUpdate(currentPageIndex, true);
+          notifyParentVideoAction("move", { widgetId: w.id, x: w.x, y: w.y });
+        };
+
+        header.addEventListener("pointerup", stopDrag);
+        header.addEventListener("pointercancel", stopDrag);
+      }
+
+      function setupResizeHandleEvents(handle, w, node) {
+        const dir = handle.getAttribute("data-handle");
+        let isResizing = false;
+        let startClientX = 0;
+        let startClientY = 0;
+        let origX = 0;
+        let origY = 0;
+        let origW = 0;
+        let origH = 0;
+
+        handle.addEventListener("pointerdown", (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          isResizing = true;
+          startClientX = e.clientX;
+          startClientY = e.clientY;
+          origX = w.x;
+          origY = w.y;
+          origW = w.w;
+          origH = w.h;
+          handle.setPointerCapture(e.pointerId);
+          handle.classList.add("is-active-resizing");
+          node.classList.add("is-selected");
+        });
+
+        handle.addEventListener("pointermove", (e) => {
+          if (!isResizing) return;
+          e.preventDefault();
+          e.stopPropagation();
+          const dx = (e.clientX - startClientX) / zoom;
+          const dy = (e.clientY - startClientY) / zoom;
+
+          let newW = origW;
+          let newH = origH;
+          let newX = origX;
+          let newY = origY;
+
+          if (dir.includes("e")) newW = Math.max(240, origW + dx);
+          if (dir.includes("s")) newH = Math.max(135, origH + dy);
+          if (dir.includes("w")) {
+            newW = Math.max(240, origW - dx);
+            newX = origX + (origW - newW);
+          }
+          if (dir.includes("n")) {
+            newH = Math.max(135, origH - dy);
+            newY = origY + (origH - newH);
+          }
+
+          if (w.aspectRatioLocked !== false) {
+            if (dir === "se" || dir === "e") {
+              newH = Math.round(newW * 9 / 16);
+            } else if (dir === "s") {
+              newW = Math.round(newH * 16 / 9);
+            } else if (dir === "nw") {
+              newH = Math.round(newW * 9 / 16);
+              newY = origY + (origH - newH);
+            } else if (dir === "ne") {
+              newH = Math.round(newW * 9 / 16);
+              newY = origY + (origH - newH);
+            } else if (dir === "sw") {
+              newH = Math.round(newW * 9 / 16);
+            }
+          }
+
+          w.x = Math.round(newX);
+          w.y = Math.round(newY);
+          w.w = Math.round(newW);
+          w.h = Math.round(newH);
+          updateVideoWidgetElement(node, w);
+        });
+
+        const stopResize = (e) => {
+          if (!isResizing) return;
+          isResizing = false;
+          try { handle.releasePointerCapture(e.pointerId); } catch (_) {}
+          handle.classList.remove("is-active-resizing");
+          node.classList.remove("is-selected");
+          pushUndo();
+          notifyParentPageUpdate(currentPageIndex, true);
+          notifyParentVideoAction("resize", { widgetId: w.id, x: w.x, y: w.y, w: w.w, h: w.h });
+        };
+
+        handle.addEventListener("pointerup", stopResize);
+        handle.addEventListener("pointercancel", stopResize);
       }
 
       let _pageUpdateDebounceTimer = null;
@@ -7865,6 +9142,7 @@
         if (!hasShapesOrTexts && !hasWidgets) return;
         pushUndo();
         const page = pages[currentPageIndex];
+        const removedVideoWidgets = (selectedWidgets || []).filter((w) => w && w.type === "video");
         if (page) {
           if (page.shapes) page.shapes = page.shapes.filter((s) => !selectedShapes.includes(s));
           if (page.texts) page.texts = page.texts.filter((t) => !selectedTexts.includes(t));
@@ -7874,7 +9152,13 @@
         selectedTexts = [];
         selectedWidgets = [];
         updateBoardAppearance();
+        if (typeof renderBoardVideoWidgets === "function") renderBoardVideoWidgets();
+        if (typeof savePagesToStorage === "function") savePagesToStorage();
         notifyParentPageUpdate(currentPageIndex, true);
+        notifyParentFullPages();
+        removedVideoWidgets.forEach((w) => {
+          notifyParentVideoAction("remove", { widgetId: w.id });
+        });
         if (propertiesContent && currentTool === "select") handleToolSelection("select");
       }
 
@@ -9979,6 +11263,7 @@
         const page = pages[currentPageIndex];
         if (!page) return;
         pushUndo();
+        const removedVideos = (page.widgets || []).filter((w) => w && w.type === "video");
         page.strokes = [];
         page.shapes = [];
         page.texts = [];
@@ -9997,8 +11282,15 @@
         const container = boardCanvas?.closest(".canvas-container");
         if (container) container.scrollTop = 0;
         updateBoardAppearance();
+        if (typeof renderBoardVideoWidgets === "function") renderBoardVideoWidgets();
+        if (typeof savePagesToStorage === "function") savePagesToStorage();
         if (currentTool === "select" && propertiesContent) handleToolSelection("select");
         notifyParentClear();
+        notifyParentPageUpdate(currentPageIndex, true);
+        notifyParentFullPages();
+        removedVideos.forEach((w) => {
+          notifyParentVideoAction("remove", { widgetId: w.id });
+        });
       }
 
       function clearDrawingsOnly() {
@@ -10007,7 +11299,7 @@
         pushUndo();
         page.strokes = [];
         page.texts = [];
-        page.widgets = (page.widgets || []).filter((w) => w.type === "clock" || w.type === "timer" || w.type === "stopwatch");
+        page.widgets = (page.widgets || []).filter((w) => w.type === "clock" || w.type === "timer" || w.type === "stopwatch" || w.type === "video");
         if (page.shapes) {
           page.shapes = page.shapes.filter((s) => s.isPDFPage || s.isPPTPage);
         }
@@ -10037,8 +11329,26 @@
 
       document.getElementById("clearPageButton")?.addEventListener("click", () => {
         const page = pages[currentPageIndex];
-        const hasPDF = page && page.shapes && page.shapes.some((s) => s.isPDFPage || s.isPPTPage);
-        if (hasPDF) {
+        const hasPPT = page && page.shapes && page.shapes.some((s) => s.isPPTPage);
+        const hasPDFOnly = page && page.shapes && page.shapes.some((s) => s.isPDFPage && !s.isPPTPage);
+        const hasImportedDoc = page && page.shapes && page.shapes.some((s) => s.isPDFPage || s.isPPTPage);
+
+        if (hasImportedDoc) {
+          const clearPDFTextEl = document.getElementById("clearPDFConfirmText") || clearPDFConfirmEl?.querySelector(".clear-confirm__text");
+          if (hasPPT && !hasPDFOnly) {
+            if (clearPDFTextEl) clearPDFTextEl.textContent = "This page contains an imported PPT. What would you like to clear?";
+            if (clearEverythingBtn) clearEverythingBtn.textContent = "Clear Everything (Including PPT)";
+            if (clearDrawingsOnlyBtn) clearDrawingsOnlyBtn.textContent = "Clear Drawings Only (Keep PPT)";
+          } else if (hasPPT && hasPDFOnly) {
+            if (clearPDFTextEl) clearPDFTextEl.textContent = "This page contains imported PDF / PPT. What would you like to clear?";
+            if (clearEverythingBtn) clearEverythingBtn.textContent = "Clear Everything (Including PDF / PPT)";
+            if (clearDrawingsOnlyBtn) clearDrawingsOnlyBtn.textContent = "Clear Drawings Only (Keep PDF / PPT)";
+          } else {
+            if (clearPDFTextEl) clearPDFTextEl.textContent = "This page contains an imported PDF. What would you like to clear?";
+            if (clearEverythingBtn) clearEverythingBtn.textContent = "Clear everything (including PDF)";
+            if (clearDrawingsOnlyBtn) clearDrawingsOnlyBtn.textContent = "Clear drawings only (keep PDF)";
+          }
+
           if (clearPDFConfirmEl) {
             clearPDFConfirmEl.classList.add("is-visible");
             clearPDFConfirmEl.setAttribute("aria-hidden", "false");
@@ -10208,7 +11518,37 @@
 
       // Listen for broadcast requests or page switch commands from host app (postMessage or BroadcastChannel)
       function handleHostMessage(data) {
+        if (!data) return;
+        if (typeof data === "string") {
+          try {
+            data = JSON.parse(data);
+          } catch (_) {
+            return;
+          }
+        }
         if (!data || typeof data !== "object") return;
+
+        // YouTube iframe API postMessage listener for state changes
+        if (data.event === "onStateChange" || (data.info && typeof data.info.playerState !== "undefined") || data.event === "initialDelivery") {
+          const page = pages[currentPageIndex];
+          if (!page || !page.widgets) return;
+          const videoWidgets = page.widgets.filter((item) => item.type === "video" && item.videoType === "youtube");
+          const targetWidget = (data.id && videoWidgets.find((item) => item.id === data.id)) || videoWidgets[0];
+          if (!targetWidget) return;
+          targetWidget._handshakeAcked = true;
+
+          const curTime = typeof data.info === "object" && typeof data.info.currentTime === "number" ? data.info.currentTime : targetWidget.currentTime;
+          if (typeof curTime === "number") targetWidget.currentTime = curTime;
+
+          const state = data.event === "onStateChange" ? data.info : (data.info ? data.info.playerState : undefined);
+          if (typeof state !== "undefined") {
+            const widgetEl = document.querySelector(`.board-video-widget[data-widget-id="${targetWidget.id}"]`);
+            const playBtn = widgetEl?.querySelector(".video-play-sync-btn");
+            handleVideoStateChange(targetWidget, state, playBtn);
+          }
+          return;
+        }
+
         if (data.type === "REQUEST_ALL_PAGES") {
           notifyParentFullPages();
         } else if (data.type === "SWITCH_PAGE") {
