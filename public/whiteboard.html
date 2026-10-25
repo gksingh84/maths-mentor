@@ -9413,27 +9413,57 @@
           renderCanvas.width = Math.round(standardWidth * renderScale);
           renderCanvas.height = Math.round(slideHeight * renderScale);
 
+          const slideGap = 30;
+          const topPadding = 20;
+          const bottomPadding = 400;
+
           const slideLayouts = [];
+          let curY = topPadding;
 
           for (let i = 0; i < slideCount; i++) {
             slideLayouts.push({
               slideNum: i + 1,
+              x: 0,
+              y: curY,
               w: standardWidth,
               h: slideHeight
             });
+            curY += slideHeight + (i < slideCount - 1 ? slideGap : 0);
           }
 
-          const isFirstPageBlank = pages.length === 1 &&
-            pages[0].strokes.length === 0 &&
-            pages[0].shapes.length === 0 &&
-            pages[0].texts.length === 0 &&
-            pages[0].widgets.length === 0 &&
-            pages[0].background === null;
+          const totalCalculatedHeight = Math.max(curY + bottomPadding, 2400);
 
-          const startTargetIndex = isFirstPageBlank ? 0 : pages.length;
+          // Place all slides on a single whiteboard page with Infinite Page enabled
+          const currentPage = pages[currentPageIndex];
+          const isCurrentPageBlank = currentPage &&
+            currentPage.strokes.length === 0 &&
+            currentPage.shapes.length === 0 &&
+            currentPage.texts.length === 0 &&
+            (!currentPage.widgets || currentPage.widgets.length === 0) &&
+            currentPage.background === null;
+
+          const targetPageIndex = isCurrentPageBlank ? currentPageIndex : pages.length;
+
+          const targetPageObj = {
+            strokes: [],
+            shapes: [],
+            texts: [],
+            widgets: [],
+            width: standardWidth,
+            height: totalCalculatedHeight,
+            infiniteScroll: true,
+            boardType: currentBoardType,
+            background: null
+          };
+
+          if (targetPageIndex < pages.length) {
+            pages[targetPageIndex] = targetPageObj;
+          } else {
+            pages.push(targetPageObj);
+          }
 
           for (let i = 0; i < slideCount; i++) {
-            toast.textContent = `Rendering slide ${i + 1} of ${slideCount}...`;
+            toast.textContent = `Rendering slide ${i + 1} of ${slideCount} on Infinite Page...`;
             const layout = slideLayouts[i];
 
             const ctx = renderCanvas.getContext("2d");
@@ -9462,44 +9492,52 @@
 
             const dataUrl = renderCanvas.toDataURL("image/png");
 
-            const thisSlidePageObj = {
-              strokes: [],
-              shapes: [{
-                id: generateId(),
-                type: "image",
-                color: "#ffffff",
-                width: 1,
-                fillMode: "solid",
-                dataUrl,
-                start: { x: 0, y: 0 },
-                end: { x: layout.w, y: layout.h },
-                locked: true,
-                isPDFPage: true,
-                isPPTPage: true
-              }],
-              texts: [],
-              widgets: [],
-              width: standardWidth,
-              height: Math.max(layout.h, 800),
-              infiniteScroll: false,
-              boardType: currentBoardType,
-              background: null
-            };
-
-            const targetIndex = startTargetIndex + i;
-            if (targetIndex < pages.length) {
-              pages[targetIndex] = thisSlidePageObj;
-            } else {
-              pages.push(thisSlidePageObj);
-            }
+            targetPageObj.shapes.push({
+              id: generateId(),
+              type: "image",
+              color: "#ffffff",
+              width: 1,
+              fillMode: "solid",
+              dataUrl,
+              start: { x: layout.x, y: layout.y },
+              end: { x: layout.x + layout.w, y: layout.y + layout.h },
+              locked: true,
+              isPDFPage: true,
+              isPPTPage: true,
+              pptSlideNum: i + 1
+            });
           }
 
           toast.style.background = "#10b981";
-          toast.textContent = `PowerPoint (${slideCount} slide${slideCount > 1 ? "s" : ""}) imported successfully!`;
+          toast.textContent = `PowerPoint (${slideCount} slide${slideCount > 1 ? "s" : ""}) loaded on Infinite Page!`;
           setTimeout(() => toast.remove(), 2500);
 
+          localStorage.setItem("whiteboard_infinite_scroll", "true");
+          const targetPage = pages[targetPageIndex];
+          targetPage.infiniteScroll = true;
+          targetPage.height = totalCalculatedHeight;
+
           syncPageStrip();
-          selectPage(startTargetIndex);
+          selectPage(targetPageIndex);
+
+          if (typeof updateInfiniteToggleBtn === "function") {
+            updateInfiniteToggleBtn();
+          }
+          if (typeof infiniteScrollToggleEl !== "undefined" && infiniteScrollToggleEl) {
+            infiniteScrollToggleEl.checked = true;
+          }
+          if (typeof customHeightInputEl !== "undefined" && customHeightInputEl) {
+            customHeightInputEl.value = String(targetPage.height);
+          }
+
+          resizeCanvas();
+          updateBoardAppearance();
+
+          const container = boardCanvas?.closest(".canvas-container");
+          if (container) {
+            container.scrollTop = 0;
+          }
+
           notifyParentFullPages();
 
         } catch (err) {
@@ -9541,15 +9579,43 @@
 
         const standardWidth = 1000;
         const slideHeight = 562.5;
+        const slideGap = 30;
+        const topPadding = 20;
+        const bottomPadding = 400;
 
-        const isFirstPageBlank = pages.length === 1 &&
-          pages[0].strokes.length === 0 &&
-          pages[0].shapes.length === 0 &&
-          pages[0].texts.length === 0 &&
-          pages[0].widgets.length === 0 &&
-          pages[0].background === null;
+        const totalCalculatedHeight = Math.max(
+          topPadding + slideFiles.length * slideHeight + (slideFiles.length - 1) * slideGap + bottomPadding,
+          2400
+        );
 
-        const startTargetIndex = isFirstPageBlank ? 0 : pages.length;
+        // Place all slides on a single whiteboard page with Infinite Page enabled
+        const currentPage = pages[currentPageIndex];
+        const isCurrentPageBlank = currentPage &&
+          currentPage.strokes.length === 0 &&
+          currentPage.shapes.length === 0 &&
+          currentPage.texts.length === 0 &&
+          (!currentPage.widgets || currentPage.widgets.length === 0) &&
+          currentPage.background === null;
+
+        const targetPageIndex = isCurrentPageBlank ? currentPageIndex : pages.length;
+
+        const targetPageObj = {
+          strokes: [],
+          shapes: [],
+          texts: [],
+          widgets: [],
+          width: standardWidth,
+          height: totalCalculatedHeight,
+          infiniteScroll: true,
+          boardType: currentBoardType,
+          background: null
+        };
+
+        if (targetPageIndex < pages.length) {
+          pages[targetPageIndex] = targetPageObj;
+        } else {
+          pages.push(targetPageObj);
+        }
 
         const canvas = document.createElement("canvas");
         canvas.width = Math.round(standardWidth * 1.5);
@@ -9567,6 +9633,7 @@
         }
 
         for (let i = 0; i < slideFiles.length; i++) {
+          const layoutY = topPadding + i * (slideHeight + slideGap);
           const slidePath = slideFiles[i];
           const slideXmlStr = await zip.file(slidePath).async("string");
 
@@ -9651,44 +9718,52 @@
           });
 
           const dataUrl = canvas.toDataURL("image/png");
-          const thisSlidePageObj = {
-            strokes: [],
-            shapes: [{
-              id: generateId(),
-              type: "image",
-              color: "#ffffff",
-              width: 1,
-              fillMode: "solid",
-              dataUrl,
-              start: { x: 0, y: 0 },
-              end: { x: standardWidth, y: slideHeight },
-              locked: true,
-              isPDFPage: true,
-              isPPTPage: true
-            }],
-            texts: [],
-            widgets: [],
-            width: standardWidth,
-            height: Math.max(slideHeight, 800),
-            infiniteScroll: false,
-            boardType: currentBoardType,
-            background: null
-          };
-
-          const targetIndex = startTargetIndex + i;
-          if (targetIndex < pages.length) {
-            pages[targetIndex] = thisSlidePageObj;
-          } else {
-            pages.push(thisSlidePageObj);
-          }
+          targetPageObj.shapes.push({
+            id: generateId(),
+            type: "image",
+            color: "#ffffff",
+            width: 1,
+            fillMode: "solid",
+            dataUrl,
+            start: { x: 0, y: layoutY },
+            end: { x: standardWidth, y: layoutY + slideHeight },
+            locked: true,
+            isPDFPage: true,
+            isPPTPage: true,
+            pptSlideNum: i + 1
+          });
         }
 
         toast.style.background = "#10b981";
-        toast.textContent = `PowerPoint (${slideFiles.length} slide${slideFiles.length > 1 ? "s" : ""}) imported successfully!`;
+        toast.textContent = `PowerPoint (${slideFiles.length} slide${slideFiles.length > 1 ? "s" : ""}) loaded on Infinite Page!`;
         setTimeout(() => toast.remove(), 2500);
 
+        localStorage.setItem("whiteboard_infinite_scroll", "true");
+        const targetPage = pages[targetPageIndex];
+        targetPage.infiniteScroll = true;
+        targetPage.height = totalCalculatedHeight;
+
         syncPageStrip();
-        selectPage(startTargetIndex);
+        selectPage(targetPageIndex);
+
+        if (typeof updateInfiniteToggleBtn === "function") {
+          updateInfiniteToggleBtn();
+        }
+        if (typeof infiniteScrollToggleEl !== "undefined" && infiniteScrollToggleEl) {
+          infiniteScrollToggleEl.checked = true;
+        }
+        if (typeof customHeightInputEl !== "undefined" && customHeightInputEl) {
+          customHeightInputEl.value = String(targetPage.height);
+        }
+
+        resizeCanvas();
+        updateBoardAppearance();
+
+        const container = boardCanvas?.closest(".canvas-container");
+        if (container) {
+          container.scrollTop = 0;
+        }
+
         notifyParentFullPages();
         return true;
       }
