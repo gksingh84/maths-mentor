@@ -9179,39 +9179,94 @@
 
           function startRendering() {
             const standardWidth = 1000;
-            const pageLayouts = [];
+            const pageGap = 30;
+            const topPadding = 20;
+            const bottomPadding = 400;
 
-            pageInfos.forEach((info) => {
+            const pageLayouts = [];
+            let curY = topPadding;
+
+            pageInfos.forEach((info, idx) => {
               const h = Math.round(standardWidth / (info.aspect || (1000 / 1414)));
               pageLayouts.push({
                 pageNum: info.pageNum,
+                x: 0,
+                y: curY,
                 w: standardWidth,
                 h: h
               });
+              curY += h + (idx < pageInfos.length - 1 ? pageGap : 0);
             });
 
-            const isFirstPageBlank = pages.length === 1 &&
-              pages[0].strokes.length === 0 &&
-              pages[0].shapes.length === 0 &&
-              pages[0].texts.length === 0 &&
-              pages[0].widgets.length === 0 &&
-              pages[0].background === null;
+            const totalCalculatedHeight = Math.max(curY + bottomPadding, 2400);
 
-            const startTargetIndex = isFirstPageBlank ? 0 : pages.length;
+            // Place all PDF pages on a single whiteboard page with Infinite Page enabled
+            const currentPage = pages[currentPageIndex];
+            const isCurrentPageBlank = currentPage &&
+              currentPage.strokes.length === 0 &&
+              currentPage.shapes.length === 0 &&
+              currentPage.texts.length === 0 &&
+              (!currentPage.widgets || currentPage.widgets.length === 0) &&
+              currentPage.background === null;
 
-            toast.textContent = `Rendering page 1 of ${numPages}...`;
+            const targetPageIndex = isCurrentPageBlank ? currentPageIndex : pages.length;
+
+            const targetPageObj = {
+              strokes: [],
+              shapes: [],
+              texts: [],
+              widgets: [],
+              width: standardWidth,
+              height: totalCalculatedHeight,
+              infiniteScroll: true,
+              boardType: currentBoardType,
+              background: null
+            };
+
+            if (targetPageIndex < pages.length) {
+              pages[targetPageIndex] = targetPageObj;
+            } else {
+              pages.push(targetPageObj);
+            }
+
+            toast.textContent = `Rendering page 1 of ${numPages} on Infinite Page...`;
 
             const renderNextPage = (pageNum) => {
               if (pageNum > numPages) {
-                toast.textContent = `PDF (${numPages} page${numPages > 1 ? "s" : ""}) imported successfully!`;
-                setTimeout(() => toast.remove(), 2000);
+                toast.textContent = `PDF (${numPages} page${numPages > 1 ? "s" : ""}) loaded on Infinite Page!`;
+                setTimeout(() => toast.remove(), 2500);
+
+                localStorage.setItem("whiteboard_infinite_scroll", "true");
+                const targetPage = pages[targetPageIndex];
+                targetPage.infiniteScroll = true;
+                targetPage.height = totalCalculatedHeight;
+
                 syncPageStrip();
-                selectPage(startTargetIndex);
+                selectPage(targetPageIndex);
+
+                if (typeof updateInfiniteToggleBtn === "function") {
+                  updateInfiniteToggleBtn();
+                }
+                if (typeof infiniteScrollToggleEl !== "undefined" && infiniteScrollToggleEl) {
+                  infiniteScrollToggleEl.checked = true;
+                }
+                if (typeof customHeightInputEl !== "undefined" && customHeightInputEl) {
+                  customHeightInputEl.value = String(targetPage.height);
+                }
+
+                resizeCanvas();
+                updateBoardAppearance();
+
+                const container = boardCanvas?.closest(".canvas-container");
+                if (container) {
+                  container.scrollTop = 0;
+                }
+
                 notifyParentFullPages();
                 return;
               }
 
-              const layout = pageLayouts[pageNum - 1] || { w: standardWidth, h: 1414 };
+              const layout = pageLayouts[pageNum - 1] || { x: 0, y: 0, w: standardWidth, h: 1414 };
 
               pdf.getPage(pageNum).then((page) => {
                 const scale = 2.0;
@@ -9230,38 +9285,22 @@
 
                 page.render(renderContext).promise.then(() => {
                   const dataUrl = canvas.toDataURL("image/png");
-                  const thisPageObj = {
-                    strokes: [],
-                    shapes: [{
-                      id: generateId(),
-                      type: "image",
-                      color: "#ffffff",
-                      width: 1,
-                      fillMode: "solid",
-                      dataUrl,
-                      start: { x: 0, y: 0 },
-                      end: { x: layout.w, y: layout.h },
-                      locked: true,
-                      isPDFPage: true
-                    }],
-                    texts: [],
-                    widgets: [],
-                    width: standardWidth,
-                    height: Math.max(layout.h, 800),
-                    infiniteScroll: false,
-                    boardType: currentBoardType,
-                    background: null
-                  };
-
-                  const targetPageIndex = startTargetIndex + (pageNum - 1);
-                  if (targetPageIndex < pages.length) {
-                    pages[targetPageIndex] = thisPageObj;
-                  } else {
-                    pages.push(thisPageObj);
-                  }
+                  targetPageObj.shapes.push({
+                    id: generateId(),
+                    type: "image",
+                    color: "#ffffff",
+                    width: 1,
+                    fillMode: "solid",
+                    dataUrl,
+                    start: { x: layout.x, y: layout.y },
+                    end: { x: layout.x + layout.w, y: layout.y + layout.h },
+                    locked: true,
+                    isPDFPage: true,
+                    pdfPageNum: pageNum
+                  });
 
                   if (pageNum < numPages) {
-                    toast.textContent = `Rendering page ${pageNum + 1} of ${numPages}...`;
+                    toast.textContent = `Rendering page ${pageNum + 1} of ${numPages} on Infinite Page...`;
                   }
                   renderNextPage(pageNum + 1);
                 }).catch((renderErr) => {
