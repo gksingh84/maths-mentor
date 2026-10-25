@@ -2330,14 +2330,11 @@ function TeacherWhiteboard({
 
             <button
               type="button"
-              className="button button-secondary whiteboard-action-btn"
-              onClick={() => {
-                setIframeKey((k) => k + 1);
-                setNotice('Whiteboard canvas reloaded.');
-              }}
-              title="Reload the whiteboard canvas"
+              className="button button-primary whiteboard-action-btn"
+              onClick={openInNewWindow}
+              title="Open whiteboard in an independent window (great for placing adjacent to another app, question paper, or Zoom screen share)"
             >
-              <RotateCcw size={14} /> Reload
+              <AppWindow size={14} /> New Window
             </button>
             <button
               type="button"
@@ -2349,11 +2346,14 @@ function TeacherWhiteboard({
             </button>
             <button
               type="button"
-              className="button button-primary whiteboard-action-btn"
-              onClick={openInNewWindow}
-              title="Open whiteboard in an independent window (great for placing adjacent to another app, question paper, or Zoom screen share)"
+              className="button button-secondary whiteboard-action-btn"
+              onClick={() => {
+                setIframeKey((k) => k + 1);
+                setNotice('Whiteboard canvas reloaded.');
+              }}
+              title="Reload the whiteboard canvas"
             >
-              <AppWindow size={14} /> New Window
+              <RotateCcw size={14} /> Reload
             </button>
           </div>
         </div>
@@ -2408,17 +2408,6 @@ function TeacherWhiteboard({
               type="button"
               className="button button-secondary"
               style={{ background: '#1e293b', color: '#fff', borderColor: '#334155', minHeight: '32px', padding: '4px 12px' }}
-              onClick={() => {
-                setIframeKey((k) => k + 1);
-                setNotice('Canvas reloaded.');
-              }}
-            >
-              <RotateCcw size={13} /> Reset
-            </button>
-            <button
-              type="button"
-              className="button button-secondary"
-              style={{ background: '#1e293b', color: '#fff', borderColor: '#334155', minHeight: '32px', padding: '4px 12px' }}
               onClick={openInNewWindow}
               title="Open whiteboard in a standalone window adjacent to other apps"
             >
@@ -2431,6 +2420,17 @@ function TeacherWhiteboard({
               onClick={() => setIsFullscreen(false)}
             >
               <Minimize2 size={13} /> Exit Fullscreen
+            </button>
+            <button
+              type="button"
+              className="button button-secondary"
+              style={{ background: '#1e293b', color: '#fff', borderColor: '#334155', minHeight: '32px', padding: '4px 12px' }}
+              onClick={() => {
+                setIframeKey((k) => k + 1);
+                setNotice('Canvas reloaded.');
+              }}
+            >
+              <RotateCcw size={13} /> Reset
             </button>
           </div>
         </div>

@@ -14,6 +14,14 @@
   <script src="vendor/chart.umd.min.js"></script>
   <script>window.Chart = window.Chart || function () { };</script>
   <script src="vendor/pptxviewjs.min.js"></script>
+  <script src="vendor/pdf.min.js"></script>
+  <script>
+    if (typeof pdfjsLib !== 'undefined') {
+      try {
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'vendor/pdf.worker.min.js';
+      } catch (_) {}
+    }
+  </script>
   <style>
     *,
     *::before,
@@ -83,7 +91,10 @@
       gap: 0.28rem;
       z-index: 100;
       position: relative;
-      overflow: visible !important;
+      overflow-x: auto;
+      overflow-y: visible;
+      scrollbar-width: none;
+      -webkit-overflow-scrolling: touch;
     }
 
     .top-bar::-webkit-scrollbar {
@@ -1050,6 +1061,18 @@
       }
     }
 
+    @media (max-width: 1200px) {
+      .top-bar {
+        padding: 0.28rem 0.45rem;
+        gap: 0.22rem;
+      }
+
+      .top-bar__button {
+        padding: 0.25rem 0.42rem;
+        font-size: 0.72rem;
+      }
+    }
+
     @media (max-width: 768px) {
       .top-bar {
         padding-inline: 0.5rem;
@@ -1108,6 +1131,13 @@
           style="padding:2px 7px;color:#16a34a;font-weight:700;border-color:#86efac;background:#f0fdf4;font-size:0.75rem;">+
           Page</button>
       </div>
+      <button class="top-bar__button" id="newWindowButton"
+        title="Open whiteboard in an independent window adjacent to other apps">
+        New window
+      </button>
+      <button class="top-bar__button" id="fullScreenButton" title="Enter full screen">
+        Full screen
+      </button>
       <div class="top-bar__spacer"></div>
       <button class="top-bar__button" id="clearPageButton" title="Clear everything on this page">
         Clear page
@@ -1168,13 +1198,6 @@
       </button>
       <button class="top-bar__button" id="settingsButton" title="Settings">
         Settings
-      </button>
-      <button class="top-bar__button" id="newWindowButton"
-        title="Open whiteboard in an independent window adjacent to other apps">
-        New window
-      </button>
-      <button class="top-bar__button" id="fullScreenButton" title="Enter full screen">
-        Full screen
       </button>
     </header>
     <div id="clearPageConfirm" class="clear-confirm" aria-hidden="true">
@@ -8989,6 +9012,8 @@
       }
 
       function loadPDFFile(file) {
+        if (!file) return;
+
         const loadingToast = document.createElement("div");
         loadingToast.style.cssText = [
           "position: fixed",
@@ -9007,22 +9032,53 @@
         loadingToast.textContent = "Loading PDF...";
         document.body.appendChild(loadingToast);
 
+        const showError = (msg) => {
+          loadingToast.style.background = "#ef4444";
+          loadingToast.textContent = msg || "Error loading PDF.";
+          setTimeout(() => loadingToast.remove(), 4000);
+        };
+
         const reader = new FileReader();
+        reader.onerror = () => {
+          showError("Could not read the PDF file.");
+        };
         reader.onload = function (e) {
           const arrayBuffer = e.target.result;
-          if (typeof pdfjsLib !== "undefined") {
+
+          function proceedWithRender() {
+            if (typeof pdfjsLib === "undefined") {
+              showError("PDF library failed to load.");
+              return;
+            }
+            try {
+              if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
+                pdfjsLib.GlobalWorkerOptions.workerSrc = "vendor/pdf.worker.min.js";
+              }
+            } catch (_) {}
             renderPDFPages(arrayBuffer, loadingToast);
+          }
+
+          if (typeof pdfjsLib !== "undefined") {
+            proceedWithRender();
           } else {
             const script = document.createElement("script");
-            script.src = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js";
+            script.src = "vendor/pdf.min.js";
             script.onload = () => {
-              pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js";
-              renderPDFPages(arrayBuffer, loadingToast);
+              proceedWithRender();
             };
             script.onerror = () => {
-              loadingToast.style.background = "#ef4444";
-              loadingToast.textContent = "Error loading PDF library.";
-              setTimeout(() => loadingToast.remove(), 3000);
+              const cdnScript = document.createElement("script");
+              cdnScript.src = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js";
+              cdnScript.onload = () => {
+                try {
+                  pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js";
+                } catch (_) {}
+                proceedWithRender();
+              };
+              cdnScript.onerror = () => {
+                showError("Error loading PDF engine.");
+              };
+              document.head.appendChild(cdnScript);
             };
             document.head.appendChild(script);
           }
@@ -9031,10 +9087,35 @@
       }
 
       function renderPDFPages(arrayBuffer, toast) {
-        pdfjsLib.getDocument({ data: arrayBuffer }).promise.then((pdf) => {
+        const showError = (msg) => {
+          if (!toast) return;
+          toast.style.background = "#ef4444";
+          toast.textContent = msg || "Error processing PDF.";
+          setTimeout(() => toast.remove(), 4000);
+        };
+
+        let loadingTask;
+        try {
+          loadingTask = pdfjsLib.getDocument({
+            data: arrayBuffer,
+            cMapUrl: "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/cmaps/",
+            cMapPacked: true,
+            standardFontDataUrl: "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/standard_fonts/"
+          });
+        } catch (err) {
+          console.error("Error creating PDF loading task:", err);
+          showError("Error reading PDF document data.");
+          return;
+        }
+
+        loadingTask.promise.then((pdf) => {
           const numPages = pdf.numPages;
-          let loadedPagesCount = 0;
-          toast.textContent = `Preparing layout for ${numPages} pages...`;
+          if (!numPages || numPages <= 0) {
+            showError("The PDF document contains no pages.");
+            return;
+          }
+
+          toast.textContent = `Preparing layout for ${numPages} page${numPages > 1 ? "s" : ""}...`;
 
           const pageInfos = [];
           const fetchPageDimensions = (pageNum) => {
@@ -9043,12 +9124,31 @@
               return;
             }
             pdf.getPage(pageNum).then((page) => {
-              const viewport = page.getViewport({ scale: 1 });
+              try {
+                const viewport = page.getViewport({ scale: 1 });
+                pageInfos.push({
+                  pageNum,
+                  w: viewport.width,
+                  h: viewport.height,
+                  aspect: viewport.width / viewport.height
+                });
+              } catch (e) {
+                console.warn(`Error getting viewport for page ${pageNum}:`, e);
+                pageInfos.push({
+                  pageNum,
+                  w: 1000,
+                  h: 1414,
+                  aspect: 1000 / 1414
+                });
+              }
+              fetchPageDimensions(pageNum + 1);
+            }).catch((err) => {
+              console.warn(`Error reading page ${pageNum}, using fallback:`, err);
               pageInfos.push({
                 pageNum,
-                w: viewport.width,
-                h: viewport.height,
-                aspect: viewport.width / viewport.height
+                w: 1000,
+                h: 1414,
+                aspect: 1000 / 1414
               });
               fetchPageDimensions(pageNum + 1);
             });
@@ -9061,7 +9161,7 @@
             const pageLayouts = [];
 
             pageInfos.forEach((info) => {
-              const h = Math.round(standardWidth / info.aspect);
+              const h = Math.round(standardWidth / (info.aspect || (1000 / 1414)));
               pageLayouts.push({
                 pageNum: info.pageNum,
                 w: standardWidth,
@@ -9090,11 +9190,13 @@
                 return;
               }
 
-              const layout = pageLayouts[pageNum - 1];
+              const layout = pageLayouts[pageNum - 1] || { w: standardWidth, h: 1414 };
 
               pdf.getPage(pageNum).then((page) => {
                 const scale = 2.0;
-                const viewport = page.getViewport({ scale: (standardWidth * scale) / page.getViewport({ scale: 1 }).width });
+                const naturalViewport = page.getViewport({ scale: 1 });
+                const targetScale = (standardWidth * scale) / (naturalViewport.width || standardWidth);
+                const viewport = page.getViewport({ scale: targetScale });
                 const canvas = document.createElement("canvas");
                 canvas.width = viewport.width;
                 canvas.height = viewport.height;
@@ -9137,9 +9239,17 @@
                     pages.push(thisPageObj);
                   }
 
-                  toast.textContent = `Rendering page ${pageNum + 1} of ${numPages}...`;
+                  if (pageNum < numPages) {
+                    toast.textContent = `Rendering page ${pageNum + 1} of ${numPages}...`;
+                  }
+                  renderNextPage(pageNum + 1);
+                }).catch((renderErr) => {
+                  console.error(`Error rendering page ${pageNum}:`, renderErr);
                   renderNextPage(pageNum + 1);
                 });
+              }).catch((pageErr) => {
+                console.error(`Error loading page ${pageNum}:`, pageErr);
+                renderNextPage(pageNum + 1);
               });
             };
 
@@ -9147,10 +9257,8 @@
           }
 
         }).catch((err) => {
-          console.error(err);
-          toast.style.background = "#ef4444";
-          toast.textContent = "Error parsing PDF file.";
-          setTimeout(() => toast.remove(), 3000);
+          console.error("PDF Parsing Error:", err);
+          showError("Error parsing PDF file: " + (err.message || "Invalid or protected PDF"));
         });
       }
 

@@ -8031,6 +8031,40 @@ button:disabled {
   gap: 8px;
 }
 
+@media (max-width: 1024px) {
+  .whiteboard-fullscreen-bar {
+    padding: 0 10px;
+    gap: 8px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .whiteboard-fullscreen-bar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .whiteboard-fullscreen-brand {
+    font-size: 13px;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+
+  .whiteboard-fullscreen-brand .badge {
+    display: none;
+  }
+
+  .whiteboard-fullscreen-controls {
+    gap: 6px;
+    flex-shrink: 0;
+  }
+
+  .whiteboard-fullscreen-controls .button {
+    padding: 3px 8px !important;
+    font-size: 12px !important;
+  }
+}
+
 .whiteboard-iframe {
   width: 100%;
   height: 100%;

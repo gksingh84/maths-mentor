@@ -138,8 +138,19 @@ const authenticate = (allowedRoles?: Role | Role[]) => async (req: AuthRequest, 
       const cached = teacherActiveCache.get(payload.id);
       let isActive = cached && (Date.now() - cached.time < 60000) ? cached.active : null;
       if (isActive === null) {
-        const teacher = await db.teacher.findUnique({ where: { id: payload.id }, select: { active: true } });
-        isActive = Boolean(teacher?.active);
+        let teacher = await db.teacher.findUnique({ where: { id: payload.id }, select: { id: true, active: true } });
+        if (!teacher && payload.email) {
+          teacher = await db.teacher.findUnique({ where: { email: payload.email.toLowerCase() }, select: { id: true, active: true } });
+          if (teacher) {
+            req.session.id = teacher.id;
+          }
+        }
+        if (!teacher) {
+          const admin = await prisma.admin.findUnique({ where: { id: payload.id }, select: { id: true } });
+          isActive = Boolean(admin);
+        } else {
+          isActive = Boolean(teacher.active);
+        }
         teacherActiveCache.set(payload.id, { time: Date.now(), active: isActive });
       }
       if (!isActive) return res.status(403).json({ error: 'This teacher account is pending activation by the Administrator.' });
@@ -848,14 +859,33 @@ app.post('/api/auth/teacher/signup', async (req: Request, res: Response) => {
 app.post('/api/auth/teacher/login', async (req: Request, res: Response) => {
   try {
     const data = parse(z.object({ email: z.string().email(), password: z.string().min(1).max(200) }), req.body);
-    const teacher = await db.teacher.findUnique({ where: { email: data.email.toLowerCase() } });
-    if (!teacher || !(await bcrypt.compare(data.password, teacher.passwordHash))) {
+    const normalizedEmail = data.email.toLowerCase();
+    let teacher = await db.teacher.findUnique({ where: { email: normalizedEmail } });
+    let passwordMatches = teacher ? await bcrypt.compare(data.password, teacher.passwordHash) : false;
+
+    // Check legacy Admin table fallback if teacher password doesn't match or teacher not found
+    if (!passwordMatches) {
+      const admin = await prisma.admin.findUnique({ where: { email: normalizedEmail } });
+      if (admin && (await bcrypt.compare(data.password, admin.passwordHash))) {
+        passwordMatches = true;
+        const newHash = await bcrypt.hash(data.password, 12);
+        if (teacher) {
+          teacher = await db.teacher.update({ where: { id: teacher.id }, data: { passwordHash: newHash, active: true } });
+        } else {
+          teacher = await db.teacher.create({
+            data: { name: 'Teacher', email: normalizedEmail, passwordHash: newHash, school: 'EduAshram Central', subject: 'Mathematics', active: true }
+          });
+        }
+      }
+    }
+
+    if (!teacher || !passwordMatches) {
       return res.status(401).json({ error: 'Email or password is incorrect.' });
     }
 
     if (!teacher.active) {
       return res.status(403).json({
-        error: 'Your teacher account is pending activation by the EduAshram Administrator. Please contact the administrator to activate your access.',
+        error: 'This teacher account is pending activation by the Administrator.',
       });
     }
 
@@ -969,22 +999,37 @@ app.post('/api/auth/teacher/reset-password', async (req: Request, res: Response)
 app.post('/api/auth/admin', async (req: Request, res: Response) => {
   try {
     const data = parse(z.object({ email: z.string().email(), password: z.string().min(1).max(200) }), req.body);
+    const normalizedEmail = data.email.toLowerCase();
 
     // Check Teacher account first
-    const teacher = await db.teacher.findUnique({ where: { email: data.email.toLowerCase() } });
+    let teacher = await db.teacher.findUnique({ where: { email: normalizedEmail } });
     if (teacher && (await bcrypt.compare(data.password, teacher.passwordHash))) {
       if (!teacher.active) {
-        return res.status(403).json({ error: 'Your teacher account is pending activation by the EduAshram Administrator.' });
+        return res.status(403).json({ error: 'This teacher account is pending activation by the Administrator.' });
       }
       sendSession(res, { id: teacher.id, role: 'teacher', email: teacher.email, name: teacher.name });
       return res.json({ user: { id: teacher.id, role: 'teacher', email: teacher.email, name: teacher.name, school: teacher.school } });
     }
 
     // Check legacy Admin table
-    const admin = await prisma.admin.findUnique({ where: { email: data.email.toLowerCase() } });
+    const admin = await prisma.admin.findUnique({ where: { email: normalizedEmail } });
     if (!admin || !(await bcrypt.compare(data.password, admin.passwordHash))) return res.status(401).json({ error: 'Email or password is incorrect.' });
-    sendSession(res, { id: admin.id, role: 'teacher', email: admin.email });
-    res.json({ user: { role: 'teacher', email: admin.email } });
+
+    // Link to Teacher record if one exists with this email so all quizzes and students load properly
+    const linkedTeacher = teacher || await db.teacher.findUnique({ where: { email: normalizedEmail } });
+    const sessionTeacherId = linkedTeacher ? linkedTeacher.id : admin.id;
+    const teacherName = linkedTeacher?.name || 'Teacher';
+
+    if (linkedTeacher) {
+      if (!linkedTeacher.active) {
+        return res.status(403).json({ error: 'This teacher account is pending activation by the Administrator.' });
+      }
+      const newHash = await bcrypt.hash(data.password, 12);
+      await db.teacher.update({ where: { id: linkedTeacher.id }, data: { passwordHash: newHash, active: true } }).catch(() => {});
+    }
+
+    sendSession(res, { id: sessionTeacherId, role: 'teacher', email: admin.email, name: teacherName });
+    res.json({ user: { id: sessionTeacherId, role: 'teacher', email: admin.email, name: teacherName, school: linkedTeacher?.school } });
   } catch (error) { errorResponse(res, error); }
 });
 
@@ -1042,10 +1087,16 @@ app.get('/api/auth/me', authenticate(), async (req: AuthRequest, res: Response) 
   }
 
   if (req.session?.role === 'teacher' || req.session?.role === 'admin') {
-    const teacher = await db.teacher.findUnique({
+    let teacher = await db.teacher.findUnique({
       where: { id: req.session.id },
       select: { id: true, name: true, email: true, school: true, subject: true, active: true, apiKey: true }
     });
+    if (!teacher && req.session.email) {
+      teacher = await db.teacher.findUnique({
+        where: { email: req.session.email.toLowerCase() },
+        select: { id: true, name: true, email: true, school: true, subject: true, active: true, apiKey: true }
+      });
+    }
     if (teacher) {
       if (!teacher.active) return res.status(403).json({ error: 'This teacher account is pending activation by the Administrator.' });
       return res.json({
@@ -6898,8 +6949,13 @@ async function startServer() {
     const teacherPasswordHash = await bcrypt.hash(password, 12);
     await db.teacher.upsert({
       where: { email },
-      update: { name: 'Gaurav Kumar Singh', active: true },
+      update: { name: 'Gaurav Kumar Singh', active: true, passwordHash: teacherPasswordHash },
       create: { name: 'Gaurav Kumar Singh', email, passwordHash: teacherPasswordHash, school: 'EduAshram Central', subject: 'Mathematics', active: true },
+    });
+    await prisma.admin.upsert({
+      where: { email },
+      update: { passwordHash: teacherPasswordHash },
+      create: { email, passwordHash: teacherPasswordHash },
     });
     console.log('✅ Super Admin & First Teacher account verified.');
   } catch (err) {
