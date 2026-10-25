@@ -12,6 +12,7 @@ import { existsSync, mkdirSync, writeFileSync, readFileSync, unlinkSync } from '
 import { Prisma, PrismaClient, type QuizMode } from '@prisma/client';
 import { Server } from 'socket.io';
 import { z } from 'zod';
+import nodemailer from 'nodemailer';
 
 const prisma = new PrismaClient();
 const db: any = prisma;
@@ -640,6 +641,116 @@ async function publishQuizState(quizId: string) {
   io.to(`teachers:${quizId}`).emit('quiz:stats', stats);
   io.to('students:lobby').emit('quiz:lobby_updated');
 }
+ 
+// Gmail SMTP Password Reset Email Sender
+async function sendPasswordResetEmail(toEmail: string, teacherName: string, resetUrl: string): Promise<boolean> {
+  const gmailUser = process.env.GMAIL_USER;
+  const gmailPass = process.env.GMAIL_APP_PASSWORD;
+
+  console.log(`[PASSWORD RESET] Recipient: ${teacherName} (${toEmail})`);
+  console.log(`[PASSWORD RESET] Reset URL: ${resetUrl}`);
+
+  if (!gmailUser || !gmailPass) {
+    console.warn('[PASSWORD RESET] GMAIL_USER or GMAIL_APP_PASSWORD is not configured in .env. Falling back to console output.');
+    return false;
+  }
+
+  try {
+    const transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: gmailUser,
+        pass: gmailPass,
+      },
+    });
+
+    const mailOptions = {
+      from: `"EduAshram Support" <${gmailUser}>`,
+      to: toEmail,
+      subject: 'EduAshram • Password Reset Request',
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Reset Your EduAshram Password</title>
+        </head>
+        <body style="margin: 0; padding: 0; background-color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1e293b;">
+          <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f8fafc; padding: 40px 16px;">
+            <tr>
+              <td align="center">
+                <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 540px; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.06); border: 1px solid #e2e8f0;">
+                  <!-- Header -->
+                  <tr>
+                    <td style="background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); padding: 32px 36px; text-align: left;">
+                      <h1 style="margin: 0; font-size: 24px; font-weight: 800; color: #ffffff; letter-spacing: -0.5px;">EduAshram</h1>
+                      <p style="margin: 6px 0 0; font-size: 13.5px; color: #e0e7ff; font-weight: 500;">Educator Classroom &amp; Assessment Platform</p>
+                    </td>
+                  </tr>
+
+                  <!-- Content -->
+                  <tr>
+                    <td style="padding: 36px 36px 28px;">
+                      <h2 style="margin: 0 0 14px; font-size: 20px; font-weight: 700; color: #0f172a;">Password Reset Request</h2>
+                      <p style="margin: 0 0 16px; font-size: 15px; line-height: 1.6; color: #475569;">
+                        Hello <strong>${teacherName || 'Educator'}</strong>,
+                      </p>
+                      <p style="margin: 0 0 24px; font-size: 15px; line-height: 1.6; color: #475569;">
+                        We received a request to reset your password for your EduAshram teacher account. Click the button below to choose your new password:
+                      </p>
+
+                      <!-- CTA Button -->
+                      <table width="100%" cellpadding="0" cellspacing="0" style="margin: 28px 0;">
+                        <tr>
+                          <td align="center">
+                            <a href="${resetUrl}" target="_blank" style="display: inline-block; padding: 14px 34px; background: #4f46e5; color: #ffffff; text-decoration: none; border-radius: 10px; font-weight: 700; font-size: 15px; box-shadow: 0 4px 14px rgba(79, 70, 229, 0.35);">
+                              Reset Password &rarr;
+                            </a>
+                          </td>
+                        </tr>
+                      </table>
+
+                      <p style="margin: 24px 0 10px; font-size: 13px; line-height: 1.5; color: #64748b;">
+                        If the button doesn't work, copy and paste this link into your web browser:
+                      </p>
+                      <div style="background-color: #f1f5f9; padding: 12px 14px; border-radius: 8px; word-break: break-all; font-family: monospace; font-size: 12px; color: #334155; border: 1px solid #cbd5e1;">
+                        ${resetUrl}
+                      </div>
+
+                      <div style="margin-top: 28px; padding-top: 20px; border-top: 1px solid #f1f5f9;">
+                        <p style="margin: 0; font-size: 12.5px; line-height: 1.5; color: #94a3b8;">
+                          <strong>Security Notice:</strong> This reset link will expire in <strong>30 minutes</strong>. If you did not request this, please ignore this email; your account and existing password remain safe.
+                        </p>
+                      </div>
+                    </td>
+                  </tr>
+
+                  <!-- Footer -->
+                  <tr>
+                    <td style="background-color: #f8fafc; padding: 20px 36px; border-top: 1px solid #e2e8f0; text-align: center;">
+                      <p style="margin: 0; font-size: 12px; color: #94a3b8;">
+                        &copy; ${new Date().getFullYear()} EduAshram Learning Platform. All rights reserved.
+                      </p>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+          </table>
+        </body>
+        </html>
+      `,
+    };
+
+    await transporter.sendMail(mailOptions);
+    console.log(`[PASSWORD RESET] Email successfully delivered to ${toEmail}`);
+    return true;
+  } catch (err) {
+    console.error(`[PASSWORD RESET] Failed to send email via Gmail SMTP:`, err);
+    return false;
+  }
+}
 
 // Super Admin Auth Endpoint (Username/Email + Password + Secret Key)
 app.post('/api/auth/superadmin', async (req: Request, res: Response) => {
@@ -762,6 +873,96 @@ app.post('/api/auth/teacher/login', async (req: Request, res: Response) => {
       }
     });
   } catch (error) { errorResponse(res, error); }
+});
+
+// Teacher Forgot Password (Generates 30-min token and sends via Gmail SMTP)
+app.post('/api/auth/teacher/forgot-password', async (req: Request, res: Response) => {
+  try {
+    const { email } = parse(z.object({ email: z.string().trim().email() }), req.body);
+    const normalizedEmail = email.toLowerCase();
+
+    const standardMessage = 'If an educator account exists with this email address, a password reset link has been dispatched to your inbox.';
+
+    const teacher = await db.teacher.findUnique({ where: { email: normalizedEmail } });
+    if (!teacher) {
+      // Security: Do not reveal if email exists or not
+      return res.json({ ok: true, message: standardMessage });
+    }
+
+    const resetToken = randomBytes(32).toString('hex');
+    const resetExpires = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes validity
+
+    await db.teacher.update({
+      where: { id: teacher.id },
+      data: {
+        resetPasswordToken: resetToken,
+        resetPasswordExpires: resetExpires,
+      },
+    });
+
+    const protocol = (req.headers['x-forwarded-proto'] as string) || req.protocol || 'http';
+    const host = req.get('host');
+    const baseUrl = process.env.CLIENT_URL || req.headers.origin || `${protocol}://${host}`;
+    const resetUrl = `${baseUrl}/?resetToken=${resetToken}`;
+
+    const emailSent = await sendPasswordResetEmail(teacher.email, teacher.name, resetUrl);
+
+    return res.json({
+      ok: true,
+      message: standardMessage,
+      emailSent,
+      // Provide devResetUrl when GMAIL_USER is not configured in .env for immediate local testing
+      devResetUrl: !process.env.GMAIL_USER ? resetUrl : undefined,
+    });
+  } catch (error) {
+    errorResponse(res, error);
+  }
+});
+
+// Teacher Reset Password (Verifies token and updates password)
+app.post('/api/auth/teacher/reset-password', async (req: Request, res: Response) => {
+  try {
+    const data = parse(
+      z.object({
+        token: z.string().trim().min(10, 'Reset token is required'),
+        password: z.string().min(6, 'Password must be at least 6 characters long').max(200),
+      }),
+      req.body
+    );
+
+    const teacher = await db.teacher.findFirst({
+      where: {
+        resetPasswordToken: data.token,
+        resetPasswordExpires: { gt: new Date() },
+      },
+    });
+
+    if (!teacher) {
+      return res.status(400).json({
+        error: 'This password reset link is invalid or has expired. Please request a new password reset link.',
+      });
+    }
+
+    const passwordHash = await bcrypt.hash(data.password, 12);
+
+    await db.teacher.update({
+      where: { id: teacher.id },
+      data: {
+        passwordHash,
+        resetPasswordToken: null,
+        resetPasswordExpires: null,
+      },
+    });
+
+    invalidateAuthCache(teacher.id);
+
+    return res.json({
+      ok: true,
+      message: 'Your password has been reset successfully! You can now sign in with your new password.',
+    });
+  } catch (error) {
+    errorResponse(res, error);
+  }
 });
 
 // Backward-compatible Admin / Teacher Login
@@ -1030,6 +1231,41 @@ app.delete('/api/superadmin/teachers/:id', superAdminOnly, async (req: Request, 
     await db.teacher.delete({ where: { id } });
     res.json({ ok: true });
   } catch (error) { errorResponse(res, error); }
+});
+
+// SuperAdmin resets any teacher's password directly
+app.post('/api/superadmin/teachers/:id/reset-password', superAdminOnly, async (req: Request, res: Response) => {
+  try {
+    const id = req.params.id as string;
+    const { newPassword } = parse(
+      z.object({
+        newPassword: z.string().min(6, 'Password must be at least 6 characters long').max(200),
+      }),
+      req.body
+    );
+
+    const teacher = await db.teacher.findUnique({ where: { id } });
+    if (!teacher) return res.status(404).json({ error: 'Teacher not found.' });
+
+    const passwordHash = await bcrypt.hash(newPassword, 12);
+    await db.teacher.update({
+      where: { id },
+      data: {
+        passwordHash,
+        resetPasswordToken: null,
+        resetPasswordExpires: null,
+      },
+    });
+
+    invalidateAuthCache(teacher.id);
+
+    res.json({
+      ok: true,
+      message: `Password for ${teacher.name} (${teacher.email}) has been reset successfully.`,
+    });
+  } catch (error) {
+    errorResponse(res, error);
+  }
 });
 
 app.all('/api/auth/logout', async (req: Request, res: Response) => {
@@ -3622,6 +3858,24 @@ io.on('connection', (socket) => {
     socket.to(`whiteboard:teacher:${session.id}`).emit('whiteboard:full_sync', {
       pages: data.pages,
       activePageIndex: data.activePageIndex
+    });
+  });
+
+  socket.on('whiteboard:page_update', (data: { grade: string; pageIndex: number; page: any }) => {
+    if (session.role !== 'teacher' && session.role !== 'admin' && session.role !== 'superadmin') return;
+    const grade = (data.grade || 'ALL').trim();
+    const active = activeWhiteboardSessions.get(grade);
+    if (active) {
+      if (!Array.isArray(active.pages)) active.pages = [];
+      active.pages[data.pageIndex] = data.page;
+    }
+    socket.to(`whiteboard:${grade}`).emit('whiteboard:page_update', {
+      pageIndex: data.pageIndex,
+      page: data.page
+    });
+    socket.to(`whiteboard:teacher:${session.id}`).emit('whiteboard:page_update', {
+      pageIndex: data.pageIndex,
+      page: data.page
     });
   });
 

@@ -80,9 +80,13 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
       const matchesTeacher = teacherId && data.teacherId === teacherId;
       if (matchesGrade || matchesTeacher) {
         if (data.isLive) {
-          setIsLive(true);
+          setIsLive((prevLive) => {
+            if (!prevLive) {
+              socket.emit('whiteboard:join', { grade: effectiveGrade, teacherId });
+            }
+            return true;
+          });
           setTeacherName(data.teacherName || 'Teacher');
-          socket.emit('whiteboard:join', { grade: effectiveGrade, teacherId });
         } else {
           setIsLive(false);
         }
@@ -185,6 +189,19 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
             setViewingPageIndex(data.activePageIndex);
           }
         }
+      }
+    });
+
+    socket.on('whiteboard:page_update', (data: { pageIndex: number; page: any }) => {
+      if (typeof data?.pageIndex === 'number' && data?.page) {
+        setPages((prevPages) => {
+          const next = [...prevPages];
+          while (next.length <= data.pageIndex) {
+            next.push({ strokes: [], shapes: [], texts: [], widgets: [] });
+          }
+          next[data.pageIndex] = data.page;
+          return next;
+        });
       }
     });
 

@@ -339,6 +339,7 @@ function App() {
     if (typeof window !== 'undefined') {
       const p = window.location.pathname.toLowerCase();
       const s = window.location.search.toLowerCase();
+      if (s.includes('resettoken') || s.includes('action=reset-password')) return 'teacher_reset_password';
       if (p === '/student' || s.includes('student')) return 'student';
       if (p === '/teacher/signup' || p === '/signup' || s.includes('teacher_signup')) return 'teacher_signup';
       if (p === '/teacher' || p === '/teacher/login' || s.includes('teacher_login') || s.includes('teacher')) return 'teacher_login';
@@ -592,7 +593,7 @@ function App() {
             mode={loginModal}
             onClose={() => {
               setLoginModal(null);
-              if (window.location.pathname !== '/') {
+              if (window.location.pathname !== '/' || window.location.search) {
                 window.history.replaceState({}, '', '/');
               }
             }}
@@ -601,6 +602,7 @@ function App() {
               if (nextMode === 'teacher_signup') window.history.replaceState({}, '', '/teacher/signup');
               else if (nextMode === 'teacher_login') window.history.replaceState({}, '', '/teacher/login');
               else if (nextMode === 'student') window.history.replaceState({}, '', '/student');
+              else if (nextMode === 'teacher_forgot_password') window.history.replaceState({}, '', '/teacher/forgot-password');
             }}
             onSuccess={(u) => {
               localStorage.removeItem('livequiz_ai_key');
@@ -2003,6 +2005,7 @@ function TeacherWhiteboard({
   const onBroadcastChangeRef = useRef(onBroadcastChange);
   onBroadcastChangeRef.current = onBroadcastChange;
   const processedMsgIdsRef = useRef<Set<string>>(new Set());
+  const broadcastInitializedRef = useRef(false);
 
   const handleSelectGrade = (newGrade: string) => {
     setSelectedGrade(newGrade);
@@ -2082,15 +2085,21 @@ function TeacherWhiteboard({
     } catch (_) {}
 
     setIsBroadcasting(true);
+    broadcastInitializedRef.current = false;
     onBroadcastChangeRef.current?.(true);
     setNotice(`Live broadcast started for ${selectedGrade === 'ALL' ? 'All Grades' : selectedGrade}. Students can now view your board in real-time.`);
   };
 
   const stopBroadcast = () => {
     isBroadcastingRef.current = false;
+    broadcastInitializedRef.current = false;
     if (socketRef.current) {
       socketRef.current.emit('whiteboard:stop_broadcast', { grade: selectedGradeRef.current });
-      socketRef.current.disconnect();
+      // Allow socket buffer to flush over network before disconnect
+      const s = socketRef.current;
+      setTimeout(() => {
+        try { s.disconnect(); } catch (_) {}
+      }, 200);
       socketRef.current = null;
     }
     setIsBroadcasting(false);
@@ -2131,19 +2140,29 @@ function TeacherWhiteboard({
 
     if (data.type === 'WHITEBOARD_ALL_PAGES_RESPONSE') {
       if (socketRef.current) {
-        socketRef.current.emit('whiteboard:start_broadcast', {
-          grade: selectedGradeRef.current,
-          teacherName: teacherName || 'Teacher',
-          pages: data.pages || [{ strokes: [], shapes: [], texts: [], widgets: [] }],
-          activePageIndex: typeof data.activePageIndex === 'number' ? data.activePageIndex : 0
-        });
-        if (isBroadcastingRef.current) {
+        if (!broadcastInitializedRef.current) {
+          broadcastInitializedRef.current = true;
+          socketRef.current.emit('whiteboard:start_broadcast', {
+            grade: selectedGradeRef.current,
+            teacherName: teacherName || 'Teacher',
+            pages: data.pages || [{ strokes: [], shapes: [], texts: [], widgets: [] }],
+            activePageIndex: typeof data.activePageIndex === 'number' ? data.activePageIndex : 0
+          });
+        } else if (isBroadcastingRef.current) {
           socketRef.current.emit('whiteboard:full_sync', {
             grade: selectedGradeRef.current,
             pages: data.pages || [{ strokes: [], shapes: [], texts: [], widgets: [] }],
             activePageIndex: typeof data.activePageIndex === 'number' ? data.activePageIndex : 0
           });
         }
+      }
+    } else if (data.type === 'WHITEBOARD_PAGE_UPDATE') {
+      if (isBroadcastingRef.current && socketRef.current) {
+        socketRef.current.emit('whiteboard:page_update', {
+          grade: selectedGradeRef.current,
+          pageIndex: data.pageIndex,
+          page: data.page
+        });
       }
     } else if (data.type === 'WHITEBOARD_BOARD_TYPE_CHANGED' || data.type === 'BOARD_TYPE_CHANGED') {
       if (isBroadcastingRef.current && socketRef.current) {

@@ -17,7 +17,12 @@ import {
   RefreshCw,
   Eye,
   EyeOff,
-  Sparkles
+  Sparkles,
+  KeyRound,
+  Copy,
+  Check,
+  MessageSquare,
+  X,
 } from 'lucide-react';
 import { TeacherStudyMaterials } from './TeacherStudyMaterials';
 import { AdminArticleImageStudio } from './AdminArticleImageStudio';
@@ -74,6 +79,19 @@ export function SuperAdminConsole({ currentUser, onSignOut, onLoginSuccess, onBa
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'PENDING'>('ALL');
   const [actionNotice, setActionNotice] = useState('');
   const [togglingId, setTogglingId] = useState<string | null>(null);
+
+  // SuperAdmin Teacher Password Reset Modal
+  const [resetModalTeacher, setResetModalTeacher] = useState<TeacherItem | null>(null);
+  const [adminNewPassword, setAdminNewPassword] = useState('');
+  const [resetBusy, setResetBusy] = useState(false);
+  const [resetError, setResetError] = useState('');
+  const [resetSuccessData, setResetSuccessData] = useState<{
+    teacherName: string;
+    teacherEmail: string;
+    teacherPhone?: string | null;
+    password: string;
+  } | null>(null);
+  const [copiedCredentials, setCopiedCredentials] = useState(false);
 
   useEffect(() => {
     if (currentUser?.role === 'superadmin') {
@@ -206,6 +224,95 @@ export function SuperAdminConsole({ currentUser, onSignOut, onLoginSuccess, onBa
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to delete teacher.');
     }
+  }
+
+  // Teacher Password Reset Functions
+  function generateSecurePassword(): string {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+    let rand = '';
+    for (let i = 0; i < 4; i++) {
+      rand += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    const num = Math.floor(1000 + Math.random() * 9000);
+    return `Edu@${num}#${rand}`;
+  }
+
+  function openResetPasswordModal(teacher: TeacherItem) {
+    setResetModalTeacher(teacher);
+    setAdminNewPassword(generateSecurePassword());
+    setResetError('');
+    setResetSuccessData(null);
+    setCopiedCredentials(false);
+  }
+
+  async function submitAdminPasswordReset(e: React.FormEvent) {
+    e.preventDefault();
+    if (!resetModalTeacher) return;
+    if (adminNewPassword.length < 6) {
+      setResetError('Password must be at least 6 characters long.');
+      return;
+    }
+    setResetBusy(true);
+    setResetError('');
+    try {
+      const res = await fetch(`/api/superadmin/teachers/${resetModalTeacher.id}/reset-password`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ newPassword: adminNewPassword }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Failed to reset teacher password.');
+
+      setResetSuccessData({
+        teacherName: resetModalTeacher.name,
+        teacherEmail: resetModalTeacher.email,
+        teacherPhone: resetModalTeacher.phone,
+        password: adminNewPassword,
+      });
+      setActionNotice(`✓ Password for ${resetModalTeacher.name} has been reset.`);
+      setTimeout(() => setActionNotice(''), 4000);
+    } catch (err) {
+      setResetError(err instanceof Error ? err.message : 'Failed to reset password.');
+    } finally {
+      setResetBusy(false);
+    }
+  }
+
+  function copyTeacherCredentials() {
+    if (!resetSuccessData) return;
+    const loginUrl = window.location.origin;
+    const text =
+      `*EduAshram Teacher Portal Access*\n` +
+      `Hello ${resetSuccessData.teacherName},\n` +
+      `Your EduAshram teacher account password has been reset by the platform administrator.\n\n` +
+      `🌐 Portal: ${loginUrl}\n` +
+      `📧 Login Email: ${resetSuccessData.teacherEmail}\n` +
+      `🔑 New Password: ${resetSuccessData.password}\n\n` +
+      `Please sign in to access your educator dashboard.`;
+    navigator.clipboard.writeText(text);
+    setCopiedCredentials(true);
+    setTimeout(() => setCopiedCredentials(false), 3000);
+  }
+
+  function getWhatsAppShareUrl(): string {
+    if (!resetSuccessData) return '#';
+    const loginUrl = window.location.origin;
+    const message =
+      `*EduAshram Teacher Portal Access*\n` +
+      `Hello ${resetSuccessData.teacherName},\n` +
+      `Your EduAshram teacher account password has been reset by the platform administrator.\n\n` +
+      `🌐 Portal: ${loginUrl}\n` +
+      `📧 Login Email: ${resetSuccessData.teacherEmail}\n` +
+      `🔑 New Password: ${resetSuccessData.password}\n\n` +
+      `Please sign in to access your educator dashboard.`;
+
+    const cleanPhone = (resetSuccessData.teacherPhone || '').replace(/\D/g, '');
+    if (cleanPhone.length >= 10) {
+      const fullPhone = cleanPhone.length === 10 ? `91${cleanPhone}` : cleanPhone;
+      return `https://wa.me/${fullPhone}?text=${encodeURIComponent(message)}`;
+    }
+    return `https://api.whatsapp.com/send?text=${encodeURIComponent(message)}`;
   }
 
   // Filter teachers
@@ -684,6 +791,28 @@ export function SuperAdminConsole({ currentUser, onSignOut, onLoginSuccess, onBa
 
                             <button
                               type="button"
+                              onClick={() => openResetPasswordModal(t)}
+                              title="Reset Teacher Password"
+                              style={{
+                                padding: '6px 11px',
+                                borderRadius: '8px',
+                                border: '1px solid #c7d2fe',
+                                background: '#eef2ff',
+                                color: '#4338ca',
+                                fontSize: '12px',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '5px',
+                              }}
+                            >
+                              <KeyRound size={13} />
+                              <span>Reset Password</span>
+                            </button>
+
+                            <button
+                              type="button"
                               onClick={() => deleteTeacher(t)}
                               title="Delete Teacher"
                               style={{
@@ -734,6 +863,343 @@ export function SuperAdminConsole({ currentUser, onSignOut, onLoginSuccess, onBa
             }}
             setNotice={setActionNotice}
           />
+        </div>
+      )}
+
+      {/* SuperAdmin Teacher Password Reset Modal */}
+      {resetModalTeacher && (
+        <div
+          className="word-doc-modal-overlay"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.65)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+            padding: '20px',
+          }}
+          onClick={() => {
+            if (!resetBusy) {
+              setResetModalTeacher(null);
+              setResetSuccessData(null);
+            }
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: '#ffffff',
+              borderRadius: '20px',
+              maxWidth: '500px',
+              width: '100%',
+              boxShadow: '0 20px 40px -10px rgba(0, 0, 0, 0.25)',
+              border: '1px solid #e2e8f0',
+              overflow: 'hidden',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div
+              style={{
+                padding: '20px 24px',
+                background: 'linear-gradient(135deg, #1e1b4b 0%, #312e81 100%)',
+                color: '#ffffff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ background: 'rgba(255, 255, 255, 0.15)', padding: '8px', borderRadius: '10px' }}>
+                  <KeyRound size={20} color="#a5b4fc" />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 700, color: '#ffffff' }}>
+                    Reset Teacher Password
+                  </h3>
+                  <div style={{ fontSize: '12px', color: '#c7d2fe', marginTop: '2px' }}>
+                    Administrator Direct Override
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setResetModalTeacher(null);
+                  setResetSuccessData(null);
+                }}
+                disabled={resetBusy}
+                style={{
+                  background: 'rgba(255, 255, 255, 0.1)',
+                  border: 'none',
+                  color: '#ffffff',
+                  borderRadius: '8px',
+                  padding: '6px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div style={{ padding: '24px' }}>
+              {resetSuccessData ? (
+                <div>
+                  <div
+                    style={{
+                      padding: '16px',
+                      background: '#f0fdf4',
+                      border: '1px solid #bbf7d0',
+                      borderRadius: '12px',
+                      textAlign: 'center',
+                      marginBottom: '20px',
+                    }}
+                  >
+                    <CheckCircle2 size={40} color="#16a34a" style={{ margin: '0 auto 8px' }} />
+                    <h4 style={{ margin: '0 0 6px', color: '#166534', fontSize: '16px', fontWeight: 700 }}>
+                      Password Updated Successfully!
+                    </h4>
+                    <p style={{ margin: 0, fontSize: '13px', color: '#15803d' }}>
+                      The new credentials for <strong>{resetSuccessData.teacherName}</strong> are active immediately.
+                    </p>
+                  </div>
+
+                  {/* Credentials Box */}
+                  <div
+                    style={{
+                      background: '#f8fafc',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '12px',
+                      padding: '16px',
+                      marginBottom: '20px',
+                    }}
+                  >
+                    <div style={{ marginBottom: '10px', fontSize: '13px', color: '#475569' }}>
+                      <strong>Teacher:</strong> {resetSuccessData.teacherName}
+                    </div>
+                    <div style={{ marginBottom: '10px', fontSize: '13px', color: '#475569' }}>
+                      <strong>Login Email:</strong> <code style={{ color: '#0f172a' }}>{resetSuccessData.teacherEmail}</code>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#ffffff', padding: '10px 14px', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
+                      <div>
+                        <div style={{ fontSize: '11px', textTransform: 'uppercase', color: '#64748b', fontWeight: 700 }}>New Password</div>
+                        <div style={{ fontSize: '16px', fontWeight: 700, fontFamily: 'monospace', color: '#4338ca', letterSpacing: '0.5px' }}>
+                          {resetSuccessData.password}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={copyTeacherCredentials}
+                        style={{
+                          background: copiedCredentials ? '#16a34a' : '#eef2ff',
+                          color: copiedCredentials ? '#ffffff' : '#4f46e5',
+                          border: '1px solid',
+                          borderColor: copiedCredentials ? '#16a34a' : '#c7d2fe',
+                          padding: '6px 12px',
+                          borderRadius: '8px',
+                          fontSize: '12px',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '5px',
+                        }}
+                      >
+                        {copiedCredentials ? <Check size={14} /> : <Copy size={14} />}
+                        <span>{copiedCredentials ? 'Copied!' : 'Copy'}</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Share on WhatsApp & Done buttons */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    <a
+                      href={getWhatsAppShareUrl()}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '8px',
+                        background: '#25D366',
+                        color: '#ffffff',
+                        padding: '12px 18px',
+                        borderRadius: '10px',
+                        textDecoration: 'none',
+                        fontSize: '14px',
+                        fontWeight: 700,
+                        boxShadow: '0 2px 6px rgba(37, 211, 102, 0.3)',
+                      }}
+                    >
+                      <MessageSquare size={16} />
+                      <span>Share Credentials on WhatsApp</span>
+                    </a>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setResetModalTeacher(null);
+                        setResetSuccessData(null);
+                      }}
+                      style={{
+                        padding: '11px',
+                        borderRadius: '10px',
+                        border: '1px solid #e2e8f0',
+                        background: '#f8fafc',
+                        color: '#475569',
+                        fontSize: '13.5px',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Done &amp; Close
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <form onSubmit={submitAdminPasswordReset}>
+                  {/* Teacher Info Card */}
+                  <div
+                    style={{
+                      background: '#f8fafc',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '12px',
+                      padding: '14px 16px',
+                      marginBottom: '18px',
+                    }}
+                  >
+                    <div style={{ fontSize: '14px', fontWeight: 700, color: '#0f172a', marginBottom: '4px' }}>
+                      {resetModalTeacher.name}
+                    </div>
+                    <div style={{ fontSize: '13px', color: '#64748b', display: 'flex', flexWrap: 'wrap', gap: '12px' }}>
+                      <span>✉️ {resetModalTeacher.email}</span>
+                      {resetModalTeacher.phone && <span>📞 {resetModalTeacher.phone}</span>}
+                      {resetModalTeacher.school && <span>🏫 {resetModalTeacher.school}</span>}
+                    </div>
+                  </div>
+
+                  {/* Password Input */}
+                  <div style={{ marginBottom: '18px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                      <label style={{ fontSize: '13px', fontWeight: 700, color: '#334155' }}>
+                        New Password *
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setAdminNewPassword(generateSecurePassword())}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: '#4f46e5',
+                          fontSize: '12px',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          padding: 0,
+                        }}
+                      >
+                        <RefreshCw size={12} /> Regenerate Random
+                      </button>
+                    </div>
+
+                    <div style={{ position: 'relative' }}>
+                      <input
+                        type="text"
+                        required
+                        value={adminNewPassword}
+                        onChange={(e) => setAdminNewPassword(e.target.value)}
+                        placeholder="Enter or generate new password"
+                        style={{
+                          width: '100%',
+                          padding: '10px 14px',
+                          borderRadius: '10px',
+                          border: '1px solid #cbd5e1',
+                          fontSize: '15px',
+                          fontFamily: 'monospace',
+                          fontWeight: 600,
+                          color: '#0f172a',
+                          boxSizing: 'border-box',
+                        }}
+                      />
+                    </div>
+                    <div style={{ fontSize: '12px', color: '#64748b', marginTop: '6px' }}>
+                      Minimum 6 characters. You can use this generated password or enter any custom password.
+                    </div>
+                  </div>
+
+                  {resetError && (
+                    <div
+                      style={{
+                        padding: '10px 14px',
+                        background: '#fef2f2',
+                        border: '1px solid #fecaca',
+                        borderRadius: '8px',
+                        color: '#b91c1c',
+                        fontSize: '13px',
+                        marginBottom: '16px',
+                      }}
+                    >
+                      {resetError}
+                    </div>
+                  )}
+
+                  {/* Modal Actions */}
+                  <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '24px' }}>
+                    <button
+                      type="button"
+                      disabled={resetBusy}
+                      onClick={() => {
+                        setResetModalTeacher(null);
+                        setResetSuccessData(null);
+                      }}
+                      style={{
+                        padding: '9px 16px',
+                        borderRadius: '8px',
+                        border: '1px solid #e2e8f0',
+                        background: '#ffffff',
+                        color: '#64748b',
+                        fontSize: '13px',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={resetBusy || !adminNewPassword.trim()}
+                      style={{
+                        padding: '9px 18px',
+                        borderRadius: '8px',
+                        border: 'none',
+                        background: '#4f46e5',
+                        color: '#ffffff',
+                        fontSize: '13px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        boxShadow: '0 2px 8px rgba(79, 70, 229, 0.3)',
+                      }}
+                    >
+                      <KeyRound size={14} />
+                      <span>{resetBusy ? 'Updating...' : 'Confirm Reset'}</span>
+                    </button>
+                  </div>
+                </form>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </div>
