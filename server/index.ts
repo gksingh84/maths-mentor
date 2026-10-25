@@ -17,7 +17,13 @@ const prisma = new PrismaClient();
 const db: any = prisma;
 const app = express();
 const httpServer = createServer(app);
-const io = new Server(httpServer);
+const io = new Server(httpServer, {
+  cors: {
+    origin: true,
+    credentials: true,
+  },
+  maxHttpBufferSize: 5e7, // 50MB for whiteboard vectors/slides
+});
 const port = Number(process.env.PORT ?? 4000);
 const rawSecret = process.env.SESSION_SECRET;
 const secret = rawSecret && rawSecret.length >= 32
@@ -1140,12 +1146,69 @@ const aiTeachingAssistantInput = z.object({
   apiKey: z.string().trim().optional(),
 });
 
+export function isHindiSubject(subject?: string): boolean {
+  if (!subject) return false;
+  const s = subject.trim().toLowerCase();
+  return s.includes('hindi') || s.includes('हिंदी') || s.includes('हिन्दी');
+}
+
 function generateTopicQuestions(subject: string, topic: string, subtopics: string | undefined, grade: string, difficulty: string, count: number) {
   const t = topic.toLowerCase();
   const s = subject.toLowerCase();
   void subtopics;
 
   const generatedQuestions: Array<{ prompt: string; marks: number; options: Array<{ text: string; isCorrect: boolean }> }> = [];
+
+  // Hindi Language & Literature Topic Bank
+  if (isHindiSubject(subject)) {
+    const hindiBank = [
+      {
+        prompt: `दिए गए प्रकरण "${topic}" के संदर्भ में, निम्नलिखित में से कौन-सा कथन व्याकरण अथवा भाषा की दृष्टि से सर्वाधिक उपयुक्त और शुद्ध है?`,
+        marks: 1,
+        options: [
+          { text: `व्याकरणिक नियमों और मानक वर्तनी का शुद्ध एवं प्रामाणिक प्रयोग करना।`, isCorrect: true },
+          { text: `व्याकरणिक नियमों की अनदेखी करके अशुद्ध वर्तनी का प्रयोग करना।`, isCorrect: false },
+          { text: `बिना अर्थ समझे केवल कठिन शब्दों को रटना।`, isCorrect: false },
+          { text: `वाक्य विन्यास में शब्दों का अनुचित व अव्यवस्थित क्रम रखना।`, isCorrect: false },
+        ]
+      },
+      {
+        prompt: `हिन्दी भाषा शिक्षण में "${topic}" का अध्ययन करने का मुख्य उद्देश्य क्या है?`,
+        marks: 1,
+        options: [
+          { text: `भाषा की शुद्धता, संप्रेषण कौशल और अभिव्यक्ति क्षमता को सुदृढ़ बनाना।`, isCorrect: true },
+          { text: `केवल परीक्षा में रटे हुए उत्तर लिखना।`, isCorrect: false },
+          { text: `भाषा में अनावश्यक जटिल शब्दों का प्रयोग करना।`, isCorrect: false },
+          { text: `वाक्यों को अकारण लंबा और अस्पष्ट बनाना।`, isCorrect: false },
+        ]
+      },
+      {
+        prompt: `निम्नलिखित में से कौन-सा विकल्प प्रकरण "${topic}" के व्यावहारिक प्रयोग को सही रूप में दर्शाता है?`,
+        marks: 1,
+        options: [
+          { text: `दैनिक भाषा-व्यवहार, पठन तथा लेखन में मानक हिन्दी वर्तनी का सही चयन।`, isCorrect: true },
+          { text: `अशुद्ध उच्चारण और वर्तनी की त्रुटियों की उपेक्षा करना।`, isCorrect: false },
+          { text: `साहित्यिक एवं व्याकरणिक संदर्भों का अनुचित उपयोग।`, isCorrect: false },
+          { text: `बिना सोचे-समझें केवल अनुमान से उत्तर देना।`, isCorrect: false },
+        ]
+      },
+      {
+        prompt: `कक्षा ${grade} के हिन्दी पाठ्यक्रम के अनुसार "${topic}" से संबंधित अभ्यास हल करते समय किस बात का विशेष ध्यान रखना चाहिए?`,
+        marks: difficulty === 'Hard' ? 2 : 1,
+        options: [
+          { text: `मूल भाव, व्याकरणिक संदर्भ तथा शुद्ध देवनागरी लिपि के नियमों का।`, isCorrect: true },
+          { text: `अनावश्यक विदेशी शब्दों के अंधाधुंध प्रयोग का।`, isCorrect: false },
+          { text: `बिना विचार किए तुक्का लगाने की प्रवृत्ति का।`, isCorrect: false },
+          { text: `स्थापित व्याकरणिक नियमों को मनमाने ढंग से बदलने का।`, isCorrect: false },
+        ]
+      }
+    ];
+
+    for (let i = 0; i < count; i++) {
+      generatedQuestions.push(hindiBank[i % hindiBank.length]);
+    }
+    return generatedQuestions;
+  }
 
   // Angles & Geometry Topic Bank
   if (t.includes('angle') || t.includes('geometry') || t.includes('triangle') || t.includes('shape')) {
@@ -1386,9 +1449,9 @@ function parseAIResponseJSON(rawText: string, data: z.infer<typeof aiQuizInput>)
 
       if (typeof q.answer === 'string') {
         const letter = q.answer.trim().toUpperCase();
-        if (letter === 'B' || letter === '2') correctIdx = 1;
-        else if (letter === 'C' || letter === '3') correctIdx = 2;
-        else if (letter === 'D' || letter === '4') correctIdx = 3;
+        if (letter === 'B' || letter === '2' || letter === 'ख' || letter.startsWith('B') || letter.includes('ख')) correctIdx = 1;
+        else if (letter === 'C' || letter === '3' || letter === 'ग' || letter.startsWith('C') || letter.includes('ग')) correctIdx = 2;
+        else if (letter === 'D' || letter === '4' || letter === 'घ' || letter.startsWith('D') || letter.includes('घ')) correctIdx = 3;
       }
 
       const options = rawOptions.map((opt: any, idx: number) => {
@@ -1415,8 +1478,13 @@ function parseAIResponseJSON(rawText: string, data: z.infer<typeof aiQuizInput>)
       };
     });
 
+    const isHindi = isHindiSubject(data.subject);
+    const fallbackTitle = isHindi
+      ? `हिन्दी: ${data.topic} (कक्षा ${data.grade} - सीबीएसई)`
+      : `${data.subject}: ${data.topic} (${data.grade} - CBSE NEP)`;
+
     return {
-      title: parsed.title || `${data.subject}: ${data.topic} (${data.grade} - CBSE NEP)`,
+      title: parsed.title || fallbackTitle,
       questions,
     };
   } catch (err) {
@@ -1428,6 +1496,7 @@ function parseAIResponseJSON(rawText: string, data: z.infer<typeof aiQuizInput>)
 function buildUploadedContentPrompt(data: z.infer<typeof aiQuizInput>) {
   const isStrict = Boolean(data.strictSourceContent);
   const fileCount = data.uploadedFiles?.length || 0;
+  const isHindi = isHindiSubject(data.subject);
 
   let textDocs = '';
   if (data.uploadedFiles) {
@@ -1453,7 +1522,18 @@ function buildUploadedContentPrompt(data: z.infer<typeof aiQuizInput>) {
 
 You are an expert curriculum designer, CBSE master teacher, and senior question paper author.
 You have been provided with ${fileCount} attached file(s) (scanned textbook pages, chapter photographs, sample papers, or lesson notes).
-
+${isHindi ? `
+======================================================================
+# MANDATORY LANGUAGE REQUIREMENT: PURE HINDI (देवनागरी लिपि)
+======================================================================
+CRITICAL RULES FOR HINDI SUBJECT (MANDATORY & STRICT):
+1. The subject being assessed is HINDI (हिन्दी).
+2. The ENTIRE output — including the quiz title, ALL question prompts, ALL options, ALL explanations, and hints — MUST BE WRITTEN EXCLUSIVELY IN PURE HINDI IN DEVANAGARI SCRIPT (देवनागरी लिपि).
+3. HINGLISH INPUT TRANSLATION: The teacher has entered or may enter the topic, subtopics, or instructions in Hinglish (e.g., "Karak aur uske bhed", "Sandhi vichhed", "Samas", "Muhavare", "Alankar", "Surdas ke Pad", "Vachan badlo", "Netaji ka Chashma", etc.). You MUST interpret and convert these Hinglish inputs into their authentic Devanagari Hindi terminology (e.g., "कारक और उसके भेद", "संधि विच्छेद", "समास", "मुहावरे", "अलंकार", "सूरदास के पद") and formulate all questions and options entirely in Devanagari Hindi.
+4. STRICT PROHIBITION: NO English words, NO Romanized/Hinglish text, and NO mixed scripts in the questions, options, explanations, or title.
+5. All grammatical terminology, rules, definitions, and literary references must strictly follow CBSE/NCERT Hindi standards.
+======================================================================
+` : ''}
 ---
 
 ## 1. SOURCE MATERIAL INVENTORY & COMPREHENSIVE TOPIC COVERAGE (MANDATORY)
@@ -1505,6 +1585,7 @@ Instead, transform every topic from the uploaded pages into FRESH, NOVEL, AND CO
 - Topic: ${data.topic}${data.subtopics ? ` (Subtopics: ${data.subtopics})` : ''}
 - Total Questions: ${data.questionCount}
 - Difficulty Level: ${data.difficulty}
+- Language: ${isHindi ? 'HINDI ONLY (देवनागरी लिपि - Pure Devanagari Hindi)' : 'ENGLISH'}
 - Target Question Type: ${data.questionType || 'ALL'}
 - Teacher Instructions: ${data.details || 'None specified'}
 ${textDocs}
@@ -1514,19 +1595,19 @@ ${textDocs}
 ## 4. OUTPUT FORMAT (STRICT RAW JSON ONLY)
 Respond ONLY with a valid raw JSON object matching the exact schema below. Do not wrap in markdown code blocks or add introductory/concluding text:
 {
-  "title": "${data.subject}: ${data.topic} (${data.grade} - Chapter Assessment)",
+  "title": "${isHindi ? `हिन्दी: ${data.topic} (कक्षा ${data.grade} - अध्याय मूल्यांकन)` : `${data.subject}: ${data.topic} (${data.grade} - Chapter Assessment)`}",
   "questions": [
     {
-      "question": "The transformed, context-rich question text testing a specific concept from the uploaded pages...",
+      "question": "${isHindi ? 'शुद्ध मानक हिन्दी (देवनागरी लिपि) में पूछा गया प्रश्न...' : 'The transformed, context-rich question text testing a specific concept from the uploaded pages...'}",
       "options": [
-        "First option",
-        "Second option",
-        "Third option",
-        "Fourth option"
+        "${isHindi ? 'पहला विकल्प' : 'First option'}",
+        "${isHindi ? 'दूसरा विकल्प' : 'Second option'}",
+        "${isHindi ? 'तीसरा विकल्प' : 'Third option'}",
+        "${isHindi ? 'चौथा विकल्प' : 'Fourth option'}"
       ],
       "answer": "A",
-      "explanation": "Detailed explanation citing the concept from the uploaded pages, clarifying the mechanism and addressing misconceptions.",
-      "hint": "Clue to prompt student critical thinking."
+      "explanation": "${isHindi ? 'विस्तृत हिन्दी व्याख्या जिसमें सही उत्तर का कारण और भ्रांतियों का निवारण स्पष्ट किया गया हो।' : 'Detailed explanation citing the concept from the uploaded pages, clarifying the mechanism and addressing misconceptions.'}",
+      "hint": "${isHindi ? 'विद्यार्थियों के चिन्तन को सही दिशा देने वाला संकेत।' : 'Clue to prompt student critical thinking.'}"
     }
   ]
 }
@@ -1535,6 +1616,7 @@ Ensure the questions array contains EXACTLY ${data.questionCount} questions cove
 }
 
 function buildMasterCBSEPrompt(data: z.infer<typeof aiQuizInput>) {
+  const isHindi = isHindiSubject(data.subject);
   let uploadedContext = '';
   if (data.uploadedFiles && data.uploadedFiles.length > 0) {
     const fileSummary = data.uploadedFiles.map((f, i) => `  ${i + 1}. "${f.name}" (${f.type})`).join('\n');
@@ -1614,13 +1696,25 @@ Chapter/Topic: ${data.topic}
 Number of Questions: ${data.questionCount}
 Difficulty: ${data.difficulty}
 Quiz Type: ${data.mode === 'LIVE' ? 'LIVE TEACHER-LED' : 'COMPLETE TIMED QUIZ'}
-Language: ENGLISH
+Language: ${isHindi ? 'HINDI (देवनागरी लिपि - PURE DEVANAGARI HINDI ONLY)' : 'ENGLISH'}
 Question Type: ${data.questionType || 'ALL'}
 Sub-Topics: ${data.subtopics || 'Core concepts'}
 Additional Details: ${data.details || 'None'}
 Strict Mode (Generate Strictly from Uploaded Content): ${data.strictSourceContent ? 'YES - STRICTLY FROM UPLOADED CONTENT ONLY' : 'NO - STANDARD LLM KNOWLEDGE'}
 Uploaded Files Count: ${data.uploadedFiles?.length || 0}
 ${uploadedContext}
+${isHindi ? `
+======================================================================
+# MANDATORY LANGUAGE REQUIREMENT: PURE HINDI (देवनागरी लिपि)
+======================================================================
+CRITICAL RULES FOR HINDI SUBJECT (STRICT):
+1. SUBJECT IS HINDI (हिन्दी).
+2. The entire output — quiz title, EVERY question prompt, ALL options, ALL explanations, and hints — MUST BE WRITTEN EXCLUSIVELY IN AUTHENTIC HINDI IN DEVANAGARI SCRIPT (देवनागरी लिपि).
+3. HINGLISH INPUT TRANSLATION: The teacher has provided or may provide the Chapter/Topic ("${data.topic}"), Sub-Topics ("${data.subtopics || ''}"), and Additional Details in Hinglish (e.g. "Karak aur uske bhed", "Sandhi vichhed", "Samas", "Muhavare", "Alankar", "Vachan", "Ling", "Paryayvachi", "Vilom shabd", "Surdas ke Pad", "Netaji ka Chashma", "Kabir ki Saakhi", etc.). You MUST automatically recognize, interpret, and convert these Hinglish inputs into their authentic Devanagari Hindi equivalents (e.g. "कारक और उसके भेद", "संधि विच्छेद", "समास", "मुहावरे", "अलंकार", "सूरदास के पद") and generate all questions, options, and explanations in proper Devanagari Hindi.
+4. STRICT PROHIBITION: NO English words, NO Romanized/Hinglish text, and NO mixed scripts anywhere in the questions, options, explanations, or title.
+5. CURRICULUM ALIGNMENT: Strictly align with CBSE Hindi Course A / Course B curriculum (Kshitij, Kritika, Sparsh, Sanchayan, Vasant, Bal Ramkatha, Bharat ki Khoj, etc.) and CBSE Hindi Vyakaran (व्याकरण).
+======================================================================
+` : ''}
 If any of these inputs are not provided, use sensible defaults appropriate for the selected class and subject.
 
 ---
@@ -1921,14 +2015,19 @@ Generate questions like an experienced CBSE teacher, not like a generic AI quest
 
 Return ONLY a valid raw JSON object (no markdown formatting, no code block fences, no extra text before or after JSON) using this exact schema:
 {
-  "title": "${data.subject}: ${data.topic} (${data.grade} - CBSE NEP)",
+  "title": "${isHindi ? `हिन्दी: ${data.topic} (कक्षा ${data.grade} - सीबीएसई)` : `${data.subject}: ${data.topic} (${data.grade} - CBSE NEP)`}",
   "questions": [
     {
-      "question": "Clear, contextual question text written like an authentic CBSE exam paper question...",
-      "options": ["Option A text", "Option B text", "Option C text", "Option D text"],
+      "question": "${isHindi ? 'सीबीएसई परीक्षा प्रारूप के अनुसार शुद्ध मानक हिन्दी (देवनागरी) में लिखा गया स्पष्ट प्रश्न...' : 'Clear, contextual question text written like an authentic CBSE exam paper question...'}",
+      "options": [
+        "${isHindi ? 'पहला विकल्प' : 'Option A text'}",
+        "${isHindi ? 'दूसरा विकल्प' : 'Option B text'}",
+        "${isHindi ? 'तीसरा विकल्प' : 'Option C text'}",
+        "${isHindi ? 'चौथा विकल्प' : 'Option D text'}"
+      ],
       "answer": "A",
-      "explanation": "Detailed teacher explanation clarifying concepts and misconceptions.",
-      "hint": "Pedagogical hint guiding student thinking."
+      "explanation": "${isHindi ? 'विस्तृत शिक्षक व्याख्या जिसमें संकल्पना और भ्रांतियों का निवारण स्पष्ट किया गया हो।' : 'Detailed teacher explanation clarifying concepts and misconceptions.'}",
+      "hint": "${isHindi ? 'विद्यार्थियों के चिन्तन को सही दिशा देने वाला संकेत।' : 'Pedagogical hint guiding student thinking.'}"
     }
   ]
 }`;
@@ -1965,10 +2064,13 @@ async function generateAIQuiz(data: z.infer<typeof aiQuizInput>) {
     throw new Error('API Key is required for AI Quiz Generation. Please select Google Gemini, ChatGPT, or DeepSeek in AI Settings and paste your API key.');
   }
 
+  const isHindi = isHindiSubject(data.subject);
   const hasUploadedFiles = Boolean(data.uploadedFiles && data.uploadedFiles.length > 0);
-  const systemRole = hasUploadedFiles
-    ? `You are an expert curriculum designer, CBSE question paper author and pedagogical assessment specialist. Thoroughly inspect all attached chapter pages and formulate fresh, transformed, competency-based questions covering all topics without copying textbook question formats.`
-    : `You are an experienced CBSE school teacher, examination question-paper setter and competency-based assessment expert. Generate high-quality quiz questions aligned with NEP 2020/2026 principles.`;
+  const systemRole = isHindi
+    ? `You are an expert CBSE Hindi teacher, senior board examiner, and Hindi language assessment specialist. You must generate all quiz titles, question prompts, options, explanations, and hints strictly and exclusively in pure Hindi in Devanagari script (देवनागरी लिपि). Even if the teacher inputs topics, subtopics, or instructions in Hinglish (e.g. "Karak aur uske bhed", "Sandhi vichhed", "Surdas ke Pad"), interpret the concepts accurately and formulate 100% pure Devanagari Hindi questions, options, and explanations.`
+    : (hasUploadedFiles
+      ? `You are an expert curriculum designer, CBSE question paper author and pedagogical assessment specialist. Thoroughly inspect all attached chapter pages and formulate fresh, transformed, competency-based questions covering all topics without copying textbook question formats.`
+      : `You are an experienced CBSE school teacher, examination question-paper setter and competency-based assessment expert. Generate high-quality quiz questions aligned with NEP 2020/2026 principles.`);
   const prompt = hasUploadedFiles
     ? buildUploadedContentPrompt(data)
     : buildMasterCBSEPrompt(data);
@@ -2136,7 +2238,7 @@ async function generateAIQuiz(data: z.infer<typeof aiQuizInput>) {
 
   const questions = generateTopicQuestions(data.subject, data.topic, data.subtopics, data.grade, data.difficulty, data.questionCount);
   return {
-    title: `${data.subject}: ${data.topic} (${data.grade} - CBSE NEP)`,
+    title: isHindi ? `हिन्दी: ${data.topic} (कक्षा ${data.grade} - सीबीएसई)` : `${data.subject}: ${data.topic} (${data.grade} - CBSE NEP)`,
     questions,
   };
 }
@@ -2213,7 +2315,7 @@ Use the following context provided by EduAshram's interface:
 - Subject: ${subject}
 - Academic Session: ${academicSession}
 - Chapter/Topic: ${topic}
-- Language: English (with intuitive bilingual/Hinglish analogies where helpful for conceptual clarity)
+- Language: ${isHindiSubject(subject) ? 'Hindi (देवनागरी लिपि - Pure Hindi). Formulate lesson plans, teaching notes, questions, and explanations strictly in standard Hindi. Understand topics input in Hinglish.' : 'English (with intuitive bilingual/Hinglish analogies where helpful for conceptual clarity)'}
 - Student Learning Level: ${learningLevel}
 - Lesson Duration: ${duration}
 - Interface Mode: ${mode}
@@ -3336,8 +3438,16 @@ io.on('connection', (socket) => {
   socket.on('whiteboard:start_broadcast', (data: { grade: string; pages: any[]; activePageIndex?: number; teacherName?: string }) => {
     if (session.role !== 'teacher' && session.role !== 'admin' && session.role !== 'superadmin') return;
     const grade = (data.grade || 'ALL').trim();
+
+    // Cancel any pending disconnect timer for this grade
+    if (whiteboardDisconnectTimers.has(grade)) {
+      clearTimeout(whiteboardDisconnectTimers.get(grade)!);
+      whiteboardDisconnectTimers.delete(grade);
+    }
+
     const sessionObj: LiveWhiteboardSession = {
       teacherId: session.id,
+      broadcasterSocketId: socket.id,
       teacherName: data.teacherName || 'Teacher',
       grade: grade,
       isLive: true,
@@ -3348,15 +3458,21 @@ io.on('connection', (socket) => {
     };
     activeWhiteboardSessions.set(grade, sessionObj);
     socket.join(`whiteboard:${grade}`);
+    socket.join(`whiteboard:teacher:${session.id}`);
 
     io.emit('whiteboard:status_update', {
       grade: grade,
+      teacherId: session.id,
       isLive: true,
       teacherName: sessionObj.teacherName
     });
 
-    // Immediately push full pages state to all students in this room
+    // Immediately push full pages state to all students in this room and teacher's room
     socket.to(`whiteboard:${grade}`).emit('whiteboard:full_sync', {
+      pages: sessionObj.pages,
+      activePageIndex: sessionObj.activePageIndex
+    });
+    socket.to(`whiteboard:teacher:${session.id}`).emit('whiteboard:full_sync', {
       pages: sessionObj.pages,
       activePageIndex: sessionObj.activePageIndex
     });
@@ -3365,10 +3481,16 @@ io.on('connection', (socket) => {
   socket.on('whiteboard:stop_broadcast', (data: { grade: string }) => {
     if (session.role !== 'teacher' && session.role !== 'admin' && session.role !== 'superadmin') return;
     const grade = (data?.grade || 'ALL').trim();
+    if (whiteboardDisconnectTimers.has(grade)) {
+      clearTimeout(whiteboardDisconnectTimers.get(grade)!);
+      whiteboardDisconnectTimers.delete(grade);
+    }
     activeWhiteboardSessions.delete(grade);
     io.to(`whiteboard:${grade}`).emit('whiteboard:broadcast_stopped', { grade });
+    io.to(`whiteboard:teacher:${session.id}`).emit('whiteboard:broadcast_stopped', { grade });
     io.emit('whiteboard:status_update', {
       grade: grade,
+      teacherId: session.id,
       isLive: false
     });
   });
@@ -3384,6 +3506,10 @@ io.on('connection', (socket) => {
       }
     }
     socket.to(`whiteboard:${grade}`).emit('whiteboard:board_type', {
+      boardType: data.boardType,
+      pageIndex: data.pageIndex
+    });
+    socket.to(`whiteboard:teacher:${session.id}`).emit('whiteboard:board_type', {
       boardType: data.boardType,
       pageIndex: data.pageIndex
     });
@@ -3404,6 +3530,10 @@ io.on('connection', (socket) => {
       pageIndex: data.pageIndex,
       stroke: data.stroke
     });
+    socket.to(`whiteboard:teacher:${session.id}`).emit('whiteboard:stroke', {
+      pageIndex: data.pageIndex,
+      stroke: data.stroke
+    });
   });
 
   socket.on('whiteboard:page_changed', (data: { grade: string; activePageIndex: number; boardType?: string }) => {
@@ -3417,6 +3547,10 @@ io.on('connection', (socket) => {
       }
     }
     socket.to(`whiteboard:${grade}`).emit('whiteboard:teacher_page_changed', {
+      activePageIndex: data.activePageIndex,
+      boardType: data.boardType
+    });
+    socket.to(`whiteboard:teacher:${session.id}`).emit('whiteboard:teacher_page_changed', {
       activePageIndex: data.activePageIndex,
       boardType: data.boardType
     });
@@ -3434,6 +3568,9 @@ io.on('connection', (socket) => {
     socket.to(`whiteboard:${grade}`).emit('whiteboard:clear_page', {
       pageIndex: data.pageIndex
     });
+    socket.to(`whiteboard:teacher:${session.id}`).emit('whiteboard:clear_page', {
+      pageIndex: data.pageIndex
+    });
   });
 
   socket.on('whiteboard:grid', (data: { grade: string; pageIndex: number; gridVisible: boolean }) => {
@@ -3444,6 +3581,10 @@ io.on('connection', (socket) => {
       active.pages[data.pageIndex].gridVisible = data.gridVisible;
     }
     socket.to(`whiteboard:${grade}`).emit('whiteboard:grid', {
+      pageIndex: data.pageIndex,
+      gridVisible: data.gridVisible
+    });
+    socket.to(`whiteboard:teacher:${session.id}`).emit('whiteboard:grid', {
       pageIndex: data.pageIndex,
       gridVisible: data.gridVisible
     });
@@ -3460,6 +3601,10 @@ io.on('connection', (socket) => {
       pageIndex: data.pageIndex,
       graphVisible: data.graphVisible
     });
+    socket.to(`whiteboard:teacher:${session.id}`).emit('whiteboard:graph', {
+      pageIndex: data.pageIndex,
+      graphVisible: data.graphVisible
+    });
   });
 
   socket.on('whiteboard:full_sync', (data: { grade: string; pages: any[]; activePageIndex: number }) => {
@@ -3471,6 +3616,10 @@ io.on('connection', (socket) => {
       active.activePageIndex = data.activePageIndex;
     }
     socket.to(`whiteboard:${grade}`).emit('whiteboard:full_sync', {
+      pages: data.pages,
+      activePageIndex: data.activePageIndex
+    });
+    socket.to(`whiteboard:teacher:${session.id}`).emit('whiteboard:full_sync', {
       pages: data.pages,
       activePageIndex: data.activePageIndex
     });
@@ -3490,6 +3639,12 @@ io.on('connection', (socket) => {
       scrollRatio: data.scrollRatio,
       zoom: data.zoom
     });
+    socket.to(`whiteboard:teacher:${session.id}`).emit('whiteboard:scroll', {
+      pageIndex: data.pageIndex,
+      scrollTop: data.scrollTop,
+      scrollRatio: data.scrollRatio,
+      zoom: data.zoom
+    });
   });
 
   socket.on('whiteboard:page_height', (data: { grade: string; pageIndex: number; height: number }) => {
@@ -3503,20 +3658,56 @@ io.on('connection', (socket) => {
       pageIndex: data.pageIndex,
       height: data.height
     });
+    socket.to(`whiteboard:teacher:${session.id}`).emit('whiteboard:page_height', {
+      pageIndex: data.pageIndex,
+      height: data.height
+    });
   });
 
-  socket.on('whiteboard:join', (data: { grade: string }) => {
+  socket.on('whiteboard:join', async (data: { grade?: string; teacherId?: string }) => {
     const grade = (data?.grade || 'ALL').trim();
     socket.join(`whiteboard:${grade}`);
     if (grade !== 'ALL') {
       socket.join('whiteboard:ALL');
     }
-    const active = activeWhiteboardSessions.get(grade) || activeWhiteboardSessions.get('ALL');
+
+    // Try finding by grade or 'ALL'
+    let active = activeWhiteboardSessions.get(grade) || activeWhiteboardSessions.get('ALL');
+
+    // If not found, check if student's assigned teacher is broadcasting
+    if (!active || !active.isLive) {
+      let tId = data?.teacherId;
+      if (!tId && session.role === 'student') {
+        const student = await db.student.findUnique({ where: { id: session.id }, select: { teacherId: true } });
+        tId = student?.teacherId || undefined;
+      }
+      if (tId) {
+        socket.join(`whiteboard:teacher:${tId}`);
+        for (const sess of activeWhiteboardSessions.values()) {
+          if (sess.teacherId === tId && sess.isLive) {
+            active = sess;
+            socket.join(`whiteboard:${sess.grade}`);
+            break;
+          }
+        }
+      }
+      // If still not found and only one broadcast session exists platform-wide, connect to it
+      if (!active && activeWhiteboardSessions.size === 1) {
+        const onlySess = Array.from(activeWhiteboardSessions.values())[0];
+        if (onlySess?.isLive) {
+          active = onlySess;
+          socket.join(`whiteboard:${onlySess.grade}`);
+          socket.join(`whiteboard:teacher:${onlySess.teacherId}`);
+        }
+      }
+    }
+
     if (active && active.isLive) {
       active.viewers.add(socket.id);
       socket.emit('whiteboard:initial_state', {
         isLive: true,
         teacherName: active.teacherName,
+        teacherId: active.teacherId,
         grade: active.grade,
         activePageIndex: active.activePageIndex,
         pages: active.pages,
@@ -3525,6 +3716,7 @@ io.on('connection', (socket) => {
         scrollRatio: active.scrollRatio || 0
       });
       io.to(`whiteboard:${active.grade}`).emit('whiteboard:viewer_count', { count: active.viewers.size });
+      io.to(`whiteboard:teacher:${active.teacherId}`).emit('whiteboard:viewer_count', { count: active.viewers.size });
     } else {
       socket.emit('whiteboard:initial_state', { isLive: false });
     }
@@ -3549,10 +3741,20 @@ io.on('connection', (socket) => {
         sessionObj.viewers.delete(socket.id);
         io.to(`whiteboard:${grade}`).emit('whiteboard:viewer_count', { count: sessionObj.viewers.size });
       }
-      if (sessionObj.teacherId === socket.data.session?.id) {
-        activeWhiteboardSessions.delete(grade);
-        io.to(`whiteboard:${grade}`).emit('whiteboard:broadcast_stopped', { grade });
-        io.emit('whiteboard:status_update', { grade, isLive: false });
+      // Only handle disconnect if this socket was the actual broadcaster socket
+      if (sessionObj.broadcasterSocketId === socket.id) {
+        // Wait 15 seconds grace period for tablet screen unlock or quick Wi-Fi reconnect
+        const timer = setTimeout(() => {
+          whiteboardDisconnectTimers.delete(grade);
+          const current = activeWhiteboardSessions.get(grade);
+          if (current && current.broadcasterSocketId === socket.id) {
+            activeWhiteboardSessions.delete(grade);
+            io.to(`whiteboard:${grade}`).emit('whiteboard:broadcast_stopped', { grade });
+            io.to(`whiteboard:teacher:${sessionObj.teacherId}`).emit('whiteboard:broadcast_stopped', { grade });
+            io.emit('whiteboard:status_update', { grade, teacherId: sessionObj.teacherId, isLive: false });
+          }
+        }, 15000);
+        whiteboardDisconnectTimers.set(grade, timer);
       }
     });
   });
@@ -3560,6 +3762,7 @@ io.on('connection', (socket) => {
 
 interface LiveWhiteboardSession {
   teacherId: string;
+  broadcasterSocketId?: string;
   teacherName: string;
   grade: string;
   isLive: boolean;
@@ -3571,20 +3774,32 @@ interface LiveWhiteboardSession {
   scrollRatio?: number;
 }
 const activeWhiteboardSessions = new Map<string, LiveWhiteboardSession>();
+const whiteboardDisconnectTimers = new Map<string, NodeJS.Timeout>();
 
 app.get('/api/whiteboard/live-status', authenticate(), async (req: AuthRequest, res: Response) => {
   try {
     const role = req.session!.role;
     let targetGrade: string | null = null;
+    let studentTeacherId: string | null = null;
     if (role === 'student') {
-      const student = await db.student.findUnique({ where: { id: req.session!.id }, select: { grade: true } });
+      const student = await db.student.findUnique({ where: { id: req.session!.id }, select: { grade: true, teacherId: true } });
       targetGrade = student?.grade || null;
+      studentTeacherId = student?.teacherId || null;
     }
     const gradeToCheck = targetGrade || (typeof req.query.grade === 'string' ? req.query.grade : null);
     let active: LiveWhiteboardSession | null = null;
     if (gradeToCheck) {
       active = activeWhiteboardSessions.get(gradeToCheck) || activeWhiteboardSessions.get('ALL') || null;
-    } else {
+    }
+    if (!active && studentTeacherId) {
+      for (const sess of activeWhiteboardSessions.values()) {
+        if (sess.teacherId === studentTeacherId && sess.isLive) {
+          active = sess;
+          break;
+        }
+      }
+    }
+    if (!active) {
       for (const sess of activeWhiteboardSessions.values()) {
         if (sess.isLive) { active = sess; break; }
       }
@@ -3593,6 +3808,7 @@ app.get('/api/whiteboard/live-status', authenticate(), async (req: AuthRequest, 
       return res.json({
         isLive: true,
         teacherName: active.teacherName,
+        teacherId: active.teacherId,
         grade: active.grade,
         startedAt: active.startedAt,
         pageCount: active.pages.length,
@@ -4258,7 +4474,12 @@ app.post('/api/worksheets/ai-generate', adminOnly, async (req: AuthRequest, res:
       });
     }
 
+    const isHindi = isHindiSubject(data.subject);
     let docHtml = '';
+    const detailsPrompt = isHindi
+      ? `MANDATORY LANGUAGE REQUIREMENT: HINDI (हिन्दी). The teacher entered the topic and subtopics in Hinglish ("${data.topic}" ${data.subtopics ? `, subtopics: "${data.subtopics}"` : ''}), but the ENTIRE question paper MUST be generated EXCLUSIVELY in pure Hindi using Devanagari script (देवनागरी लिपि). Formulate authentic CBSE Hindi grammar, comprehension, literature, and analytical questions in Devanagari Hindi. Total Marks: ${data.totalMarks}. ${data.details ?? ''}`
+      : `Create a formal printable Word-document style Question Paper for ${data.subject} (${data.grade}) on "${data.topic}". Total Marks: ${data.totalMarks}. ${data.details ?? ''}`;
+
     const generated = await generateAIQuiz({
       mode: 'SELF_PACED',
       subject: data.subject,
@@ -4268,7 +4489,7 @@ app.post('/api/worksheets/ai-generate', adminOnly, async (req: AuthRequest, res:
       difficulty: 'Moderate',
       questionCount: data.questionCount,
       questionType: 'ALL',
-      details: `Create a formal printable Word-document style Question Paper for ${data.subject} (${data.grade}) on "${data.topic}". Total Marks: ${data.totalMarks}. ${data.details ?? ''}`,
+      details: detailsPrompt,
       apiKey: data.apiKey,
       provider: data.provider,
       strictSourceContent: data.strictSourceContent,
@@ -4276,7 +4497,44 @@ app.post('/api/worksheets/ai-generate', adminOnly, async (req: AuthRequest, res:
     });
 
     if (generated && generated.questions?.length > 0) {
-      docHtml = `
+      if (isHindi) {
+        const hindiOptionLabels = ['(क)', '(ख)', '(ग)', '(घ)'];
+        docHtml = `
+<div style="font-family: 'Segoe UI', 'Nirmala UI', Arial, sans-serif; line-height: 1.6; color: #1e293b; width: 100%;">
+  <div style="text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 10px; margin-bottom: 14px;">
+    <h1 style="margin: 0; font-size: 22px; color: #0f172a; letter-spacing: 0.5px;">हिन्दी प्रश्न पत्र</h1>
+    <h3 style="margin: 4px 0 0 0; color: #475569; font-weight: 500; font-size: 15px;">कक्षा: ${data.grade} &nbsp;|&nbsp; प्रकरण: ${generated.title ? generated.title.replace(/^हिन्दी:\s*/i, '') : data.topic}</h3>
+    <div style="display: flex; justify-content: space-between; margin-top: 10px; font-weight: 600; font-size: 13px; color: #334155;">
+      <span>समय: 60 मिनट</span>
+      <span>कुल अंक: ${data.totalMarks}</span>
+    </div>
+  </div>
+
+  <div style="background-color: #f8fafc; border-left: 4px solid #0284c7; padding: 10px 14px; margin-bottom: 18px; font-size: 13px; border-radius: 4px;">
+    <strong style="color: #0369a1;">विद्यार्थियों के लिए सामान्य निर्देश:</strong>
+    <ul style="margin: 4px 0 0 18px; padding-left: 16px; color: #334155;">
+      <li>सभी प्रश्नों के उत्तर अपनी अभ्यास पुस्तिका (Workbook) में स्पष्ट एवं स्वच्छ लेख में लिखें।</li>
+      <li>प्रत्येक प्रश्न की सही क्रम संख्या लिखकर ही उत्तर दें।</li>
+      <li>कार्य पूर्ण होने पर अपनी उत्तर-पुस्तिका के पृष्ठों की स्पष्ट फोटो/स्कैन अपलोड करें।</li>
+    </ul>
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 12px;">
+${generated.questions.map((q: any, idx: number) => `
+    <p style="margin: 0 0 12px 0; font-size: 15px; border-bottom: 1px dashed #cbd5e1; padding-bottom: 8px;">
+      <strong>प्रश्न ${idx + 1}.</strong> ${q.prompt} <span style="color: #64748b; font-size: 13px; font-weight: normal;">[${q.marks ?? 1} अंक]</span>
+      ${q.options && q.options.length > 0 ? `
+      <br/>
+      <span style="display: block; margin-left: 20px; margin-top: 6px; font-size: 14px; color: #334155; font-weight: normal;">
+        ${q.options.map((opt: any, oIdx: number) => `${hindiOptionLabels[oIdx] || `(${String.fromCharCode(65 + oIdx)})`} ${opt.text}`).join(' &nbsp;&nbsp;&nbsp; ')}
+      </span>
+      ` : ''}
+    </p>
+`).join('')}
+  </div>
+</div>`.trim();
+      } else {
+        docHtml = `
 <div style="font-family: 'Segoe UI', Arial, sans-serif; line-height: 1.5; color: #1e293b; width: 100%;">
   <div style="text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 10px; margin-bottom: 14px;">
     <h1 style="margin: 0; font-size: 22px; text-transform: uppercase; color: #0f172a; letter-spacing: 0.5px;">${data.subject.toUpperCase()} QUESTION PAPER</h1>
@@ -4310,8 +4568,17 @@ ${generated.questions.map((q: any, idx: number) => `
 `).join('')}
   </div>
 </div>`.trim();
+      }
     } else {
-      docHtml = `
+      docHtml = isHindi ? `
+<div style="font-family: 'Segoe UI', 'Nirmala UI', Arial, sans-serif; line-height: 1.6; color: #1e293b; width: 100%;">
+  <div style="text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 10px; margin-bottom: 14px;">
+    <h1 style="margin: 0; font-size: 22px;">हिन्दी अभ्यास कार्य-पत्रक</h1>
+    <h3 style="margin: 4px 0 0 0; color: #475569;">कक्षा: ${data.grade} | प्रकरण: ${data.topic}</h3>
+  </div>
+  <p style="margin-bottom: 10px;"><strong>कुल अंक:</strong> ${data.totalMarks}</p>
+  <p>नीचे दिए गए प्रश्नों के उत्तर अपनी अभ्यास पुस्तिका में लिखें तथा अपनी उत्तर-पुस्तिका की फोटो अपलोड करें।</p>
+</div>`.trim() : `
 <div style="font-family: 'Segoe UI', Arial, sans-serif; line-height: 1.5; color: #1e293b; width: 100%;">
   <div style="text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 10px; margin-bottom: 14px;">
     <h1 style="margin: 0; font-size: 22px;">${data.subject.toUpperCase()} WORKSHEET</h1>
@@ -4334,9 +4601,13 @@ ${generated.questions.map((q: any, idx: number) => `
     }
 
     const normalizedGrade = normalizeGrade(data.grade) || data.grade;
+    const paperTitle = (isHindi && generated?.title)
+      ? generated.title
+      : `${data.subject}: ${data.topic} (${normalizedGrade})`;
+
     const paper = await (prisma as any).worksheetPaper.create({
       data: {
-        title: `${data.subject}: ${data.topic} (${normalizedGrade})`,
+        title: paperTitle,
         subject: data.subject,
         grade: normalizedGrade,
         totalMarks: data.totalMarks,

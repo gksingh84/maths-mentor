@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { io, type Socket } from 'socket.io-client';
 import { AppWindow, Archive, ArrowLeft, ArrowRight, Award, BarChart3, Bell, BookOpen, BookOpenCheck, Calculator, Calendar, CalendarCheck, Camera, Check, CheckCircle2, CheckCheck, CheckSquare, ChevronDown, ChevronUp, CircleHelp, Clock3, Copy, CreditCard, Download, ExternalLink, Eye, FileSpreadsheet, FileText, Filter, KeyRound, ListChecks, Lock, LogOut, Mail, Maximize2, MessageCircle, Minimize2, Paperclip, Pause, Pencil, PenTool, Phone, Play, Plus, Printer, Radio, RefreshCw, RotateCcw, Save, Search, Send, Settings, ShieldCheck, SlidersHorizontal, Sparkles, Square, Table, Trash2, TrendingUp, Type, UploadCloud, UserCheck, Users, UserX, Volume2, VolumeX, X } from 'lucide-react';
@@ -1985,7 +1985,13 @@ function TeacherWhiteboard({
 }) {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [iframeKey, setIframeKey] = useState(0);
-  const [selectedGrade, setSelectedGrade] = useState<string>(() => defaultGrade || 'Grade 6');
+  const [selectedGrade, setSelectedGrade] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem('teacher_broadcast_grade');
+      if (saved) return saved;
+    } catch (_) {}
+    return defaultGrade || 'ALL';
+  });
   const [isBroadcasting, setIsBroadcasting] = useState(false);
   const [viewerCount, setViewerCount] = useState(0);
 
@@ -1996,6 +2002,14 @@ function TeacherWhiteboard({
   isBroadcastingRef.current = isBroadcasting;
   const onBroadcastChangeRef = useRef(onBroadcastChange);
   onBroadcastChangeRef.current = onBroadcastChange;
+  const processedMsgIdsRef = useRef<Set<string>>(new Set());
+
+  const handleSelectGrade = (newGrade: string) => {
+    setSelectedGrade(newGrade);
+    try {
+      localStorage.setItem('teacher_broadcast_grade', newGrade);
+    } catch (_) {}
+  };
 
   useEffect(() => {
     if (isActiveTab) {
@@ -2023,8 +2037,18 @@ function TeacherWhiteboard({
   const startBroadcast = () => {
     isBroadcastingRef.current = true;
     if (!socketRef.current || !socketRef.current.connected) {
-      const socket = io({ transports: ['websocket', 'polling'] });
+      const socket = io({
+        transports: ['websocket', 'polling'],
+        withCredentials: true,
+        reconnection: true,
+        reconnectionAttempts: 25,
+        reconnectionDelay: 1000
+      });
       socketRef.current = socket;
+
+      socket.on('connect_error', (err) => {
+        console.warn('Teacher whiteboard broadcast socket error:', err);
+      });
 
       socket.on('whiteboard:viewer_count', (data: { count: number }) => {
         if (typeof data?.count === 'number') {
@@ -2038,6 +2062,11 @@ function TeacherWhiteboard({
           if (iframeEl?.contentWindow) {
             iframeEl.contentWindow.postMessage({ type: 'REQUEST_ALL_PAGES' }, '*');
           }
+          try {
+            const channel = new BroadcastChannel('eduashram_whiteboard_sync');
+            channel.postMessage({ type: 'REQUEST_ALL_PAGES' });
+            channel.close();
+          } catch (_) {}
         }
       });
     }
@@ -2046,6 +2075,12 @@ function TeacherWhiteboard({
     if (iframe?.contentWindow) {
       iframe.contentWindow.postMessage({ type: 'REQUEST_ALL_PAGES' }, '*');
     }
+    try {
+      const channel = new BroadcastChannel('eduashram_whiteboard_sync');
+      channel.postMessage({ type: 'REQUEST_ALL_PAGES' });
+      channel.close();
+    } catch (_) {}
+
     setIsBroadcasting(true);
     onBroadcastChangeRef.current?.(true);
     setNotice(`Live broadcast started for ${selectedGrade === 'ALL' ? 'All Grades' : selectedGrade}. Students can now view your board in real-time.`);
@@ -2083,102 +2118,128 @@ function TeacherWhiteboard({
     };
   }, [isFullscreen]);
 
-  // Handle postMessage events from the whiteboard iframe to stream real-time vectors
-  useEffect(() => {
-    const handleMessage = (e: MessageEvent) => {
-      if (!e.data || typeof e.data !== 'object') return;
+  const handleBoardEvent = useCallback((data: any) => {
+    if (!data || typeof data !== 'object') return;
+    if (data._msgId) {
+      if (processedMsgIdsRef.current.has(data._msgId)) return;
+      processedMsgIdsRef.current.add(data._msgId);
+      if (processedMsgIdsRef.current.size > 200) {
+        const first = processedMsgIdsRef.current.values().next().value;
+        if (first) processedMsgIdsRef.current.delete(first);
+      }
+    }
 
-      if (e.data.type === 'WHITEBOARD_ALL_PAGES_RESPONSE') {
-        if (socketRef.current) {
-          socketRef.current.emit('whiteboard:start_broadcast', {
+    if (data.type === 'WHITEBOARD_ALL_PAGES_RESPONSE') {
+      if (socketRef.current) {
+        socketRef.current.emit('whiteboard:start_broadcast', {
+          grade: selectedGradeRef.current,
+          teacherName: teacherName || 'Teacher',
+          pages: data.pages || [{ strokes: [], shapes: [], texts: [], widgets: [] }],
+          activePageIndex: typeof data.activePageIndex === 'number' ? data.activePageIndex : 0
+        });
+        if (isBroadcastingRef.current) {
+          socketRef.current.emit('whiteboard:full_sync', {
             grade: selectedGradeRef.current,
-            teacherName: teacherName || 'Teacher',
-            pages: e.data.pages || [{ strokes: [], shapes: [], texts: [], widgets: [] }],
-            activePageIndex: typeof e.data.activePageIndex === 'number' ? e.data.activePageIndex : 0
-          });
-          if (isBroadcastingRef.current) {
-            socketRef.current.emit('whiteboard:full_sync', {
-              grade: selectedGradeRef.current,
-              pages: e.data.pages || [{ strokes: [], shapes: [], texts: [], widgets: [] }],
-              activePageIndex: typeof e.data.activePageIndex === 'number' ? e.data.activePageIndex : 0
-            });
-          }
-        }
-      } else if (e.data.type === 'WHITEBOARD_BOARD_TYPE_CHANGED' || e.data.type === 'BOARD_TYPE_CHANGED') {
-        if (isBroadcastingRef.current && socketRef.current) {
-          socketRef.current.emit('whiteboard:board_type', {
-            grade: selectedGradeRef.current,
-            boardType: e.data.boardType,
-            pageIndex: typeof e.data.pageIndex === 'number' ? e.data.pageIndex : 0
-          });
-        }
-      } else if (e.data.type === 'WHITEBOARD_STROKE') {
-        if (isBroadcastingRef.current && socketRef.current) {
-          socketRef.current.emit('whiteboard:stroke', {
-            grade: selectedGradeRef.current,
-            pageIndex: e.data.pageIndex,
-            stroke: e.data.stroke
-          });
-        }
-      } else if (e.data.type === 'WHITEBOARD_PAGE_CHANGED') {
-        if (isBroadcastingRef.current && socketRef.current) {
-          socketRef.current.emit('whiteboard:page_changed', {
-            grade: selectedGradeRef.current,
-            activePageIndex: e.data.activePageIndex,
-            boardType: e.data.boardType
-          });
-        }
-      } else if (e.data.type === 'WHITEBOARD_CLEAR_PAGE') {
-        if (isBroadcastingRef.current && socketRef.current) {
-          socketRef.current.emit('whiteboard:clear_page', {
-            grade: selectedGradeRef.current,
-            pageIndex: e.data.pageIndex
-          });
-        }
-      } else if (e.data.type === 'WHITEBOARD_GRID_CHANGED') {
-        if (isBroadcastingRef.current && socketRef.current) {
-          socketRef.current.emit('whiteboard:grid', {
-            grade: selectedGradeRef.current,
-            pageIndex: e.data.pageIndex,
-            gridVisible: e.data.gridVisible
-          });
-        }
-      } else if (e.data.type === 'WHITEBOARD_GRAPH_CHANGED') {
-        if (isBroadcastingRef.current && socketRef.current) {
-          socketRef.current.emit('whiteboard:graph', {
-            grade: selectedGradeRef.current,
-            pageIndex: e.data.pageIndex,
-            graphVisible: e.data.graphVisible
-          });
-        }
-      } else if (e.data.type === 'WHITEBOARD_SCROLL') {
-        if (isBroadcastingRef.current && socketRef.current) {
-          socketRef.current.emit('whiteboard:scroll', {
-            grade: selectedGradeRef.current,
-            pageIndex: e.data.pageIndex,
-            scrollTop: e.data.scrollTop,
-            scrollHeight: e.data.scrollHeight,
-            clientHeight: e.data.clientHeight,
-            scrollRatio: e.data.scrollRatio,
-            zoom: e.data.zoom
-          });
-        }
-      } else if (e.data.type === 'WHITEBOARD_PAGE_HEIGHT_CHANGED') {
-        if (isBroadcastingRef.current && socketRef.current) {
-          socketRef.current.emit('whiteboard:page_height', {
-            grade: selectedGradeRef.current,
-            pageIndex: e.data.pageIndex,
-            height: e.data.height
+            pages: data.pages || [{ strokes: [], shapes: [], texts: [], widgets: [] }],
+            activePageIndex: typeof data.activePageIndex === 'number' ? data.activePageIndex : 0
           });
         }
       }
+    } else if (data.type === 'WHITEBOARD_BOARD_TYPE_CHANGED' || data.type === 'BOARD_TYPE_CHANGED') {
+      if (isBroadcastingRef.current && socketRef.current) {
+        socketRef.current.emit('whiteboard:board_type', {
+          grade: selectedGradeRef.current,
+          boardType: data.boardType,
+          pageIndex: typeof data.pageIndex === 'number' ? data.pageIndex : 0
+        });
+      }
+    } else if (data.type === 'WHITEBOARD_STROKE') {
+      if (isBroadcastingRef.current && socketRef.current) {
+        socketRef.current.emit('whiteboard:stroke', {
+          grade: selectedGradeRef.current,
+          pageIndex: data.pageIndex,
+          stroke: data.stroke
+        });
+      }
+    } else if (data.type === 'WHITEBOARD_PAGE_CHANGED') {
+      if (isBroadcastingRef.current && socketRef.current) {
+        socketRef.current.emit('whiteboard:page_changed', {
+          grade: selectedGradeRef.current,
+          activePageIndex: data.activePageIndex,
+          boardType: data.boardType
+        });
+      }
+    } else if (data.type === 'WHITEBOARD_CLEAR_PAGE') {
+      if (isBroadcastingRef.current && socketRef.current) {
+        socketRef.current.emit('whiteboard:clear_page', {
+          grade: selectedGradeRef.current,
+          pageIndex: data.pageIndex
+        });
+      }
+    } else if (data.type === 'WHITEBOARD_GRID_CHANGED') {
+      if (isBroadcastingRef.current && socketRef.current) {
+        socketRef.current.emit('whiteboard:grid', {
+          grade: selectedGradeRef.current,
+          pageIndex: data.pageIndex,
+          gridVisible: data.gridVisible
+        });
+      }
+    } else if (data.type === 'WHITEBOARD_GRAPH_CHANGED') {
+      if (isBroadcastingRef.current && socketRef.current) {
+        socketRef.current.emit('whiteboard:graph', {
+          grade: selectedGradeRef.current,
+          pageIndex: data.pageIndex,
+          graphVisible: data.graphVisible
+        });
+      }
+    } else if (data.type === 'WHITEBOARD_SCROLL') {
+      if (isBroadcastingRef.current && socketRef.current) {
+        socketRef.current.emit('whiteboard:scroll', {
+          grade: selectedGradeRef.current,
+          pageIndex: data.pageIndex,
+          scrollTop: data.scrollTop,
+          scrollHeight: data.scrollHeight,
+          clientHeight: data.clientHeight,
+          scrollRatio: data.scrollRatio,
+          zoom: data.zoom
+        });
+      }
+    } else if (data.type === 'WHITEBOARD_PAGE_HEIGHT_CHANGED') {
+      if (isBroadcastingRef.current && socketRef.current) {
+        socketRef.current.emit('whiteboard:page_height', {
+          grade: selectedGradeRef.current,
+          pageIndex: data.pageIndex,
+          height: data.height
+        });
+      }
+    }
+  }, [teacherName]);
+
+  // Handle postMessage and BroadcastChannel events from the whiteboard to stream real-time vectors
+  useEffect(() => {
+    const handleMessage = (e: MessageEvent) => {
+      handleBoardEvent(e.data);
     };
 
     window.addEventListener('message', handleMessage);
+
+    let channel: BroadcastChannel | null = null;
+    try {
+      if (typeof BroadcastChannel !== 'undefined') {
+        channel = new BroadcastChannel('eduashram_whiteboard_sync');
+        channel.onmessage = (e) => {
+          handleBoardEvent(e.data);
+        };
+      }
+    } catch (_) {}
+
     return () => {
       window.removeEventListener('message', handleMessage);
+      if (channel) {
+        channel.close();
+      }
     };
-  }, [teacherName]);
+  }, [handleBoardEvent]);
 
   // Cleanup broadcast on unmount (e.g. when logging out)
   useEffect(() => {
@@ -2207,7 +2268,7 @@ function TeacherWhiteboard({
               <select
                 className="teacher-grade-select"
                 value={selectedGrade}
-                onChange={(e) => setSelectedGrade(e.target.value)}
+                onChange={(e) => handleSelectGrade(e.target.value)}
                 disabled={isBroadcasting}
                 title="Select which Grade / Batch can watch your live whiteboard"
               >
@@ -2292,6 +2353,19 @@ function TeacherWhiteboard({
             <span className="badge">Fullscreen Mode (Press Esc or Exit)</span>
           </div>
           <div className="whiteboard-fullscreen-controls">
+            <select
+              className="teacher-grade-select"
+              value={selectedGrade}
+              onChange={(e) => handleSelectGrade(e.target.value)}
+              disabled={isBroadcasting}
+              title="Select which Grade / Batch can watch your live whiteboard"
+              style={{ background: '#0f172a', color: '#fff', borderColor: '#334155', minHeight: '32px', padding: '2px 8px', fontSize: '12px' }}
+            >
+              <option value="ALL">All Grades</option>
+              {ALL_STUDENT_GRADES.map((g) => (
+                <option key={g} value={g}>{g}</option>
+              ))}
+            </select>
             {isBroadcasting ? (
               <button
                 type="button"
@@ -2668,6 +2742,8 @@ function AIQuizModal({ onClose, onGenerated, onNavigateToAISettings }: { onClose
   const [hasTeacherKey, setHasTeacherKey] = useState<boolean | null>(null);
 
   const provider = localStorage.getItem('livequiz_ai_provider') || 'auto';
+  const activeSubject = subject === 'Other' ? (customSubject.trim() || 'General') : subject;
+  const isHindi = activeSubject.toLowerCase().includes('hindi') || activeSubject.includes('हिंदी') || activeSubject.includes('हिन्दी');
 
   useEffect(() => {
     localStorage.removeItem('livequiz_ai_key');
@@ -2798,15 +2874,44 @@ function AIQuizModal({ onClose, onGenerated, onNavigateToAISettings }: { onClose
         </label>
       )}
 
+      {isHindi && (
+        <div style={{
+          padding: '10px 14px',
+          background: 'linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%)',
+          border: '1px solid #fed7aa',
+          borderRadius: '10px',
+          fontSize: '13px',
+          color: '#9a3412',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          fontWeight: 500
+        }}>
+          <span style={{ fontSize: '16px' }}>🇮🇳</span>
+          <span>
+            <strong>Hindi Subject Active:</strong> Teacher can enter topics and subtopics in <em>Hinglish</em> (e.g. <em>"Karak aur uske bhed"</em>, <em>"Sandhi vichhed"</em>). The quiz, questions, options, and explanations will be generated <strong>strictly in pure Hindi (देवनागरी लिपि)</strong>.
+          </span>
+        </div>
+      )}
+
       <div className="form-grid-2">
         <label className="field compact-field">
           <span>Main Topic <span className="required-star">*</span></span>
-          <input required value={topic} onChange={(e) => setTopic(e.target.value)} placeholder="e.g. Photosynthesis, Motion, Fractions" />
+          <input
+            required
+            value={topic}
+            onChange={(e) => setTopic(e.target.value)}
+            placeholder={isHindi ? "e.g. Karak aur uske bhed, Sandhi vichhed, Surdas ke Pad (Hinglish/Hindi)" : "e.g. Photosynthesis, Motion, Fractions"}
+          />
         </label>
 
         <label className="field compact-field">
           <span>Sub-Topics (Optional)</span>
-          <input value={subtopics} onChange={(e) => setSubtopics(e.target.value)} placeholder="e.g. Light reaction, Chlorophyll" />
+          <input
+            value={subtopics}
+            onChange={(e) => setSubtopics(e.target.value)}
+            placeholder={isHindi ? "e.g. Niyam, udaharan, paribhasha (Hinglish/Hindi)" : "e.g. Light reaction, Chlorophyll"}
+          />
         </label>
       </div>
 
@@ -8404,7 +8509,10 @@ function StudentApp({
     const checkLiveStatus = async () => {
       try {
         const gradeParam = user.grade ? encodeURIComponent(user.grade) : '';
-        const res = await fetch(`/api/whiteboard/live-status?grade=${gradeParam}`);
+        const teacherParam = user.teacherId ? encodeURIComponent(user.teacherId) : '';
+        const res = await fetch(`/api/whiteboard/live-status?grade=${gradeParam}&teacherId=${teacherParam}`, {
+          credentials: 'include'
+        });
         const data = await res.json();
         if (isMounted && data.success) {
           setLiveWhiteboardInfo(data.isLive ? data : null);
@@ -8414,15 +8522,23 @@ function StudentApp({
 
     checkLiveStatus();
 
-    const socket = io({ transports: ['websocket', 'polling'] });
+    const socket = io({
+      transports: ['websocket', 'polling'],
+      withCredentials: true,
+      reconnection: true,
+      reconnectionAttempts: 25,
+      reconnectionDelay: 1000
+    });
     socket.on('whiteboard:status_update', (data: any) => {
       if (!isMounted) return;
+      const matchesTeacher = user.teacherId && data.teacherId === user.teacherId;
+      const matchesGrade = !data.grade || data.grade === 'ALL' || !user.grade || data.grade === user.grade;
       if (data?.isLive) {
-        if (!data.grade || data.grade === 'ALL' || !user.grade || data.grade === user.grade) {
+        if (matchesTeacher || matchesGrade) {
           setLiveWhiteboardInfo(data);
         }
       } else {
-        if (!data.grade || data.grade === 'ALL' || !user.grade || data.grade === user.grade) {
+        if (matchesTeacher || matchesGrade) {
           setLiveWhiteboardInfo(null);
         }
       }
@@ -8432,7 +8548,7 @@ function StudentApp({
       isMounted = false;
       socket.disconnect();
     };
-  }, [user.grade]);
+  }, [user.grade, user.teacherId]);
 
   const [quizzes, setQuizzes] = useState<StudentQuiz[]>([]);
   const [activeQuiz, setActiveQuiz] = useState<ActiveQuiz | null>(null);
@@ -9276,6 +9392,7 @@ function StudentApp({
                   <StudentLiveWhiteboard
                     studentName={user.name || 'Student'}
                     studentGrade={user.grade || 'Grade 10'}
+                    teacherId={user.teacherId}
                     setNotice={setNotice}
                   />
                 </div>
@@ -11140,6 +11257,7 @@ function AIWorksheetModal({ onClose, onGenerated, onNavigateToAISettings }: { on
 
   const provider = localStorage.getItem('livequiz_ai_provider') || 'auto';
   const activeSubject = selectedSubject === 'Other / Custom Subject' ? (customSubject.trim() || 'General') : selectedSubject;
+  const isHindi = activeSubject.toLowerCase().includes('hindi') || activeSubject.includes('हिंदी') || activeSubject.includes('हिन्दी');
 
   useEffect(() => {
     localStorage.removeItem('livequiz_ai_key');
@@ -11256,14 +11374,43 @@ function AIWorksheetModal({ onClose, onGenerated, onNavigateToAISettings }: { on
         </label>
       )}
 
+      {isHindi && (
+        <div style={{
+          padding: '10px 14px',
+          background: 'linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%)',
+          border: '1px solid #fed7aa',
+          borderRadius: '10px',
+          fontSize: '13px',
+          color: '#9a3412',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          fontWeight: 500
+        }}>
+          <span style={{ fontSize: '16px' }}>🇮🇳</span>
+          <span>
+            <strong>Hindi Subject Active:</strong> Teacher can enter topics and subtopics in <em>Hinglish</em> (e.g. <em>"Sandhi aur Samas"</em>, <em>"Vachan badlo"</em>). The entire question paper and instructions will be generated <strong>strictly in pure Hindi (देवनागरी लिपि)</strong> with authentic CBSE formatting.
+          </span>
+        </div>
+      )}
+
       <label className="field compact-field">
         <span>Main Topic <span className="required-star">*</span></span>
-        <input value={topic} onChange={(e) => setTopic(e.target.value)} placeholder="e.g. Electricity, Cell Structure, Geometry" required />
+        <input
+          value={topic}
+          onChange={(e) => setTopic(e.target.value)}
+          placeholder={isHindi ? "e.g. Karak aur uske bhed, Sandhi vichhed, Surdas ke Pad (Hinglish/Hindi)" : "e.g. Electricity, Cell Structure, Geometry"}
+          required
+        />
       </label>
 
       <label className="field compact-field">
         <span>Sub-topics (Optional)</span>
-        <input value={subtopics} onChange={(e) => setSubtopics(e.target.value)} placeholder="e.g. Circuits, Resistance, Ohm Law" />
+        <input
+          value={subtopics}
+          onChange={(e) => setSubtopics(e.target.value)}
+          placeholder={isHindi ? "e.g. Niyam, udaharan, paribhasha (Hinglish/Hindi)" : "e.g. Circuits, Resistance, Ohm Law"}
+        />
       </label>
 
       <div className="form-grid-2">

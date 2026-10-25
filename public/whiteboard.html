@@ -1628,13 +1628,11 @@ body {
         customHeightInputEl.value = String(page.height);
       }
       try {
-        if (window.parent && window.parent !== window) {
-          window.parent.postMessage({
-            type: "WHITEBOARD_PAGE_HEIGHT_CHANGED",
-            pageIndex: currentPageIndex,
-            height: page.height
-          }, "*");
-        }
+        postMessageToHost({
+          type: "WHITEBOARD_PAGE_HEIGHT_CHANGED",
+          pageIndex: currentPageIndex,
+          height: page.height
+        });
       } catch (_) {}
       return true;
     }
@@ -4088,13 +4086,11 @@ body {
     updateBoardInfoLabel();
 
     try {
-      if (window.parent && window.parent !== window) {
-        window.parent.postMessage({
-          type: "WHITEBOARD_BOARD_TYPE_CHANGED",
-          boardType: type,
-          pageIndex: currentPageIndex
-        }, "*");
-      }
+      postMessageToHost({
+        type: "WHITEBOARD_BOARD_TYPE_CHANGED",
+        boardType: type,
+        pageIndex: currentPageIndex
+      });
     } catch (_) {}
     notifyParentFullPages();
 
@@ -7006,55 +7002,74 @@ body {
     notifyParentFullPages();
   }
 
-  function notifyParentPageChange(idx) {
+  const _whiteboardWindowId = Math.random().toString(36).substring(2, 9);
+  let _msgSequence = 0;
+  function postMessageToHost(msg) {
+    if (!msg || typeof msg !== "object") return;
+    if (!msg._msgId) {
+      msg._msgId = _whiteboardWindowId + "_" + (++_msgSequence);
+    }
     try {
       if (window.parent && window.parent !== window) {
-        const page = pages[idx];
-        window.parent.postMessage({
-          type: "WHITEBOARD_PAGE_CHANGED",
-          activePageIndex: idx,
-          boardType: (page && page.boardType) || currentBoardType,
-          totalPages: pages.length
-        }, "*");
+        window.parent.postMessage(msg, "*");
       }
+    } catch (_) {}
+    try {
+      if (window.opener && window.opener !== window && !window.opener.closed) {
+        window.opener.postMessage(msg, "*");
+      }
+    } catch (_) {}
+    try {
+      if (typeof BroadcastChannel !== "undefined") {
+        if (!window._whiteboardBC) {
+          window._whiteboardBC = new BroadcastChannel("eduashram_whiteboard_sync");
+        }
+        window._whiteboardBC.postMessage(msg);
+      }
+    } catch (_) {}
+  }
+
+  function notifyParentPageChange(idx) {
+    try {
+      const page = pages[idx];
+      postMessageToHost({
+        type: "WHITEBOARD_PAGE_CHANGED",
+        activePageIndex: idx,
+        boardType: (page && page.boardType) || currentBoardType,
+        totalPages: pages.length
+      });
     } catch (_) {}
   }
 
   function notifyParentStroke(stroke) {
     try {
-      if (window.parent && window.parent !== window) {
-        window.parent.postMessage({
-          type: "WHITEBOARD_STROKE",
-          pageIndex: currentPageIndex,
-          stroke: stroke,
-          totalPages: pages.length
-        }, "*");
-      }
+      postMessageToHost({
+        type: "WHITEBOARD_STROKE",
+        pageIndex: currentPageIndex,
+        stroke: stroke,
+        totalPages: pages.length
+      });
     } catch (_) {}
   }
 
   function notifyParentClear() {
     try {
-      if (window.parent && window.parent !== window) {
-        window.parent.postMessage({
-          type: "WHITEBOARD_CLEAR_PAGE",
-          pageIndex: currentPageIndex,
-          totalPages: pages.length
-        }, "*");
-      }
+      postMessageToHost({
+        type: "WHITEBOARD_CLEAR_PAGE",
+        pageIndex: currentPageIndex,
+        totalPages: pages.length
+      });
     } catch (_) {}
   }
 
   function notifyParentFullPages() {
     try {
-      if (window.parent && window.parent !== window) {
-        window.parent.postMessage({
-          type: "WHITEBOARD_ALL_PAGES_RESPONSE",
-          pages: JSON.parse(JSON.stringify(pages)),
-          activePageIndex: currentPageIndex,
-          totalPages: pages.length
-        }, "*");
-      }
+      postMessageToHost({
+        type: "WHITEBOARD_ALL_PAGES_RESPONSE",
+        pages: JSON.parse(JSON.stringify(pages)),
+        activePageIndex: currentPageIndex,
+        totalPages: pages.length
+      });
     } catch (_) {}
   }
 
@@ -7090,17 +7105,15 @@ body {
     const maxScroll = Math.max(1, sh - ch);
     const ratio = Math.min(1, Math.max(0, st / maxScroll));
     try {
-      if (window.parent && window.parent !== window) {
-        window.parent.postMessage({
-          type: "WHITEBOARD_SCROLL",
-          pageIndex: currentPageIndex,
-          scrollTop: Math.round(st),
-          scrollHeight: Math.round(sh),
-          clientHeight: Math.round(ch),
-          scrollRatio: ratio,
-          zoom: zoom
-        }, "*");
-      }
+      postMessageToHost({
+        type: "WHITEBOARD_SCROLL",
+        pageIndex: currentPageIndex,
+        scrollTop: Math.round(st),
+        scrollHeight: Math.round(sh),
+        clientHeight: Math.round(ch),
+        scrollRatio: ratio,
+        zoom: zoom
+      });
     } catch (_) {}
   }
 
@@ -7802,8 +7815,8 @@ body {
     } else if (evt.pointerType === "touch") {
       // 1) Palm rejection: if pen was used recently (within 1.2s), reject finger touch
       if (Date.now() - lastPenTime < 1200) return;
-      // 2) Reject palm contacts based on contact geometry (major radius / width / height)
-      if ((evt.width && evt.width > 35) || (evt.height && evt.height > 35)) return;
+      // 2) Reject palm contacts based on contact geometry (fingers are 35-75px, palms are > 120px)
+      if ((evt.width && evt.width > 120) || (evt.height && evt.height > 120)) return;
       // 3) Reject secondary fingers / palm contacts (only accept primary touch)
       if (!evt.isPrimary) return;
       // 4) If already drawing with another pointer, reject
@@ -8505,15 +8518,28 @@ body {
     dragGroupChildrenOriginals = null;
     dragWidgetOriginals = null;
     dragTextOriginals = null;
-    if (activeStroke) {
-      const page = pages[currentPageIndex];
-      if (page && page.strokes && page.strokes[page.strokes.length - 1] === activeStroke) {
-        page.strokes.pop();
-      }
+    if (activeStroke && activeStroke.points && activeStroke.points.length >= 1) {
+      finishActiveStroke(activeStroke);
+      notifyParentStroke(activeStroke);
+      const finishedPts = activeStroke.points;
       activeStroke = null;
-      updateBoardAppearance();
+      activeShape = null;
+      if (finishedPts && finishedPts.length > 0) {
+        let maxStrokeY = 0;
+        for (let i = 0; i < finishedPts.length; i++) {
+          if (finishedPts[i].y > maxStrokeY) maxStrokeY = finishedPts[i].y;
+        }
+        if (maxStrokeY > 0) {
+          checkAndExpandInfiniteCanvas(maxStrokeY);
+        }
+      }
+      clearTimeout(savePagesTimeout);
+      savePagesTimeout = setTimeout(savePagesToStorage, 800);
+      return;
     }
+    activeStroke = null;
     activeShape = null;
+    updateBoardAppearance();
   }
 
   function handlePointerUp(evt) {
@@ -9777,17 +9803,32 @@ body {
     }
   });
 
-  // Listen for broadcast requests or page switch commands from parent React app
-  window.addEventListener("message", (e) => {
-    if (!e.data || typeof e.data !== "object") return;
-    if (e.data.type === "REQUEST_ALL_PAGES") {
+  // Listen for broadcast requests or page switch commands from host app (postMessage or BroadcastChannel)
+  function handleHostMessage(data) {
+    if (!data || typeof data !== "object") return;
+    if (data.type === "REQUEST_ALL_PAGES") {
       notifyParentFullPages();
-    } else if (e.data.type === "SWITCH_PAGE") {
-      if (typeof e.data.pageIndex === "number") {
-        selectPage(e.data.pageIndex);
+    } else if (data.type === "SWITCH_PAGE") {
+      if (typeof data.pageIndex === "number") {
+        selectPage(data.pageIndex);
       }
     }
+  }
+
+  window.addEventListener("message", (e) => {
+    handleHostMessage(e.data);
   });
+
+  if (typeof BroadcastChannel !== "undefined") {
+    try {
+      if (!window._whiteboardBC) {
+        window._whiteboardBC = new BroadcastChannel("eduashram_whiteboard_sync");
+      }
+      window._whiteboardBC.onmessage = (e) => {
+        handleHostMessage(e.data);
+      };
+    } catch (_) {}
+  }
 
   if (toggleLeftPanelButton && leftPanel) {
     toggleLeftPanelButton.addEventListener("click", () => {
@@ -9874,15 +9915,11 @@ body {
         if (page) {
           pushUndo();
           page.gridVisible = !page.gridVisible;
-          try {
-            if (window.parent && window.parent !== window) {
-              window.parent.postMessage({
-                type: "WHITEBOARD_GRID_CHANGED",
-                pageIndex: currentPageIndex,
-                gridVisible: page.gridVisible
-              }, "*");
-            }
-          } catch (_) {}
+          postMessageToHost({
+            type: "WHITEBOARD_GRID_CHANGED",
+            pageIndex: currentPageIndex,
+            gridVisible: page.gridVisible
+          });
           notifyParentFullPages();
         }
       } else if (tool === "graphs") {
@@ -9890,15 +9927,11 @@ body {
         if (page) {
           pushUndo();
           page.graphVisible = !page.graphVisible;
-          try {
-            if (window.parent && window.parent !== window) {
-              window.parent.postMessage({
-                type: "WHITEBOARD_GRAPH_CHANGED",
-                pageIndex: currentPageIndex,
-                graphVisible: page.graphVisible
-              }, "*");
-            }
-          } catch (_) {}
+          postMessageToHost({
+            type: "WHITEBOARD_GRAPH_CHANGED",
+            pageIndex: currentPageIndex,
+            graphVisible: page.graphVisible
+          });
           notifyParentFullPages();
         }
       }
@@ -9977,8 +10010,13 @@ body {
     });
     var touchOpt = { passive: false };
     function onTouchStart(e) {
+      if (activeDrawingPointerType === "pen" || Date.now() - lastPenTime < 1500) {
+        // Teacher is actively writing with Apple Pencil / stylus on tablet.
+        // Ignore palm touches and DO NOT cancel active stylus stroke!
+        return;
+      }
       if (e.touches.length >= 2) {
-        // 2-finger gesture: pinch-zoom
+        // 2-finger gesture: pinch-zoom (only when not writing with pen)
         e.preventDefault();
         var t1 = e.touches[0];
         var t2 = e.touches[1];
@@ -9999,10 +10037,16 @@ body {
         }
         return;
       }
-      // Single touch is handled natively by Pointer Events (handlePointerDown).
-      // DO NOT call handlePointerDown here to prevent duplicate strokes, phantom dots, and stray lines!
+      // Single touch: prevent default so the browser does NOT initiate native
+      // page-scrolling or gesture recognition which dispatches 'pointercancel' on tablets!
+      if (e.touches.length === 1 && currentTool !== "hand") {
+        e.preventDefault();
+      }
     }
     function onTouchMove(e) {
+      if (activeDrawingPointerType === "pen" || Date.now() - lastPenTime < 1500) {
+        return;
+      }
       if (e.touches.length >= 2 && pinchStartDistance != null) {
         e.preventDefault();
         var t1 = e.touches[0];
@@ -10016,10 +10060,25 @@ body {
         }
         return;
       }
+      if (e.touches.length === 1 && currentTool !== "hand") {
+        e.preventDefault();
+      }
     }
     function onTouchEnd(e) {
       if (e.touches.length < 2) {
         pinchStartDistance = null;
+      }
+      // Safety fallback: If touch ended but pointerup was suppressed on tablet, finalize and emit stroke
+      if (e.touches.length === 0 && isDrawing && activeStroke && activeStroke.points && activeStroke.points.length >= 1) {
+        finishActiveStroke(activeStroke);
+        notifyParentStroke(activeStroke);
+        activeStroke = null;
+        activeShape = null;
+        isDrawing = false;
+        activeDrawingPointerId = null;
+        activeDrawingPointerType = null;
+        clearTimeout(savePagesTimeout);
+        savePagesTimeout = setTimeout(savePagesToStorage, 800);
       }
     }
     boardCanvas.addEventListener("touchstart", onTouchStart, touchOpt);

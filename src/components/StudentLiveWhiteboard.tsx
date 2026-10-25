@@ -6,11 +6,13 @@ import jsPDF from 'jspdf';
 interface StudentLiveWhiteboardProps {
   studentName?: string;
   studentGrade?: string | null;
+  teacherId?: string | null;
   setNotice?: (msg: string) => void;
 }
 
 export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
   studentGrade = 'Grade 10',
+  teacherId,
   setNotice
 }) => {
   const [isLive, setIsLive] = useState(false);
@@ -36,11 +38,11 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
 
   // Connect to Socket.IO and join whiteboard room
   useEffect(() => {
-    const socket = io({ transports: ['websocket', 'polling'] });
+    const socket = io({ transports: ['websocket', 'polling'], withCredentials: true });
     socketRef.current = socket;
 
     socket.on('connect', () => {
-      socket.emit('whiteboard:join', { grade: effectiveGrade });
+      socket.emit('whiteboard:join', { grade: effectiveGrade, teacherId });
     });
 
     socket.on('whiteboard:initial_state', (data: any) => {
@@ -74,11 +76,13 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
     });
 
     socket.on('whiteboard:status_update', (data: any) => {
-      if (data.grade === effectiveGrade || data.grade === 'ALL') {
+      const matchesGrade = data.grade === effectiveGrade || data.grade === 'ALL';
+      const matchesTeacher = teacherId && data.teacherId === teacherId;
+      if (matchesGrade || matchesTeacher) {
         if (data.isLive) {
           setIsLive(true);
           setTeacherName(data.teacherName || 'Teacher');
-          socket.emit('whiteboard:join', { grade: effectiveGrade });
+          socket.emit('whiteboard:join', { grade: effectiveGrade, teacherId });
         } else {
           setIsLive(false);
         }
@@ -1075,7 +1079,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
               className="button button-secondary"
               onClick={() => {
                 if (socketRef.current) {
-                  socketRef.current.emit('whiteboard:join', { grade: effectiveGrade });
+                  socketRef.current.emit('whiteboard:join', { grade: effectiveGrade, teacherId });
                 }
               }}
               style={{ marginTop: '16px', gap: '8px' }}
