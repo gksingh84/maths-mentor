@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   BookOpen,
   Search,
@@ -26,7 +26,12 @@ interface UserGuidePageProps {
 export function UserGuidePage({ onBack, initialTab = 'all', userRole }: UserGuidePageProps) {
   const [activeTab, setActiveTab] = useState<'all' | 'public' | 'teacher' | 'student' | 'faq'>(initialTab);
   const [searchQuery, setSearchQuery] = useState('');
+  const [matchCount, setMatchCount] = useState<number | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const contentRef = useRef<HTMLDivElement | null>(null);
+
+  const isSearching = searchQuery.trim().length > 0;
+  const effectiveTab = isSearching ? 'all' : activeTab;
 
   // Scroll to top on mount
   useEffect(() => {
@@ -89,6 +94,73 @@ Teacher: Gaurav Kumar Singh`;
     }
   };
 
+  // Filter guide cards and FAQ cards based on search query
+  useEffect(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!contentRef.current) return;
+
+    const root = contentRef.current;
+    const cards = root.querySelectorAll<HTMLElement>('.guide-card, .faq-card');
+    const sections = root.querySelectorAll<HTMLElement>('.guide-section');
+    const tocLinks = document.querySelectorAll<HTMLElement>('.guide-toc-sidebar a');
+
+    if (!q) {
+      cards.forEach((card) => {
+        card.style.display = '';
+        card.classList.remove('search-matched');
+      });
+      sections.forEach((sec) => {
+        sec.style.display = '';
+      });
+      tocLinks.forEach((link) => {
+        link.style.display = '';
+      });
+      setMatchCount(null);
+      return;
+    }
+
+    let count = 0;
+    cards.forEach((card) => {
+      const text = card.innerText.toLowerCase();
+      const id = card.id ? card.id.toLowerCase() : '';
+      const isMatch = text.includes(q) || id.includes(q);
+      if (isMatch) {
+        card.style.display = '';
+        card.classList.add('search-matched');
+        count++;
+      } else {
+        card.style.display = 'none';
+        card.classList.remove('search-matched');
+      }
+    });
+
+    sections.forEach((sec) => {
+      const visibleCards = Array.from(sec.querySelectorAll<HTMLElement>('.guide-card, .faq-card')).filter(
+        (c) => c.style.display !== 'none'
+      );
+      if (visibleCards.length > 0) {
+        sec.style.display = '';
+      } else {
+        sec.style.display = 'none';
+      }
+    });
+
+    tocLinks.forEach((link) => {
+      const href = link.getAttribute('href');
+      if (href && href.startsWith('#')) {
+        const targetId = href.substring(1);
+        const targetEl = document.getElementById(targetId);
+        if (targetEl && targetEl.style.display !== 'none') {
+          link.style.display = '';
+        } else {
+          link.style.display = 'none';
+        }
+      }
+    });
+
+    setMatchCount(count);
+  }, [searchQuery, effectiveTab]);
+
   return (
     <div className="user-guide-page-root">
       {/* Top Sticky Header */}
@@ -122,32 +194,32 @@ Teacher: Gaurav Kumar Singh`;
         <div className="guide-nav-bar">
           <div className="guide-tabs">
             <button
-              className={`guide-tab-btn ${activeTab === 'all' ? 'active' : ''}`}
-              onClick={() => setActiveTab('all')}
+              className={`guide-tab-btn ${activeTab === 'all' && !isSearching ? 'active' : ''}`}
+              onClick={() => { setActiveTab('all'); setSearchQuery(''); }}
             >
               <Layers size={15} /> All Sections
             </button>
             <button
-              className={`guide-tab-btn ${activeTab === 'public' ? 'active' : ''}`}
-              onClick={() => setActiveTab('public')}
+              className={`guide-tab-btn ${activeTab === 'public' && !isSearching ? 'active' : ''}`}
+              onClick={() => { setActiveTab('public'); setSearchQuery(''); }}
             >
               <ExternalLink size={15} /> Part 1: Public Portal
             </button>
             <button
-              className={`guide-tab-btn ${activeTab === 'teacher' ? 'active' : ''}`}
-              onClick={() => setActiveTab('teacher')}
+              className={`guide-tab-btn ${activeTab === 'teacher' && !isSearching ? 'active' : ''}`}
+              onClick={() => { setActiveTab('teacher'); setSearchQuery(''); }}
             >
               <Users size={15} /> Part 2: Teacher's Space
             </button>
             <button
-              className={`guide-tab-btn ${activeTab === 'student' ? 'active' : ''}`}
-              onClick={() => setActiveTab('student')}
+              className={`guide-tab-btn ${activeTab === 'student' && !isSearching ? 'active' : ''}`}
+              onClick={() => { setActiveTab('student'); setSearchQuery(''); }}
             >
               <GraduationCap size={15} /> Part 3: Student's Space
             </button>
             <button
-              className={`guide-tab-btn ${activeTab === 'faq' ? 'active' : ''}`}
-              onClick={() => setActiveTab('faq')}
+              className={`guide-tab-btn ${activeTab === 'faq' && !isSearching ? 'active' : ''}`}
+              onClick={() => { setActiveTab('faq'); setSearchQuery(''); }}
             >
               <HelpCircle size={15} /> FAQs & Tips
             </button>
@@ -157,16 +229,34 @@ Teacher: Gaurav Kumar Singh`;
             <Search size={16} className="guide-search-icon" />
             <input
               type="text"
-              placeholder="Search features (e.g. WhatsApp, passkey, fees, AI)..."
+              placeholder="Search features (e.g. WhatsApp, passkey, fees, video, Hindi)..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') {
+                  setSearchQuery('');
+                } else if (e.key === 'Enter') {
+                  const firstMatch = contentRef.current?.querySelector<HTMLElement>(
+                    '.guide-card:not([style*="display: none"]), .faq-card:not([style*="display: none"])'
+                  );
+                  if (firstMatch) {
+                    const headerOffset = 145;
+                    const elementPosition = firstMatch.getBoundingClientRect().top;
+                    const offsetPosition = elementPosition + window.pageYOffset - headerOffset;
+                    window.scrollTo({
+                      top: Math.max(0, offsetPosition),
+                      behavior: 'smooth',
+                    });
+                  }
+                }
+              }}
               className="guide-search-input"
             />
             {searchQuery && (
               <button
                 className="guide-search-clear"
                 onClick={() => setSearchQuery('')}
-                title="Clear search"
+                title="Clear search (Esc)"
               >
                 ✕
               </button>
@@ -182,7 +272,7 @@ Teacher: Gaurav Kumar Singh`;
           <div className="guide-toc-card">
             <h3>Table of Contents</h3>
 
-            {(activeTab === 'all' || activeTab === 'public') && (
+            {(effectiveTab === 'all' || effectiveTab === 'public') && (
               <div className="toc-group">
                 <span className="toc-group-title">Part 1: Public Portal</span>
                 <a href="#public-nav" onClick={(e) => { e.preventDefault(); scrollToSection('public-nav'); }}>1.1 Header & Quick Navigation</a>
@@ -192,7 +282,7 @@ Teacher: Gaurav Kumar Singh`;
               </div>
             )}
 
-            {(activeTab === 'all' || activeTab === 'teacher') && (
+            {(effectiveTab === 'all' || effectiveTab === 'teacher') && (
               <div className="toc-group">
                 <span className="toc-group-title">Part 2: Teacher's Space</span>
                 <a href="#teacher-signup" onClick={(e) => { e.preventDefault(); scrollToSection('teacher-signup'); }}>2.1 Teacher Sign Up & Sign In</a>
@@ -212,7 +302,7 @@ Teacher: Gaurav Kumar Singh`;
               </div>
             )}
 
-            {(activeTab === 'all' || activeTab === 'student') && (
+            {(effectiveTab === 'all' || effectiveTab === 'student') && (
               <div className="toc-group">
                 <span className="toc-group-title">Part 3: Student's Space</span>
                 <a href="#student-login" onClick={(e) => { e.preventDefault(); scrollToSection('student-login'); }}>3.1 6-Character Passkey Sign In</a>
@@ -225,7 +315,7 @@ Teacher: Gaurav Kumar Singh`;
               </div>
             )}
 
-            {(activeTab === 'all' || activeTab === 'faq') && (
+            {(effectiveTab === 'all' || effectiveTab === 'faq') && (
               <div className="toc-group">
                 <span className="toc-group-title">Part 4: FAQs</span>
                 <a href="#faq-section" onClick={(e) => { e.preventDefault(); scrollToSection('faq-section'); }}>Frequently Asked Questions</a>
@@ -235,7 +325,7 @@ Teacher: Gaurav Kumar Singh`;
         </aside>
 
         {/* Main Content Body */}
-        <main className="guide-content-body">
+        <main className="guide-content-body" ref={contentRef}>
           {/* Welcome Banner */}
           <div className="guide-hero-card">
             <span className="hero-subtitle">Step-by-Step Practical Manual</span>
@@ -247,10 +337,41 @@ Teacher: Gaurav Kumar Singh`;
             </p>
           </div>
 
+          {/* Live Search Feedback Banner */}
+          {isSearching && (matchCount ?? 0) > 0 && (
+            <div className="guide-search-banner">
+              <div className="guide-search-banner-text">
+                <Search size={16} />
+                <span>
+                  Found <strong>{matchCount}</strong> {matchCount === 1 ? 'topic' : 'topics'} matching "<strong>{searchQuery}</strong>"
+                </span>
+              </div>
+              <button className="guide-search-clear-btn" onClick={() => setSearchQuery('')}>
+                Clear Search
+              </button>
+            </div>
+          )}
+
+          {/* Search Empty State */}
+          {isSearching && matchCount === 0 && (
+            <div className="guide-search-empty-state">
+              <div className="guide-search-empty-icon">
+                <Search size={36} />
+              </div>
+              <h3>No topics found for "{searchQuery}"</h3>
+              <p>
+                Try searching for other keywords like <strong>whiteboard</strong>, <strong>video</strong>, <strong>passkey</strong>, <strong>fees</strong>, <strong>hindi</strong>, or <strong>whatsapp</strong>.
+              </p>
+              <button className="button button-primary" onClick={() => setSearchQuery('')}>
+                Clear Search & View All
+              </button>
+            </div>
+          )}
+
           {/* ========================================================== */}
           {/* PART 1: PUBLIC PORTAL */}
           {/* ========================================================== */}
-          {(activeTab === 'all' || activeTab === 'public') && (
+          {(effectiveTab === 'all' || effectiveTab === 'public') && (
             <section className="guide-section" id="part-1-public">
               <div className="section-title-wrap">
                 <span className="part-pill">Part 1</span>
@@ -327,7 +448,7 @@ Teacher: Gaurav Kumar Singh`;
           {/* ========================================================== */}
           {/* PART 2: TEACHER'S SPACE */}
           {/* ========================================================== */}
-          {(activeTab === 'all' || activeTab === 'teacher') && (
+          {(effectiveTab === 'all' || effectiveTab === 'teacher') && (
             <section className="guide-section" id="part-2-teacher">
               <div className="section-title-wrap">
                 <span className="part-pill part-pill-teacher">Part 2</span>
@@ -361,6 +482,15 @@ Teacher: Gaurav Kumar Singh`;
                   <li>Click <strong>"Teacher Sign In"</strong>.</li>
                   <li>Enter your registered email and password.</li>
                   <li>Click <strong>"Sign In"</strong>. Your session is securely preserved with encrypted session cookies so you don't have to retype your password every time.</li>
+                </ol>
+
+                <h4 style={{ marginTop: '16px' }}>Forgot Password & Self-Service Account Recovery:</h4>
+                <ol className="step-list">
+                  <li>On the Teacher Sign In popup, click the <strong>"Forgot Password?"</strong> link.</li>
+                  <li>Enter your registered teacher email and click <strong>"Send Reset Code"</strong>.</li>
+                  <li>A secure 6-digit verification code is delivered directly to your inbox via the platform's SMTP mailer (valid for 15 minutes).</li>
+                  <li>Enter the 6-digit code and choose your new password. Click <strong>"Reset Password"</strong> to regain access immediately.</li>
+                  <li>School SuperAdmins can also reset teacher credentials or activate accounts directly from the SuperAdmin Console.</li>
                 </ol>
               </div>
 
@@ -444,6 +574,9 @@ Teacher: Gaurav Kumar Singh`;
 
                 <h4 style={{ marginTop: '16px' }}>Live Quiz Sound Effects & Audio Countdown:</h4>
                 <p>Live classroom rounds feature energetic sound effects (ticking countdowns, suspense audio, and correct-answer celebrations). Teachers and students can mute or unmute audio at any time via the sound icon on the live monitor.</p>
+
+                <h4 style={{ marginTop: '16px' }}>Pure Hindi (हिन्दी माध्यम) & Bilingual Quiz Generation:</h4>
+                <p>When generating quizzes or lesson plans with the AI Assistant, select between <strong>English</strong>, <strong>Pure Hindi (हिन्दी माध्यम)</strong>, or <strong>Bilingual</strong>. For Hindi-medium schools, question prompts, mathematical instructions, theorems, and MCQ options are generated in clean Devanagari Hindi aligned with state boards and CBSE.</p>
               </div>
 
               {/* 2.5 Word-Style Question Papers */}
@@ -638,8 +771,12 @@ Teacher: Gaurav Kumar Singh`;
                 <ul>
                   <li><strong>Canvas Backgrounds</strong>: Switch between Ruled Notebook, Square Grid (algebra/geometry), Dot Grid, Dark Chalkboard, or Cartesian Graph with custom intervals.</li>
                   <li><strong>Geometry Tools</strong>: Virtual Ruler, Compass, 180°/360° Protractor, and Set Squares for accurate on-screen diagrams.</li>
-                  <li><strong>Drawing & Notes</strong>: Freehand pens, highlighters, geometric shape auto-detection, sticky notes, LaTeX math formulas, and PPT/PDF slide imports.</li>
-                  <li><strong>Live Broadcasting</strong>: Select your target grade or <em>All Grades</em> and click <strong>"Go Live"</strong>. Your strokes, pages, background grid changes, and scroll coordinates broadcast in real time to connected students.</li>
+                  <li><strong>Drawing & Notes</strong>: Freehand pens, highlighters, geometric shape auto-detection, sticky notes, LaTeX math formulas, and image insertion.</li>
+                  <li><strong>Single-Page Infinite Canvas for PDF & PPT Imports</strong>: Import multi-page PDF worksheets, question papers, or PowerPoint presentations (PPT/PPTX). All slides and pages are automatically placed and vertically stacked on a <em>Single Continuous Page with Infinite Scroll enabled</em>, allowing you to scroll down smoothly and annotate without switching tabs.</li>
+                  <li><strong>Synchronized Educational Video Widgets</strong>: Embed YouTube, Vimeo, or MP4 video files directly on the board. The teacher retains exclusive playback control (Play, Pause, Scrub timeline, 16:9 lock, Resize, Minimize, Remove).</li>
+                  <li><strong>Sub-Second Real-Time Playback Synchronization</strong>: When playing or pausing a video, student screens sync in real time with sub-second accuracy. Pausing freezes student screens on the exact same frame, and any drift over 1.2s is automatically corrected.</li>
+                  <li><strong>Live Broadcasting</strong>: Select your target grade or <em>All Grades</em> and click <strong>"Go Live"</strong>. Your strokes, pages, background grid changes, and vertical scroll coordinates broadcast in real time to connected students.</li>
+                  <li><strong>Universal Anytime Student Join</strong>: Any number of students can join the live broadcast at any point during class; the server instantly delivers the active board state, scroll position, and synchronized video playback with zero delay.</li>
                   <li><strong>Background Session Persistence</strong>: Switching tabs to check calendar, quizzes, or students does not stop your broadcast. A floating banner displays with a quick <em>Return to Whiteboard</em> button.</li>
                   <li><strong>Standalone Pop-Out Window</strong>: Click <em>Open in Window</em> to snap the whiteboard alongside Zoom, reference books, or presentation windows.</li>
                 </ul>
@@ -661,7 +798,7 @@ Teacher: Gaurav Kumar Singh`;
           {/* ========================================================== */}
           {/* PART 3: STUDENT'S SPACE */}
           {/* ========================================================== */}
-          {(activeTab === 'all' || activeTab === 'student') && (
+          {(effectiveTab === 'all' || effectiveTab === 'student') && (
             <section className="guide-section" id="part-3-student">
               <div className="section-title-wrap">
                 <span className="part-pill part-pill-student">Part 3</span>
@@ -746,12 +883,14 @@ Teacher: Gaurav Kumar Singh`;
 
               {/* 3.7 Student Live Whiteboard */}
               <div className="guide-card" id="student-whiteboard">
-                <h3><span className="step-num">3.7</span> Live Whiteboard & Notes PDF Export</h3>
+                <h3><span className="step-num">3.7</span> Live Whiteboard, Video Streaming & Notes PDF Export</h3>
                 <p>Follow along with your teacher's digital chalkboard in real time during live lectures:</p>
                 <ul>
                   <li><strong>Join Live Stream</strong>: When class starts, click the red <em>"Join Live Board →"</em> banner on your dashboard or the <em>Live Whiteboard</em> tab in the sidebar.</li>
+                  <li><strong>Universal Anytime Join</strong>: Join at any moment during the lecture. All previous teacher drawings, geometry shapes, textbook slide annotations, and active video timestamps appear on your screen immediately.</li>
                   <li><strong>Real-Time Notes</strong>: Teacher's strokes, diagrams, formulas, background grid switches, and infinite page scrolling appear on your screen instantly.</li>
                   <li><strong>Follow Teacher Mode</strong>: By default, the screen auto-scrolls to where the teacher is writing. You can disable this to review previous pages and click <em>"Jump to Teacher"</em> when ready.</li>
+                  <li><strong>Synchronized Educational Video Viewing</strong>: When the teacher plays a video lesson, it plays on your screen in real time. Video playback is teacher-managed to prevent accidental skipping. Students have an accessible <strong>Mute / Unmute</strong> button and volume slider to adjust audio on their own device.</li>
                   <li><strong>Download PDF</strong>: Click <strong>"Download PDF"</strong> anytime to save all whiteboard pages as an offline study guide on your device.</li>
                 </ul>
               </div>
@@ -761,7 +900,7 @@ Teacher: Gaurav Kumar Singh`;
           {/* ========================================================== */}
           {/* PART 4: FAQS */}
           {/* ========================================================== */}
-          {(activeTab === 'all' || activeTab === 'faq') && (
+          {(effectiveTab === 'all' || effectiveTab === 'faq') && (
             <section className="guide-section" id="faq-section">
               <div className="section-title-wrap">
                 <span className="part-pill part-pill-faq">FAQ</span>
@@ -769,6 +908,31 @@ Teacher: Gaurav Kumar Singh`;
               </div>
 
               <div className="faq-grid">
+                <div className="faq-card">
+                  <h4>Q: What if a teacher forgets their password?</h4>
+                  <p><strong>A:</strong> Click "Teacher Sign In" and click "Forgot Password?". Enter your registered email address to receive an instant 6-digit OTP verification code via SMTP email (valid for 15 minutes). Type the code and your new password to regain access immediately. School SuperAdmins can also reset teacher credentials directly in the SuperAdmin Console.</p>
+                </div>
+
+                <div className="faq-card">
+                  <h4>Q: How does video playback work on the Live Whiteboard?</h4>
+                  <p><strong>A:</strong> Teachers can embed YouTube, Vimeo, or MP4 video files directly on the whiteboard canvas. Playback is synchronized across all students with sub-second precision. When you pause the video, all student screens freeze on the exact same frame. Students cannot interrupt playback, but have personal mute/unmute and volume controls.</p>
+                </div>
+
+                <div className="faq-card">
+                  <h4>Q: How do multi-page PDFs and PPT presentations load on the whiteboard?</h4>
+                  <p><strong>A:</strong> All pages and slides are automatically placed and vertically stacked on a single continuous page with Infinite Scroll enabled. Teachers can scroll down smoothly to teach and annotate without switching tabs.</p>
+                </div>
+
+                <div className="faq-card">
+                  <h4>Q: Can quizzes and question papers be generated in Hindi?</h4>
+                  <p><strong>A:</strong> Yes! When generating quizzes or question papers using the AI Teaching Assistant, select Pure Hindi (हिन्दी माध्यम). Questions, instructions, theorems, and MCQ options are generated in clean Devanagari Hindi terminology aligned with Hindi-medium state boards and CBSE.</p>
+                </div>
+
+                <div className="faq-card">
+                  <h4>Q: Can students join the Live Whiteboard if they are late to class?</h4>
+                  <p><strong>A:</strong> Yes! Students can join at any point. When they click "Join Live Board", the server immediately delivers the complete active board drawings, notes, and running video timestamps so they catch up with zero delay.</p>
+                </div>
+
                 <div className="faq-card">
                   <h4>Q: Does sending WhatsApp scorecards cost any money?</h4>
                   <p><strong>A:</strong> No, zero cost. The platform uses standard WhatsApp Web links (<code>wa.me</code>) that launch WhatsApp directly on your device with pre-filled scores. It requires no paid API keys or monthly subscriptions.</p>

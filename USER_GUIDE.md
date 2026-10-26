@@ -81,6 +81,15 @@ The **Teacher's Space** is your complete digital classroom command center. Once 
 3. Click **Sign In**.
 4. *Tip*: If you stay logged in on your personal laptop, your session is saved securely via encrypted HTTP-only session cookies.
 
+### Forgot Password & Account Recovery (Self-Service via Email)
+If you forget your teacher account password:
+1. On the **Teacher Login** popup, click the **"Forgot Password?"** link.
+2. Enter your registered teacher email address and click **"Send Reset Code"**.
+3. A secure, time-sensitive 6-digit OTP verification code is dispatched immediately to your email inbox via the platform's SMTP mail service (valid for 15 minutes).
+4. Enter the 6-digit verification code and type your new secure password (minimum 8 characters).
+5. Click **"Reset Password"**. Your credentials update instantly and you can log in immediately.
+- *Administrator Assistance*: School SuperAdmins also have administrative authority to reset passwords or verify teacher accounts directly inside the **SuperAdmin Console**.
+
 ---
 
 ## 2.2 Teacher Overview & Classroom Dashboard
@@ -151,6 +160,7 @@ EduAshram supports **three distinct test modes** to fit every teaching scenario:
    - Academic Subject & Chapter Topic (e.g., *Linear Equations*).
    - Difficulty Level (Easy, Medium, Challenging).
    - Number of Questions (e.g., 10 questions).
+   - **Language Selection**: Choose **English**, **Pure Hindi (हिन्दी माध्यम)**, or **Bilingual**. When selecting Pure Hindi, mathematical terms, question instructions, and multiple-choice options are generated in clean Devanagari script suited for Hindi-medium state boards and CBSE curriculum.
 3. Click **Generate Quiz with AI**.
 4. Review the generated questions, edit any wording if desired, and click **Publish Quiz**.
 
@@ -359,7 +369,12 @@ The built-in **EduAshram Whiteboard** is a modern, infinite vertical digital can
   - 180° / 360° Protractor for angle measurement.
   - 45° and 60° Set Squares.
 - **Drawing Tools**: Pressure-sensitive pens, multi-color highlighters, geometric shape auto-detection, text boxes, sticky notes, LaTeX equation insertion, and image upload.
-- **Presentation & PPT Import**: Load PowerPoint slides or PDF pages directly into sequential whiteboard pages.
+- **Single-Page Infinite Canvas for PDF & PPT Imports**:
+  - When importing multi-page documents (PDF worksheets, exam papers, textbooks) or PowerPoint presentations (PPT / PPTX slides), all pages and slides are automatically imported onto a **Single Continuous Page with Infinite Scroll enabled**.
+  - Pages and slides are arranged and stacked vertically in sequential order. You can smoothly scroll down the whiteboard, annotate problems, and solve equations right alongside the slide content without having to switch tabs.
+- **Embedded Educational Video Widgets**:
+  - Embed YouTube, Vimeo, or direct MP4/local video files directly into the whiteboard.
+  - The teacher retains complete playback control (Play, Pause, Scrub/Seek timeline, 16:9 ratio lock, Resize, Minimize, and Close).
 - **Standalone Window (Split-Screen)**: Click **"Open in Window"** to detach the whiteboard into a standalone browser window, allowing you to position it side-by-side with Zoom meetings, reference materials, or browser tabs.
 
 ### Live Broadcasting to Students
@@ -369,10 +384,18 @@ The built-in **EduAshram Whiteboard** is a modern, infinite vertical digital can
 2. Click **Go Live** (green button):
    - Real-time vector strokes, eraser actions, page transitions, background grid changes, and vertical scroll positions are broadcast immediately to connected students.
    - A live viewer counter shows how many students are currently tuned into your board.
-3. **Background Session Persistence**:
+3. **Synchronized Video Playback with Sub-Second Precision**:
+   - When the teacher plays, pauses, or seeks a video on the whiteboard, all student whiteboards follow in real-time.
+   - **Zero Startup Lag**: When clicking play, student videos instantly jump to the active timestamp instead of buffering from zero.
+   - **Exact-Frame Freeze**: When the teacher pauses the video to explain a formula, theorem, or diagram, student screens freeze on the exact same frame.
+   - **Automated Drift Correction**: High-frequency timestamp delivery and 1-second broadcast cycles automatically correct any playback drift over 1.2 seconds, ensuring all students watch in tight sync.
+4. **Universal Anytime Student Join**:
+   - Any number of students can join the live broadcast at any point during the lecture (even mid-class or during video playback).
+   - The server instantly transmits the complete active board state (drawings, geometry figures, scroll position, and current video playback timestamp) so newly joined students catch up with zero delay.
+5. **Background Session Persistence**:
    - If you need to switch tabs to check an attendance record, view a quiz submission, or check the calendar, the live whiteboard **continues broadcasting in the background**.
    - A green banner across other teacher tabs reminds you: *"Your Live Whiteboard is broadcasting to students in the background"* with an instant **"Return to Whiteboard"** button.
-4. Click **Stop Live** when you are ready to conclude the live broadcast.
+6. Click **Stop Live** when you are ready to conclude the live broadcast.
 
 ---
 
@@ -513,7 +536,15 @@ When your teacher conducts a live lecture using the digital whiteboard, students
 - **Independent Exploration**: You can temporarily disable "Follow Teacher" to scroll back up or inspect previous pages at your own reading speed. Click **"Jump to Teacher"** at any time to re-sync.
 - **Zoom & View Controls**: Use the Zoom (+ / -) or Fit-to-Width controls to adjust the board size to your device.
 
-### 3. One-Click PDF Export:
+### 3. Synchronized Educational Video Playback:
+- When the teacher plays an educational video on the board, it streams in tight real-time synchronization on your screen.
+- **Teacher-Led Playback**: Students cannot accidentally pause, skip, or scrub the video timeline, keeping the whole classroom focused on the teacher's lesson.
+- **Personal Audio & Mute Controls**: Students have a dedicated **Mute / Unmute** toggle and volume slider so you can listen comfortably on your earphones or device speakers without disrupting others.
+
+### 4. Join Anytime & Catch-Up:
+- You can join the Live Whiteboard at any moment during the class (even mid-lecture or while a video is playing). As soon as you join, the server immediately synchronizes all previous drawings, geometry figures, active slide pages, and running video timestamps to your screen with zero delay.
+
+### 5. One-Click PDF Export:
 - At any point during or after the lecture, click **"Download PDF"** in the top-right corner.
 - All whiteboard pages and notes are instantly saved to your device as a crisp, multi-page vector PDF for easy offline homework and revision.
 
@@ -522,6 +553,14 @@ When your teacher conducts a live lecture using the digital whiteboard, students
 # Frequently Asked Questions (FAQ)
 
 ### For Teachers:
+- **Q: What if I forget my teacher password?**
+  - *A:* Click **"Teacher Login"** and tap **"Forgot Password?"**. Enter your registered email address to receive an instant 6-digit OTP verification code via SMTP email (valid for 15 minutes). Type the code and your new password to restore access immediately. School SuperAdmins can also reset teacher passwords or verify accounts in the SuperAdmin Console.
+- **Q: How does video playback work on the Live Whiteboard?**
+  - *A:* Teachers can embed YouTube, Vimeo, or MP4 video files directly on the whiteboard canvas. Playback is synchronized across all students with sub-second precision. When you pause the video, all student screens freeze on the exact same frame to allow step-by-step concept explanations. Students cannot interrupt playback, but can control their own audio mute/unmute.
+- **Q: How are multi-page PDFs and PPT slides imported into the whiteboard?**
+  - *A:* When you import a multi-page PDF or PowerPoint presentation, all pages/slides are automatically placed and vertically stacked on a **Single Page with Infinite Scroll enabled**. This allows you to scroll down continuously and solve problems next to each slide without breaking the class flow.
+- **Q: Can quizzes and question papers be generated in Hindi?**
+  - *A:* Yes! When generating quizzes or question papers using the AI Teaching Assistant, select **Pure Hindi (हिन्दी माध्यम)**. Questions, mathematical instructions, theorems, and MCQ options are generated in clean Devanagari Hindi terminology aligned with Hindi-medium state boards and CBSE curriculum.
 - **Q: Can I use this on my mobile phone?**
   - *A:* Yes! The entire teacher dashboard and student portal are fully responsive and work seamlessly on mobile browsers, tablets, laptops, and smart classroom boards.
 - **Q: Does WhatsApp sharing cost any money?**
@@ -531,11 +570,15 @@ When your teacher conducts a live lecture using the digital whiteboard, students
 - **Q: What happens if a student accidentally closes their browser during a timed quiz?**
   - *A:* Their progress is saved automatically on the server. When they re-enter their 6-character passkey, they resume right where they left off with their remaining time intact.
 - **Q: Does the live whiteboard consume heavy internet data?**
-  - *A:* No. Unlike video streaming which transmits heavy video frames, EduAshram streams lightweight vector strokes and coordinates via WebSockets. It works smoothly even on standard 4G and mobile hotspot connections.
+  - *A:* No. Unlike video screen sharing which transmits heavy video streams, EduAshram streams lightweight vector strokes and coordinates via WebSockets. It works smoothly even on standard 4G and mobile hotspot connections.
 - **Q: How accurate is AI Auto-Evaluation for student handwriting?**
   - *A:* EduAshram uses Google Gemini Vision fine-tuned for mathematics. It accurately transcribes mathematical steps and fractions from clean phone camera photos. The teacher always has full control to review, edit, or adjust marks before final approval.
 
 ### For Students:
+- **Q: Can I join the Live Whiteboard if I am late to class?**
+  - *A:* Yes! You can join at any time. When you click **Join Live Board**, your screen immediately catches up with the teacher's current drawing, active slide notes, and video position.
+- **Q: Why can't I pause or scrub the video on the whiteboard?**
+  - *A:* Video controls are managed exclusively by your teacher so that the whole class stays on the same concept together. You can freely use the **Mute / Unmute** button and volume slider to adjust your device's audio.
 - **Q: I forgot my passkey. How can I log in?**
   - *A:* Ask your teacher! In the teacher's Student Directory, your teacher can view or regenerate your passkey in 1 click.
 - **Q: Can other students see my scores?**

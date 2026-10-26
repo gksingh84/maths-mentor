@@ -1975,7 +1975,7 @@ function HelpSupportPanel({ setNotice, user }: { setNotice: (msg: string) => voi
 function TeacherWhiteboard({
   setNotice,
   teacherName,
-  defaultGrade,
+  defaultGrade: _defaultGrade,
   onBroadcastChange,
   isActiveTab,
 }: {
@@ -1992,7 +1992,7 @@ function TeacherWhiteboard({
       const saved = localStorage.getItem('teacher_broadcast_grade');
       if (saved) return saved;
     } catch (_) {}
-    return defaultGrade || 'ALL';
+    return 'ALL';
   });
   const [isBroadcasting, setIsBroadcasting] = useState(false);
   const [viewerCount, setViewerCount] = useState(0);
@@ -8532,6 +8532,18 @@ function StudentApp({
 
   useEffect(() => {
     let isMounted = true;
+
+    const isGradeMatch = (gradeA?: string | null, gradeB?: string | null): boolean => {
+      if (!gradeA || !gradeB) return true;
+      const a = gradeA.trim().toLowerCase();
+      const b = gradeB.trim().toLowerCase();
+      if (a === b || a === 'all' || b === 'all' || a === 'all grades' || b === 'all grades') return true;
+      const matchA = a.match(/(?:grade|class)?\s*[- ]?\s*(\d+)/i);
+      const matchB = b.match(/(?:grade|class)?\s*[- ]?\s*(\d+)/i);
+      if (matchA && matchB) return matchA[1] === matchB[1];
+      return a.replace(/[-_\s]+/g, '') === b.replace(/[-_\s]+/g, '');
+    };
+
     const checkLiveStatus = async () => {
       try {
         const gradeParam = user.grade ? encodeURIComponent(user.grade) : '';
@@ -8540,13 +8552,18 @@ function StudentApp({
           credentials: 'include'
         });
         const data = await res.json();
-        if (isMounted && data.success) {
-          setLiveWhiteboardInfo(data.isLive ? data : null);
+        if (isMounted) {
+          if (data && data.isLive) {
+            setLiveWhiteboardInfo(data);
+          } else {
+            setLiveWhiteboardInfo(null);
+          }
         }
       } catch (_) {}
     };
 
     checkLiveStatus();
+    const interval = window.setInterval(checkLiveStatus, 10000);
 
     const socket = io({
       transports: ['websocket', 'polling'],
@@ -8555,23 +8572,27 @@ function StudentApp({
       reconnectionAttempts: 25,
       reconnectionDelay: 1000
     });
+
+    socket.on('connect', () => {
+      checkLiveStatus();
+    });
+
     socket.on('whiteboard:status_update', (data: any) => {
       if (!isMounted) return;
-      const matchesTeacher = user.teacherId && data.teacherId === user.teacherId;
-      const matchesGrade = !data.grade || data.grade === 'ALL' || !user.grade || data.grade === user.grade;
+      const matchesTeacher = !user.teacherId || !data.teacherId || data.teacherId === user.teacherId;
+      const matchesGrade = !data.grade || data.grade === 'ALL' || !user.grade || isGradeMatch(data.grade, user.grade);
       if (data?.isLive) {
         if (matchesTeacher || matchesGrade) {
           setLiveWhiteboardInfo(data);
         }
       } else {
-        if (matchesTeacher || matchesGrade) {
-          setLiveWhiteboardInfo(null);
-        }
+        setLiveWhiteboardInfo(null);
       }
     });
 
     return () => {
       isMounted = false;
+      window.clearInterval(interval);
       socket.disconnect();
     };
   }, [user.grade, user.teacherId]);

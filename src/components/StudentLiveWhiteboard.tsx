@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import { Radio, ChevronLeft, ChevronRight, Download, FileText, Maximize2, Minimize2, Bookmark, CheckCircle2, RefreshCw } from 'lucide-react';
 import jsPDF from 'jspdf';
@@ -10,7 +10,7 @@ interface StudentLiveWhiteboardProps {
   setNotice?: (msg: string) => void;
 }
 
-const buildStudentIframeUrl = (src: string, isPlaying: boolean, muted: boolean, currentTime?: number): string => {
+const buildStudentIframeUrl = (src: string, isPlaying: boolean, currentTime?: number): string => {
   try {
     const url = new URL(src);
     if (url.hostname.includes('youtube-nocookie.com')) {
@@ -18,18 +18,27 @@ const buildStudentIframeUrl = (src: string, isPlaying: boolean, muted: boolean, 
     }
     url.searchParams.set('enablejsapi', '1');
     url.searchParams.set('rel', '0');
+    // Lock down video controls: students cannot pause, play, scrub, or open fullscreen on YouTube
+    url.searchParams.set('controls', '0');
+    url.searchParams.set('disablekb', '1');
+    url.searchParams.set('fs', '0');
+    url.searchParams.set('modestbranding', '1');
+    url.searchParams.set('playsinline', '1');
+    url.searchParams.set('iv_load_policy', '3');
+    if (url.hostname.includes('vimeo.com')) {
+      url.searchParams.set('controls', '0');
+      url.searchParams.set('transparent', '0');
+    }
     if (typeof window !== 'undefined' && window.location?.origin) {
       url.searchParams.set('origin', window.location.origin);
     }
     if (isPlaying) {
       url.searchParams.set('autoplay', '1');
-    } else {
-      url.searchParams.delete('autoplay');
     }
-    if (muted) {
-      url.searchParams.set('mute', '1');
-    }
-    if (typeof currentTime === 'number' && currentTime > 1) {
+    // Always start muted so browsers permit autoplay without restriction
+    url.searchParams.set('mute', '1');
+    // Only set start time on initial load if catching up with an in-progress video (greater than 3s)
+    if (typeof currentTime === 'number' && currentTime > 3) {
       url.searchParams.set('start', String(Math.floor(currentTime)));
     }
     return url.toString();
@@ -45,6 +54,40 @@ const StudentVideoPlayer: React.FC<{ widget: any; syncEvent?: any }> = ({ widget
   const [isPlaying, setIsPlaying] = useState(Boolean(widget.playing));
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
+  const studentCurrentTimeRef = useRef<number>(0);
+  const lastSyncCorrectionRef = useRef<number>(0);
+
+  // Continuously listen to YouTube postMessage to track student's playback currentTime
+  useEffect(() => {
+    const handleMessage = (e: MessageEvent) => {
+      let data = e.data;
+      if (typeof data === 'string') {
+        try {
+          data = JSON.parse(data);
+        } catch (_) {
+          return;
+        }
+      }
+      if (!data || typeof data !== 'object') return;
+      if (data.event === 'infoDelivery' && data.info && typeof data.info.currentTime === 'number') {
+        if (!data.id || data.id === widget.id) {
+          studentCurrentTimeRef.current = data.info.currentTime;
+        }
+      }
+    };
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [widget.id]);
+
+  // CRITICAL: Compute iframe src once when the widget mounts so the browser never reloads the iframe on state updates!
+  const initialIframeSrc = useRef<string>('');
+  if (!initialIframeSrc.current) {
+    initialIframeSrc.current = buildStudentIframeUrl(
+      widget.src,
+      Boolean(widget.playing),
+      typeof widget.currentTime === 'number' && widget.currentTime > 3 ? widget.currentTime : undefined
+    );
+  }
 
   useEffect(() => {
     if (typeof widget.minimized === 'boolean') {
@@ -69,8 +112,9 @@ const StudentVideoPlayer: React.FC<{ widget: any; syncEvent?: any }> = ({ widget
         iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'mute', args: '' }), '*');
       }
       if (widget.playing || isPlaying) {
-        if (typeof widget.currentTime === 'number' && widget.currentTime > 0) {
+        if (typeof widget.currentTime === 'number' && widget.currentTime > 0.5) {
           iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'seekTo', args: [widget.currentTime, true] }), '*');
+          studentCurrentTimeRef.current = widget.currentTime;
         }
         iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'playVideo', args: [] }), '*');
         iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'playVideo', args: '' }), '*');
@@ -86,7 +130,7 @@ const StudentVideoPlayer: React.FC<{ widget: any; syncEvent?: any }> = ({ widget
         vid.muted = muted;
         vid.volume = muted ? 0 : volume;
         if (widget.playing || isPlaying) {
-          if (typeof widget.currentTime === 'number' && widget.currentTime > 0) {
+          if (typeof widget.currentTime === 'number' && widget.currentTime > 1 && Math.abs(vid.currentTime - widget.currentTime) > 1.5) {
             vid.currentTime = widget.currentTime;
           }
           vid.play().catch(() => {
@@ -105,13 +149,6 @@ const StudentVideoPlayer: React.FC<{ widget: any; syncEvent?: any }> = ({ widget
       if (iframe?.contentWindow) {
         try {
           if (isPlaying) {
-            if (muted) {
-              iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'mute', args: [] }), '*');
-              iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'mute', args: '' }), '*');
-            }
-            if (typeof widget.currentTime === 'number' && widget.currentTime > 0) {
-              iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'seekTo', args: [widget.currentTime, true] }), '*');
-            }
             iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'playVideo', args: [] }), '*');
             iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'playVideo', args: '' }), '*');
             iframe.contentWindow.postMessage(JSON.stringify({ method: 'play' }), '*');
@@ -150,9 +187,62 @@ const StudentVideoPlayer: React.FC<{ widget: any; syncEvent?: any }> = ({ widget
     }
     if (syncEvent.action === 'play') {
       setIsPlaying(true);
-    } else if (syncEvent.action === 'pause') {
+      const targetTime = typeof syncEvent.currentTime === 'number' ? syncEvent.currentTime : undefined;
+      if (widget.videoType === 'youtube' || widget.videoType === 'vimeo') {
+        const iframe = iframeRef.current;
+        if (iframe?.contentWindow) {
+          try {
+            if (typeof targetTime === 'number' && targetTime > 0.5) {
+              iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'seekTo', args: [targetTime, true] }), '*');
+              iframe.contentWindow.postMessage(JSON.stringify({ method: 'setCurrentTime', value: targetTime }), '*');
+              studentCurrentTimeRef.current = targetTime;
+            }
+            iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'playVideo', args: [] }), '*');
+            iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'playVideo', args: '' }), '*');
+            iframe.contentWindow.postMessage(JSON.stringify({ method: 'play' }), '*');
+          } catch (_) {}
+        }
+      } else if (videoRef.current) {
+        if (typeof targetTime === 'number' && targetTime > 0.5) {
+          videoRef.current.currentTime = targetTime;
+        }
+        videoRef.current.play().catch(() => {
+          if (videoRef.current) {
+            videoRef.current.muted = true;
+            setMuted(true);
+            videoRef.current.play().catch(() => {});
+          }
+        });
+      }
+      return;
+    }
+    if (syncEvent.action === 'pause') {
       setIsPlaying(false);
-    } else if (syncEvent.action === 'seek' || syncEvent.action === 'time_sync') {
+      const targetTime = typeof syncEvent.currentTime === 'number' ? syncEvent.currentTime : undefined;
+      if (widget.videoType === 'youtube' || widget.videoType === 'vimeo') {
+        const iframe = iframeRef.current;
+        if (iframe?.contentWindow) {
+          try {
+            iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'pauseVideo', args: [] }), '*');
+            iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'pauseVideo', args: '' }), '*');
+            iframe.contentWindow.postMessage(JSON.stringify({ method: 'pause' }), '*');
+            if (typeof targetTime === 'number') {
+              iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'seekTo', args: [targetTime, true] }), '*');
+              iframe.contentWindow.postMessage(JSON.stringify({ method: 'setCurrentTime', value: targetTime }), '*');
+              studentCurrentTimeRef.current = targetTime;
+            }
+          } catch (_) {}
+        }
+      } else if (videoRef.current) {
+        videoRef.current.pause();
+        if (typeof targetTime === 'number') {
+          videoRef.current.currentTime = targetTime;
+        }
+      }
+      return;
+    }
+    // Explicit seek by teacher: jump to the teacher's new position
+    if (syncEvent.action === 'seek') {
       if (typeof syncEvent.currentTime === 'number') {
         if (widget.videoType === 'youtube' || widget.videoType === 'vimeo') {
           const iframe = iframeRef.current;
@@ -160,11 +250,39 @@ const StudentVideoPlayer: React.FC<{ widget: any; syncEvent?: any }> = ({ widget
             try {
               iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'seekTo', args: [syncEvent.currentTime, true] }), '*');
               iframe.contentWindow.postMessage(JSON.stringify({ method: 'setCurrentTime', value: syncEvent.currentTime }), '*');
+              studentCurrentTimeRef.current = syncEvent.currentTime;
             } catch (_) {}
           }
         } else if (videoRef.current) {
-          if (Math.abs(videoRef.current.currentTime - syncEvent.currentTime) > 2) {
-            videoRef.current.currentTime = syncEvent.currentTime;
+          videoRef.current.currentTime = syncEvent.currentTime;
+        }
+      }
+      return;
+    }
+    // Periodic time sync: tight sync to reduce lag under 1.2 seconds
+    if (syncEvent.action === 'time_sync') {
+      const teacherTime = typeof syncEvent.currentTime === 'number' ? syncEvent.currentTime : undefined;
+      if (typeof teacherTime === 'number' && teacherTime > 0.5) {
+        if (widget.videoType === 'youtube' || widget.videoType === 'vimeo') {
+          const studentTime = studentCurrentTimeRef.current;
+          const drift = Math.abs(studentTime - teacherTime);
+          const now = Date.now();
+          // Correct whenever drift exceeds 1.2s and at least 2s since last seek
+          if (studentTime > 0.3 && drift > 1.2 && now - lastSyncCorrectionRef.current > 2000) {
+            lastSyncCorrectionRef.current = now;
+            studentCurrentTimeRef.current = teacherTime;
+            const iframe = iframeRef.current;
+            if (iframe?.contentWindow) {
+              try {
+                iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'seekTo', args: [teacherTime, true] }), '*');
+                iframe.contentWindow.postMessage(JSON.stringify({ method: 'setCurrentTime', value: teacherTime }), '*');
+              } catch (_) {}
+            }
+          }
+        } else if (videoRef.current) {
+          const drift = Math.abs(videoRef.current.currentTime - teacherTime);
+          if (drift > 1.2) {
+            videoRef.current.currentTime = teacherTime;
           }
         }
       }
@@ -191,20 +309,78 @@ const StudentVideoPlayer: React.FC<{ widget: any; syncEvent?: any }> = ({ widget
     }
   }, [muted, volume, widget.videoType]);
 
+  const handleToggleMute = () => {
+    const nextMuted = !muted;
+    setMuted(nextMuted);
+    if (!nextMuted) {
+      if (videoRef.current) {
+        videoRef.current.muted = false;
+        videoRef.current.volume = volume;
+        if (isPlaying) {
+          videoRef.current.play().catch(() => {});
+        }
+      }
+      const iframe = iframeRef.current;
+      if (iframe?.contentWindow) {
+        try {
+          iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'unMute', args: [] }), '*');
+          iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'setVolume', args: [Math.round(volume * 100)] }), '*');
+        } catch (_) {}
+      }
+    } else {
+      if (videoRef.current) {
+        videoRef.current.muted = true;
+      }
+      const iframe = iframeRef.current;
+      if (iframe?.contentWindow) {
+        try {
+          iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'mute', args: [] }), '*');
+        } catch (_) {}
+      }
+    }
+  };
+
   return (
     <div
       className={`student-board-video-widget ${minimized ? 'is-minimized' : ''}`}
+      draggable={false}
+      onDragStart={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      }}
       style={{
         position: 'absolute',
         left: widget.x,
         top: widget.y,
         width: widget.w,
         height: minimized ? 'auto' : widget.h,
-        zIndex: 10
-      }}
+        zIndex: 10,
+        userSelect: 'none',
+        WebkitUserSelect: 'none',
+        cursor: 'default'
+      } as React.CSSProperties}
     >
-      <div className="video-widget-header">
-        <span className="video-widget-drag-handle">
+      <div
+        className="video-widget-header"
+        style={{ cursor: 'default', userSelect: 'none' }}
+      >
+        <span
+          className="video-widget-title"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            color: '#e2e8f0',
+            fontSize: '0.74rem',
+            fontWeight: 600,
+            flex: 1,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+            cursor: 'default',
+            userSelect: 'none'
+          }}
+        >
           📹 <span>{widget.title || 'Teacher Video'}</span>
           <span style={{
             fontSize: '0.62rem',
@@ -219,27 +395,34 @@ const StudentVideoPlayer: React.FC<{ widget: any; syncEvent?: any }> = ({ widget
             gap: '4px',
             fontWeight: 700
           }}>
-            {isPlaying ? '▶ In sync' : '⏸ Paused'}
+            {isPlaying ? '▶ Live Playing' : '⏸ Paused by Teacher'}
           </span>
         </span>
         <div className="video-widget-actions">
+          {/* ONLY Mute / Unmute is allowed for students */}
           <button
             type="button"
-            className="video-action-btn"
-            title={muted ? 'Click to Unmute Sound' : 'Mute Sound'}
-            onClick={() => setMuted(!muted)}
+            className={`student-video-mute-btn ${muted ? 'is-muted' : 'is-unmuted'}`}
+            title={muted ? 'Click to Unmute Audio on your device' : 'Click to Mute Audio on your device'}
+            onClick={handleToggleMute}
             style={{
               background: muted ? 'rgba(239, 68, 68, 0.25)' : 'rgba(34, 197, 94, 0.25)',
               color: muted ? '#fca5a5' : '#86efac',
-              borderColor: muted ? 'rgba(239, 68, 68, 0.4)' : 'rgba(34, 197, 94, 0.4)',
-              width: 'auto',
-              padding: '0 8px',
-              fontSize: '0.7rem',
+              borderColor: muted ? 'rgba(239, 68, 68, 0.45)' : 'rgba(34, 197, 94, 0.45)',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '5px',
+              padding: '3px 9px',
+              borderRadius: '6px',
+              fontSize: '0.72rem',
               fontWeight: 700,
-              cursor: 'pointer'
+              cursor: 'pointer',
+              borderWidth: '1px',
+              borderStyle: 'solid',
+              transition: 'all 0.15s ease'
             }}
           >
-            {muted ? '🔇 Unmute' : '🔊 Sound'}
+            {muted ? '🔇 Unmute Audio' : '🔊 Sound On (Mute)'}
           </button>
           <input
             type="range"
@@ -248,40 +431,91 @@ const StudentVideoPlayer: React.FC<{ widget: any; syncEvent?: any }> = ({ widget
             step="0.05"
             value={muted ? 0 : volume}
             onChange={(e) => {
-              setVolume(Number(e.target.value));
-              if (muted) setMuted(false);
+              const val = Number(e.target.value);
+              setVolume(val);
+              if (val > 0 && muted) {
+                setMuted(false);
+              }
             }}
-            title="Volume"
-            style={{ width: '45px', height: '14px', cursor: 'pointer' }}
+            title="Audio Volume"
+            style={{ width: '45px', height: '14px', cursor: 'pointer', accentColor: '#38bdf8' }}
           />
-          <button
-            type="button"
-            className="video-action-btn"
-            title={minimized ? 'Expand Video' : 'Minimize Video'}
-            onClick={() => setMinimized(!minimized)}
-          >
-            {minimized ? '▢' : '–'}
-          </button>
         </div>
       </div>
       {!minimized && (
-        <div className="video-widget-body">
+        <div
+          className="video-widget-body"
+          style={{ position: 'relative', overflow: 'hidden', cursor: 'default' }}
+        >
+          {/* Transparent shield: intercepts and prevents any click, drag, or pause attempts from students */}
+          <div
+            className="video-click-blocker-overlay"
+            style={{
+              position: 'absolute',
+              inset: 0,
+              zIndex: 10,
+              background: 'transparent',
+              cursor: 'default',
+              userSelect: 'none',
+              WebkitUserDrag: 'none'
+            } as React.CSSProperties}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+            }}
+            onDoubleClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+            }}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+            }}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+            }}
+            draggable={false}
+            onDragStart={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+            }}
+            title="Video playback is controlled live by the teacher. Use Unmute/Mute button above to toggle sound."
+          />
+
           {widget.videoType === 'youtube' || widget.videoType === 'vimeo' ? (
             <iframe
               ref={iframeRef}
-              src={buildStudentIframeUrl(widget.src, isPlaying, muted, widget.currentTime)}
+              src={initialIframeSrc.current}
               title={widget.title || 'Teacher Video'}
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-              allowFullScreen
+              allowFullScreen={false}
+              tabIndex={-1}
+              style={{
+                pointerEvents: 'none',
+                width: '100%',
+                height: '100%',
+                border: 'none',
+                display: 'block'
+              }}
               onLoad={handleIframeLoad}
             />
           ) : (
             <video
               ref={videoRef}
               src={widget.src}
-              controls
               playsInline
-              controlsList="nodownload"
+              controls={false}
+              controlsList="nodownload nofullscreen noremoteplayback"
+              disablePictureInPicture
+              tabIndex={-1}
+              style={{
+                pointerEvents: 'none',
+                width: '100%',
+                height: '100%',
+                display: 'block',
+                objectFit: 'contain'
+              }}
             />
           )}
         </div>
@@ -290,8 +524,19 @@ const StudentVideoPlayer: React.FC<{ widget: any; syncEvent?: any }> = ({ widget
   );
 };
 
+function isGradeMatch(gradeA?: string | null, gradeB?: string | null): boolean {
+  if (!gradeA || !gradeB) return true;
+  const a = gradeA.trim().toLowerCase();
+  const b = gradeB.trim().toLowerCase();
+  if (a === b || a === 'all' || b === 'all' || a === 'all grades' || b === 'all grades') return true;
+  const matchA = a.match(/(?:grade|class)?\s*[- ]?\s*(\d+)/i);
+  const matchB = b.match(/(?:grade|class)?\s*[- ]?\s*(\d+)/i);
+  if (matchA && matchB) return matchA[1] === matchB[1];
+  return a.replace(/[-_\s]+/g, '') === b.replace(/[-_\s]+/g, '');
+}
+
 export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
-  studentGrade = 'Grade 10',
+  studentGrade = 'Grade 6',
   teacherId,
   setNotice
 }) => {
@@ -315,15 +560,36 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
   }, [followTeacher]);
   const teacherScrollRef = useRef<{ scrollTop: number; scrollRatio: number }>({ scrollTop: 0, scrollRatio: 0 });
 
-  const effectiveGrade = studentGrade || 'Grade 10';
+  const effectiveGrade = studentGrade || 'Grade 6';
+
+  const checkLiveStatus = useCallback(async () => {
+    try {
+      const gradeParam = effectiveGrade ? encodeURIComponent(effectiveGrade) : '';
+      const teacherParam = teacherId ? encodeURIComponent(teacherId) : '';
+      const res = await fetch(`/api/whiteboard/live-status?grade=${gradeParam}&teacherId=${teacherParam}`, {
+        credentials: 'include'
+      });
+      const data = await res.json();
+      if (data?.isLive) {
+        setIsLive(true);
+        if (data.teacherName) setTeacherName(data.teacherName);
+        if (socketRef.current) {
+          socketRef.current.emit('whiteboard:join', { grade: effectiveGrade, teacherId });
+        }
+      }
+    } catch (_) {}
+  }, [effectiveGrade, teacherId]);
 
   // Connect to Socket.IO and join whiteboard room
   useEffect(() => {
+    void checkLiveStatus();
+
     const socket = io({ transports: ['websocket', 'polling'], withCredentials: true });
     socketRef.current = socket;
 
     socket.on('connect', () => {
       socket.emit('whiteboard:join', { grade: effectiveGrade, teacherId });
+      void checkLiveStatus();
     });
 
     socket.on('whiteboard:initial_state', (data: any) => {
@@ -359,17 +625,13 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
     });
 
     socket.on('whiteboard:status_update', (data: any) => {
-      const matchesGrade = data.grade === effectiveGrade || data.grade === 'ALL';
-      const matchesTeacher = teacherId && data.teacherId === teacherId;
+      const matchesGrade = !data.grade || data.grade === 'ALL' || isGradeMatch(data.grade, effectiveGrade);
+      const matchesTeacher = !teacherId || !data.teacherId || data.teacherId === teacherId;
       if (matchesGrade || matchesTeacher) {
         if (data.isLive) {
-          setIsLive((prevLive) => {
-            if (!prevLive) {
-              socket.emit('whiteboard:join', { grade: effectiveGrade, teacherId });
-            }
-            return true;
-          });
+          setIsLive(true);
           setTeacherName(data.teacherName || 'Teacher');
+          socket.emit('whiteboard:join', { grade: effectiveGrade, teacherId });
         } else {
           setIsLive(false);
         }
@@ -384,6 +646,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
     });
 
     socket.on('whiteboard:stroke', (data: { pageIndex: number; stroke: any }) => {
+      setIsLive(true);
       setPages((prevPages) => {
         const next = [...prevPages];
         while (next.length <= data.pageIndex) {
@@ -467,6 +730,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
     });
 
     socket.on('whiteboard:full_sync', (data: { pages: any[]; activePageIndex: number }) => {
+      setIsLive(true);
       if (Array.isArray(data.pages) && data.pages.length) {
         setPages(data.pages);
         if (typeof data.activePageIndex === 'number') {
@@ -479,6 +743,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
     });
 
     socket.on('whiteboard:page_update', (data: { pageIndex: number; page: any }) => {
+      setIsLive(true);
       if (typeof data?.pageIndex === 'number' && data?.page) {
         setPages((prevPages) => {
           const next = [...prevPages];
@@ -545,7 +810,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
             widgets: Array.isArray(pg.widgets) ? pg.widgets.filter((w: any) => w.id !== widgetId) : []
           }))
         );
-      } else if (data.action === 'play' || data.action === 'pause' || data.action === 'time_sync' || data.action === 'seek') {
+      } else if (data.action === 'play' || data.action === 'pause' || data.action === 'seek') {
         const isPlay = data.action === 'play';
         const isPause = data.action === 'pause';
         setPages((prevPages) =>
@@ -557,7 +822,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
                     ? {
                         ...w,
                         ...(isPlay ? { playing: true } : isPause ? { playing: false } : {}),
-                        currentTime: typeof data.currentTime === 'number' ? data.currentTime : w.currentTime
+                        currentTime: typeof data.currentTime === 'number' && data.currentTime > 0 ? data.currentTime : w.currentTime
                       }
                     : w
                 )
@@ -602,7 +867,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
       socket.emit('whiteboard:leave', { grade: effectiveGrade });
       socket.disconnect();
     };
-  }, [effectiveGrade]);
+  }, [effectiveGrade, teacherId, checkLiveStatus]);
 
   // Image caching helper
   const getCachedImage = (dataUrl: string): HTMLImageElement => {
@@ -1468,6 +1733,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
                 if (socketRef.current) {
                   socketRef.current.emit('whiteboard:join', { grade: effectiveGrade, teacherId });
                 }
+                void checkLiveStatus();
               }}
               style={{ marginTop: '16px', gap: '8px' }}
             >

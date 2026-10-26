@@ -1645,10 +1645,6 @@
       let dragWidgetOriginals = null;
 
       const USER_STAMPS_KEY = "gauravBoardUserStamps";
-      const PIXABAY_API_KEY_STORAGE = "gauravBoardPixabayApiKey";
-      const UNSPLASH_ACCESS_KEY_STORAGE = "gauravBoardUnsplashAccessKey";
-      const PEXELS_API_KEY_STORAGE = "gauravBoardPexelsApiKey";
-      const STOCK_SOURCE_STORAGE = "gauravBoardStockSource";
       const PAGES_STORAGE_KEY = "gauravBoardPages";
       const PAGES_DB_NAME = "GauravBoardDB";
       const PAGES_STORE_NAME = "pages";
@@ -6147,99 +6143,40 @@
           stampsGroup.appendChild(list);
         }
 
-        const stockLabel = document.createElement("span");
-        stockLabel.className = "tool-options-label";
-        stockLabel.textContent = "Search stock images";
-        stockLabel.style.marginTop = "0.75rem";
-        stockLabel.style.display = "block";
-        stampsGroup.appendChild(stockLabel);
+        const googleSection = document.createElement("div");
+        googleSection.style.marginTop = "0.85rem";
+        googleSection.style.paddingTop = "0.75rem";
+        googleSection.style.borderTop = "1px solid #374151";
 
-        const sourceRow = document.createElement("div");
-        sourceRow.style.marginTop = "0.25rem";
-        sourceRow.style.display = "flex";
-        sourceRow.style.alignItems = "center";
-        sourceRow.style.gap = "0.35rem";
-        const sourceLabel = document.createElement("span");
-        sourceLabel.style.fontSize = "0.75rem";
-        sourceLabel.style.color = "#9ca3af";
-        sourceLabel.textContent = "Source:";
-        const sourceSelect = document.createElement("select");
-        sourceSelect.style.padding = "0.3rem 0.5rem";
-        sourceSelect.style.fontSize = "0.75rem";
-        sourceSelect.style.background = "#1f2937";
-        sourceSelect.style.color = "#e5e7eb";
-        sourceSelect.style.border = "1px solid #374151";
-        sourceSelect.style.borderRadius = "6px";
-        sourceSelect.style.flex = "1";
-        ["pexels", "pixabay", "unsplash"].forEach((v) => {
-          const opt = document.createElement("option");
-          opt.value = v;
-          opt.textContent = v.charAt(0).toUpperCase() + v.slice(1);
-          sourceSelect.appendChild(opt);
-        });
-        sourceSelect.value = localStorage.getItem(STOCK_SOURCE_STORAGE) || "pixabay";
-        function updateKeyForSource() {
-          const s = sourceSelect.value;
-          keyInput.placeholder = s.charAt(0).toUpperCase() + s.slice(1) + " API key";
-          keyInput.value = s === "pixabay" ? (localStorage.getItem(PIXABAY_API_KEY_STORAGE) || "") : s === "unsplash" ? (localStorage.getItem(UNSPLASH_ACCESS_KEY_STORAGE) || "") : (localStorage.getItem(PEXELS_API_KEY_STORAGE) || "");
-        }
-        sourceSelect.addEventListener("change", () => {
-          try { localStorage.setItem(STOCK_SOURCE_STORAGE, sourceSelect.value); } catch (_) { }
-          updateKeyForSource();
-        });
-        sourceRow.appendChild(sourceLabel);
-        sourceRow.appendChild(sourceSelect);
-        stampsGroup.appendChild(sourceRow);
-
-        const keyRow = document.createElement("div");
-        keyRow.style.marginTop = "0.25rem";
-        keyRow.style.display = "flex";
-        keyRow.style.alignItems = "center";
-        keyRow.style.gap = "0.35rem";
-        const keyInput = document.createElement("input");
-        keyInput.type = "password";
-        keyInput.placeholder = "Pixabay API key";
-        keyInput.style.flex = "1";
-        keyInput.style.padding = "0.3rem 0.5rem";
-        keyInput.style.fontSize = "0.75rem";
-        keyInput.style.background = "#1f2937";
-        keyInput.style.color = "#e5e7eb";
-        keyInput.style.border = "1px solid #374151";
-        keyInput.style.borderRadius = "6px";
-        keyInput.addEventListener("change", () => {
-          try {
-            const s = sourceSelect.value;
-            if (s === "pixabay") localStorage.setItem(PIXABAY_API_KEY_STORAGE, keyInput.value.trim());
-            else if (s === "unsplash") localStorage.setItem(UNSPLASH_ACCESS_KEY_STORAGE, keyInput.value.trim());
-            else localStorage.setItem(PEXELS_API_KEY_STORAGE, keyInput.value.trim());
-          } catch (_) { }
-        });
-        keyRow.appendChild(keyInput);
-        updateKeyForSource();
-        stampsGroup.appendChild(keyRow);
+        const googleLabel = document.createElement("span");
+        googleLabel.className = "tool-options-label";
+        googleLabel.textContent = "Google Images";
+        googleLabel.style.display = "block";
+        googleLabel.style.marginBottom = "0.4rem";
+        googleSection.appendChild(googleLabel);
 
         const searchRow = document.createElement("div");
-        searchRow.style.marginTop = "0.35rem";
         searchRow.style.display = "flex";
-        searchRow.style.gap = "0.35rem";
-        searchRow.style.alignItems = "center";
-        searchRow.style.flexWrap = "wrap";
+        searchRow.style.flexDirection = "column";
+        searchRow.style.gap = "0.45rem";
+
         const searchInput = document.createElement("input");
         searchInput.type = "text";
-        searchInput.placeholder = "e.g. India physical map, classroom, diagram";
-        searchInput.style.flex = "1";
-        searchInput.style.minWidth = "120px";
+        searchInput.placeholder = "e.g. India map, diagram, classroom";
+        searchInput.style.width = "100%";
+        searchInput.style.boxSizing = "border-box";
         searchInput.style.padding = "0.35rem 0.5rem";
         searchInput.style.fontSize = "0.8rem";
         searchInput.style.background = "#1f2937";
         searchInput.style.color = "#e5e7eb";
         searchInput.style.border = "1px solid #374151";
         searchInput.style.borderRadius = "6px";
+
         const googleImagesBtn = document.createElement("button");
         googleImagesBtn.type = "button";
         googleImagesBtn.textContent = "Google Images";
         googleImagesBtn.title = "Open Google Images in a new tab (best for maps, diagrams, specific images)";
-        googleImagesBtn.style.padding = "0.35rem 0.75rem";
+        googleImagesBtn.style.padding = "0.4rem 0.75rem";
         googleImagesBtn.style.fontSize = "0.8rem";
         googleImagesBtn.style.borderRadius = "999px";
         googleImagesBtn.style.border = "none";
@@ -6247,176 +6184,34 @@
         googleImagesBtn.style.backgroundColor = "#22c55e";
         googleImagesBtn.style.color = "#020617";
         googleImagesBtn.style.fontWeight = "600";
-        googleImagesBtn.addEventListener("click", () => {
-          const q = (searchInput.value || "").trim() || "images";
+        googleImagesBtn.style.width = "100%";
+        googleImagesBtn.style.display = "flex";
+        googleImagesBtn.style.alignItems = "center";
+        googleImagesBtn.style.justifyContent = "center";
+
+        function openGoogleImages() {
+          const q = (searchInput.value || "").trim() || "diagram";
           window.open("https://www.google.com/search?tbm=isch&q=" + encodeURIComponent(q), "_blank", "noopener,noreferrer");
+        }
+
+        googleImagesBtn.addEventListener("click", openGoogleImages);
+        searchInput.addEventListener("keydown", (e) => {
+          if (e.key === "Enter") openGoogleImages();
         });
-        const searchBtn = document.createElement("button");
-        searchBtn.type = "button";
-        searchBtn.textContent = "Search";
-        searchBtn.title = "Search Pexels / Pixabay / Unsplash (in-app)";
-        searchBtn.style.padding = "0.35rem 0.75rem";
-        searchBtn.style.fontSize = "0.8rem";
-        searchBtn.style.borderRadius = "999px";
-        searchBtn.style.border = "none";
-        searchBtn.style.cursor = "pointer";
-        searchBtn.style.backgroundColor = "#38bdf8";
-        searchBtn.style.color = "#020617";
+
         searchRow.appendChild(searchInput);
         searchRow.appendChild(googleImagesBtn);
-        searchRow.appendChild(searchBtn);
-        stampsGroup.appendChild(searchRow);
+        googleSection.appendChild(searchRow);
 
         const googleHint = document.createElement("p");
-        googleHint.style.fontSize = "0.7rem";
+        googleHint.style.fontSize = "0.72rem";
         googleHint.style.color = "#9ca3af";
-        googleHint.style.margin = "0.25rem 0 0 0";
-        googleHint.textContent = "Use Google Images for maps & diagrams. Right-click an image there to save, then \"Add image on board\" above to add it.";
-        stampsGroup.appendChild(googleHint);
+        googleHint.style.margin = "0.35rem 0 0 0";
+        googleHint.style.lineHeight = "1.4";
+        googleHint.textContent = "Use Google Images for maps & diagrams. Right-click an image there to save, then \"Add image to library...\" above to add it.";
+        googleSection.appendChild(googleHint);
 
-        const resultsDiv = document.createElement("div");
-        resultsDiv.className = "color-swatch-row";
-        resultsDiv.style.marginTop = "0.5rem";
-        resultsDiv.style.flexWrap = "wrap";
-        resultsDiv.style.gap = "0.35rem";
-        resultsDiv.style.maxHeight = "200px";
-        resultsDiv.style.overflowY = "auto";
-        stampsGroup.appendChild(resultsDiv);
-
-        function addStockImageToBoard(dataUrl) {
-          const page = pages[currentPageIndex];
-          if (!page) return;
-          if (!page.shapes) page.shapes = [];
-          const scale = window.devicePixelRatio || 1;
-          const logicalW = boardCanvas ? boardCanvas.width / (scale * zoom) : 800;
-          const logicalH = boardCanvas ? boardCanvas.height / (scale * zoom) : 600;
-          const cx = logicalW / 2;
-          const cy = logicalH / 2;
-          const halfW = 150;
-          const halfH = 150;
-          const newShape = {
-            type: "image",
-            color: "#ffffff",
-            width: 1,
-            fillMode: "solid",
-            dataUrl,
-            start: { x: cx - halfW, y: cy - halfH },
-            end: { x: cx + halfW, y: cy + halfH },
-          };
-          page.shapes.push(newShape);
-          copyImageShapeToOtherPages(newShape);
-          currentTool = "select";
-          selectedShapes = [newShape];
-          selectedTexts = [];
-          toolButtons.forEach((btn) => {
-            const isActive = btn.getAttribute("data-tool") === "select";
-            btn.classList.toggle("tool-button--active", isActive);
-          });
-          updateBoardAppearance();
-          if (propertiesContent) handleToolSelection("select");
-        }
-
-        function urlToDataURL(url) {
-          return fetch(url, { mode: "cors" })
-            .then((r) => r.blob())
-            .then((blob) => new Promise((resolve, reject) => {
-              const r = new FileReader();
-              r.onload = () => resolve(r.result);
-              r.onerror = reject;
-              r.readAsDataURL(blob);
-            }));
-        }
-
-        function renderPhotoResult(thumbUrl, fullUrl, wrap) {
-          if (!thumbUrl) return;
-          const img = document.createElement("img");
-          img.src = thumbUrl;
-          img.alt = "";
-          img.style.width = "72px";
-          img.style.height = "72px";
-          img.style.objectFit = "cover";
-          img.style.display = "block";
-          wrap.appendChild(img);
-          wrap.addEventListener("click", () => {
-            wrap.disabled = true;
-            wrap.style.opacity = "0.6";
-            urlToDataURL(fullUrl).then((dataUrl) => {
-              addStockImageToBoard(dataUrl);
-            }).catch(() => {
-              resultsDiv.insertAdjacentHTML("beforeend", "<p style=\"font-size:0.7rem;color:#f87171;\">Could not load image. Try another.</p>");
-              wrap.disabled = false;
-              wrap.style.opacity = "1";
-            });
-          });
-          resultsDiv.appendChild(wrap);
-        }
-
-        searchBtn.addEventListener("click", () => {
-          const query = (searchInput.value || "").trim();
-          const source = sourceSelect.value || "pixabay";
-          let apiKey = keyInput.value.trim();
-          if (!apiKey && source === "pixabay") apiKey = (localStorage.getItem(PIXABAY_API_KEY_STORAGE) || "").trim();
-          if (!apiKey && source === "unsplash") apiKey = (localStorage.getItem(UNSPLASH_ACCESS_KEY_STORAGE) || "").trim();
-          if (!apiKey && source === "pexels") apiKey = (localStorage.getItem(PEXELS_API_KEY_STORAGE) || "").trim();
-          if (!query) return;
-          if (!apiKey) {
-            resultsDiv.innerHTML = "<p style=\"font-size:0.75rem;color:#f87171;margin:0;\">Enter your " + (source.charAt(0).toUpperCase() + source.slice(1)) + " API key above.</p>";
-            return;
-          }
-          resultsDiv.innerHTML = "<p style=\"font-size:0.75rem;color:#9ca3af;margin:0;\">Searching…</p>";
-          if (source === "pexels") {
-            fetch("https://api.pexels.com/v1/search?query=" + encodeURIComponent(query) + "&per_page=12", { headers: { Authorization: apiKey } })
-              .then((r) => r.ok ? r.json() : Promise.reject(new Error("Search failed")))
-              .then((data) => {
-                const photos = data.photos || [];
-                resultsDiv.innerHTML = "";
-                if (!photos.length) { resultsDiv.innerHTML = "<p style=\"font-size:0.75rem;color:#9ca3af;margin:0;\">No images found. Try another word.</p>"; return; }
-                photos.forEach((photo) => {
-                  const src = photo.src || {};
-                  const wrap = document.createElement("button");
-                  wrap.type = "button"; wrap.title = "Add to board";
-                  wrap.style.padding = "0"; wrap.style.border = "2px solid #374151"; wrap.style.borderRadius = "8px"; wrap.style.cursor = "pointer"; wrap.style.background = "none"; wrap.style.overflow = "hidden";
-                  renderPhotoResult(src.small || src.medium || src.large, src.large || src.medium || src.original, wrap);
-                });
-              })
-              .catch(() => { resultsDiv.innerHTML = "<p style=\"font-size:0.75rem;color:#f87171;margin:0;\">Search failed. Check your API key and connection.</p>"; });
-          } else if (source === "unsplash") {
-            fetch("https://api.unsplash.com/search/photos?query=" + encodeURIComponent(query) + "&per_page=12", { headers: { Authorization: "Client-ID " + apiKey } })
-              .then((r) => r.ok ? r.json() : Promise.reject(new Error("Search failed")))
-              .then((data) => {
-                const results = data.results || [];
-                resultsDiv.innerHTML = "";
-                if (!results.length) { resultsDiv.innerHTML = "<p style=\"font-size:0.75rem;color:#9ca3af;margin:0;\">No images found. Try another word.</p>"; return; }
-                results.forEach((photo) => {
-                  const urls = photo.urls || {};
-                  const wrap = document.createElement("button");
-                  wrap.type = "button"; wrap.title = "Add to board";
-                  wrap.style.padding = "0"; wrap.style.border = "2px solid #374151"; wrap.style.borderRadius = "8px"; wrap.style.cursor = "pointer"; wrap.style.background = "none"; wrap.style.overflow = "hidden";
-                  renderPhotoResult(urls.small || urls.thumb, urls.regular || urls.full || urls.small, wrap);
-                });
-              })
-              .catch(() => { resultsDiv.innerHTML = "<p style=\"font-size:0.75rem;color:#f87171;margin:0;\">Search failed. Check your API key and connection.</p>"; });
-          } else {
-            fetch("https://pixabay.com/api/?key=" + encodeURIComponent(apiKey) + "&q=" + encodeURIComponent(query) + "&image_type=photo&per_page=12")
-              .then((r) => r.ok ? r.json() : Promise.reject(new Error("Search failed")))
-              .then((data) => {
-                const hits = data.hits || [];
-                resultsDiv.innerHTML = "";
-                if (!hits.length) { resultsDiv.innerHTML = "<p style=\"font-size:0.75rem;color:#9ca3af;margin:0;\">No images found. Try another word.</p>"; return; }
-                hits.forEach((photo) => {
-                  const wrap = document.createElement("button");
-                  wrap.type = "button"; wrap.title = "Add to board";
-                  wrap.style.padding = "0"; wrap.style.border = "2px solid #374151"; wrap.style.borderRadius = "8px"; wrap.style.cursor = "pointer"; wrap.style.background = "none"; wrap.style.overflow = "hidden";
-                  renderPhotoResult(photo.previewURL || photo.webformatURL, photo.largeImageURL || photo.webformatURL || photo.previewURL, wrap);
-                });
-              })
-              .catch(() => { resultsDiv.innerHTML = "<p style=\"font-size:0.75rem;color:#f87171;margin:0;\">Search failed. Check your API key and connection.</p>"; });
-          }
-        });
-
-        searchInput.addEventListener("keydown", (e) => {
-          if (e.key === "Enter") searchBtn.click();
-        });
+        stampsGroup.appendChild(googleSection);
 
         propertiesContent.appendChild(stampsGroup);
       }
@@ -8103,8 +7898,11 @@
             if (vid && typeof vid.currentTime === "number") curTime = vid.currentTime;
           }
           w.currentTime = curTime;
-          notifyParentVideoAction("time_sync", { widgetId: w.id, currentTime: curTime });
-        }, 2500);
+          // Broadcast precise timestamp every 1s to eliminate lag
+          if (curTime > 0.5) {
+            notifyParentVideoAction("time_sync", { widgetId: w.id, currentTime: curTime });
+          }
+        }, 1000);
       }
 
       function stopVideoTimeSyncInterval(w) {
@@ -8328,6 +8126,7 @@
         } else {
           const vid = el?.querySelector("video");
           if (vid) {
+            if (typeof vid.currentTime === "number") w.currentTime = vid.currentTime;
             if (shouldPlay) {
               vid.play().catch(() => {});
               startVideoTimeSyncInterval(w);
@@ -11528,8 +11327,13 @@
         }
         if (!data || typeof data !== "object") return;
 
-        // YouTube iframe API postMessage listener for state changes
-        if (data.event === "onStateChange" || (data.info && typeof data.info.playerState !== "undefined") || data.event === "initialDelivery") {
+        // YouTube iframe API postMessage listener for state changes & real-time playback updates
+        if (
+          data.event === "onStateChange" ||
+          data.event === "infoDelivery" ||
+          data.event === "initialDelivery" ||
+          (data.info && typeof data.info.playerState !== "undefined")
+        ) {
           const page = pages[currentPageIndex];
           if (!page || !page.widgets) return;
           const videoWidgets = page.widgets.filter((item) => item.type === "video" && item.videoType === "youtube");
@@ -11537,8 +11341,15 @@
           if (!targetWidget) return;
           targetWidget._handshakeAcked = true;
 
-          const curTime = typeof data.info === "object" && typeof data.info.currentTime === "number" ? data.info.currentTime : targetWidget.currentTime;
-          if (typeof curTime === "number") targetWidget.currentTime = curTime;
+          const prevTime = typeof targetWidget.currentTime === "number" ? targetWidget.currentTime : 0;
+          const curTime = typeof data.info === "object" && typeof data.info.currentTime === "number" ? data.info.currentTime : undefined;
+          if (typeof curTime === "number") {
+            targetWidget.currentTime = curTime;
+            // Immediate scrub / seek jump detection (> 2.0s jump between updates)
+            if (prevTime > 0.5 && Math.abs(curTime - prevTime) > 2.0) {
+              notifyParentVideoAction("seek", { widgetId: targetWidget.id, currentTime: curTime });
+            }
+          }
 
           const state = data.event === "onStateChange" ? data.info : (data.info ? data.info.playerState : undefined);
           if (typeof state !== "undefined") {
