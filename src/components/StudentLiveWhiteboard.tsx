@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { io, type Socket } from 'socket.io-client';
-import { Radio, ChevronLeft, ChevronRight, Download, FileText, Maximize2, Minimize2, Bookmark, CheckCircle2, RefreshCw } from 'lucide-react';
+import { Radio, ChevronLeft, ChevronRight, Download, FileText, Maximize2, Minimize2, Bookmark, CheckCircle2, RefreshCw, Hand, X, Send, PenTool, Eraser } from 'lucide-react';
 import jsPDF from 'jspdf';
 
 interface StudentLiveWhiteboardProps {
@@ -536,6 +536,7 @@ function isGradeMatch(gradeA?: string | null, gradeB?: string | null): boolean {
 }
 
 export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
+  studentName = 'Student',
   studentGrade = 'Grade 6',
   teacherId,
   setNotice
@@ -549,6 +550,27 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [followTeacher, setFollowTeacher] = useState(true);
   const [videoSyncEvents, setVideoSyncEvents] = useState<Record<string, any>>({});
+
+  // Doubt Queue / Raise Hand state
+  const [isHandRaised, setIsHandRaised] = useState(false);
+  const [showRaiseHandModal, setShowRaiseHandModal] = useState(false);
+  const [handNote, setHandNote] = useState('');
+
+  // Temporary Delegation state (Pointer / Chalk)
+  const [delegatedStudent, setDelegatedStudent] = useState<any>(null);
+  const [laserPointer, setLaserPointer] = useState<{ x: number; y: number; studentName: string } | null>(null);
+  const laserTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Student Chalk state
+  const [chalkColor, setChalkColor] = useState('#0f172a');
+  const [chalkWidth, setChalkWidth] = useState(2.5);
+  const [chalkMode, setChalkMode] = useState<'pen' | 'eraser'>('pen');
+  const isDrawingChalkRef = useRef(false);
+  const chalkStrokeRef = useRef<any>(null);
+
+  // Live Reactions & PDF export state
+  const [floatingReactions, setFloatingReactions] = useState<Array<{ id: string; emoji: string; x: number }>>([]);
+  const [isExportingPDF, setIsExportingPDF] = useState(false);
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -574,11 +596,11 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
         setIsLive(true);
         if (data.teacherName) setTeacherName(data.teacherName);
         if (socketRef.current) {
-          socketRef.current.emit('whiteboard:join', { grade: effectiveGrade, teacherId });
+          socketRef.current.emit('whiteboard:join', { grade: effectiveGrade, teacherId, studentName });
         }
       }
     } catch (_) {}
-  }, [effectiveGrade, teacherId]);
+  }, [effectiveGrade, teacherId, studentName]);
 
   // Connect to Socket.IO and join whiteboard room
   useEffect(() => {
@@ -588,7 +610,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
     socketRef.current = socket;
 
     socket.on('connect', () => {
-      socket.emit('whiteboard:join', { grade: effectiveGrade, teacherId });
+      socket.emit('whiteboard:join', { grade: effectiveGrade, teacherId, studentName });
       void checkLiveStatus();
     });
 
@@ -596,6 +618,12 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
       if (data?.isLive) {
         setIsLive(true);
         setTeacherName(data.teacherName || 'Teacher');
+        if (data.delegatedStudent) {
+          setDelegatedStudent(data.delegatedStudent);
+        }
+        if (typeof data.isHandRaised === 'boolean') {
+          setIsHandRaised(data.isHandRaised);
+        }
         const initialPages = Array.isArray(data.pages) && data.pages.length ? data.pages : [{ strokes: [], shapes: [], texts: [], widgets: [] }];
         setPages(initialPages);
         const tPage = typeof data.activePageIndex === 'number' ? data.activePageIndex : 0;
@@ -863,9 +891,47 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
       }
     });
 
+    socket.on('whiteboard:hand_state', (data: { isHandRaised: boolean }) => {
+      setIsHandRaised(Boolean(data?.isHandRaised));
+    });
+
+    socket.on('whiteboard:doubt_dismissed', () => {
+      setIsHandRaised(false);
+      if (setNotice) setNotice('Teacher marked your question as addressed.');
+    });
+
+    socket.on('whiteboard:delegation_changed', (data: { delegatedStudent: any }) => {
+      setDelegatedStudent(data?.delegatedStudent || null);
+    });
+
+    socket.on('whiteboard:laser_pointer', (data: { x: number; y: number; studentName: string; active: boolean }) => {
+      if (data?.active) {
+        setLaserPointer({ x: data.x, y: data.y, studentName: data.studentName });
+        if (laserTimeoutRef.current) clearTimeout(laserTimeoutRef.current);
+        laserTimeoutRef.current = setTimeout(() => {
+          setLaserPointer(null);
+        }, 2500);
+      } else {
+        setLaserPointer(null);
+      }
+    });
+
+    socket.on('whiteboard:reaction_event', (data: { emoji: string; studentName?: string }) => {
+      const newReaction = {
+        id: `${Date.now()}-${Math.random()}`,
+        emoji: data.emoji,
+        x: 20 + Math.random() * 60
+      };
+      setFloatingReactions((prev) => [...prev.slice(-15), newReaction]);
+      setTimeout(() => {
+        setFloatingReactions((prev) => prev.filter((r) => r.id !== newReaction.id));
+      }, 2400);
+    });
+
     return () => {
       socket.emit('whiteboard:leave', { grade: effectiveGrade });
       socket.disconnect();
+      if (laserTimeoutRef.current) clearTimeout(laserTimeoutRef.current);
     };
   }, [effectiveGrade, teacherId, checkLiveStatus]);
 
@@ -886,53 +952,19 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
     return imageCacheRef.current.get(dataUrl)!;
   };
 
-  // Render current viewing page on canvas
-  const drawCurrentPage = () => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    const page = pages[viewingPageIndex];
-    const container = containerRef.current || (canvas.closest('.student-whiteboard-canvas-wrap') as HTMLElement | null);
-    const displayWidth = container ? Math.max(container.clientWidth - 24, 1000) : 1000;
-
-    // 1. Determine canvas height: respect teacher's infinite scroll height (default 2400 for infinite scroll, or page.height)
-    let computedHeight = (page && typeof page.height === 'number' && page.height > 0)
-      ? page.height
-      : (page?.infiniteScroll !== false ? 2400 : (container ? container.clientHeight : 800));
-
-    // 2. Scan strokes, shapes, and texts to ensure no drawn content is ever cut off
-    if (page?.strokes) {
-      for (const st of page.strokes) {
-        if (st.points) {
-          for (const pt of st.points) {
-            if (pt.y + 120 > computedHeight) computedHeight = Math.ceil(pt.y + 120);
-          }
-        }
-      }
+  // Helper to render whiteboard page content (used by both live canvas and PDF export)
+  const renderWhiteboardPage = (
+    ctx: CanvasRenderingContext2D,
+    page: any,
+    displayWidth: number,
+    displayHeight: number,
+    options?: { isExport?: boolean; pageNum?: number; totalPages?: number; watermarkTitle?: string }
+  ) => {
+    if (!page) {
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, displayWidth, displayHeight);
+      return;
     }
-    if (page?.shapes) {
-      for (const sh of page.shapes) {
-        const bottom = Math.max(sh.startY || 0, sh.endY || 0, (sh.y || 0) + (sh.height || 0));
-        if (bottom + 120 > computedHeight) computedHeight = Math.ceil(bottom + 120);
-      }
-    }
-    if (page?.texts) {
-      for (const tx of page.texts) {
-        if ((tx.y || 0) + 120 > computedHeight) computedHeight = Math.ceil((tx.y || 0) + 120);
-      }
-    }
-
-    const displayHeight = Math.max(computedHeight, container ? container.clientHeight : 720);
-
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width = displayWidth * dpr;
-    canvas.height = displayHeight * dpr;
-    canvas.style.width = `${displayWidth}px`;
-    canvas.style.height = `${displayHeight}px`;
-
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
     // Board background color
     let bgColor = '#ffffff';
@@ -1517,11 +1549,136 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
         ctx.restore();
       });
     }
+
+    // Watermark, Header, & Footer (when exporting class notes as PDF)
+    if (options?.isExport) {
+      ctx.save();
+      // Center diagonal watermark
+      ctx.translate(displayWidth / 2, displayHeight / 2);
+      ctx.rotate(-Math.PI / 8);
+      ctx.font = 'bold 44px "Plus Jakarta Sans", Arial, sans-serif';
+      ctx.fillStyle = isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(15, 23, 42, 0.04)';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(`EduAshram Live Classroom • ${effectiveGrade}`, 0, 0);
+      ctx.restore();
+
+      // Header Banner
+      ctx.save();
+      ctx.fillStyle = '#0f172a';
+      ctx.fillRect(0, 0, displayWidth, 38);
+      ctx.fillStyle = '#f8fafc';
+      ctx.font = 'bold 13px "Plus Jakarta Sans", Arial, sans-serif';
+      ctx.textBaseline = 'middle';
+      ctx.textAlign = 'left';
+      ctx.fillText(
+        `📚 EduAshram Class Notes • ${effectiveGrade} • Teacher: ${teacherName} • ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`,
+        18,
+        19
+      );
+      ctx.textAlign = 'right';
+      ctx.fillText(`Page ${options.pageNum} of ${options.totalPages}`, displayWidth - 18, 19);
+      ctx.restore();
+
+      // Footer Banner
+      ctx.save();
+      ctx.fillStyle = isDark ? 'rgba(255, 255, 255, 0.5)' : 'rgba(15, 23, 42, 0.55)';
+      ctx.font = '10px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(
+        `EduAshram Digital Teaching System • Notes for ${studentName} • ${new Date().toLocaleDateString('en-GB')}`,
+        displayWidth / 2,
+        displayHeight - 12
+      );
+      ctx.restore();
+    }
+  };
+
+  // Render current viewing page on canvas
+  const drawCurrentPage = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const page = pages[viewingPageIndex];
+    const container = containerRef.current || (canvas.closest('.student-whiteboard-canvas-wrap') as HTMLElement | null);
+    const displayWidth = container ? Math.max(container.clientWidth - 24, 1000) : 1000;
+
+    let computedHeight = (page && typeof page.height === 'number' && page.height > 0)
+      ? page.height
+      : (page?.infiniteScroll !== false ? 2400 : (container ? container.clientHeight : 800));
+
+    if (page?.strokes) {
+      for (const st of page.strokes) {
+        if (st.points) {
+          for (const pt of st.points) {
+            if (pt.y + 120 > computedHeight) computedHeight = Math.ceil(pt.y + 120);
+          }
+        }
+      }
+    }
+    if (page?.shapes) {
+      for (const sh of page.shapes) {
+        const bottom = Math.max(sh.startY || 0, sh.endY || 0, (sh.y || 0) + (sh.height || 0));
+        if (bottom + 120 > computedHeight) computedHeight = Math.ceil(bottom + 120);
+      }
+    }
+    if (page?.texts) {
+      for (const tx of page.texts) {
+        if ((tx.y || 0) + 120 > computedHeight) computedHeight = Math.ceil((tx.y || 0) + 120);
+      }
+    }
+
+    const displayHeight = Math.max(computedHeight, container ? container.clientHeight : 720);
+
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = displayWidth * dpr;
+    canvas.height = displayHeight * dpr;
+    canvas.style.width = `${displayWidth}px`;
+    canvas.style.height = `${displayHeight}px`;
+
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    renderWhiteboardPage(ctx, page, displayWidth, displayHeight);
+
+    // Laser pointer (if active)
+    if (laserPointer) {
+      ctx.save();
+      const lx = laserPointer.x;
+      const ly = laserPointer.y;
+      const grad = ctx.createRadialGradient(lx, ly, 2, lx, ly, 18);
+      grad.addColorStop(0, 'rgba(239, 68, 68, 0.95)');
+      grad.addColorStop(0.35, 'rgba(239, 68, 68, 0.45)');
+      grad.addColorStop(1, 'rgba(239, 68, 68, 0)');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(lx, ly, 18, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = '#ef4444';
+      ctx.beginPath();
+      ctx.arc(lx, ly, 5, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.font = 'bold 12px sans-serif';
+      const label = `🎯 ${laserPointer.studentName || 'Student'}`;
+      const tw = ctx.measureText(label).width;
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
+      if (ctx.roundRect) ctx.roundRect(lx + 10, ly - 10, tw + 14, 22, 6);
+      else ctx.rect(lx + 10, ly - 10, tw + 14, 22);
+      ctx.fill();
+      ctx.fillStyle = '#ffffff';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(label, lx + 17, ly + 1);
+      ctx.restore();
+    }
   };
 
   useEffect(() => {
     drawCurrentPage();
-  }, [pages, viewingPageIndex, isLive]);
+  }, [pages, viewingPageIndex, isLive, laserPointer]);
 
   // Window resize observer for canvas auto-scaling
   useEffect(() => {
@@ -1529,6 +1686,190 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, [pages, viewingPageIndex]);
+
+  // Delegation helpers & Pointer Event Handlers
+  const lastPointerEmitRef = useRef<number>(0);
+
+  const getCanvasCoords = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return { x: 0, y: 0 };
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / (rect.width * (window.devicePixelRatio || 1));
+    const scaleY = canvas.height / (rect.height * (window.devicePixelRatio || 1));
+    const x = Math.round((e.clientX - rect.left) * scaleX);
+    const y = Math.round((e.clientY - rect.top) * scaleY);
+    return { x, y };
+  };
+
+  const isMeDelegated = Boolean(
+    delegatedStudent &&
+      (delegatedStudent.socketId === socketRef.current?.id ||
+        (delegatedStudent.studentName && delegatedStudent.studentName === studentName))
+  );
+  const currentPermission = isMeDelegated ? delegatedStudent.permission : null;
+
+  const handleCanvasPointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!isLive || !currentPermission) return;
+
+    const { x, y } = getCanvasCoords(e);
+
+    // Laser pointer delegation
+    if (currentPermission === 'pointer') {
+      const now = Date.now();
+      if (now - lastPointerEmitRef.current > 40) {
+        lastPointerEmitRef.current = now;
+        socketRef.current?.emit('whiteboard:student_pointer', {
+          grade: effectiveGrade,
+          teacherId,
+          x,
+          y,
+          active: true
+        });
+      }
+      return;
+    }
+
+    // Chalk delegation
+    if (currentPermission === 'chalk' && isDrawingChalkRef.current && chalkStrokeRef.current) {
+      chalkStrokeRef.current.points.push({ x, y });
+      const canvas = canvasRef.current;
+      const ctx = canvas?.getContext('2d');
+      if (ctx) {
+        ctx.save();
+        const dpr = window.devicePixelRatio || 1;
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.strokeStyle = chalkStrokeRef.current.color;
+        ctx.lineWidth = chalkStrokeRef.current.width;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        const pts = chalkStrokeRef.current.points;
+        if (pts.length >= 2) {
+          ctx.beginPath();
+          ctx.moveTo(pts[pts.length - 2].x, pts[pts.length - 2].y);
+          ctx.lineTo(pts[pts.length - 1].x, pts[pts.length - 1].y);
+          ctx.stroke();
+        }
+        ctx.restore();
+      }
+    }
+  };
+
+  const handleCanvasPointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!isLive || !currentPermission) return;
+
+    const { x, y } = getCanvasCoords(e);
+
+    if (currentPermission === 'pointer') {
+      socketRef.current?.emit('whiteboard:student_pointer', {
+        grade: effectiveGrade,
+        teacherId,
+        x,
+        y,
+        active: true
+      });
+      return;
+    }
+
+    if (currentPermission === 'chalk') {
+      isDrawingChalkRef.current = true;
+      const page = pages[viewingPageIndex];
+      const isDark = page?.boardType === 'black' || page?.boardType === 'green';
+      const strokeColor =
+        chalkMode === 'eraser'
+          ? (page?.boardType === 'black' ? '#020617' : page?.boardType === 'green' ? '#064e3b' : '#ffffff')
+          : (isDark && chalkColor === '#0f172a' ? '#ffffff' : chalkColor);
+      const strokeWidth = chalkMode === 'eraser' ? 24 : chalkWidth;
+
+      chalkStrokeRef.current = {
+        color: strokeColor,
+        width: strokeWidth,
+        mode: chalkMode,
+        points: [{ x, y }]
+      };
+
+      const canvas = canvasRef.current;
+      const ctx = canvas?.getContext('2d');
+      if (ctx) {
+        ctx.save();
+        const dpr = window.devicePixelRatio || 1;
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.fillStyle = strokeColor;
+        ctx.beginPath();
+        ctx.arc(x, y, strokeWidth / 2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+    }
+  };
+
+  const handleCanvasPointerUp = () => {
+    if (!isLive || !currentPermission) return;
+
+    if (currentPermission === 'chalk' && isDrawingChalkRef.current && chalkStrokeRef.current) {
+      isDrawingChalkRef.current = false;
+      const finishedStroke = chalkStrokeRef.current;
+      chalkStrokeRef.current = null;
+
+      if (finishedStroke.points.length > 0) {
+        socketRef.current?.emit('whiteboard:student_stroke', {
+          grade: effectiveGrade,
+          teacherId,
+          pageIndex: viewingPageIndex,
+          stroke: finishedStroke
+        });
+
+        setPages((prevPages) => {
+          const next = [...prevPages];
+          if (next[viewingPageIndex]) {
+            next[viewingPageIndex] = {
+              ...next[viewingPageIndex],
+              strokes: [...(next[viewingPageIndex].strokes || []), finishedStroke]
+            };
+          }
+          return next;
+        });
+      }
+    }
+  };
+
+  const handleCanvasPointerLeave = () => {
+    if (currentPermission === 'pointer') {
+      socketRef.current?.emit('whiteboard:student_pointer', {
+        grade: effectiveGrade,
+        teacherId,
+        active: false
+      });
+    }
+    if (currentPermission === 'chalk') {
+      handleCanvasPointerUp();
+    }
+  };
+
+  const handleSendReaction = (emoji: string, label: string, sentiment: 'positive' | 'question' | 'slow_down' | 'speed_up') => {
+    if (!socketRef.current || !isLive) return;
+    socketRef.current.emit('whiteboard:reaction', {
+      grade: effectiveGrade,
+      teacherId,
+      emoji,
+      label,
+      sentiment,
+      studentName
+    });
+
+    const newReaction = {
+      id: `${Date.now()}-${Math.random()}`,
+      emoji,
+      x: 20 + Math.random() * 60
+    };
+    setFloatingReactions((prev) => [...prev.slice(-15), newReaction]);
+    setTimeout(() => {
+      setFloatingReactions((prev) => prev.filter((r) => r.id !== newReaction.id));
+    }, 2400);
+
+    if (setNotice) {
+      setNotice(`Sent reaction: ${emoji} ${label}`);
+    }
+  };
 
   // Export current page as PNG image
   const handleExportPNG = () => {
@@ -1541,17 +1882,48 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
     if (setNotice) setNotice(`Downloaded Page ${viewingPageIndex + 1} as PNG.`);
   };
 
-  // Export all pages as PDF
-  const handleExportPDF = () => {
-    if (!pages.length) return;
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+  // One-Click "Export Class Notes as PDF": generates clean, compressed PDF of all pages with watermark
+  const handleExportPDF = async () => {
+    if (!pages || !pages.length) return;
+    setIsExportingPDF(true);
+    try {
+      const pdfW = 1200;
+      const pdfH = 800;
+      const pdf = new jsPDF({ orientation: 'landscape', unit: 'px', format: [pdfW, pdfH] });
 
-    const pdf = new jsPDF({ orientation: 'landscape', unit: 'px', format: [1000, 720] });
-    const imgData = canvas.toDataURL('image/png');
-    pdf.addImage(imgData, 'PNG', 0, 0, 1000, 720);
-    pdf.save(`EduAshram_Live_Class_Notes_Grade_${effectiveGrade.replace(/\s+/g, '_')}.pdf`);
-    if (setNotice) setNotice('Class notes downloaded as PDF.');
+      const offCanvas = document.createElement('canvas');
+      offCanvas.width = pdfW;
+      offCanvas.height = pdfH;
+      const offCtx = offCanvas.getContext('2d');
+      if (!offCtx) return;
+
+      const totalPgs = pages.length;
+      for (let i = 0; i < totalPgs; i++) {
+        if (i > 0) {
+          pdf.addPage([pdfW, pdfH], 'landscape');
+        }
+        offCtx.clearRect(0, 0, pdfW, pdfH);
+        renderWhiteboardPage(offCtx, pages[i], pdfW, pdfH, {
+          isExport: true,
+          pageNum: i + 1,
+          totalPages: totalPgs,
+          watermarkTitle: `EduAshram • ${effectiveGrade}`
+        });
+
+        const imgData = offCanvas.toDataURL('image/jpeg', 0.88);
+        pdf.addImage(imgData, 'JPEG', 0, 0, pdfW, pdfH, undefined, 'FAST');
+      }
+
+      const dateStr = new Date().toISOString().slice(0, 10);
+      const safeGrade = effectiveGrade.replace(/[^a-zA-Z0-9_-]/g, '_');
+      pdf.save(`EduAshram_Class_Notes_${safeGrade}_${dateStr}.pdf`);
+      if (setNotice) setNotice(`Downloaded ${totalPgs}-page Class Notes as PDF.`);
+    } catch (err) {
+      console.error('Error generating PDF notes:', err);
+      if (setNotice) setNotice('Failed to generate PDF. Please try again.');
+    } finally {
+      setIsExportingPDF(false);
+    }
   };
 
   const jumpToTeacher = () => {
@@ -1662,8 +2034,67 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
           </div>
         )}
 
-        {/* Action Tools */}
+        {/* Action Tools: Raise Hand, Reactions, PDF Notes & Fullscreen */}
         <div className="student-actions-group">
+          {isLive && (
+            <>
+              {/* Raise Hand & Doubt Button */}
+              <button
+                type="button"
+                className={`student-raise-hand-btn ${isHandRaised ? 'is-raised' : ''}`}
+                onClick={() => {
+                  if (isHandRaised) {
+                    socketRef.current?.emit('whiteboard:lower_hand', { grade: effectiveGrade, teacherId });
+                    setIsHandRaised(false);
+                    if (setNotice) setNotice('Hand lowered.');
+                  } else {
+                    setShowRaiseHandModal(true);
+                  }
+                }}
+                title={isHandRaised ? 'Click to lower your hand' : 'Raise hand to ask a question / doubt'}
+              >
+                <Hand size={15} />
+                <span>{isHandRaised ? '✋ Hand Raised' : '✋ Raise Hand'}</span>
+              </button>
+
+              {/* Instant Sentiment Reactions */}
+              <div className="student-reactions-bar">
+                <button
+                  type="button"
+                  className="student-reaction-btn"
+                  onClick={() => handleSendReaction('👍', 'Understood', 'positive')}
+                  title="Understood / Got it!"
+                >
+                  👍 <span>Got it</span>
+                </button>
+                <button
+                  type="button"
+                  className="student-reaction-btn"
+                  onClick={() => handleSendReaction('❓', 'Doubt', 'question')}
+                  title="Need clarification / Have a doubt"
+                >
+                  ❓ <span>Doubt</span>
+                </button>
+                <button
+                  type="button"
+                  className="student-reaction-btn"
+                  onClick={() => handleSendReaction('🐢', 'Too fast', 'slow_down')}
+                  title="Pacing is too fast, please slow down"
+                >
+                  🐢 <span>Slower</span>
+                </button>
+                <button
+                  type="button"
+                  className="student-reaction-btn"
+                  onClick={() => handleSendReaction('⚡', 'Ready', 'speed_up')}
+                  title="Understood, ready to proceed"
+                >
+                  ⚡ <span>Ready</span>
+                </button>
+              </div>
+            </>
+          )}
+
           {pages.length > 0 && (
             <>
               <button
@@ -1672,15 +2103,17 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
                 onClick={handleExportPNG}
                 title="Save current page as PNG image"
               >
-                <Download size={14} /> Save Page
+                <Download size={14} /> Page
               </button>
               <button
                 type="button"
                 className="button button-secondary student-action-btn"
                 onClick={handleExportPDF}
-                title="Save notes as PDF"
+                disabled={isExportingPDF}
+                title="Download today's class notes as clean, watermarked PDF"
+                style={{ fontWeight: 700 }}
               >
-                <FileText size={14} /> PDF Notes
+                <FileText size={14} /> {isExportingPDF ? 'Generating...' : 'PDF Notes'}
               </button>
             </>
           )}
@@ -1695,14 +2128,118 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
         </div>
       </div>
 
+      {/* Temporary Delegation Notification Banners */}
+      {isLive && currentPermission === 'pointer' && (
+        <div className="student-delegation-banner student-delegation-banner--pointer">
+          <span>🎯 <strong>Teacher delegated Board Pointer to you:</strong> Move your mouse or finger across the whiteboard to point to anything. Everyone can see your laser pointer in real-time.</span>
+        </div>
+      )}
+
+      {isLive && currentPermission === 'chalk' && (
+        <>
+          <div className="student-delegation-banner student-delegation-banner--chalk">
+            <span>✏️ <strong>Teacher delegated Board Chalk to you:</strong> Solve the problem or write directly on the board! Everyone can see your writing in real-time.</span>
+          </div>
+          <div className="student-chalk-bar">
+            <span style={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: '5px' }}>
+              <PenTool size={13} /> Student Chalk:
+            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              {['#0f172a', '#2563eb', '#16a34a', '#dc2626', '#ea580c'].map((c) => (
+                <span
+                  key={c}
+                  className={`student-chalk-color-dot ${chalkColor === c && chalkMode === 'pen' ? 'active' : ''}`}
+                  style={{ background: c }}
+                  onClick={() => { setChalkColor(c); setChalkMode('pen'); }}
+                  title={`Color: ${c}`}
+                />
+              ))}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginLeft: '6px' }}>
+              {[
+                { label: 'Thin', w: 2 },
+                { label: 'Medium', w: 4 },
+                { label: 'Thick', w: 7 }
+              ].map((sz) => (
+                <button
+                  key={sz.w}
+                  type="button"
+                  onClick={() => { setChalkWidth(sz.w); setChalkMode('pen'); }}
+                  style={{
+                    padding: '2px 8px',
+                    borderRadius: '4px',
+                    fontSize: '0.72rem',
+                    background: chalkWidth === sz.w && chalkMode === 'pen' ? '#38bdf8' : '#334155',
+                    color: '#ffffff',
+                    border: 'none',
+                    cursor: 'pointer'
+                  }}
+                >
+                  {sz.label}
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={() => setChalkMode(chalkMode === 'eraser' ? 'pen' : 'eraser')}
+                style={{
+                  padding: '2px 8px',
+                  borderRadius: '4px',
+                  fontSize: '0.72rem',
+                  background: chalkMode === 'eraser' ? '#f43f5e' : '#334155',
+                  color: '#ffffff',
+                  border: 'none',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  marginLeft: '4px'
+                }}
+              >
+                <Eraser size={12} /> {chalkMode === 'eraser' ? 'Erasing' : 'Eraser'}
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+
+      {isLive && !isMeDelegated && delegatedStudent && (
+        <div className="student-delegation-banner student-delegation-banner--pointer" style={{ background: '#f8fafc', color: '#475569', borderColor: '#e2e8f0' }}>
+          <span>👥 Classmate <strong>{delegatedStudent.studentName || 'Student'}</strong> is currently controlling the board {delegatedStudent.permission === 'chalk' ? 'chalk ✏️' : 'pointer 🎯'}.</span>
+        </div>
+      )}
+
       {/* Main Board View */}
       <div ref={containerRef} className="student-whiteboard-canvas-wrap">
+        {/* Floating Reactions Layer */}
+        {floatingReactions.length > 0 && (
+          <div className="floating-reactions-container">
+            {floatingReactions.map((r) => (
+              <div
+                key={r.id}
+                className="floating-reaction-bubble"
+                style={{ left: `${r.x}%` }}
+              >
+                {r.emoji}
+              </div>
+            ))}
+          </div>
+        )}
+
         {isLive ? (
           <div style={{ position: 'relative', margin: '0 auto', flexShrink: 0 }}>
             <canvas
               ref={canvasRef}
               className="student-whiteboard-canvas"
-              style={{ pointerEvents: 'none', display: 'block' }}
+              style={{
+                pointerEvents: currentPermission ? 'auto' : 'none',
+                cursor: currentPermission === 'pointer' ? 'crosshair' : currentPermission === 'chalk' ? (chalkMode === 'eraser' ? 'cell' : 'crosshair') : 'default',
+                display: 'block',
+                touchAction: currentPermission ? 'none' : 'auto'
+              }}
+              onPointerDown={handleCanvasPointerDown}
+              onPointerMove={handleCanvasPointerMove}
+              onPointerUp={handleCanvasPointerUp}
+              onPointerLeave={handleCanvasPointerLeave}
             />
             {(pages[viewingPageIndex]?.widgets || [])
               .filter((w: any) => w.type === 'video')
@@ -1747,7 +2284,86 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
       {isLive && (
         <div className="student-whiteboard-footer">
           <CheckCircle2 size={14} color="#10b981" />
-          <span>Live synchronization active • View-only mode • You can freely browse pages without affecting the teacher's view</span>
+          <span>
+            {currentPermission === 'chalk'
+              ? '✏️ Board Chalk Active: Draw or write on the board'
+              : currentPermission === 'pointer'
+              ? '🎯 Board Pointer Active: Move pointer on the board'
+              : 'Live synchronization active • View-only mode • You can freely browse pages'}
+          </span>
+        </div>
+      )}
+
+      {/* Raise Hand & Doubt Modal */}
+      {showRaiseHandModal && (
+        <div className="doubt-modal-backdrop" onClick={() => setShowRaiseHandModal(false)}>
+          <div className="doubt-modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="doubt-modal-header">
+              <h3><Hand size={18} color="#d97706" /> Ask Teacher a Doubt</h3>
+              <button
+                type="button"
+                onClick={() => setShowRaiseHandModal(false)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="doubt-modal-body">
+              <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: '#334155', marginBottom: '6px' }}>
+                Optional Note / Question:
+              </label>
+              <textarea
+                rows={3}
+                value={handNote}
+                onChange={(e) => setHandNote(e.target.value)}
+                placeholder="e.g., Can you explain step 2 again? / Why did we take x = 5?"
+                style={{
+                  width: '100%',
+                  padding: '10px',
+                  borderRadius: '8px',
+                  border: '1px solid #cbd5e1',
+                  fontSize: '0.85rem',
+                  fontFamily: 'inherit',
+                  resize: 'none',
+                  outline: 'none',
+                  boxSizing: 'border-box'
+                }}
+                autoFocus
+              />
+              <p style={{ margin: '8px 0 0', fontSize: '0.74rem', color: '#64748b' }}>
+                Your question will appear discretely on the teacher's toolbar without interrupting the lesson.
+              </p>
+            </div>
+            <div className="doubt-modal-footer">
+              <button
+                type="button"
+                className="button button-secondary"
+                onClick={() => setShowRaiseHandModal(false)}
+                style={{ fontSize: '0.82rem', padding: '6px 14px' }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="button button-primary"
+                onClick={() => {
+                  socketRef.current?.emit('whiteboard:raise_hand', {
+                    grade: effectiveGrade,
+                    teacherId,
+                    studentName,
+                    note: handNote.trim()
+                  });
+                  setIsHandRaised(true);
+                  setShowRaiseHandModal(false);
+                  setHandNote('');
+                  if (setNotice) setNotice('Hand raised! Teacher notified in Doubt Queue.');
+                }}
+                style={{ fontSize: '0.82rem', padding: '6px 16px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+              >
+                <Send size={14} /> Raise Hand
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

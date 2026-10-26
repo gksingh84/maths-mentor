@@ -1303,6 +1303,241 @@
     .video-resize-handle.handle-ne { top: -7px; right: -7px; cursor: nesw-resize; }
     .video-resize-handle.handle-sw { bottom: -7px; left: -7px; cursor: nesw-resize; }
     .video-resize-handle.handle-se { bottom: -7px; right: -7px; cursor: nwse-resize; }
+    /* ==========================================================================
+       Teacher Live Engagement Controls & Drawers (In-Canvas & Native Fullscreen)
+       ========================================================================== */
+    @keyframes livePulse {
+      0% { transform: scale(0.95); opacity: 0.8; }
+      50% { transform: scale(1.15); opacity: 1; }
+      100% { transform: scale(0.95); opacity: 0.8; }
+    }
+    @keyframes wbReactionFloat {
+      0% { transform: translateY(0) scale(0.8); opacity: 0; }
+      15% { transform: translateY(-8px) scale(1); opacity: 1; }
+      80% { transform: translateY(-40px) scale(1); opacity: 1; }
+      100% { transform: translateY(-60px) scale(0.9); opacity: 0; }
+    }
+    .wb-live-indicator {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: #dc2626;
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      padding: 2px 7px;
+      border-radius: 9999px;
+      user-select: none;
+    }
+    .wb-live-pulse-dot {
+      display: inline-block;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #ef4444;
+      box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.35);
+      animation: livePulse 1.5s infinite;
+    }
+    .teacher-doubts-btn {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 11px;
+      border-radius: 9999px;
+      font-size: 0.76rem;
+      font-weight: 700;
+      cursor: pointer;
+      border: 1px solid #cbd5e1;
+      background: #ffffff;
+      color: #0f172a;
+      transition: all 0.15s ease;
+      user-select: none;
+      min-height: 28px;
+    }
+    .teacher-doubts-btn:hover {
+      background: #f1f5f9;
+      border-color: #94a3b8;
+    }
+    .teacher-doubts-btn.has-doubts {
+      background: #fef3c7;
+      color: #b45309;
+      border-color: #fde68a;
+    }
+    .teacher-doubts-badge {
+      background: #ef4444;
+      color: #ffffff;
+      padding: 1px 6px;
+      border-radius: 9999px;
+      font-size: 0.65rem;
+      font-weight: 800;
+    }
+    .teacher-sentiment-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 10px;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      cursor: pointer;
+      border: 1px solid #e2e8f0;
+      user-select: none;
+      min-height: 26px;
+    }
+    .teacher-sentiment-pill--high {
+      background: #ecfdf5;
+      color: #047857;
+      border-color: #a7f3d0;
+    }
+    .teacher-sentiment-pill--mid {
+      background: #fffbeb;
+      color: #b45309;
+      border-color: #fde68a;
+    }
+    .teacher-sentiment-pill--low {
+      background: #fef2f2;
+      color: #b91c1c;
+      border-color: #fecaca;
+    }
+    .wb-drawer-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.35);
+      backdrop-filter: blur(1px);
+      z-index: 999999;
+      display: flex;
+      justify-content: flex-end;
+    }
+    .wb-drawer-panel {
+      width: 360px;
+      max-width: 90vw;
+      height: 100%;
+      background: #ffffff;
+      box-shadow: -4px 0 24px rgba(0, 0, 0, 0.18);
+      display: flex;
+      flex-direction: column;
+      animation: wbSlideInRight 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+      overflow: hidden;
+    }
+    @keyframes wbSlideInRight {
+      from { transform: translateX(100%); }
+      to { transform: translateX(0); }
+    }
+    .wb-drawer-header {
+      padding: 14px 16px;
+      border-bottom: 1px solid #e2e8f0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #f8fafc;
+    }
+    .wb-drawer-close-btn {
+      background: none;
+      border: none;
+      font-size: 1.4rem;
+      line-height: 1;
+      color: #64748b;
+      cursor: pointer;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+    .wb-drawer-close-btn:hover {
+      background: #e2e8f0;
+      color: #0f172a;
+    }
+    .wb-drawer-action-btn {
+      background: none;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      padding: 3px 8px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: #64748b;
+      cursor: pointer;
+    }
+    .wb-drawer-action-btn:hover {
+      background: #f1f5f9;
+      color: #0f172a;
+    }
+    .wb-drawer-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .wb-doubt-card {
+      padding: 10px 12px;
+      background: #fffbeb;
+      border: 1px solid #fde68a;
+      border-radius: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .wb-doubt-card p {
+      margin: 0;
+      font-size: 0.8rem;
+      color: #334155;
+      font-style: italic;
+      background: rgba(255, 255, 255, 0.7);
+      padding: 5px 8px;
+      border-radius: 6px;
+    }
+    .wb-doubt-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 4px;
+      flex-wrap: wrap;
+    }
+    .wb-doubt-btn-pointer {
+      background: #0284c7;
+      color: #ffffff;
+      border: none;
+      border-radius: 6px;
+      padding: 3px 8px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .wb-doubt-btn-chalk {
+      background: #16a34a;
+      color: #ffffff;
+      border: none;
+      border-radius: 6px;
+      padding: 3px 8px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .wb-doubt-btn-dismiss {
+      background: #f1f5f9;
+      color: #475569;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      padding: 3px 8px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      cursor: pointer;
+      margin-left: auto;
+    }
+    .wb-student-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 10px;
+      border: 1px solid #f1f5f9;
+      border-radius: 8px;
+      background: #f8fafc;
+    }
+    .wb-student-row.is-delegated {
+      background: #ecfdf5;
+      border-color: #a7f3d0;
+    }
   </style>
 </head>
 
@@ -1337,6 +1572,38 @@
       <button class="top-bar__button" id="fullScreenButton" title="Enter full screen">
         Full screen
       </button>
+      <!-- Live Engagement Controls (visible in maximum full screen mode and normal mode when broadcasting) -->
+      <div class="top-bar__engagement-group" id="topBarEngagementGroup" style="display:none;align-items:center;gap:6px;margin-left:6px;flex-shrink:0;">
+        <span class="wb-live-indicator" id="wbLiveIndicator">
+          <span class="wb-live-pulse-dot"></span>
+          <span id="wbLiveText">LIVE</span>
+        </span>
+
+        <!-- Doubts Queue Button -->
+        <button type="button" class="teacher-doubts-btn" id="wbDoubtsBtn" title="Student Doubt Queue">
+          <span style="font-size:0.85rem;">✋</span>
+          <span>Doubts</span>
+          <span class="teacher-doubts-badge" id="wbDoubtsBadge" style="display:none;">0</span>
+        </button>
+
+        <!-- Connected Students Roster Button -->
+        <button type="button" class="teacher-doubts-btn" id="wbRosterBtn" title="Connected Students & Delegation">
+          <span style="font-size:0.85rem;">👥</span>
+          <span id="wbRosterCount">0</span>
+        </button>
+
+        <!-- Classroom Sentiment Pill -->
+        <div class="teacher-sentiment-pill teacher-sentiment-pill--high" id="wbSentimentPill" title="Live Student Sentiment">
+          <span id="wbSentimentDot">🟢</span>
+          <span id="wbSentimentRate">100%</span>
+        </div>
+
+        <!-- Active Student Delegation Badge -->
+        <div id="wbDelegatedBadge" style="display:none;align-items:center;gap:5px;background:#ecfdf5;border:1px solid #a7f3d0;color:#065f46;padding:2px 8px;border-radius:9999px;font-size:0.72rem;font-weight:700;">
+          <span id="wbDelegatedLabel">✏️ Student</span>
+          <button type="button" id="wbRevokeBtn" style="background:#ef4444;color:#fff;border:none;border-radius:4px;font-size:0.65rem;padding:1px 5px;cursor:pointer;font-weight:700;" title="Revoke student board access">Revoke</button>
+        </div>
+      </div>
       <div class="top-bar__spacer"></div>
       <button class="top-bar__button" id="clearPageButton" title="Clear everything on this page">
         Clear page
@@ -1534,6 +1801,44 @@
         <button class="bottom-bar__button" id="zoomInButton">+</button>
       </div>
     </footer>
+
+    <!-- Whiteboard In-Canvas Doubts Drawer (works in native fullscreen) -->
+    <div id="wbDoubtsDrawer" class="wb-drawer-overlay" style="display:none;">
+      <div class="wb-drawer-panel" onclick="event.stopPropagation()">
+        <div class="wb-drawer-header">
+          <div style="display:flex;align-items:center;gap:8px;font-size:0.92rem;font-weight:700;color:#0f172a;">
+            <span style="font-size:1.05rem;">✋</span>
+            <span>Student Doubts (<span id="wbDoubtsDrawerCount">0</span>)</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <button type="button" id="wbClearDoubtsBtn" class="wb-drawer-action-btn" style="display:none;">Clear All</button>
+            <button type="button" id="wbCloseDoubtsBtn" class="wb-drawer-close-btn" title="Close Drawer">&times;</button>
+          </div>
+        </div>
+        <div class="wb-drawer-content" id="wbDoubtsList">
+          <!-- Populated dynamically -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Whiteboard In-Canvas Roster Drawer (works in native fullscreen) -->
+    <div id="wbRosterDrawer" class="wb-drawer-overlay" style="display:none;">
+      <div class="wb-drawer-panel" onclick="event.stopPropagation()">
+        <div class="wb-drawer-header">
+          <div style="display:flex;align-items:center;gap:8px;font-size:0.92rem;font-weight:700;color:#0f172a;">
+            <span style="font-size:1.05rem;">👥</span>
+            <span>Connected Students (<span id="wbRosterDrawerCount">0</span>)</span>
+          </div>
+          <button type="button" id="wbCloseRosterBtn" class="wb-drawer-close-btn" title="Close Drawer">&times;</button>
+        </div>
+        <div class="wb-drawer-content" id="wbRosterList">
+          <!-- Populated dynamically -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Floating Live Reactions Container -->
+    <div id="wbFloatingReactions" style="position:fixed;bottom:70px;right:30px;pointer-events:none;z-index:999999;display:flex;flex-direction:column-reverse;gap:8px;"></div>
   </div>
 
   <script>
@@ -11386,7 +11691,317 @@
           if (typeof data.pageIndex === "number") {
             selectPage(data.pageIndex);
           }
+        } else if (data.type === "STUDENT_LASER_POINTER") {
+          showStudentLaser(data.x, data.y, data.studentName, data.active);
+        } else if (data.type === "STUDENT_STROKE" && data.stroke) {
+          const targetPage = pages[typeof data.pageIndex === "number" ? data.pageIndex : currentPageIndex];
+          if (targetPage) {
+            if (!targetPage.strokes) targetPage.strokes = [];
+            targetPage.strokes.push(data.stroke);
+            if (data.pageIndex === currentPageIndex || typeof data.pageIndex !== "number") {
+              updateBoardAppearance();
+            }
+          }
+        } else if (data.type === "ENGAGEMENT_STATE_SYNC") {
+          updateWhiteboardEngagement(data);
+        } else if (data.type === "REACTION_EVENT") {
+          showFloatingReaction(data.emoji, data.studentName, data.label);
         }
+      }
+
+      function escapeHtml(str) {
+        if (typeof str !== "string") return "";
+        return str
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#039;");
+      }
+
+      // Live engagement state & drawer manager for in-canvas and maximum full screen mode
+      let _engagementState = {
+        isBroadcasting: false,
+        selectedGrade: "ALL",
+        viewerCount: 0,
+        doubts: [],
+        viewersRoster: [],
+        delegatedStudent: null,
+        sentimentData: { comprehensionRate: 100, totalCount: 0 }
+      };
+
+      const topBarEngagementGroup = document.getElementById("topBarEngagementGroup");
+      const wbLiveText = document.getElementById("wbLiveText");
+      const wbDoubtsBtn = document.getElementById("wbDoubtsBtn");
+      const wbDoubtsBadge = document.getElementById("wbDoubtsBadge");
+      const wbRosterBtn = document.getElementById("wbRosterBtn");
+      const wbRosterCount = document.getElementById("wbRosterCount");
+      const wbSentimentPill = document.getElementById("wbSentimentPill");
+      const wbSentimentDot = document.getElementById("wbSentimentDot");
+      const wbSentimentRate = document.getElementById("wbSentimentRate");
+      const wbDelegatedBadge = document.getElementById("wbDelegatedBadge");
+      const wbDelegatedLabel = document.getElementById("wbDelegatedLabel");
+      const wbRevokeBtn = document.getElementById("wbRevokeBtn");
+
+      const wbDoubtsDrawer = document.getElementById("wbDoubtsDrawer");
+      const wbDoubtsDrawerCount = document.getElementById("wbDoubtsDrawerCount");
+      const wbClearDoubtsBtn = document.getElementById("wbClearDoubtsBtn");
+      const wbCloseDoubtsBtn = document.getElementById("wbCloseDoubtsBtn");
+      const wbDoubtsList = document.getElementById("wbDoubtsList");
+
+      const wbRosterDrawer = document.getElementById("wbRosterDrawer");
+      const wbRosterDrawerCount = document.getElementById("wbRosterDrawerCount");
+      const wbCloseRosterBtn = document.getElementById("wbCloseRosterBtn");
+      const wbRosterList = document.getElementById("wbRosterList");
+      const wbFloatingReactions = document.getElementById("wbFloatingReactions");
+
+      function updateWhiteboardEngagement(data) {
+        if (!data || typeof data !== "object") return;
+        _engagementState = Object.assign(_engagementState, data);
+        const isLive = !!_engagementState.isBroadcasting;
+
+        if (topBarEngagementGroup) {
+          topBarEngagementGroup.style.display = isLive ? "inline-flex" : "none";
+        }
+        if (!isLive) {
+          if (wbDoubtsDrawer) wbDoubtsDrawer.style.display = "none";
+          if (wbRosterDrawer) wbRosterDrawer.style.display = "none";
+          return;
+        }
+
+        if (wbLiveText) {
+          const g = _engagementState.selectedGrade === "ALL" ? "All" : (_engagementState.selectedGrade || "All");
+          wbLiveText.textContent = `LIVE (${g})`;
+        }
+
+        const doubts = _engagementState.doubts || [];
+        if (wbDoubtsBtn) {
+          wbDoubtsBtn.classList.toggle("has-doubts", doubts.length > 0);
+        }
+        if (wbDoubtsBadge) {
+          wbDoubtsBadge.style.display = doubts.length > 0 ? "inline-block" : "none";
+          wbDoubtsBadge.textContent = doubts.length;
+        }
+        if (wbDoubtsDrawerCount) {
+          wbDoubtsDrawerCount.textContent = doubts.length;
+        }
+        if (wbClearDoubtsBtn) {
+          wbClearDoubtsBtn.style.display = doubts.length > 0 ? "inline-block" : "none";
+        }
+
+        const roster = _engagementState.viewersRoster || [];
+        const count = roster.length || _engagementState.viewerCount || 0;
+        if (wbRosterCount) {
+          wbRosterCount.textContent = count;
+        }
+        if (wbRosterDrawerCount) {
+          wbRosterDrawerCount.textContent = count;
+        }
+
+        const sent = _engagementState.sentimentData || { comprehensionRate: 100 };
+        const rate = typeof sent.comprehensionRate === "number" ? sent.comprehensionRate : 100;
+        if (wbSentimentRate) wbSentimentRate.textContent = `${rate}%`;
+        if (wbSentimentDot) wbSentimentDot.textContent = rate >= 75 ? "🟢" : (rate >= 45 ? "🟡" : "🔴");
+        if (wbSentimentPill) {
+          wbSentimentPill.className = `teacher-sentiment-pill teacher-sentiment-pill--${
+            rate >= 75 ? "high" : (rate >= 45 ? "mid" : "low")
+          }`;
+          wbSentimentPill.title = `Classroom Comprehension: ${rate}%\nTotal feedback: ${sent.totalCount || 0}`;
+        }
+
+        const delegated = _engagementState.delegatedStudent;
+        if (wbDelegatedBadge) {
+          if (delegated && delegated.studentName) {
+            wbDelegatedBadge.style.display = "inline-flex";
+            if (wbDelegatedLabel) {
+              wbDelegatedLabel.textContent = `${delegated.permission === "chalk" ? "✏️" : "🎯"} ${delegated.studentName}`;
+            }
+          } else {
+            wbDelegatedBadge.style.display = "none";
+          }
+        }
+
+        if (wbDoubtsDrawer && wbDoubtsDrawer.style.display !== "none") {
+          renderWbDoubtsList();
+        }
+        if (wbRosterDrawer && wbRosterDrawer.style.display !== "none") {
+          renderWbRosterList();
+        }
+      }
+
+      function renderWbDoubtsList() {
+        if (!wbDoubtsList) return;
+        const doubts = _engagementState.doubts || [];
+        if (doubts.length === 0) {
+          wbDoubtsList.innerHTML = `
+            <div style="text-align:center;color:#94a3b8;padding:40px 10px;">
+              <span style="font-size:2rem;opacity:0.4;display:block;margin-bottom:8px;">✋</span>
+              <p style="margin:0;font-weight:600;font-size:0.88rem;color:#64748b;">No pending doubts</p>
+              <p style="margin:4px 0 0;font-size:0.76rem;color:#94a3b8;">Students can click "Raise Hand" with optional questions during the lesson.</p>
+            </div>
+          `;
+          return;
+        }
+
+        wbDoubtsList.innerHTML = doubts.map((d) => {
+          const secondsAgo = Math.max(1, Math.round((Date.now() - (d.timestamp || Date.now())) / 1000));
+          const noteHtml = d.note ? `<p>"${escapeHtml(d.note)}"</p>` : "";
+          return `
+            <div class="wb-doubt-card" data-socket-id="${escapeHtml(d.socketId)}">
+              <div style="display:flex;align-items:center;justify-content:space-between;">
+                <strong style="font-size:0.88rem;color:#0f172a;">${escapeHtml(d.studentName)}</strong>
+                <span style="font-size:0.7rem;color:#94a3b8;">${secondsAgo}s ago</span>
+              </div>
+              ${noteHtml}
+              <div class="wb-doubt-actions">
+                <button type="button" class="wb-doubt-btn-pointer" onclick="handleWbSetDelegation('${escapeHtml(d.socketId)}', '${escapeHtml(d.studentName)}', 'pointer')">🎯 Pointer</button>
+                <button type="button" class="wb-doubt-btn-chalk" onclick="handleWbSetDelegation('${escapeHtml(d.socketId)}', '${escapeHtml(d.studentName)}', 'chalk')">✏️ Chalk</button>
+                <button type="button" class="wb-doubt-btn-dismiss" onclick="handleWbDismissDoubt('${escapeHtml(d.socketId)}')">Dismiss</button>
+              </div>
+            </div>
+          `;
+        }).join("");
+      }
+
+      function renderWbRosterList() {
+        if (!wbRosterList) return;
+        const roster = _engagementState.viewersRoster || [];
+        const delegated = _engagementState.delegatedStudent;
+
+        if (roster.length === 0) {
+          wbRosterList.innerHTML = `
+            <div style="text-align:center;color:#94a3b8;padding:40px 10px;">
+              <span style="font-size:2rem;opacity:0.4;display:block;margin-bottom:8px;">👥</span>
+              <p style="margin:0;font-weight:600;font-size:0.88rem;color:#64748b;">No students connected yet</p>
+              <p style="margin:4px 0 0;font-size:0.76rem;color:#94a3b8;">When students join for this class grade, they will appear here.</p>
+            </div>
+          `;
+          return;
+        }
+
+        wbRosterList.innerHTML = roster.map((st) => {
+          const isDelegated = delegated && delegated.socketId === st.socketId;
+          const actionBtn = isDelegated
+            ? `<button type="button" style="background:#ef4444;color:#fff;border:none;border-radius:6px;padding:3px 8px;font-size:0.72rem;font-weight:700;cursor:pointer;" onclick="handleWbSetDelegation('${escapeHtml(st.socketId)}', '${escapeHtml(st.studentName)}', 'none')">Revoke (${delegated.permission === 'chalk' ? 'Chalk' : 'Pointer'})</button>`
+            : `<button type="button" style="background:#f0f9ff;color:#0284c7;border:1px solid #bae6fd;border-radius:6px;padding:3px 7px;font-size:0.72rem;font-weight:700;cursor:pointer;" onclick="handleWbSetDelegation('${escapeHtml(st.socketId)}', '${escapeHtml(st.studentName)}', 'pointer')">🎯 Pointer</button>
+               <button type="button" style="background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0;border-radius:6px;padding:3px 7px;font-size:0.72rem;font-weight:700;cursor:pointer;" onclick="handleWbSetDelegation('${escapeHtml(st.socketId)}', '${escapeHtml(st.studentName)}', 'chalk')">✏️ Chalk</button>`;
+
+          return `
+            <div class="wb-student-row ${isDelegated ? 'is-delegated' : ''}">
+              <div>
+                <strong style="font-size:0.84rem;color:#0f172a;display:block;">${escapeHtml(st.studentName)}</strong>
+                <span style="font-size:0.7rem;color:#64748b;">${escapeHtml(st.grade || 'Student')} • Connected</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:6px;">
+                ${actionBtn}
+              </div>
+            </div>
+          `;
+        }).join("");
+      }
+
+      window.handleWbSetDelegation = function(socketId, studentName, permission) {
+        postMessageToHost({
+          type: "WHITEBOARD_SET_DELEGATION",
+          socketId,
+          studentName,
+          permission
+        });
+      };
+
+      window.handleWbDismissDoubt = function(doubtId) {
+        postMessageToHost({
+          type: "WHITEBOARD_DISMISS_DOUBT",
+          doubtId
+        });
+      };
+
+      function showFloatingReaction(emoji, studentName, label) {
+        if (!wbFloatingReactions) return;
+        const el = document.createElement("div");
+        el.className = "wb-floating-reaction";
+        el.style.cssText = "display:inline-flex;align-items:center;gap:6px;background:rgba(15,23,42,0.85);backdrop-filter:blur(4px);color:#fff;padding:6px 12px;border-radius:999px;font-size:0.82rem;font-weight:700;box-shadow:0 4px 12px rgba(0,0,0,0.25);animation:wbReactionFloat 2.8s forwards;";
+        el.innerHTML = `<span>${emoji}</span><span>${escapeHtml(studentName || 'Student')}</span>${label ? `<span style="font-size:0.72rem;color:#cbd5e1;">(${escapeHtml(label)})</span>` : ''}`;
+        wbFloatingReactions.appendChild(el);
+        setTimeout(() => {
+          if (el.parentNode) el.parentNode.removeChild(el);
+        }, 3000);
+      }
+
+      wbDoubtsBtn?.addEventListener("click", () => {
+        if (wbDoubtsDrawer) {
+          wbDoubtsDrawer.style.display = "flex";
+          renderWbDoubtsList();
+        }
+      });
+      wbCloseDoubtsBtn?.addEventListener("click", () => {
+        if (wbDoubtsDrawer) wbDoubtsDrawer.style.display = "none";
+      });
+      wbDoubtsDrawer?.addEventListener("click", () => {
+        wbDoubtsDrawer.style.display = "none";
+      });
+
+      wbRosterBtn?.addEventListener("click", () => {
+        if (wbRosterDrawer) {
+          wbRosterDrawer.style.display = "flex";
+          renderWbRosterList();
+        }
+      });
+      wbCloseRosterBtn?.addEventListener("click", () => {
+        if (wbRosterDrawer) wbRosterDrawer.style.display = "none";
+      });
+      wbRosterDrawer?.addEventListener("click", () => {
+        wbRosterDrawer.style.display = "none";
+      });
+
+      wbClearDoubtsBtn?.addEventListener("click", () => {
+        postMessageToHost({ type: "WHITEBOARD_CLEAR_ALL_DOUBTS" });
+      });
+
+      wbRevokeBtn?.addEventListener("click", () => {
+        if (_engagementState.delegatedStudent) {
+          postMessageToHost({
+            type: "WHITEBOARD_SET_DELEGATION",
+            socketId: _engagementState.delegatedStudent.socketId,
+            studentName: _engagementState.delegatedStudent.studentName,
+            permission: "none"
+          });
+        }
+      });
+
+      // Request engagement sync on initialization
+      postMessageToHost({ type: "REQUEST_ENGAGEMENT_STATE" });
+
+      let _studentLaserEl = null;
+      let _studentLaserTimer = null;
+      function showStudentLaser(x, y, studentName, active) {
+        if (!active) {
+          if (_studentLaserEl) _studentLaserEl.style.display = "none";
+          return;
+        }
+        if (!_studentLaserEl) {
+          _studentLaserEl = document.createElement("div");
+          _studentLaserEl.className = "student-live-laser-dot";
+          _studentLaserEl.style.position = "absolute";
+          _studentLaserEl.style.pointerEvents = "none";
+          _studentLaserEl.style.zIndex = "99999";
+          _studentLaserEl.style.transform = "translate(-50%, -50%)";
+          _studentLaserEl.innerHTML = `
+            <div style="width: 14px; height: 14px; border-radius: 50%; background: #ef4444; box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.4), 0 0 12px #ef4444;"></div>
+            <div style="position: absolute; left: 18px; top: -4px; background: rgba(15, 23, 42, 0.85); color: #fff; padding: 2px 7px; border-radius: 4px; font-size: 11px; font-weight: 700; white-space: nowrap;" class="student-laser-label"></div>
+          `;
+          const container = boardCanvas?.parentElement || document.body;
+          container.appendChild(_studentLaserEl);
+        }
+        _studentLaserEl.style.left = x + "px";
+        _studentLaserEl.style.top = y + "px";
+        _studentLaserEl.style.display = "block";
+        const label = _studentLaserEl.querySelector(".student-laser-label");
+        if (label) label.textContent = "🎯 " + (studentName || "Student");
+        if (_studentLaserTimer) clearTimeout(_studentLaserTimer);
+        _studentLaserTimer = setTimeout(() => {
+          if (_studentLaserEl) _studentLaserEl.style.display = "none";
+        }, 2500);
       }
 
       window.addEventListener("message", (e) => {

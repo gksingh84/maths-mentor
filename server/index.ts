@@ -3656,11 +3656,59 @@ export interface LiveWhiteboardSession {
   pages: any[];
   startedAt: number;
   viewers: Set<string>;
+  viewerDetails: Map<string, { socketId: string; studentId: string; studentName: string; joinedAt: number }>;
+  raisedHands: Map<string, { socketId: string; studentId: string; studentName: string; note?: string; timestamp: number }>;
+  delegatedStudent: { socketId: string; studentId: string; studentName: string; permission: 'pointer' | 'chalk' } | null;
+  reactions: Array<{ studentName: string; type: 'understood' | 'confused' | 'slower' | 'faster'; timestamp: number }>;
   scrollTop?: number;
   scrollRatio?: number;
 }
 const activeWhiteboardSessions = new Map<string, LiveWhiteboardSession>();
 const whiteboardDisconnectTimers = new Map<string, NodeJS.Timeout>();
+
+function broadcastDoubtsUpdate(sessionObj: LiveWhiteboardSession) {
+  const doubtsList = Array.from(sessionObj.raisedHands.values());
+  io.to(`whiteboard:teacher:${sessionObj.teacherId}`).emit('whiteboard:doubts_update', {
+    doubts: doubtsList,
+    count: doubtsList.length,
+  });
+}
+
+function broadcastViewersUpdate(sessionObj: LiveWhiteboardSession) {
+  const list = Array.from(sessionObj.viewerDetails.values());
+  io.to(`whiteboard:teacher:${sessionObj.teacherId}`).emit('whiteboard:viewers_roster', {
+    viewers: list,
+    count: sessionObj.viewers.size,
+  });
+  io.to(`whiteboard:${sessionObj.grade}`).emit('whiteboard:viewer_count', { count: sessionObj.viewers.size });
+  io.to(`whiteboard:teacher:${sessionObj.teacherId}`).emit('whiteboard:viewer_count', { count: sessionObj.viewers.size });
+}
+
+function broadcastSentimentUpdate(sessionObj: LiveWhiteboardSession) {
+  const now = Date.now();
+  sessionObj.reactions = sessionObj.reactions.filter((r) => now - r.timestamp < 60000);
+  const total = sessionObj.reactions.length;
+  let understood = 0;
+  let confused = 0;
+  let slower = 0;
+  let faster = 0;
+  for (const r of sessionObj.reactions) {
+    if (r.type === 'understood') understood++;
+    else if (r.type === 'confused') confused++;
+    else if (r.type === 'slower') slower++;
+    else if (r.type === 'faster') faster++;
+  }
+  const comprehensionRate = total > 0 ? Math.round((understood / total) * 100) : 100;
+  io.to(`whiteboard:teacher:${sessionObj.teacherId}`).emit('whiteboard:sentiment_update', {
+    total,
+    understood,
+    confused,
+    slower,
+    faster,
+    comprehensionRate,
+    recent: sessionObj.reactions.slice(-10),
+  });
+}
 
 function findActiveWhiteboardSession(options: { grade?: string | null; teacherId?: string | null }): LiveWhiteboardSession | undefined {
   const { grade, teacherId } = options;
@@ -3808,7 +3856,11 @@ io.on('connection', (socket) => {
       activePageIndex: typeof data.activePageIndex === 'number' ? data.activePageIndex : 0,
       pages: Array.isArray(data.pages) ? data.pages : [],
       startedAt: Date.now(),
-      viewers: new Set()
+      viewers: new Set(),
+      viewerDetails: new Map(),
+      raisedHands: new Map(),
+      delegatedStudent: null,
+      reactions: [],
     };
     activeWhiteboardSessions.set(grade, sessionObj);
     socket.join(`whiteboard:${grade}`);
@@ -4117,19 +4169,23 @@ io.on('connection', (socket) => {
     socket.to(getTeacherBroadcastRooms(targetGrade)).emit('whiteboard:video_action', broadcastPayload);
   });
 
-  socket.on('whiteboard:join', async (data: { grade?: string; teacherId?: string }) => {
+  socket.on('whiteboard:join', async (data: { grade?: string; teacherId?: string; studentName?: string; studentId?: string }) => {
     let studentTeacherId = data?.teacherId;
     let studentGrade = data?.grade;
-    if (session.role === 'student' && (!studentGrade || !studentTeacherId)) {
+    let studentName = data?.studentName;
+    let studentId = data?.studentId || session.id;
+    if (session.role === 'student' && (!studentGrade || !studentTeacherId || !studentName)) {
       try {
-        const student = await db.student.findUnique({ where: { id: session.id }, select: { grade: true, teacherId: true } });
+        const student = await db.student.findUnique({ where: { id: session.id }, select: { name: true, grade: true, teacherId: true } });
         if (student) {
           if (!studentGrade) studentGrade = student.grade || undefined;
           if (!studentTeacherId) studentTeacherId = student.teacherId || undefined;
+          if (!studentName) studentName = student.name || undefined;
         }
       } catch (_) {}
     }
 
+    const finalStudentName = studentName || (session.name && session.name !== 'Student' ? session.name : undefined) || 'Student';
     const grade = (studentGrade || 'ALL').trim();
     socket.join(`whiteboard:${grade}`);
     socket.join('whiteboard:ALL');
@@ -4144,6 +4200,12 @@ io.on('connection', (socket) => {
 
     if (active && active.isLive) {
       active.viewers.add(socket.id);
+      active.viewerDetails.set(socket.id, {
+        socketId: socket.id,
+        studentId: studentId,
+        studentName: finalStudentName,
+        joinedAt: Date.now(),
+      });
       socket.join(`whiteboard:${active.grade}`);
       socket.join(`whiteboard:teacher:${active.teacherId}`);
       for (const v of getGradeVariants(active.grade)) {
@@ -4159,16 +4221,19 @@ io.on('connection', (socket) => {
         pages: active.pages,
         startedAt: active.startedAt,
         scrollTop: active.scrollTop || 0,
-        scrollRatio: active.scrollRatio || 0
+        scrollRatio: active.scrollRatio || 0,
+        delegatedStudent: active.delegatedStudent,
+        isHandRaised: active.raisedHands.has(socket.id),
       });
-      io.to(`whiteboard:${active.grade}`).emit('whiteboard:viewer_count', { count: active.viewers.size });
-      io.to(`whiteboard:teacher:${active.teacherId}`).emit('whiteboard:viewer_count', { count: active.viewers.size });
+      broadcastViewersUpdate(active);
+      broadcastDoubtsUpdate(active);
+      broadcastSentimentUpdate(active);
     } else {
       socket.emit('whiteboard:initial_state', { isLive: false });
     }
   });
 
-  socket.on('whiteboard:leave', (data: { grade: string }) => {
+  socket.on('whiteboard:leave', (data: { grade?: string }) => {
     const grade = (data?.grade || 'ALL').trim();
     socket.leave(`whiteboard:${grade}`);
     socket.leave('whiteboard:ALL');
@@ -4176,20 +4241,166 @@ io.on('connection', (socket) => {
       socket.leave(`whiteboard:${v}`);
     }
     activeWhiteboardSessions.forEach((sess) => {
+      let changed = false;
       if (sess.viewers.has(socket.id)) {
         sess.viewers.delete(socket.id);
-        io.to(`whiteboard:${sess.grade}`).emit('whiteboard:viewer_count', { count: sess.viewers.size });
-        io.to(`whiteboard:teacher:${sess.teacherId}`).emit('whiteboard:viewer_count', { count: sess.viewers.size });
+        changed = true;
+      }
+      if (sess.viewerDetails.has(socket.id)) {
+        sess.viewerDetails.delete(socket.id);
+        changed = true;
+      }
+      if (sess.raisedHands.has(socket.id)) {
+        sess.raisedHands.delete(socket.id);
+        broadcastDoubtsUpdate(sess);
+      }
+      if (sess.delegatedStudent && sess.delegatedStudent.socketId === socket.id) {
+        sess.delegatedStudent = null;
+        io.to(getTeacherBroadcastRooms(sess.grade)).emit('whiteboard:delegation_changed', { delegatedStudent: null });
+      }
+      if (changed) {
+        broadcastViewersUpdate(sess);
       }
     });
   });
 
+  // --- STUDENT ENGAGEMENT: RAISE HAND & DOUBTS ---
+  socket.on('whiteboard:raise_hand', (data: { grade?: string; teacherId?: string; studentName?: string; studentId?: string; note?: string }) => {
+    const active = findActiveWhiteboardSession({ grade: data?.grade, teacherId: data?.teacherId });
+    if (active && active.isLive) {
+      const studentName = data?.studentName || session.name || 'Student';
+      const studentId = data?.studentId || session.id;
+      active.raisedHands.set(socket.id, {
+        socketId: socket.id,
+        studentId,
+        studentName,
+        note: data?.note ? String(data.note).trim().slice(0, 200) : undefined,
+        timestamp: Date.now(),
+      });
+      broadcastDoubtsUpdate(active);
+      socket.emit('whiteboard:hand_state', { isRaised: true });
+    }
+  });
+
+  socket.on('whiteboard:lower_hand', (data: { grade?: string; teacherId?: string }) => {
+    const active = findActiveWhiteboardSession({ grade: data?.grade, teacherId: data?.teacherId });
+    if (active && active.isLive) {
+      active.raisedHands.delete(socket.id);
+      broadcastDoubtsUpdate(active);
+      socket.emit('whiteboard:hand_state', { isRaised: false });
+    }
+  });
+
+  socket.on('whiteboard:dismiss_doubt', (data: { targetSocketId?: string; grade?: string }) => {
+    if (session.role !== 'teacher' && session.role !== 'admin' && session.role !== 'superadmin') return;
+    const active = findTeacherSession(data?.grade);
+    if (active && active.isLive && data?.targetSocketId) {
+      active.raisedHands.delete(data.targetSocketId);
+      broadcastDoubtsUpdate(active);
+      io.to(data.targetSocketId).emit('whiteboard:doubt_dismissed', { message: 'Your doubt was addressed by the teacher.' });
+      io.to(data.targetSocketId).emit('whiteboard:hand_state', { isRaised: false });
+    }
+  });
+
+  socket.on('whiteboard:clear_all_doubts', (data: { grade?: string }) => {
+    if (session.role !== 'teacher' && session.role !== 'admin' && session.role !== 'superadmin') return;
+    const active = findTeacherSession(data?.grade);
+    if (active && active.isLive) {
+      active.raisedHands.clear();
+      broadcastDoubtsUpdate(active);
+      io.to(getTeacherBroadcastRooms(active.grade)).emit('whiteboard:hand_state', { isRaised: false });
+    }
+  });
+
+  // --- STUDENT ENGAGEMENT: DELEGATION (POINTER / CHALK) ---
+  socket.on('whiteboard:set_delegation', (data: { targetSocketId?: string; studentId?: string; studentName?: string; permission: 'none' | 'pointer' | 'chalk'; grade?: string }) => {
+    if (session.role !== 'teacher' && session.role !== 'admin' && session.role !== 'superadmin') return;
+    const active = findTeacherSession(data?.grade);
+    if (active && active.isLive) {
+      if (data.permission === 'none' || !data.targetSocketId) {
+        active.delegatedStudent = null;
+      } else {
+        active.delegatedStudent = {
+          socketId: data.targetSocketId,
+          studentId: data.studentId || '',
+          studentName: data.studentName || 'Student',
+          permission: data.permission,
+        };
+      }
+      io.to(getTeacherBroadcastRooms(active.grade)).emit('whiteboard:delegation_changed', {
+        delegatedStudent: active.delegatedStudent,
+      });
+    }
+  });
+
+  socket.on('whiteboard:student_pointer', (data: { x: number; y: number; studentName?: string; active?: boolean; grade?: string; teacherId?: string }) => {
+    const active = findActiveWhiteboardSession({ grade: data?.grade, teacherId: data?.teacherId });
+    if (active && active.isLive && active.delegatedStudent && active.delegatedStudent.socketId === socket.id) {
+      socket.to(getTeacherBroadcastRooms(active.grade)).emit('whiteboard:laser_pointer', {
+        x: data.x,
+        y: data.y,
+        studentName: active.delegatedStudent.studentName,
+        active: data.active !== false,
+      });
+    }
+  });
+
+  socket.on('whiteboard:student_stroke', (data: { stroke: any; pageIndex: number; grade?: string; teacherId?: string }) => {
+    const active = findActiveWhiteboardSession({ grade: data?.grade, teacherId: data?.teacherId });
+    if (active && active.isLive && active.delegatedStudent && active.delegatedStudent.socketId === socket.id && active.delegatedStudent.permission === 'chalk') {
+      const pIdx = typeof data.pageIndex === 'number' ? data.pageIndex : active.activePageIndex;
+      if (active.pages[pIdx]) {
+        if (!active.pages[pIdx].strokes) active.pages[pIdx].strokes = [];
+        active.pages[pIdx].strokes.push(data.stroke);
+      }
+      socket.to(getTeacherBroadcastRooms(active.grade)).emit('whiteboard:stroke', {
+        pageIndex: pIdx,
+        stroke: data.stroke,
+        fromStudent: true,
+        studentName: active.delegatedStudent.studentName,
+      });
+    }
+  });
+
+  // --- STUDENT ENGAGEMENT: SENTIMENT / REACTIONS ---
+  socket.on('whiteboard:reaction', (data: { type: 'understood' | 'confused' | 'slower' | 'faster'; studentName?: string; grade?: string; teacherId?: string }) => {
+    const active = findActiveWhiteboardSession({ grade: data?.grade, teacherId: data?.teacherId });
+    if (active && active.isLive) {
+      const studentName = data?.studentName || session.name || 'Student';
+      active.reactions.push({
+        studentName,
+        type: data.type,
+        timestamp: Date.now(),
+      });
+      io.to(`whiteboard:teacher:${active.teacherId}`).emit('whiteboard:reaction_event', {
+        type: data.type,
+        studentName,
+      });
+      broadcastSentimentUpdate(active);
+    }
+  });
+
   socket.on('disconnect', () => {
     activeWhiteboardSessions.forEach((sessionObj, grade) => {
+      let changed = false;
       if (sessionObj.viewers.has(socket.id)) {
         sessionObj.viewers.delete(socket.id);
-        io.to(`whiteboard:${grade}`).emit('whiteboard:viewer_count', { count: sessionObj.viewers.size });
-        io.to(`whiteboard:teacher:${sessionObj.teacherId}`).emit('whiteboard:viewer_count', { count: sessionObj.viewers.size });
+        changed = true;
+      }
+      if (sessionObj.viewerDetails.has(socket.id)) {
+        sessionObj.viewerDetails.delete(socket.id);
+        changed = true;
+      }
+      if (sessionObj.raisedHands.has(socket.id)) {
+        sessionObj.raisedHands.delete(socket.id);
+        broadcastDoubtsUpdate(sessionObj);
+      }
+      if (sessionObj.delegatedStudent && sessionObj.delegatedStudent.socketId === socket.id) {
+        sessionObj.delegatedStudent = null;
+        io.to(getTeacherBroadcastRooms(sessionObj.grade)).emit('whiteboard:delegation_changed', { delegatedStudent: null });
+      }
+      if (changed) {
+        broadcastViewersUpdate(sessionObj);
       }
       // Only handle disconnect if this socket was the actual broadcaster socket
       if (sessionObj.broadcasterSocketId === socket.id) {
