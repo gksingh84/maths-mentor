@@ -6091,19 +6091,37 @@
               if (!page.shapes) page.shapes = [];
               const scale = window.devicePixelRatio || 1;
               const logicalW = boardCanvas.width / (scale * zoom);
-              const logicalH = boardCanvas.height / (scale * zoom);
               const cx = logicalW / 2;
-              const cy = logicalH / 2;
-              const halfW = 150;
-              const halfH = 150;
+              const container = boardCanvas.closest ? boardCanvas.closest(".canvas-container") : null;
+              const scrollTop = container ? container.scrollTop : 0;
+              const visibleTop = scrollTop / zoom;
+
+              let halfW = 150;
+              let halfH = 150;
+              if (thumb && thumb.naturalWidth && thumb.naturalHeight) {
+                const nw = thumb.naturalWidth;
+                const nh = thumb.naturalHeight;
+                if (nw > 0 && nh > 0) {
+                  const maxDim = 300;
+                  if (nw >= nh) {
+                    halfW = Math.round(maxDim / 2);
+                    halfH = Math.round((maxDim * (nh / nw)) / 2);
+                  } else {
+                    halfH = Math.round(maxDim / 2);
+                    halfW = Math.round((maxDim * (nw / nh)) / 2);
+                  }
+                }
+              }
+
+              const topY = Math.max(20, visibleTop + 40);
               const newShape = {
                 type: "image",
                 color: "#ffffff",
                 width: 1,
                 fillMode: "solid",
                 dataUrl: stamp.dataUrl,
-                start: { x: cx - halfW, y: cy - halfH },
-                end: { x: cx + halfW, y: cy + halfH },
+                start: { x: cx - halfW, y: topY },
+                end: { x: cx + halfW, y: topY + halfH * 2 },
               };
               page.shapes.push(newShape);
               copyImageShapeToOtherPages(newShape);
@@ -10053,19 +10071,21 @@
             if (!page.shapes) page.shapes = [];
             const scale = window.devicePixelRatio || 1;
             const logicalW = boardCanvas.width / (scale * zoom);
-            const logicalH = boardCanvas.height / (scale * zoom);
             const cx = logicalW / 2;
-            const cy = logicalH / 2;
+            const container = boardCanvas.closest ? boardCanvas.closest(".canvas-container") : null;
+            const scrollTop = container ? container.scrollTop : 0;
+            const visibleTop = scrollTop / zoom;
             const halfW = 150;
             const halfH = 150;
+            const topY = Math.max(20, visibleTop + 40);
             const newShape = {
               type: "image",
               color: "#ffffff",
               width: 1,
               fillMode: "solid",
               dataUrl,
-              start: { x: cx - halfW, y: cy - halfH },
-              end: { x: cx + halfW, y: cy + halfH },
+              start: { x: cx - halfW, y: topY },
+              end: { x: cx + halfW, y: topY + halfH * 2 },
             };
             page.shapes.push(newShape);
             copyImageShapeToOtherPages(newShape);
