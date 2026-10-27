@@ -11874,11 +11874,11 @@
               ${noteHtml}
               <div class="wb-doubt-actions">
                 ${isDelegated
-                  ? `<button type="button" style="background:#ef4444;color:#fff;border:none;border-radius:6px;padding:3px 8px;font-size:0.72rem;font-weight:700;cursor:pointer;" onclick="handleWbSetDelegation('${escapeHtml(d.socketId)}', '${escapeHtml(d.studentName)}', 'none')">Revoke (${currentPerm === 'chalk' ? 'Chalk' : 'Pointer'})</button>`
-                  : `<button type="button" class="wb-doubt-btn-pointer" onclick="handleWbSetDelegation('${escapeHtml(d.socketId)}', '${escapeHtml(d.studentName)}', 'pointer')">🎯 Pointer</button>
-                     <button type="button" class="wb-doubt-btn-chalk" onclick="handleWbSetDelegation('${escapeHtml(d.socketId)}', '${escapeHtml(d.studentName)}', 'chalk')">✏️ Chalk</button>`
+                  ? `<button type="button" class="wb-action-btn-revoke" data-action="delegate" data-socket-id="${escapeHtml(d.socketId)}" data-student-name="${escapeHtml(d.studentName)}" data-permission="none" style="background:#ef4444;color:#fff;border:none;border-radius:6px;padding:3px 8px;font-size:0.72rem;font-weight:700;cursor:pointer;">Revoke (${currentPerm === 'chalk' ? 'Chalk' : 'Pointer'})</button>`
+                  : `<button type="button" class="wb-doubt-btn-pointer" data-action="delegate" data-socket-id="${escapeHtml(d.socketId)}" data-student-name="${escapeHtml(d.studentName)}" data-permission="pointer">🎯 Pointer</button>
+                     <button type="button" class="wb-doubt-btn-chalk" data-action="delegate" data-socket-id="${escapeHtml(d.socketId)}" data-student-name="${escapeHtml(d.studentName)}" data-permission="chalk">✏️ Chalk</button>`
                 }
-                <button type="button" class="wb-doubt-btn-dismiss" onclick="handleWbDismissDoubt('${escapeHtml(d.socketId)}')">Dismiss</button>
+                <button type="button" class="wb-doubt-btn-dismiss" data-action="dismiss-doubt" data-doubt-id="${escapeHtml(d.socketId)}">Dismiss</button>
               </div>
             </div>
           `;
@@ -11910,9 +11910,9 @@
           );
           const currentPerm = isDelegated && delegated ? delegated.permission : null;
           const actionBtn = isDelegated
-            ? `<button type="button" style="background:#ef4444;color:#fff;border:none;border-radius:6px;padding:3px 8px;font-size:0.72rem;font-weight:700;cursor:pointer;" onclick="handleWbSetDelegation('${escapeHtml(st.socketId)}', '${escapeHtml(st.studentName)}', 'none')">Revoke (${currentPerm === 'chalk' ? 'Chalk' : 'Pointer'})</button>`
-            : `<button type="button" style="background:#f0f9ff;color:#0284c7;border:1px solid #bae6fd;border-radius:6px;padding:3px 7px;font-size:0.72rem;font-weight:700;cursor:pointer;" onclick="handleWbSetDelegation('${escapeHtml(st.socketId)}', '${escapeHtml(st.studentName)}', 'pointer')">🎯 Pointer</button>
-               <button type="button" style="background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0;border-radius:6px;padding:3px 7px;font-size:0.72rem;font-weight:700;cursor:pointer;" onclick="handleWbSetDelegation('${escapeHtml(st.socketId)}', '${escapeHtml(st.studentName)}', 'chalk')">✏️ Chalk</button>`;
+            ? `<button type="button" class="wb-action-btn-revoke" data-action="delegate" data-socket-id="${escapeHtml(st.socketId)}" data-student-name="${escapeHtml(st.studentName)}" data-permission="none" style="background:#ef4444;color:#fff;border:none;border-radius:6px;padding:3px 8px;font-size:0.72rem;font-weight:700;cursor:pointer;">Revoke (${currentPerm === 'chalk' ? 'Chalk' : 'Pointer'})</button>`
+            : `<button type="button" class="wb-action-btn-pointer" data-action="delegate" data-socket-id="${escapeHtml(st.socketId)}" data-student-name="${escapeHtml(st.studentName)}" data-permission="pointer" style="background:#f0f9ff;color:#0284c7;border:1px solid #bae6fd;border-radius:6px;padding:3px 7px;font-size:0.72rem;font-weight:700;cursor:pointer;">🎯 Pointer</button>
+               <button type="button" class="wb-action-btn-chalk" data-action="delegate" data-socket-id="${escapeHtml(st.socketId)}" data-student-name="${escapeHtml(st.studentName)}" data-permission="chalk" style="background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0;border-radius:6px;padding:3px 7px;font-size:0.72rem;font-weight:700;cursor:pointer;">✏️ Chalk</button>`;
 
           return `
             <div class="wb-student-row ${isDelegated ? 'is-delegated' : ''}">
@@ -11946,18 +11946,48 @@
         postMessageToHost({
           type: "WHITEBOARD_SET_DELEGATION",
           targetSocketId: socketId,
-          socketId,
-          studentName,
-          permission
+          socketId: socketId,
+          studentName: studentName,
+          permission: permission
         });
       };
 
       window.handleWbDismissDoubt = function(doubtId) {
         postMessageToHost({
           type: "WHITEBOARD_DISMISS_DOUBT",
-          doubtId
+          doubtId: doubtId,
+          socketId: doubtId
         });
       };
+
+      wbRosterList?.addEventListener("click", (e) => {
+        const btn = e.target.closest('[data-action="delegate"]');
+        if (btn) {
+          e.stopPropagation();
+          const sId = btn.getAttribute("data-socket-id") || "";
+          const sName = btn.getAttribute("data-student-name") || "Student";
+          const perm = btn.getAttribute("data-permission") || "none";
+          handleWbSetDelegation(sId, sName, perm);
+        }
+      });
+
+      wbDoubtsList?.addEventListener("click", (e) => {
+        const delBtn = e.target.closest('[data-action="delegate"]');
+        if (delBtn) {
+          e.stopPropagation();
+          const sId = delBtn.getAttribute("data-socket-id") || "";
+          const sName = delBtn.getAttribute("data-student-name") || "Student";
+          const perm = delBtn.getAttribute("data-permission") || "none";
+          handleWbSetDelegation(sId, sName, perm);
+          return;
+        }
+        const disBtn = e.target.closest('[data-action="dismiss-doubt"]');
+        if (disBtn) {
+          e.stopPropagation();
+          const dId = disBtn.getAttribute("data-doubt-id") || "";
+          handleWbDismissDoubt(dId);
+        }
+      });
 
       const _seenWbReactionIds = new Set();
       function showFloatingReaction(emoji, studentName, label, reactionId) {
@@ -11982,44 +12012,59 @@
         }, 3000);
       }
 
-      wbDoubtsBtn?.addEventListener("click", () => {
+      wbDoubtsBtn?.addEventListener("click", (e) => {
+        e.stopPropagation();
+        postMessageToHost({ type: "REQUEST_ENGAGEMENT_STATE" });
         if (wbDoubtsDrawer) {
           wbDoubtsDrawer.style.display = "flex";
           renderWbDoubtsList();
         }
       });
-      wbCloseDoubtsBtn?.addEventListener("click", () => {
+      wbCloseDoubtsBtn?.addEventListener("click", (e) => {
+        e.stopPropagation();
         if (wbDoubtsDrawer) wbDoubtsDrawer.style.display = "none";
       });
-      wbDoubtsDrawer?.addEventListener("click", () => {
-        wbDoubtsDrawer.style.display = "none";
+      wbDoubtsDrawer?.addEventListener("click", (e) => {
+        if (e.target === wbDoubtsDrawer) {
+          wbDoubtsDrawer.style.display = "none";
+        }
+      });
+      wbDoubtsDrawer?.querySelector(".wb-drawer-panel")?.addEventListener("click", (e) => {
+        e.stopPropagation();
       });
 
-      wbRosterBtn?.addEventListener("click", () => {
+      wbRosterBtn?.addEventListener("click", (e) => {
+        e.stopPropagation();
+        postMessageToHost({ type: "REQUEST_ENGAGEMENT_STATE" });
         if (wbRosterDrawer) {
           wbRosterDrawer.style.display = "flex";
           renderWbRosterList();
         }
       });
-      wbCloseRosterBtn?.addEventListener("click", () => {
+      wbCloseRosterBtn?.addEventListener("click", (e) => {
+        e.stopPropagation();
         if (wbRosterDrawer) wbRosterDrawer.style.display = "none";
       });
-      wbRosterDrawer?.addEventListener("click", () => {
-        wbRosterDrawer.style.display = "none";
+      wbRosterDrawer?.addEventListener("click", (e) => {
+        if (e.target === wbRosterDrawer) {
+          wbRosterDrawer.style.display = "none";
+        }
+      });
+      wbRosterDrawer?.querySelector(".wb-drawer-panel")?.addEventListener("click", (e) => {
+        e.stopPropagation();
       });
 
-      wbClearDoubtsBtn?.addEventListener("click", () => {
+      wbClearDoubtsBtn?.addEventListener("click", (e) => {
+        e.stopPropagation();
         postMessageToHost({ type: "WHITEBOARD_CLEAR_ALL_DOUBTS" });
       });
 
-      wbRevokeBtn?.addEventListener("click", () => {
+      wbRevokeBtn?.addEventListener("click", (e) => {
+        e.stopPropagation();
         if (_engagementState.delegatedStudent) {
-          postMessageToHost({
-            type: "WHITEBOARD_SET_DELEGATION",
-            socketId: _engagementState.delegatedStudent.socketId,
-            studentName: _engagementState.delegatedStudent.studentName,
-            permission: "none"
-          });
+          const sId = _engagementState.delegatedStudent.socketId || "";
+          const sName = _engagementState.delegatedStudent.studentName || "Student";
+          handleWbSetDelegation(sId, sName, "none");
         }
       });
 

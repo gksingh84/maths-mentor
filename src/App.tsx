@@ -2057,33 +2057,44 @@ function TeacherWhiteboard({
   };
 
   const handleSetDelegation = useCallback((socketId: string, studentName: string, permission: 'pointer' | 'chalk' | 'none') => {
-    const newDelegated = permission === 'none' ? null : { socketId, studentName, permission };
+    const matched = viewersRosterRef.current.find(
+      (v) => (socketId && v.socketId === socketId) || (v.studentName && studentName && v.studentName.trim().toLowerCase() === studentName.trim().toLowerCase())
+    );
+    const resolvedSocketId = socketId || matched?.socketId || '';
+    const resolvedStudentName = studentName || matched?.studentName || 'Student';
+    const studentId = (matched as any)?.studentId || '';
+
+    const newDelegated = permission === 'none' ? null : { socketId: resolvedSocketId, studentName: resolvedStudentName, permission };
     setDelegatedStudent(newDelegated);
 
-    const matched = viewersRosterRef.current.find(
-      (v) => v.socketId === socketId || (v.studentName && v.studentName.trim().toLowerCase() === studentName.trim().toLowerCase())
-    );
-    const studentId = (matched as any)?.studentId || '';
+    const fullPayload = {
+      type: 'ENGAGEMENT_STATE_SYNC',
+      isBroadcasting: isBroadcastingRef.current,
+      selectedGrade: selectedGradeRef.current,
+      viewerCount: viewersRosterRef.current.length || (newDelegated ? 1 : 0),
+      viewersRoster: viewersRosterRef.current,
+      delegatedStudent: newDelegated
+    };
 
     const iframe = document.getElementById('teacher-whiteboard-iframe') as HTMLIFrameElement | null;
     if (iframe?.contentWindow) {
       try {
-        iframe.contentWindow.postMessage({ type: 'ENGAGEMENT_STATE_SYNC', delegatedStudent: newDelegated }, '*');
+        iframe.contentWindow.postMessage(fullPayload, '*');
       } catch (_) {}
     }
     try {
       const channel = new BroadcastChannel('eduashram_whiteboard_sync');
-      channel.postMessage({ type: 'ENGAGEMENT_STATE_SYNC', delegatedStudent: newDelegated });
+      channel.postMessage(fullPayload);
       channel.close();
     } catch (_) {}
 
     if (socketRef.current) {
       socketRef.current.emit('whiteboard:set_delegation', {
         grade: selectedGradeRef.current,
-        targetSocketId: socketId,
-        socketId,
+        targetSocketId: resolvedSocketId,
+        socketId: resolvedSocketId,
         studentId,
-        studentName,
+        studentName: resolvedStudentName,
         permission
       });
     }
@@ -2091,7 +2102,7 @@ function TeacherWhiteboard({
     if (permission === 'none') {
       setNotice('Revoked student board delegation.');
     } else {
-      setNotice(`Delegated board ${permission === 'chalk' ? 'chalk ✏️' : 'laser pointer 🎯'} to ${studentName}.`);
+      setNotice(`Delegated board ${permission === 'chalk' ? 'chalk ✏️' : 'laser pointer 🎯'} to ${resolvedStudentName}.`);
     }
   }, [setNotice]);
 
@@ -2146,14 +2157,23 @@ function TeacherWhiteboard({
       });
 
       socket.on('whiteboard:delegation_changed', (data: { delegatedStudent: any }) => {
-        setDelegatedStudent(data?.delegatedStudent || null);
+        const del = data?.delegatedStudent || null;
+        setDelegatedStudent(del);
+        const fullPayload = {
+          type: 'ENGAGEMENT_STATE_SYNC',
+          isBroadcasting: isBroadcastingRef.current,
+          selectedGrade: selectedGradeRef.current,
+          viewerCount: viewersRosterRef.current.length || (del ? 1 : 0),
+          viewersRoster: viewersRosterRef.current,
+          delegatedStudent: del
+        };
         const iframe = document.getElementById('teacher-whiteboard-iframe') as HTMLIFrameElement | null;
         if (iframe?.contentWindow) {
-          iframe.contentWindow.postMessage({ type: 'ENGAGEMENT_STATE_SYNC', delegatedStudent: data?.delegatedStudent || null }, '*');
+          iframe.contentWindow.postMessage(fullPayload, '*');
         }
         try {
           const channel = new BroadcastChannel('eduashram_whiteboard_sync');
-          channel.postMessage({ type: 'ENGAGEMENT_STATE_SYNC', delegatedStudent: data?.delegatedStudent || null });
+          channel.postMessage(fullPayload);
           channel.close();
         } catch (_) {}
       });
@@ -2468,9 +2488,14 @@ function TeacherWhiteboard({
     } else if (data.type === 'REQUEST_ENGAGEMENT_STATE') {
       syncEngagementToWhiteboardRef.current?.();
     } else if (data.type === 'WHITEBOARD_SET_DELEGATION') {
-      handleSetDelegation(data.socketId, data.studentName, data.permission);
+      const targetId = data.socketId || data.targetSocketId || '';
+      handleSetDelegation(targetId, data.studentName, data.permission);
+    } else if (data.type === 'OPEN_ROSTER_DRAWER') {
+      setShowRosterDrawer(true);
+    } else if (data.type === 'OPEN_DOUBTS_DRAWER') {
+      setShowDoubtsDrawer(true);
     } else if (data.type === 'WHITEBOARD_DISMISS_DOUBT') {
-      handleDismissDoubt(data.doubtId || data.socketId);
+      handleDismissDoubt(data.doubtId || data.socketId || data.targetSocketId);
     } else if (data.type === 'WHITEBOARD_CLEAR_ALL_DOUBTS') {
       handleClearAllDoubts();
     } else if (data.type === 'WHITEBOARD_GO_LIVE') {
