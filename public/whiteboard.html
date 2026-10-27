@@ -11641,6 +11641,7 @@
       });
 
       // Listen for broadcast requests or page switch commands from host app (postMessage or BroadcastChannel)
+      const _seenHostMsgIds = new Set();
       function handleHostMessage(data) {
         if (!data) return;
         if (typeof data === "string") {
@@ -11651,6 +11652,16 @@
           }
         }
         if (!data || typeof data !== "object") return;
+
+        const dedupeKey = data.id || data._msgId;
+        if (dedupeKey) {
+          if (_seenHostMsgIds.has(dedupeKey)) return;
+          _seenHostMsgIds.add(dedupeKey);
+          if (_seenHostMsgIds.size > 400) {
+            const first = _seenHostMsgIds.values().next().value;
+            if (first) _seenHostMsgIds.delete(first);
+          }
+        }
 
         // YouTube iframe API postMessage listener for state changes & real-time playback updates
         if (
@@ -11705,7 +11716,7 @@
         } else if (data.type === "ENGAGEMENT_STATE_SYNC") {
           updateWhiteboardEngagement(data);
         } else if (data.type === "REACTION_EVENT") {
-          showFloatingReaction(data.emoji, data.studentName, data.label);
+          showFloatingReaction(data.emoji, data.studentName, data.label, data.id);
         }
       }
 
@@ -11885,9 +11896,15 @@
         }
 
         wbRosterList.innerHTML = roster.map((st) => {
-          const isDelegated = delegated && delegated.socketId === st.socketId;
+          const isDelegated = Boolean(
+            delegated &&
+              (delegated.socketId === st.socketId ||
+                (delegated.studentId && st.studentId && delegated.studentId === st.studentId) ||
+                (delegated.studentName && st.studentName && delegated.studentName.trim().toLowerCase() === st.studentName.trim().toLowerCase()))
+          );
+          const currentPerm = isDelegated && delegated ? delegated.permission : null;
           const actionBtn = isDelegated
-            ? `<button type="button" style="background:#ef4444;color:#fff;border:none;border-radius:6px;padding:3px 8px;font-size:0.72rem;font-weight:700;cursor:pointer;" onclick="handleWbSetDelegation('${escapeHtml(st.socketId)}', '${escapeHtml(st.studentName)}', 'none')">Revoke (${delegated.permission === 'chalk' ? 'Chalk' : 'Pointer'})</button>`
+            ? `<button type="button" style="background:#ef4444;color:#fff;border:none;border-radius:6px;padding:3px 8px;font-size:0.72rem;font-weight:700;cursor:pointer;" onclick="handleWbSetDelegation('${escapeHtml(st.socketId)}', '${escapeHtml(st.studentName)}', 'none')">Revoke (${currentPerm === 'chalk' ? 'Chalk' : 'Pointer'})</button>`
             : `<button type="button" style="background:#f0f9ff;color:#0284c7;border:1px solid #bae6fd;border-radius:6px;padding:3px 7px;font-size:0.72rem;font-weight:700;cursor:pointer;" onclick="handleWbSetDelegation('${escapeHtml(st.socketId)}', '${escapeHtml(st.studentName)}', 'pointer')">🎯 Pointer</button>
                <button type="button" style="background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0;border-radius:6px;padding:3px 7px;font-size:0.72rem;font-weight:700;cursor:pointer;" onclick="handleWbSetDelegation('${escapeHtml(st.socketId)}', '${escapeHtml(st.studentName)}', 'chalk')">✏️ Chalk</button>`;
 
@@ -11906,16 +11923,26 @@
       }
 
       window.handleWbSetDelegation = function(socketId, studentName, permission) {
+        const newDelegated = permission === "none" ? null : { socketId, studentName, permission };
+        _engagementState.delegatedStudent = newDelegated;
+        renderWbRosterList();
+        renderWbDoubtsList();
+        if (wbDelegatedBadge) {
+          if (newDelegated && newDelegated.studentName) {
+            wbDelegatedBadge.style.display = "inline-flex";
+            if (wbDelegatedLabel) {
+              wbDelegatedLabel.textContent = `${newDelegated.permission === "chalk" ? "✏️" : "🎯"} ${newDelegated.studentName}`;
+            }
+          } else {
+            wbDelegatedBadge.style.display = "none";
+          }
+        }
         postMessageToHost({
           type: "WHITEBOARD_SET_DELEGATION",
           socketId,
           studentName,
           permission
         });
-        if (permission !== "none") {
-          if (wbDoubtsDrawer) wbDoubtsDrawer.style.display = "none";
-          if (wbRosterDrawer) wbRosterDrawer.style.display = "none";
-        }
       };
 
       window.handleWbDismissDoubt = function(doubtId) {
@@ -11925,8 +11952,17 @@
         });
       };
 
-      function showFloatingReaction(emoji, studentName, label) {
+      const _seenWbReactionIds = new Set();
+      function showFloatingReaction(emoji, studentName, label, reactionId) {
         if (!wbFloatingReactions) return;
+        if (reactionId) {
+          if (_seenWbReactionIds.has(reactionId)) return;
+          _seenWbReactionIds.add(reactionId);
+          if (_seenWbReactionIds.size > 200) {
+            const first = _seenWbReactionIds.values().next().value;
+            if (first) _seenWbReactionIds.delete(first);
+          }
+        }
         const safeEmoji = emoji && emoji !== "undefined" ? emoji : "👍";
         const safeName = (studentName && studentName !== "undefined" && String(studentName).trim()) ? escapeHtml(String(studentName).trim()) : "Student";
         const safeLabel = label && label !== "undefined" ? escapeHtml(String(label).trim()) : "";

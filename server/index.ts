@@ -3900,6 +3900,11 @@ io.on('connection', (socket) => {
   });
 
   const findTeacherSession = (grade?: string): LiveWhiteboardSession | undefined => {
+    for (const sess of activeWhiteboardSessions.values()) {
+      if (sess.broadcasterSocketId === socket.id && sess.isLive) {
+        return sess;
+      }
+    }
     if (grade) {
       const trimmed = grade.trim();
       const byGrade = activeWhiteboardSessions.get(trimmed);
@@ -3909,6 +3914,17 @@ io.on('connection', (socket) => {
       if (sess.teacherId === session.id && sess.isLive) {
         return sess;
       }
+    }
+    if (grade) {
+      for (const sess of activeWhiteboardSessions.values()) {
+        if (sess.isLive && (sess.teacherId === session.id || gradesMatch(sess.grade, grade))) {
+          return sess;
+        }
+      }
+    }
+    const liveSessions = Array.from(activeWhiteboardSessions.values()).filter((s) => s.isLive);
+    if (liveSessions.length === 1) {
+      return liveSessions[0];
     }
     if (grade) {
       return activeWhiteboardSessions.get(grade.trim());
@@ -4206,9 +4222,6 @@ io.on('connection', (socket) => {
     for (const v of getGradeVariants(grade)) {
       socket.join(`whiteboard:${v}`);
     }
-    if (studentTeacherId) {
-      socket.join(`whiteboard:teacher:${studentTeacherId}`);
-    }
 
     const active = findActiveWhiteboardSession({ grade: studentGrade, teacherId: studentTeacherId });
 
@@ -4221,7 +4234,6 @@ io.on('connection', (socket) => {
         joinedAt: Date.now(),
       });
       socket.join(`whiteboard:${active.grade}`);
-      socket.join(`whiteboard:teacher:${active.teacherId}`);
       for (const v of getGradeVariants(active.grade)) {
         socket.join(`whiteboard:${v}`);
       }
@@ -4351,9 +4363,21 @@ io.on('connection', (socket) => {
       if (data.permission === 'none' || !data.targetSocketId) {
         active.delegatedStudent = null;
       } else {
+        let resolvedStudentId = data.studentId || '';
+        if (!resolvedStudentId && data.targetSocketId && active.viewerDetails.has(data.targetSocketId)) {
+          resolvedStudentId = active.viewerDetails.get(data.targetSocketId)?.studentId || '';
+        }
+        if (!resolvedStudentId && data.studentName) {
+          for (const vd of active.viewerDetails.values()) {
+            if (vd.studentName && vd.studentName.trim().toLowerCase() === data.studentName.trim().toLowerCase()) {
+              resolvedStudentId = vd.studentId || '';
+              break;
+            }
+          }
+        }
         active.delegatedStudent = {
           socketId: data.targetSocketId,
-          studentId: data.studentId || '',
+          studentId: resolvedStudentId,
           studentName: data.studentName || 'Student',
           permission: data.permission,
         };
@@ -4478,28 +4502,23 @@ io.on('connection', (socket) => {
         timestamp: Date.now(),
       });
 
-      // Notify the teacher with the clicked emoji, label, and studentName
-      io.to(`whiteboard:teacher:${active.teacherId}`).emit('whiteboard:reaction_event', {
+      const reactionId = (data as any)?.id || `${socket.id}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+      const reactionPayload = {
+        id: reactionId,
         type,
         emoji,
         label,
         studentName,
-      });
+        senderSocketId: socket.id,
+      };
 
-      // Broadcast reaction to students in this session
-      socket.to(`whiteboard:${active.grade}`).emit('whiteboard:reaction_event', {
-        type,
-        emoji,
-        label,
-        studentName,
-      });
+      // Notify the teacher with the clicked emoji, label, and studentName
+      io.to(`whiteboard:teacher:${active.teacherId}`).emit('whiteboard:reaction_event', reactionPayload);
+
+      // Broadcast reaction to students in this session (excludes sender socket)
+      socket.to(`whiteboard:${active.grade}`).emit('whiteboard:reaction_event', reactionPayload);
       if (active.grade !== 'ALL') {
-        socket.to('whiteboard:ALL').emit('whiteboard:reaction_event', {
-          type,
-          emoji,
-          label,
-          studentName,
-        });
+        socket.to('whiteboard:ALL').emit('whiteboard:reaction_event', reactionPayload);
       }
 
       broadcastSentimentUpdate(active);

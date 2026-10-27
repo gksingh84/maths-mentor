@@ -2021,7 +2021,10 @@ function TeacherWhiteboard({
   const onBroadcastChangeRef = useRef(onBroadcastChange);
   onBroadcastChangeRef.current = onBroadcastChange;
   const processedMsgIdsRef = useRef<Set<string>>(new Set());
+  const processedReactionIdsRef = useRef<Set<string>>(new Set());
   const broadcastInitializedRef = useRef(false);
+  const viewersRosterRef = useRef(viewersRoster);
+  viewersRosterRef.current = viewersRoster;
 
   const handleSelectGrade = (newGrade: string) => {
     setSelectedGrade(newGrade);
@@ -2053,25 +2056,45 @@ function TeacherWhiteboard({
     setNotice('Whiteboard opened in a separate window. You can snap it adjacent to another app.');
   };
 
-  const handleSetDelegation = (socketId: string, studentName: string, permission: 'pointer' | 'chalk' | 'none') => {
+  const handleSetDelegation = useCallback((socketId: string, studentName: string, permission: 'pointer' | 'chalk' | 'none') => {
+    const newDelegated = permission === 'none' ? null : { socketId, studentName, permission };
+    setDelegatedStudent(newDelegated);
+
+    const matched = viewersRosterRef.current.find(
+      (v) => v.socketId === socketId || (v.studentName && v.studentName.trim().toLowerCase() === studentName.trim().toLowerCase())
+    );
+    const studentId = (matched as any)?.studentId || '';
+
+    const iframe = document.getElementById('teacher-whiteboard-iframe') as HTMLIFrameElement | null;
+    if (iframe?.contentWindow) {
+      try {
+        iframe.contentWindow.postMessage({ type: 'ENGAGEMENT_STATE_SYNC', delegatedStudent: newDelegated }, '*');
+      } catch (_) {}
+    }
+    try {
+      const channel = new BroadcastChannel('eduashram_whiteboard_sync');
+      channel.postMessage({ type: 'ENGAGEMENT_STATE_SYNC', delegatedStudent: newDelegated });
+      channel.close();
+    } catch (_) {}
+
     if (socketRef.current) {
       socketRef.current.emit('whiteboard:set_delegation', {
         grade: selectedGradeRef.current,
         targetSocketId: socketId,
-        permission,
-        studentName
+        studentId,
+        studentName,
+        permission
       });
-      if (permission === 'none') {
-        setNotice('Revoked student board delegation.');
-      } else {
-        setNotice(`Delegated board ${permission === 'chalk' ? 'chalk ✏️' : 'laser pointer 🎯'} to ${studentName}.`);
-        setShowDoubtsDrawer(false);
-        setShowRosterDrawer(false);
-      }
     }
-  };
 
-  const handleDismissDoubt = (targetSocketId: string) => {
+    if (permission === 'none') {
+      setNotice('Revoked student board delegation.');
+    } else {
+      setNotice(`Delegated board ${permission === 'chalk' ? 'chalk ✏️' : 'laser pointer 🎯'} to ${studentName}.`);
+    }
+  }, [setNotice]);
+
+  const handleDismissDoubt = useCallback((targetSocketId: string) => {
     if (socketRef.current) {
       socketRef.current.emit('whiteboard:dismiss_doubt', {
         grade: selectedGradeRef.current,
@@ -2079,9 +2102,9 @@ function TeacherWhiteboard({
       });
     }
     setDoubts((prev) => prev.filter((d) => d.socketId !== targetSocketId));
-  };
+  }, []);
 
-  const handleClearAllDoubts = () => {
+  const handleClearAllDoubts = useCallback(() => {
     if (socketRef.current) {
       socketRef.current.emit('whiteboard:clear_all_doubts', {
         grade: selectedGradeRef.current
@@ -2089,7 +2112,7 @@ function TeacherWhiteboard({
     }
     setDoubts([]);
     setNotice('Cleared all doubt questions from queue.');
-  };
+  }, [setNotice]);
 
   const startBroadcast = () => {
     isBroadcastingRef.current = true;
@@ -2147,7 +2170,15 @@ function TeacherWhiteboard({
         }
       });
 
-      socket.on('whiteboard:reaction_event', (data: { emoji?: string; studentName?: string; label?: string; type?: string }) => {
+      socket.on('whiteboard:reaction_event', (data: { id?: string; emoji?: string; studentName?: string; label?: string; type?: string }) => {
+        const reactionId = data?.id || `${Date.now()}-${Math.random()}`;
+        if (processedReactionIdsRef.current.has(reactionId)) return;
+        processedReactionIdsRef.current.add(reactionId);
+        if (processedReactionIdsRef.current.size > 200) {
+          const first = processedReactionIdsRef.current.values().next().value;
+          if (first) processedReactionIdsRef.current.delete(first);
+        }
+
         const typeEmojiMap: Record<string, { emoji: string; label: string }> = {
           understood: { emoji: '👍', label: 'Got it' },
           confused: { emoji: '❓', label: 'Doubt' },
@@ -2159,27 +2190,27 @@ function TeacherWhiteboard({
         const studentName = (data?.studentName && data.studentName !== 'undefined' && data.studentName.trim()) || 'Student';
         const label = (data?.label && data.label !== 'undefined') ? data.label : fallback.label;
 
-        const id = `${Date.now()}-${Math.random()}`;
         const toast = {
-          id,
+          id: reactionId,
           emoji,
           studentName,
           label
         };
         setReactionToasts((prev) => [...prev.slice(-5), toast]);
         setTimeout(() => {
-          setReactionToasts((prev) => prev.filter((t) => t.id !== id));
+          setReactionToasts((prev) => prev.filter((t) => t.id !== reactionId));
         }, 3000);
 
         const iframe = document.getElementById('teacher-whiteboard-iframe') as HTMLIFrameElement | null;
         if (iframe?.contentWindow) {
-          iframe.contentWindow.postMessage({ type: 'REACTION_EVENT', emoji, studentName, label }, '*');
+          iframe.contentWindow.postMessage({ type: 'REACTION_EVENT', id: reactionId, emoji, studentName, label }, '*');
+        } else {
+          try {
+            const channel = new BroadcastChannel('eduashram_whiteboard_sync');
+            channel.postMessage({ type: 'REACTION_EVENT', id: reactionId, emoji, studentName, label });
+            channel.close();
+          } catch (_) {}
         }
-        try {
-          const channel = new BroadcastChannel('eduashram_whiteboard_sync');
-          channel.postMessage({ type: 'REACTION_EVENT', emoji, studentName, label });
-          channel.close();
-        } catch (_) {}
       });
 
       socket.on('whiteboard:laser_pointer', (data: any) => {
@@ -2309,6 +2340,15 @@ function TeacherWhiteboard({
     };
   }, [isFullscreen]);
 
+  const teacherNameRef = useRef(teacherName);
+  teacherNameRef.current = teacherName;
+  const syncEngagementToWhiteboardRef = useRef(syncEngagementToWhiteboard);
+  syncEngagementToWhiteboardRef.current = syncEngagementToWhiteboard;
+  const startBroadcastRef = useRef(startBroadcast);
+  startBroadcastRef.current = startBroadcast;
+  const stopBroadcastRef = useRef(stopBroadcast);
+  stopBroadcastRef.current = stopBroadcast;
+
   const handleBoardEvent = useCallback((data: any) => {
     if (!data || typeof data !== 'object') return;
     if (data._msgId) {
@@ -2326,7 +2366,7 @@ function TeacherWhiteboard({
           broadcastInitializedRef.current = true;
           socketRef.current.emit('whiteboard:start_broadcast', {
             grade: selectedGradeRef.current,
-            teacherName: teacherName || 'Teacher',
+            teacherName: teacherNameRef.current || 'Teacher',
             pages: data.pages || [{ strokes: [], shapes: [], texts: [], widgets: [] }],
             activePageIndex: typeof data.activePageIndex === 'number' ? data.activePageIndex : 0
           });
@@ -2421,7 +2461,7 @@ function TeacherWhiteboard({
         });
       }
     } else if (data.type === 'REQUEST_ENGAGEMENT_STATE') {
-      syncEngagementToWhiteboard();
+      syncEngagementToWhiteboardRef.current?.();
     } else if (data.type === 'WHITEBOARD_SET_DELEGATION') {
       handleSetDelegation(data.socketId, data.studentName, data.permission);
     } else if (data.type === 'WHITEBOARD_DISMISS_DOUBT') {
@@ -2429,11 +2469,11 @@ function TeacherWhiteboard({
     } else if (data.type === 'WHITEBOARD_CLEAR_ALL_DOUBTS') {
       handleClearAllDoubts();
     } else if (data.type === 'WHITEBOARD_GO_LIVE') {
-      startBroadcast();
+      startBroadcastRef.current?.();
     } else if (data.type === 'WHITEBOARD_STOP_LIVE') {
-      stopBroadcast();
+      stopBroadcastRef.current?.();
     }
-  }, [teacherName, syncEngagementToWhiteboard, handleSetDelegation, handleDismissDoubt, handleClearAllDoubts, startBroadcast, stopBroadcast]);
+  }, [handleSetDelegation, handleDismissDoubt, handleClearAllDoubts]);
 
   // Handle postMessage and BroadcastChannel events from the whiteboard to stream real-time vectors
   useEffect(() => {
@@ -2833,54 +2873,83 @@ function TeacherWhiteboard({
                   </p>
                 </div>
               ) : (
-                doubts.map((d) => (
-                  <div key={d.socketId} className="teacher-doubt-card">
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <strong style={{ fontSize: '0.88rem', color: '#0f172a' }}>{d.studentName}</strong>
-                      <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>
-                        {Math.max(1, Math.round((Date.now() - d.timestamp) / 1000))}s ago
-                      </span>
-                    </div>
-                    {d.note && (
-                      <p style={{ margin: '4px 0 0', fontSize: '0.8rem', color: '#334155', fontStyle: 'italic', background: 'rgba(255,255,255,0.7)', padding: '6px 8px', borderRadius: '6px' }}>
-                        "{d.note}"
-                      </p>
-                    )}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '6px', flexWrap: 'wrap' }}>
-                      <button
-                        type="button"
-                        onClick={() => handleSetDelegation(d.socketId, d.studentName, 'pointer')}
-                        style={{
-                          background: '#0284c7',
-                          color: '#ffffff',
-                          border: 'none',
-                          borderRadius: '6px',
-                          padding: '3px 8px',
-                          fontSize: '0.72rem',
-                          fontWeight: 700,
-                          cursor: 'pointer'
-                        }}
-                        title="Grant student board laser pointer"
-                      >
-                        🎯 Pointer
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleSetDelegation(d.socketId, d.studentName, 'chalk')}
-                        style={{
-                          background: '#16a34a',
-                          color: '#ffffff',
-                          border: 'none',
-                          borderRadius: '6px',
-                          padding: '3px 8px',
-                          fontSize: '0.72rem',
-                          fontWeight: 700,
-                          cursor: 'pointer'
-                        }}
-                        title="Grant student board chalk"
-                      >
-                        ✏️ Chalk
-                      </button>
+                doubts.map((d) => {
+                  const isDoubtDelegated = Boolean(
+                    delegatedStudent &&
+                      (delegatedStudent.socketId === d.socketId ||
+                        (d.studentName &&
+                          delegatedStudent.studentName &&
+                          delegatedStudent.studentName.trim().toLowerCase() === d.studentName.trim().toLowerCase()))
+                  );
+                  return (
+                      <div key={d.socketId} className="teacher-doubt-card">
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <strong style={{ fontSize: '0.88rem', color: '#0f172a' }}>{d.studentName}</strong>
+                          <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>
+                            {Math.max(1, Math.round((Date.now() - d.timestamp) / 1000))}s ago
+                          </span>
+                        </div>
+                        {d.note && (
+                          <p style={{ margin: '4px 0 0', fontSize: '0.8rem', color: '#334155', fontStyle: 'italic', background: 'rgba(255,255,255,0.7)', padding: '6px 8px', borderRadius: '6px' }}>
+                            "{d.note}"
+                          </p>
+                        )}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '6px', flexWrap: 'wrap' }}>
+                          {isDoubtDelegated ? (
+                            <button
+                              type="button"
+                              onClick={() => handleSetDelegation(d.socketId, d.studentName, 'none')}
+                              style={{
+                                background: '#ef4444',
+                                color: '#ffffff',
+                                border: 'none',
+                                borderRadius: '6px',
+                                padding: '4px 10px',
+                                fontSize: '0.74rem',
+                                fontWeight: 700,
+                                cursor: 'pointer'
+                              }}
+                            >
+                              Revoke ({delegatedStudent?.permission === 'chalk' ? 'Chalk' : 'Pointer'})
+                            </button>
+                          ) : (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => handleSetDelegation(d.socketId, d.studentName, 'pointer')}
+                                style={{
+                                  background: '#0284c7',
+                                  color: '#ffffff',
+                                  border: 'none',
+                                  borderRadius: '6px',
+                                  padding: '4px 8px',
+                                  fontSize: '0.74rem',
+                                  fontWeight: 700,
+                                  cursor: 'pointer'
+                                }}
+                                title="Grant student board laser pointer"
+                              >
+                                🎯 Pointer
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleSetDelegation(d.socketId, d.studentName, 'chalk')}
+                                style={{
+                                  background: '#16a34a',
+                                  color: '#ffffff',
+                                  border: 'none',
+                                  borderRadius: '6px',
+                                  padding: '4px 8px',
+                                  fontSize: '0.74rem',
+                                  fontWeight: 700,
+                                  cursor: 'pointer'
+                                }}
+                                title="Grant student board chalk"
+                              >
+                                ✏️ Chalk
+                              </button>
+                            </>
+                          )}
                       <button
                         type="button"
                         onClick={() => handleDismissDoubt(d.socketId)}
@@ -2900,8 +2969,9 @@ function TeacherWhiteboard({
                       </button>
                     </div>
                   </div>
-                ))
-              )}
+                );
+              })
+            )}
             </div>
           </div>
         </div>
@@ -2934,7 +3004,13 @@ function TeacherWhiteboard({
                 </div>
               ) : (
                 viewersRoster.map((st) => {
-                  const isCurrentDelegated = delegatedStudent?.socketId === st.socketId;
+                  const isCurrentDelegated = Boolean(
+                    delegatedStudent &&
+                      (delegatedStudent.socketId === st.socketId ||
+                        (st.studentName &&
+                          delegatedStudent.studentName &&
+                          delegatedStudent.studentName.trim().toLowerCase() === st.studentName.trim().toLowerCase()))
+                  );
                   return (
                     <div
                       key={st.socketId}
@@ -2958,13 +3034,13 @@ function TeacherWhiteboard({
                               color: '#fff',
                               border: 'none',
                               borderRadius: '6px',
-                              padding: '3px 8px',
-                              fontSize: '0.72rem',
+                              padding: '4px 10px',
+                              fontSize: '0.74rem',
                               fontWeight: 700,
                               cursor: 'pointer'
                             }}
                           >
-                            Revoke ({delegatedStudent.permission === 'chalk' ? 'Chalk' : 'Pointer'})
+                            Revoke ({delegatedStudent?.permission === 'chalk' ? 'Chalk' : 'Pointer'})
                           </button>
                         ) : (
                           <>
@@ -2976,8 +3052,8 @@ function TeacherWhiteboard({
                                 color: '#0284c7',
                                 border: '1px solid #bae6fd',
                                 borderRadius: '6px',
-                                padding: '3px 7px',
-                                fontSize: '0.72rem',
+                                padding: '4px 8px',
+                                fontSize: '0.74rem',
                                 fontWeight: 700,
                                 cursor: 'pointer'
                               }}
@@ -2993,8 +3069,8 @@ function TeacherWhiteboard({
                                 color: '#16a34a',
                                 border: '1px solid #bbf7d0',
                                 borderRadius: '6px',
-                                padding: '3px 7px',
-                                fontSize: '0.72rem',
+                                padding: '4px 8px',
+                                fontSize: '0.74rem',
                                 fontWeight: 700,
                                 cursor: 'pointer'
                               }}

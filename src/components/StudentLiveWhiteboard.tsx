@@ -573,6 +573,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
   // Live Reactions & PDF export state
   const [floatingReactions, setFloatingReactions] = useState<Array<{ id: string; emoji: string; x: number }>>([]);
   const [isExportingPDF, setIsExportingPDF] = useState(false);
+  const seenReactionsRef = useRef<Set<string>>(new Set());
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -933,10 +934,23 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
       }
     });
 
-    socket.on('whiteboard:reaction_event', (data: { emoji?: string; studentName?: string }) => {
+    socket.on('whiteboard:reaction_event', (data: { id?: string; emoji?: string; studentName?: string; senderSocketId?: string }) => {
+      if (data?.senderSocketId && socketRef.current && data.senderSocketId === socketRef.current.id) {
+        return;
+      }
+      if (data?.id && seenReactionsRef.current.has(data.id)) {
+        return;
+      }
+      if (data?.id) {
+        seenReactionsRef.current.add(data.id);
+        if (seenReactionsRef.current.size > 200) {
+          const first = seenReactionsRef.current.values().next().value;
+          if (first) seenReactionsRef.current.delete(first);
+        }
+      }
       const emoji = (data?.emoji && data.emoji !== 'undefined') ? data.emoji : '👍';
       const newReaction = {
-        id: `${Date.now()}-${Math.random()}`,
+        id: data?.id || `${Date.now()}-${Math.random()}`,
         emoji,
         x: 20 + Math.random() * 60
       };
@@ -1894,7 +1908,11 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
   const handleSendReaction = (emoji: string, label: string, sentiment: 'positive' | 'question' | 'slow_down' | 'speed_up') => {
     if (!socketRef.current || !isLive) return;
     const type = sentiment === 'positive' ? 'understood' : sentiment === 'question' ? 'confused' : sentiment === 'slow_down' ? 'slower' : 'faster';
+    const reactionId = `${socketRef.current.id || Date.now()}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    seenReactionsRef.current.add(reactionId);
+
     socketRef.current.emit('whiteboard:reaction', {
+      id: reactionId,
       grade: effectiveGrade,
       teacherId,
       emoji,
@@ -1905,7 +1923,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
     });
 
     const newReaction = {
-      id: `${Date.now()}-${Math.random()}`,
+      id: reactionId,
       emoji,
       x: 20 + Math.random() * 60
     };
