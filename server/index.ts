@@ -4352,7 +4352,7 @@ io.on('connection', (socket) => {
   });
 
   // --- STUDENT ENGAGEMENT: DELEGATION (POINTER / CHALK) ---
-  socket.on('whiteboard:set_delegation', (data: { targetSocketId?: string; studentId?: string; studentName?: string; permission: 'none' | 'pointer' | 'chalk'; grade?: string }) => {
+  socket.on('whiteboard:set_delegation', (data: { targetSocketId?: string; socketId?: string; studentId?: string; studentName?: string; permission: 'none' | 'pointer' | 'chalk'; grade?: string }) => {
     if (session.role !== 'teacher' && session.role !== 'admin' && session.role !== 'superadmin') return;
     const active = findTeacherSession(data?.grade);
     if (active && active.isLive) {
@@ -4360,12 +4360,13 @@ io.on('connection', (socket) => {
         clearTimeout(studentDelegationRevokeTimers.get(active.teacherId)!);
         studentDelegationRevokeTimers.delete(active.teacherId);
       }
-      if (data.permission === 'none' || !data.targetSocketId) {
+      const targetSocketId = data.targetSocketId || data.socketId;
+      if (data.permission === 'none' || !targetSocketId) {
         active.delegatedStudent = null;
       } else {
         let resolvedStudentId = data.studentId || '';
-        if (!resolvedStudentId && data.targetSocketId && active.viewerDetails.has(data.targetSocketId)) {
-          resolvedStudentId = active.viewerDetails.get(data.targetSocketId)?.studentId || '';
+        if (!resolvedStudentId && targetSocketId && active.viewerDetails.has(targetSocketId)) {
+          resolvedStudentId = active.viewerDetails.get(targetSocketId)?.studentId || '';
         }
         if (!resolvedStudentId && data.studentName) {
           for (const vd of active.viewerDetails.values()) {
@@ -4376,7 +4377,7 @@ io.on('connection', (socket) => {
           }
         }
         active.delegatedStudent = {
-          socketId: data.targetSocketId,
+          socketId: targetSocketId,
           studentId: resolvedStudentId,
           studentName: data.studentName || 'Student',
           permission: data.permission,
@@ -4509,17 +4510,23 @@ io.on('connection', (socket) => {
         emoji,
         label,
         studentName,
+        studentId: (data as any)?.studentId || session.id,
         senderSocketId: socket.id,
       };
 
-      // Notify the teacher with the clicked emoji, label, and studentName
+      // 1. Notify the teacher EXACTLY ONCE via the dedicated teacher room
       io.to(`whiteboard:teacher:${active.teacherId}`).emit('whiteboard:reaction_event', reactionPayload);
 
-      // Broadcast reaction to students in this session (excludes sender socket)
-      socket.to(`whiteboard:${active.grade}`).emit('whiteboard:reaction_event', reactionPayload);
-      if (active.grade !== 'ALL') {
-        socket.to('whiteboard:ALL').emit('whiteboard:reaction_event', reactionPayload);
+      // 2. Broadcast reaction to other student viewers (excluding sender socket, and excluding teacher)
+      const targetGrade = active.grade || 'ALL';
+      const roomsToBroadcast = [`whiteboard:${targetGrade}`];
+      if (targetGrade !== 'ALL') {
+        roomsToBroadcast.push('whiteboard:ALL');
       }
+      for (const v of getGradeVariants(targetGrade)) {
+        roomsToBroadcast.push(`whiteboard:${v}`);
+      }
+      socket.to(roomsToBroadcast).except(`whiteboard:teacher:${active.teacherId}`).emit('whiteboard:reaction_event', reactionPayload);
 
       broadcastSentimentUpdate(active);
     }

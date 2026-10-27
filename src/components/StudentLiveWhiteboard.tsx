@@ -574,6 +574,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
   const [floatingReactions, setFloatingReactions] = useState<Array<{ id: string; emoji: string; x: number }>>([]);
   const [isExportingPDF, setIsExportingPDF] = useState(false);
   const seenReactionsRef = useRef<Set<string>>(new Set());
+  const lastReactionTimeRef = useRef<number>(0);
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -934,10 +935,20 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
       }
     });
 
-    socket.on('whiteboard:reaction_event', (data: { id?: string; emoji?: string; studentName?: string; senderSocketId?: string }) => {
-      if (data?.senderSocketId && socketRef.current && data.senderSocketId === socketRef.current.id) {
+    socket.on('whiteboard:reaction_event', (data: { id?: string; emoji?: string; studentName?: string; studentId?: string; senderSocketId?: string }) => {
+      // 1. Drop if this event originated from our own socket
+      if (data?.senderSocketId && socketRef.current?.id && data.senderSocketId === socketRef.current.id) {
         return;
       }
+      // 2. Drop if this event has our studentId
+      if (data?.studentId && studentId && data.studentId === studentId) {
+        return;
+      }
+      // 3. Drop if this event matches our studentName
+      if (data?.studentName && studentName && data.studentName.trim().toLowerCase() === studentName.trim().toLowerCase()) {
+        return;
+      }
+      // 4. Drop if already seen/rendered
       if (data?.id && seenReactionsRef.current.has(data.id)) {
         return;
       }
@@ -1907,6 +1918,12 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
 
   const handleSendReaction = (emoji: string, label: string, sentiment: 'positive' | 'question' | 'slow_down' | 'speed_up') => {
     if (!socketRef.current || !isLive) return;
+
+    // Cooldown throttle to prevent rapid double-click duplication
+    const now = Date.now();
+    if (now - lastReactionTimeRef.current < 600) return;
+    lastReactionTimeRef.current = now;
+
     const type = sentiment === 'positive' ? 'understood' : sentiment === 'question' ? 'confused' : sentiment === 'slow_down' ? 'slower' : 'faster';
     const reactionId = `${socketRef.current.id || Date.now()}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     seenReactionsRef.current.add(reactionId);
@@ -1919,7 +1936,8 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
       label,
       sentiment,
       type,
-      studentName: (studentName && studentName.trim()) || 'Student'
+      studentName: (studentName && studentName.trim()) || 'Student',
+      studentId
     });
 
     const newReaction = {

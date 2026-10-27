@@ -11857,7 +11857,13 @@
         wbDoubtsList.innerHTML = doubts.map((d) => {
           const secondsAgo = Math.max(1, Math.round((Date.now() - (d.timestamp || Date.now())) / 1000));
           const noteHtml = d.note ? `<p>"${escapeHtml(d.note)}"</p>` : "";
-          const isDelegated = _engagementState.delegatedStudent && (_engagementState.delegatedStudent.socketId === d.socketId || _engagementState.delegatedStudent.studentName === d.studentName);
+          const isDelegated = Boolean(
+            _engagementState.delegatedStudent &&
+              (_engagementState.delegatedStudent.socketId === d.socketId ||
+                (_engagementState.delegatedStudent.studentName &&
+                  d.studentName &&
+                  _engagementState.delegatedStudent.studentName.trim().toLowerCase() === d.studentName.trim().toLowerCase()))
+          );
           const currentPerm = isDelegated ? _engagementState.delegatedStudent.permission : null;
           return `
             <div class="wb-doubt-card" data-socket-id="${escapeHtml(d.socketId)}">
@@ -11939,6 +11945,7 @@
         }
         postMessageToHost({
           type: "WHITEBOARD_SET_DELEGATION",
+          targetSocketId: socketId,
           socketId,
           studentName,
           permission
@@ -11955,13 +11962,12 @@
       const _seenWbReactionIds = new Set();
       function showFloatingReaction(emoji, studentName, label, reactionId) {
         if (!wbFloatingReactions) return;
-        if (reactionId) {
-          if (_seenWbReactionIds.has(reactionId)) return;
-          _seenWbReactionIds.add(reactionId);
-          if (_seenWbReactionIds.size > 200) {
-            const first = _seenWbReactionIds.values().next().value;
-            if (first) _seenWbReactionIds.delete(first);
-          }
+        const dedupeKey = reactionId || `${studentName || 'Student'}-${emoji || '👍'}-${Math.floor(Date.now() / 1500)}`;
+        if (_seenWbReactionIds.has(dedupeKey)) return;
+        _seenWbReactionIds.add(dedupeKey);
+        if (_seenWbReactionIds.size > 200) {
+          const first = _seenWbReactionIds.values().next().value;
+          if (first) _seenWbReactionIds.delete(first);
         }
         const safeEmoji = emoji && emoji !== "undefined" ? emoji : "👍";
         const safeName = (studentName && studentName !== "undefined" && String(studentName).trim()) ? escapeHtml(String(studentName).trim()) : "Student";

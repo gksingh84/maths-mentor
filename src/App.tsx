@@ -2081,6 +2081,7 @@ function TeacherWhiteboard({
       socketRef.current.emit('whiteboard:set_delegation', {
         grade: selectedGradeRef.current,
         targetSocketId: socketId,
+        socketId,
         studentId,
         studentName,
         permission
@@ -2172,8 +2173,10 @@ function TeacherWhiteboard({
 
       socket.on('whiteboard:reaction_event', (data: { id?: string; emoji?: string; studentName?: string; label?: string; type?: string }) => {
         const reactionId = data?.id || `${Date.now()}-${Math.random()}`;
-        if (processedReactionIdsRef.current.has(reactionId)) return;
-        processedReactionIdsRef.current.add(reactionId);
+        const dedupeKey = data?.id || `${data?.studentName || 'Student'}-${data?.emoji || data?.type || '👍'}-${Math.floor(Date.now() / 1500)}`;
+        if (processedReactionIdsRef.current.has(dedupeKey) || (data?.id && processedReactionIdsRef.current.has(data.id))) return;
+        processedReactionIdsRef.current.add(dedupeKey);
+        if (data?.id) processedReactionIdsRef.current.add(data.id);
         if (processedReactionIdsRef.current.size > 200) {
           const first = processedReactionIdsRef.current.values().next().value;
           if (first) processedReactionIdsRef.current.delete(first);
@@ -2190,21 +2193,23 @@ function TeacherWhiteboard({
         const studentName = (data?.studentName && data.studentName !== 'undefined' && data.studentName.trim()) || 'Student';
         const label = (data?.label && data.label !== 'undefined') ? data.label : fallback.label;
 
-        const toast = {
-          id: reactionId,
-          emoji,
-          studentName,
-          label
-        };
-        setReactionToasts((prev) => [...prev.slice(-5), toast]);
-        setTimeout(() => {
-          setReactionToasts((prev) => prev.filter((t) => t.id !== reactionId));
-        }, 3000);
-
         const iframe = document.getElementById('teacher-whiteboard-iframe') as HTMLIFrameElement | null;
         if (iframe?.contentWindow) {
+          // Whiteboard iframe renders floating reaction bubble directly over the canvas
           iframe.contentWindow.postMessage({ type: 'REACTION_EVENT', id: reactionId, emoji, studentName, label }, '*');
         } else {
+          // If iframe is not active in DOM (e.g. standalone window), display toast in React host and sync
+          const toast = {
+            id: reactionId,
+            emoji,
+            studentName,
+            label
+          };
+          setReactionToasts((prev) => [...prev.slice(-5), toast]);
+          setTimeout(() => {
+            setReactionToasts((prev) => prev.filter((t) => t.id !== reactionId));
+          }, 3000);
+
           try {
             const channel = new BroadcastChannel('eduashram_whiteboard_sync');
             channel.postMessage({ type: 'REACTION_EVENT', id: reactionId, emoji, studentName, label });
