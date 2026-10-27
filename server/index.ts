@@ -4432,6 +4432,7 @@ io.on('connection', (socket) => {
   socket.on('whiteboard:student_stroke', (data: { stroke: any; pageIndex: number; grade?: string; teacherId?: string; studentName?: string }) => {
     const active = findActiveWhiteboardSession({ grade: data?.grade, teacherId: data?.teacherId });
     if (!active || !active.isLive || !active.delegatedStudent || active.delegatedStudent.permission !== 'chalk') return;
+    if (!data?.stroke || data.stroke.mode === 'eraser') return;
 
     const isAuthorized =
       active.delegatedStudent.socketId === socket.id ||
@@ -4461,6 +4462,86 @@ io.on('connection', (socket) => {
       }
       for (const v of getGradeVariants(active.grade)) {
         socket.to(`whiteboard:${v}`).emit('whiteboard:stroke', strokePayload);
+      }
+    }
+  });
+
+  function pointToSegmentDistSq(px: number, py: number, x1: number, y1: number, x2: number, y2: number) {
+    const l2 = (x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1);
+    if (l2 === 0) {
+      const dx = px - x1;
+      const dy = py - y1;
+      return dx * dx + dy * dy;
+    }
+    let t = ((px - x1) * (x2 - x1) + (py - y1) * (y2 - y1)) / l2;
+    t = Math.max(0, Math.min(1, t));
+    const projX = x1 + t * (x2 - x1);
+    const projY = y1 + t * (y2 - y1);
+    const dx = px - projX;
+    const dy = py - projY;
+    return dx * dx + dy * dy;
+  }
+
+  function strokeIntersectsErasePoints(stroke: any, erasePoints: Array<{ x: number; y: number; radius?: number }>) {
+    if (!stroke) return false;
+    if (stroke.mode === 'eraser') return true;
+    const pts = stroke.points;
+    if (!pts || !pts.length) return false;
+    const strokeRadius = Math.max(2, (stroke.width || 3) / 2);
+    for (const ep of erasePoints) {
+      const radius = ep.radius || 22;
+      const effRadius = radius + strokeRadius;
+      const eraseRadiusSq = effRadius * effRadius;
+      if (pts.length === 1) {
+        const dx = pts[0].x - ep.x;
+        const dy = pts[0].y - ep.y;
+        if (dx * dx + dy * dy <= eraseRadiusSq) return true;
+      } else {
+        for (let i = 0; i < pts.length - 1; i++) {
+          if (pointToSegmentDistSq(ep.x, ep.y, pts[i].x, pts[i].y, pts[i + 1].x, pts[i + 1].y) <= eraseRadiusSq) {
+            return true;
+          }
+        }
+      }
+    }
+    return false;
+  }
+
+  socket.on('whiteboard:student_erase', (data: { erasePoints: Array<{ x: number; y: number; radius?: number }>; pageIndex: number; grade?: string; teacherId?: string; studentName?: string }) => {
+    const active = findActiveWhiteboardSession({ grade: data?.grade, teacherId: data?.teacherId });
+    if (!active || !active.isLive || !active.delegatedStudent || active.delegatedStudent.permission !== 'chalk') return;
+    if (!Array.isArray(data?.erasePoints) || data.erasePoints.length === 0) return;
+
+    const isAuthorized =
+      active.delegatedStudent.socketId === socket.id ||
+      (active.delegatedStudent.studentId && active.delegatedStudent.studentId === session.id) ||
+      (active.delegatedStudent.studentName && active.delegatedStudent.studentName.trim().toLowerCase() === (session.name || data?.studentName || '').trim().toLowerCase()) ||
+      (data?.studentName && active.delegatedStudent.studentName.trim().toLowerCase() === data.studentName.trim().toLowerCase());
+
+    if (isAuthorized) {
+      if (active.delegatedStudent.socketId !== socket.id) {
+        active.delegatedStudent.socketId = socket.id;
+      }
+      const pIdx = typeof data.pageIndex === 'number' ? data.pageIndex : active.activePageIndex;
+      if (active.pages[pIdx]?.strokes) {
+        active.pages[pIdx].strokes = active.pages[pIdx].strokes.filter((stroke: any) => {
+          if (stroke.mode === 'eraser') return false;
+          return !strokeIntersectsErasePoints(stroke, data.erasePoints);
+        });
+      }
+      const erasePayload = {
+        pageIndex: pIdx,
+        erasePoints: data.erasePoints,
+        fromStudent: true,
+        studentName: active.delegatedStudent.studentName,
+      };
+      io.to(`whiteboard:teacher:${active.teacherId}`).emit('whiteboard:erase', erasePayload);
+      socket.to(`whiteboard:${active.grade}`).emit('whiteboard:erase', erasePayload);
+      if (active.grade !== 'ALL') {
+        socket.to('whiteboard:ALL').emit('whiteboard:erase', erasePayload);
+      }
+      for (const v of getGradeVariants(active.grade)) {
+        socket.to(`whiteboard:${v}`).emit('whiteboard:erase', erasePayload);
       }
     }
   });

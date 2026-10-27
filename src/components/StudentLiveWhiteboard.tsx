@@ -536,6 +536,68 @@ function isGradeMatch(gradeA?: string | null, gradeB?: string | null): boolean {
   return a.replace(/[-_\s]+/g, '') === b.replace(/[-_\s]+/g, '');
 }
 
+function pointToSegmentDistSq(px: number, py: number, x1: number, y1: number, x2: number, y2: number): number {
+  const l2 = (x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1);
+  if (l2 === 0) {
+    const dx = px - x1;
+    const dy = py - y1;
+    return dx * dx + dy * dy;
+  }
+  let t = ((px - x1) * (x2 - x1) + (py - y1) * (y2 - y1)) / l2;
+  t = Math.max(0, Math.min(1, t));
+  const projX = x1 + t * (x2 - x1);
+  const projY = y1 + t * (y2 - y1);
+  const dx = px - projX;
+  const dy = py - projY;
+  return dx * dx + dy * dy;
+}
+
+function interpolatePoints(p1: { x: number; y: number }, p2: { x: number; y: number }, step = 14): Array<{ x: number; y: number }> {
+  const dx = p2.x - p1.x;
+  const dy = p2.y - p1.y;
+  const dist = Math.hypot(dx, dy);
+  if (dist <= step) return [p2];
+  const n = Math.ceil(dist / step);
+  const out: Array<{ x: number; y: number }> = [];
+  for (let i = 1; i <= n; i++) {
+    const t = i / n;
+    out.push({ x: Math.round(p1.x + dx * t), y: Math.round(p1.y + dy * t) });
+  }
+  return out;
+}
+
+function strokeIntersectsErasePoint(stroke: any, px: number, py: number, radius = 22): boolean {
+  if (!stroke) return false;
+  if (stroke.mode === 'eraser') return true;
+  const pts = stroke.points;
+  if (!pts || !pts.length) return false;
+  const strokeRadius = Math.max(2, (stroke.width || 3) / 2);
+  const effRadius = radius + strokeRadius;
+  const eraseRadiusSq = effRadius * effRadius;
+  if (pts.length === 1) {
+    const dx = pts[0].x - px;
+    const dy = pts[0].y - py;
+    return (dx * dx + dy * dy) <= eraseRadiusSq;
+  }
+  for (let i = 0; i < pts.length - 1; i++) {
+    if (pointToSegmentDistSq(px, py, pts[i].x, pts[i].y, pts[i + 1].x, pts[i + 1].y) <= eraseRadiusSq) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function strokeIntersectsErasePoints(stroke: any, erasePoints: Array<{ x: number; y: number; radius?: number }>): boolean {
+  if (!stroke) return false;
+  if (stroke.mode === 'eraser') return true;
+  for (const ep of erasePoints) {
+    if (strokeIntersectsErasePoint(stroke, ep.x, ep.y, ep.radius || 22)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
   studentId,
   studentName = 'Student',
@@ -569,6 +631,9 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
   const [chalkMode, setChalkMode] = useState<'pen' | 'eraser'>('pen');
   const isDrawingChalkRef = useRef(false);
   const chalkStrokeRef = useRef<any>(null);
+  const erasePointsBatchRef = useRef<Array<{ x: number; y: number; radius: number }>>([]);
+  const lastErasePosRef = useRef<{ x: number; y: number } | null>(null);
+  const lastEraseEmitRef = useRef<number>(0);
 
   // Live Reactions & PDF export state
   const [floatingReactions, setFloatingReactions] = useState<Array<{ id: string; emoji: string; x: number }>>([]);
@@ -643,7 +708,11 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
         if (typeof data.isHandRaised === 'boolean') {
           setIsHandRaised(data.isHandRaised);
         }
-        const initialPages = Array.isArray(data.pages) && data.pages.length ? data.pages : [{ strokes: [], shapes: [], texts: [], widgets: [] }];
+        const rawPages = Array.isArray(data.pages) && data.pages.length ? data.pages : [{ strokes: [], shapes: [], texts: [], widgets: [] }];
+        const initialPages = rawPages.map((p: any) => ({
+          ...p,
+          strokes: (p.strokes || []).filter((s: any) => s && s.mode !== 'eraser')
+        }));
         setPages(initialPages);
         const tPage = typeof data.activePageIndex === 'number' ? data.activePageIndex : 0;
         setTeacherActivePage(tPage);
@@ -693,6 +762,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
     });
 
     socket.on('whiteboard:stroke', (data: { pageIndex: number; stroke: any }) => {
+      if (!data?.stroke || data.stroke.mode === 'eraser') return;
       setIsLive(true);
       setPages((prevPages) => {
         const next = [...prevPages];
@@ -702,6 +772,24 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
         const targetPage = { ...next[data.pageIndex] };
         targetPage.strokes = [...(targetPage.strokes || []), data.stroke];
         next[data.pageIndex] = targetPage;
+        return next;
+      });
+    });
+
+    socket.on('whiteboard:erase', (data: { pageIndex: number; erasePoints: Array<{ x: number; y: number; radius?: number }> }) => {
+      if (!data || !Array.isArray(data.erasePoints)) return;
+      setPages((prevPages) => {
+        const next = [...prevPages];
+        const pIdx = typeof data.pageIndex === 'number' ? data.pageIndex : 0;
+        if (next[pIdx] && next[pIdx].strokes) {
+          next[pIdx] = {
+            ...next[pIdx],
+            strokes: next[pIdx].strokes.filter((stroke: any) => {
+              if (stroke.mode === 'eraser') return false;
+              return !strokeIntersectsErasePoints(stroke, data.erasePoints);
+            })
+          };
+        }
         return next;
       });
     });
@@ -779,7 +867,11 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
     socket.on('whiteboard:full_sync', (data: { pages: any[]; activePageIndex: number }) => {
       setIsLive(true);
       if (Array.isArray(data.pages) && data.pages.length) {
-        setPages(data.pages);
+        const cleanedPages = data.pages.map((p: any) => ({
+          ...p,
+          strokes: (p.strokes || []).filter((s: any) => s && s.mode !== 'eraser')
+        }));
+        setPages(cleanedPages);
         if (typeof data.activePageIndex === 'number') {
           setTeacherActivePage(data.activePageIndex);
           if (followTeacherRef.current) {
@@ -797,7 +889,11 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
           while (next.length <= data.pageIndex) {
             next.push({ strokes: [], shapes: [], texts: [], widgets: [] });
           }
-          next[data.pageIndex] = data.page;
+          const cleanPage = {
+            ...data.page,
+            strokes: (data.page?.strokes || []).filter((s: any) => s && s.mode !== 'eraser')
+          };
+          next[data.pageIndex] = cleanPage;
           return next;
         });
       }
@@ -1567,6 +1663,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
     // 4. Draw handwritten strokes
     if (page.strokes && Array.isArray(page.strokes)) {
       page.strokes.forEach((stroke: any) => {
+        if (!stroke || stroke.mode === 'eraser') return;
         const pts = stroke.points;
         if (!pts || !pts.length) return;
         ctx.save();
@@ -1782,26 +1879,68 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
     }
 
     // Chalk delegation
-    if (currentPermission === 'chalk' && isDrawingChalkRef.current && chalkStrokeRef.current) {
-      chalkStrokeRef.current.points.push({ x, y });
-      const canvas = canvasRef.current;
-      const ctx = canvas?.getContext('2d');
-      if (ctx) {
-        ctx.save();
-        const dpr = window.devicePixelRatio || 1;
-        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-        ctx.strokeStyle = chalkStrokeRef.current.color;
-        ctx.lineWidth = chalkStrokeRef.current.width;
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
-        const pts = chalkStrokeRef.current.points;
-        if (pts.length >= 2) {
-          ctx.beginPath();
-          ctx.moveTo(pts[pts.length - 2].x, pts[pts.length - 2].y);
-          ctx.lineTo(pts[pts.length - 1].x, pts[pts.length - 1].y);
-          ctx.stroke();
+    if (currentPermission === 'chalk' && isDrawingChalkRef.current) {
+      if (chalkMode === 'eraser') {
+        const lastP = lastErasePosRef.current || { x, y };
+        const newPoints = interpolatePoints(lastP, { x, y }, 14);
+        lastErasePosRef.current = { x, y };
+
+        for (const pt of newPoints) {
+          erasePointsBatchRef.current.push({ x: pt.x, y: pt.y, radius: 22 });
         }
-        ctx.restore();
+
+        setPages((prevPages) => {
+          const next = [...prevPages];
+          const page = next[viewingPageIndex];
+          if (page && page.strokes) {
+            const initialCount = page.strokes.length;
+            const filtered = page.strokes.filter(
+              (s: any) => s.mode !== 'eraser' && !strokeIntersectsErasePoints(s, newPoints)
+            );
+            if (filtered.length !== initialCount) {
+              next[viewingPageIndex] = { ...page, strokes: filtered };
+            }
+          }
+          return next;
+        });
+
+        const now = Date.now();
+        if (now - lastEraseEmitRef.current > 50 && erasePointsBatchRef.current.length > 0) {
+          lastEraseEmitRef.current = now;
+          const batch = [...erasePointsBatchRef.current];
+          erasePointsBatchRef.current = [];
+          socketRef.current?.emit('whiteboard:student_erase', {
+            grade: effectiveGrade,
+            teacherId,
+            pageIndex: viewingPageIndex,
+            erasePoints: batch,
+            studentName: studentName || 'Student'
+          });
+        }
+        return;
+      }
+
+      if (chalkStrokeRef.current) {
+        chalkStrokeRef.current.points.push({ x, y });
+        const canvas = canvasRef.current;
+        const ctx = canvas?.getContext('2d');
+        if (ctx) {
+          ctx.save();
+          const dpr = window.devicePixelRatio || 1;
+          ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+          ctx.strokeStyle = chalkStrokeRef.current.color;
+          ctx.lineWidth = chalkStrokeRef.current.width;
+          ctx.lineCap = 'round';
+          ctx.lineJoin = 'round';
+          const pts = chalkStrokeRef.current.points;
+          if (pts.length >= 2) {
+            ctx.beginPath();
+            ctx.moveTo(pts[pts.length - 2].x, pts[pts.length - 2].y);
+            ctx.lineTo(pts[pts.length - 1].x, pts[pts.length - 1].y);
+            ctx.stroke();
+          }
+          ctx.restore();
+        }
       }
     }
   };
@@ -1834,14 +1973,33 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
     }
 
     if (currentPermission === 'chalk') {
+      if (chalkMode === 'eraser') {
+        isDrawingChalkRef.current = true;
+        lastErasePosRef.current = { x, y };
+        erasePointsBatchRef.current = [{ x, y, radius: 22 }];
+
+        setPages((prevPages) => {
+          const next = [...prevPages];
+          const page = next[viewingPageIndex];
+          if (page && page.strokes) {
+            const initialCount = page.strokes.length;
+            const filtered = page.strokes.filter(
+              (s: any) => s.mode !== 'eraser' && !strokeIntersectsErasePoint(s, x, y, 22)
+            );
+            if (filtered.length !== initialCount) {
+              next[viewingPageIndex] = { ...page, strokes: filtered };
+            }
+          }
+          return next;
+        });
+        return;
+      }
+
       isDrawingChalkRef.current = true;
       const page = pages[viewingPageIndex];
       const isDark = page?.boardType === 'black' || page?.boardType === 'green';
-      const strokeColor =
-        chalkMode === 'eraser'
-          ? (page?.boardType === 'black' ? '#020617' : page?.boardType === 'green' ? '#064e3b' : '#ffffff')
-          : (isDark && chalkColor === '#0f172a' ? '#ffffff' : chalkColor);
-      const strokeWidth = chalkMode === 'eraser' ? 24 : chalkWidth;
+      const strokeColor = isDark && chalkColor === '#0f172a' ? '#ffffff' : chalkColor;
+      const strokeWidth = chalkWidth;
 
       chalkStrokeRef.current = {
         color: strokeColor,
@@ -1873,30 +2031,49 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
     }
     if (!isLive || !currentPermission) return;
 
-    if (currentPermission === 'chalk' && isDrawingChalkRef.current && chalkStrokeRef.current) {
+    if (currentPermission === 'chalk' && isDrawingChalkRef.current) {
       isDrawingChalkRef.current = false;
-      const finishedStroke = chalkStrokeRef.current;
-      chalkStrokeRef.current = null;
+      lastErasePosRef.current = null;
 
-      if (finishedStroke.points.length > 0) {
-        socketRef.current?.emit('whiteboard:student_stroke', {
-          grade: effectiveGrade,
-          teacherId,
-          pageIndex: viewingPageIndex,
-          stroke: finishedStroke,
-          studentName: studentName || 'Student'
-        });
+      if (chalkMode === 'eraser') {
+        if (erasePointsBatchRef.current.length > 0) {
+          const batch = [...erasePointsBatchRef.current];
+          erasePointsBatchRef.current = [];
+          socketRef.current?.emit('whiteboard:student_erase', {
+            grade: effectiveGrade,
+            teacherId,
+            pageIndex: viewingPageIndex,
+            erasePoints: batch,
+            studentName: studentName || 'Student'
+          });
+        }
+        return;
+      }
 
-        setPages((prevPages) => {
-          const next = [...prevPages];
-          if (next[viewingPageIndex]) {
-            next[viewingPageIndex] = {
-              ...next[viewingPageIndex],
-              strokes: [...(next[viewingPageIndex].strokes || []), finishedStroke]
-            };
-          }
-          return next;
-        });
+      if (chalkStrokeRef.current) {
+        const finishedStroke = chalkStrokeRef.current;
+        chalkStrokeRef.current = null;
+
+        if (finishedStroke.points.length > 0) {
+          socketRef.current?.emit('whiteboard:student_stroke', {
+            grade: effectiveGrade,
+            teacherId,
+            pageIndex: viewingPageIndex,
+            stroke: finishedStroke,
+            studentName: studentName || 'Student'
+          });
+
+          setPages((prevPages) => {
+            const next = [...prevPages];
+            if (next[viewingPageIndex]) {
+              next[viewingPageIndex] = {
+                ...next[viewingPageIndex],
+                strokes: [...(next[viewingPageIndex].strokes || []), finishedStroke]
+              };
+            }
+            return next;
+          });
+        }
       }
     }
   };
@@ -2316,7 +2493,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
               className="student-whiteboard-canvas"
               style={{
                 pointerEvents: currentPermission ? 'auto' : 'none',
-                cursor: currentPermission === 'pointer' ? 'crosshair' : currentPermission === 'chalk' ? (chalkMode === 'eraser' ? 'cell' : 'crosshair') : 'default',
+                cursor: currentPermission === 'pointer' ? 'crosshair' : currentPermission === 'chalk' ? (chalkMode === 'eraser' ? "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23f43f5e' stroke-width='2'%3E%3Ccircle cx='12' cy='12' r='9' stroke-dasharray='3 3'/%3E%3Ccircle cx='12' cy='12' r='2' fill='%23f43f5e'/%3E%3C/svg%3E\") 12 12, crosshair" : 'crosshair') : 'default',
                 display: 'block',
                 touchAction: currentPermission ? 'none' : 'auto'
               }}

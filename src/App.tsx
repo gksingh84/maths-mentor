@@ -2264,6 +2264,20 @@ function TeacherWhiteboard({
         }
       });
 
+      socket.on('whiteboard:erase', (data: any) => {
+        if (data && data.fromStudent) {
+          const iframe = document.getElementById('teacher-whiteboard-iframe') as HTMLIFrameElement | null;
+          if (iframe?.contentWindow) {
+            iframe.contentWindow.postMessage({ type: 'STUDENT_ERASE', pageIndex: data.pageIndex, erasePoints: data.erasePoints }, '*');
+          }
+          try {
+            const channel = new BroadcastChannel('eduashram_whiteboard_sync');
+            channel.postMessage({ type: 'STUDENT_ERASE', pageIndex: data.pageIndex, erasePoints: data.erasePoints });
+            channel.close();
+          } catch (_) {}
+        }
+      });
+
       socket.on('connect', () => {
         if (isBroadcastingRef.current) {
           const iframeEl = document.getElementById('teacher-whiteboard-iframe') as HTMLIFrameElement | null;

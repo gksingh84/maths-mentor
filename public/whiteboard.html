@@ -8848,6 +8848,7 @@
       }
 
       function drawSingleStroke(ctx, stroke) {
+        if (!stroke || stroke.mode === "eraser") return;
         const points = stroke.points;
         if (!points || points.length === 0) return;
 
@@ -8883,7 +8884,7 @@
       // Real-time incremental stroke rendering (~0.005ms)
       // Renders newly arrived midpoint quadratic segments directly onto the canvas context without clearing or repainting the board
       function drawIncrementalStroke(stroke) {
-        if (!stroke || !stroke.points) return;
+        if (!stroke || !stroke.points || stroke.mode === "eraser") return;
         const pts = stroke.points;
         const n = pts.length;
         if (n < 2) return;
@@ -10209,7 +10210,7 @@
         dragGroupChildrenOriginals = null;
         dragWidgetOriginals = null;
         dragTextOriginals = null;
-        if (hadDrag) {
+        if (hadDrag || currentTool === "eraser") {
           notifyParentPageUpdate(currentPageIndex, true);
         }
         if (activeStroke && activeStroke.points) {
@@ -11705,10 +11706,42 @@
         } else if (data.type === "STUDENT_LASER_POINTER") {
           showStudentLaser(data.x, data.y, data.studentName, data.active);
         } else if (data.type === "STUDENT_STROKE" && data.stroke) {
+          if (data.stroke.mode === "eraser") return;
           const targetPage = pages[typeof data.pageIndex === "number" ? data.pageIndex : currentPageIndex];
           if (targetPage) {
             if (!targetPage.strokes) targetPage.strokes = [];
             targetPage.strokes.push(data.stroke);
+            if (data.pageIndex === currentPageIndex || typeof data.pageIndex !== "number") {
+              updateBoardAppearance();
+            }
+          }
+        } else if (data.type === "STUDENT_ERASE" && Array.isArray(data.erasePoints)) {
+          const targetPage = pages[typeof data.pageIndex === "number" ? data.pageIndex : currentPageIndex];
+          if (targetPage && targetPage.strokes) {
+            targetPage.strokes = targetPage.strokes.filter(function(stroke) {
+              if (stroke.mode === "eraser") return false;
+              const pts = stroke.points;
+              if (!pts || !pts.length) return false;
+              const strokeRadius = Math.max(2, (stroke.width || 3) / 2);
+              for (let j = 0; j < data.erasePoints.length; j++) {
+                const ep = data.erasePoints[j];
+                const radius = ep.radius || 22;
+                const effRadius = radius + strokeRadius;
+                const eraseRadiusSq = effRadius * effRadius;
+                if (pts.length === 1) {
+                  const dx = pts[0].x - ep.x;
+                  const dy = pts[0].y - ep.y;
+                  if (dx * dx + dy * dy <= eraseRadiusSq) return false;
+                } else {
+                  for (let i = 0; i < pts.length - 1; i++) {
+                    if (pointToSegmentDistSq(ep.x, ep.y, pts[i].x, pts[i].y, pts[i + 1].x, pts[i + 1].y) <= eraseRadiusSq) {
+                      return false;
+                    }
+                  }
+                }
+              }
+              return true;
+            });
             if (data.pageIndex === currentPageIndex || typeof data.pageIndex !== "number") {
               updateBoardAppearance();
             }
