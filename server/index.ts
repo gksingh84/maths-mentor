@@ -3659,12 +3659,13 @@ export interface LiveWhiteboardSession {
   viewerDetails: Map<string, { socketId: string; studentId: string; studentName: string; joinedAt: number }>;
   raisedHands: Map<string, { socketId: string; studentId: string; studentName: string; note?: string; timestamp: number }>;
   delegatedStudent: { socketId: string; studentId: string; studentName: string; permission: 'pointer' | 'chalk' } | null;
-  reactions: Array<{ studentName: string; type: 'understood' | 'confused' | 'slower' | 'faster'; timestamp: number }>;
+  reactions: Array<{ studentName: string; type: 'understood' | 'confused' | 'slower' | 'faster'; emoji?: string; label?: string; timestamp: number }>;
   scrollTop?: number;
   scrollRatio?: number;
 }
 const activeWhiteboardSessions = new Map<string, LiveWhiteboardSession>();
 const whiteboardDisconnectTimers = new Map<string, NodeJS.Timeout>();
+const studentDelegationRevokeTimers = new Map<string, NodeJS.Timeout>();
 
 function broadcastDoubtsUpdate(sessionObj: LiveWhiteboardSession) {
   const doubtsList = Array.from(sessionObj.raisedHands.values());
@@ -3701,10 +3702,15 @@ function broadcastSentimentUpdate(sessionObj: LiveWhiteboardSession) {
   const comprehensionRate = total > 0 ? Math.round((understood / total) * 100) : 100;
   io.to(`whiteboard:teacher:${sessionObj.teacherId}`).emit('whiteboard:sentiment_update', {
     total,
+    totalCount: total,
     understood,
+    positiveCount: understood,
     confused,
+    questionCount: confused,
     slower,
+    slowDownCount: slower,
     faster,
+    speedUpCount: faster,
     comprehensionRate,
     recent: sessionObj.reactions.slice(-10),
   });
@@ -3938,7 +3944,15 @@ io.on('connection', (socket) => {
           clearTimeout(whiteboardDisconnectTimers.get(g)!);
           whiteboardDisconnectTimers.delete(g);
         }
+        if (studentDelegationRevokeTimers.has(sess.teacherId)) {
+          clearTimeout(studentDelegationRevokeTimers.get(sess.teacherId)!);
+          studentDelegationRevokeTimers.delete(sess.teacherId);
+        }
       }
+    }
+    if (studentDelegationRevokeTimers.has(session.id)) {
+      clearTimeout(studentDelegationRevokeTimers.get(session.id)!);
+      studentDelegationRevokeTimers.delete(session.id);
     }
     io.to(getTeacherBroadcastRooms(grade)).emit('whiteboard:broadcast_stopped', { grade });
     io.emit('whiteboard:status_update', {
@@ -4212,6 +4226,19 @@ io.on('connection', (socket) => {
         socket.join(`whiteboard:${v}`);
       }
 
+      // If this student was delegated, rebind their new socketId and cancel disconnect timer
+      if (
+        active.delegatedStudent &&
+        ((active.delegatedStudent.studentId && studentId && active.delegatedStudent.studentId === studentId) ||
+          (active.delegatedStudent.studentName && active.delegatedStudent.studentName.trim().toLowerCase() === finalStudentName.trim().toLowerCase()))
+      ) {
+        active.delegatedStudent.socketId = socket.id;
+        if (studentDelegationRevokeTimers.has(active.teacherId)) {
+          clearTimeout(studentDelegationRevokeTimers.get(active.teacherId)!);
+          studentDelegationRevokeTimers.delete(active.teacherId);
+        }
+      }
+
       socket.emit('whiteboard:initial_state', {
         isLive: true,
         teacherName: active.teacherName,
@@ -4317,6 +4344,10 @@ io.on('connection', (socket) => {
     if (session.role !== 'teacher' && session.role !== 'admin' && session.role !== 'superadmin') return;
     const active = findTeacherSession(data?.grade);
     if (active && active.isLive) {
+      if (studentDelegationRevokeTimers.has(active.teacherId)) {
+        clearTimeout(studentDelegationRevokeTimers.get(active.teacherId)!);
+        studentDelegationRevokeTimers.delete(active.teacherId);
+      }
       if (data.permission === 'none' || !data.targetSocketId) {
         active.delegatedStudent = null;
       } else {
@@ -4327,55 +4358,150 @@ io.on('connection', (socket) => {
           permission: data.permission,
         };
       }
-      io.to(getTeacherBroadcastRooms(active.grade)).emit('whiteboard:delegation_changed', {
-        delegatedStudent: active.delegatedStudent,
-      });
+      const delPayload = { delegatedStudent: active.delegatedStudent };
+      io.to(`whiteboard:teacher:${active.teacherId}`).emit('whiteboard:delegation_changed', delPayload);
+      io.to(`whiteboard:${active.grade}`).emit('whiteboard:delegation_changed', delPayload);
+      if (active.grade !== 'ALL') {
+        io.to('whiteboard:ALL').emit('whiteboard:delegation_changed', delPayload);
+      }
+      for (const v of getGradeVariants(active.grade)) {
+        io.to(`whiteboard:${v}`).emit('whiteboard:delegation_changed', delPayload);
+      }
+      if (active.delegatedStudent?.socketId) {
+        io.to(active.delegatedStudent.socketId).emit('whiteboard:delegation_changed', delPayload);
+      }
     }
   });
 
   socket.on('whiteboard:student_pointer', (data: { x: number; y: number; studentName?: string; active?: boolean; grade?: string; teacherId?: string }) => {
     const active = findActiveWhiteboardSession({ grade: data?.grade, teacherId: data?.teacherId });
-    if (active && active.isLive && active.delegatedStudent && active.delegatedStudent.socketId === socket.id) {
-      socket.to(getTeacherBroadcastRooms(active.grade)).emit('whiteboard:laser_pointer', {
+    if (!active || !active.isLive || !active.delegatedStudent) return;
+
+    const isAuthorized =
+      active.delegatedStudent.socketId === socket.id ||
+      (active.delegatedStudent.studentId && active.delegatedStudent.studentId === session.id) ||
+      (active.delegatedStudent.studentName && active.delegatedStudent.studentName.trim().toLowerCase() === (session.name || data?.studentName || '').trim().toLowerCase()) ||
+      (data?.studentName && active.delegatedStudent.studentName.trim().toLowerCase() === data.studentName.trim().toLowerCase());
+
+    if (isAuthorized) {
+      if (active.delegatedStudent.socketId !== socket.id) {
+        active.delegatedStudent.socketId = socket.id;
+      }
+      const pointerPayload = {
         x: data.x,
         y: data.y,
         studentName: active.delegatedStudent.studentName,
         active: data.active !== false,
-      });
+      };
+      io.to(`whiteboard:teacher:${active.teacherId}`).emit('whiteboard:laser_pointer', pointerPayload);
+      socket.to(`whiteboard:${active.grade}`).emit('whiteboard:laser_pointer', pointerPayload);
+      if (active.grade !== 'ALL') {
+        socket.to('whiteboard:ALL').emit('whiteboard:laser_pointer', pointerPayload);
+      }
+      for (const v of getGradeVariants(active.grade)) {
+        socket.to(`whiteboard:${v}`).emit('whiteboard:laser_pointer', pointerPayload);
+      }
     }
   });
 
-  socket.on('whiteboard:student_stroke', (data: { stroke: any; pageIndex: number; grade?: string; teacherId?: string }) => {
+  socket.on('whiteboard:student_stroke', (data: { stroke: any; pageIndex: number; grade?: string; teacherId?: string; studentName?: string }) => {
     const active = findActiveWhiteboardSession({ grade: data?.grade, teacherId: data?.teacherId });
-    if (active && active.isLive && active.delegatedStudent && active.delegatedStudent.socketId === socket.id && active.delegatedStudent.permission === 'chalk') {
+    if (!active || !active.isLive || !active.delegatedStudent || active.delegatedStudent.permission !== 'chalk') return;
+
+    const isAuthorized =
+      active.delegatedStudent.socketId === socket.id ||
+      (active.delegatedStudent.studentId && active.delegatedStudent.studentId === session.id) ||
+      (active.delegatedStudent.studentName && active.delegatedStudent.studentName.trim().toLowerCase() === (session.name || data?.studentName || '').trim().toLowerCase()) ||
+      (data?.studentName && active.delegatedStudent.studentName.trim().toLowerCase() === data.studentName.trim().toLowerCase());
+
+    if (isAuthorized) {
+      if (active.delegatedStudent.socketId !== socket.id) {
+        active.delegatedStudent.socketId = socket.id;
+      }
       const pIdx = typeof data.pageIndex === 'number' ? data.pageIndex : active.activePageIndex;
       if (active.pages[pIdx]) {
         if (!active.pages[pIdx].strokes) active.pages[pIdx].strokes = [];
         active.pages[pIdx].strokes.push(data.stroke);
       }
-      socket.to(getTeacherBroadcastRooms(active.grade)).emit('whiteboard:stroke', {
+      const strokePayload = {
         pageIndex: pIdx,
         stroke: data.stroke,
         fromStudent: true,
         studentName: active.delegatedStudent.studentName,
-      });
+      };
+      io.to(`whiteboard:teacher:${active.teacherId}`).emit('whiteboard:stroke', strokePayload);
+      socket.to(`whiteboard:${active.grade}`).emit('whiteboard:stroke', strokePayload);
+      if (active.grade !== 'ALL') {
+        socket.to('whiteboard:ALL').emit('whiteboard:stroke', strokePayload);
+      }
+      for (const v of getGradeVariants(active.grade)) {
+        socket.to(`whiteboard:${v}`).emit('whiteboard:stroke', strokePayload);
+      }
     }
   });
 
   // --- STUDENT ENGAGEMENT: SENTIMENT / REACTIONS ---
-  socket.on('whiteboard:reaction', (data: { type: 'understood' | 'confused' | 'slower' | 'faster'; studentName?: string; grade?: string; teacherId?: string }) => {
+  socket.on('whiteboard:reaction', (data: { type?: 'understood' | 'confused' | 'slower' | 'faster'; sentiment?: 'positive' | 'question' | 'slow_down' | 'speed_up'; emoji?: string; label?: string; studentName?: string; grade?: string; teacherId?: string }) => {
     const active = findActiveWhiteboardSession({ grade: data?.grade, teacherId: data?.teacherId });
     if (active && active.isLive) {
-      const studentName = data?.studentName || session.name || 'Student';
+      // Map sentiment to reaction type if type is missing or not standard
+      let type: 'understood' | 'confused' | 'slower' | 'faster' = 'understood';
+      if (data?.type && ['understood', 'confused', 'slower', 'faster'].includes(data.type)) {
+        type = data.type;
+      } else if (data?.sentiment === 'positive') {
+        type = 'understood';
+      } else if (data?.sentiment === 'question') {
+        type = 'confused';
+      } else if (data?.sentiment === 'slow_down') {
+        type = 'slower';
+      } else if (data?.sentiment === 'speed_up') {
+        type = 'faster';
+      }
+
+      // Safe defaults for emoji and label
+      const defaultReactions: Record<string, { emoji: string; label: string }> = {
+        understood: { emoji: '👍', label: 'Got it' },
+        confused: { emoji: '❓', label: 'Doubt' },
+        slower: { emoji: '🐢', label: 'Slower' },
+        faster: { emoji: '⚡', label: 'Ready' },
+      };
+      const def = defaultReactions[type] || { emoji: '👍', label: 'Got it' };
+      const emoji = (data?.emoji && data.emoji !== 'undefined') ? data.emoji : def.emoji;
+      const label = (data?.label && data.label !== 'undefined') ? data.label : def.label;
+      const studentName = (data?.studentName && data.studentName !== 'undefined' && data.studentName.trim()) || (session && session.name) || 'Student';
+
       active.reactions.push({
         studentName,
-        type: data.type,
+        type,
+        emoji,
+        label,
         timestamp: Date.now(),
       });
+
+      // Notify the teacher with the clicked emoji, label, and studentName
       io.to(`whiteboard:teacher:${active.teacherId}`).emit('whiteboard:reaction_event', {
-        type: data.type,
+        type,
+        emoji,
+        label,
         studentName,
       });
+
+      // Broadcast reaction to students in this session
+      socket.to(`whiteboard:${active.grade}`).emit('whiteboard:reaction_event', {
+        type,
+        emoji,
+        label,
+        studentName,
+      });
+      if (active.grade !== 'ALL') {
+        socket.to('whiteboard:ALL').emit('whiteboard:reaction_event', {
+          type,
+          emoji,
+          label,
+          studentName,
+        });
+      }
+
       broadcastSentimentUpdate(active);
     }
   });
@@ -4396,8 +4522,25 @@ io.on('connection', (socket) => {
         broadcastDoubtsUpdate(sessionObj);
       }
       if (sessionObj.delegatedStudent && sessionObj.delegatedStudent.socketId === socket.id) {
-        sessionObj.delegatedStudent = null;
-        io.to(getTeacherBroadcastRooms(sessionObj.grade)).emit('whiteboard:delegation_changed', { delegatedStudent: null });
+        const teacherId = sessionObj.teacherId;
+        const currentSocketId = socket.id;
+        if (studentDelegationRevokeTimers.has(teacherId)) {
+          clearTimeout(studentDelegationRevokeTimers.get(teacherId)!);
+        }
+        const timer = setTimeout(() => {
+          studentDelegationRevokeTimers.delete(teacherId);
+          const current = activeWhiteboardSessions.get(sessionObj.grade);
+          if (current && current.delegatedStudent && current.delegatedStudent.socketId === currentSocketId) {
+            current.delegatedStudent = null;
+            const delPayload = { delegatedStudent: null };
+            io.to(`whiteboard:teacher:${current.teacherId}`).emit('whiteboard:delegation_changed', delPayload);
+            io.to(`whiteboard:${current.grade}`).emit('whiteboard:delegation_changed', delPayload);
+            if (current.grade !== 'ALL') {
+              io.to('whiteboard:ALL').emit('whiteboard:delegation_changed', delPayload);
+            }
+          }
+        }, 15000);
+        studentDelegationRevokeTimers.set(teacherId, timer);
       }
       if (changed) {
         broadcastViewersUpdate(sessionObj);

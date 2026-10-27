@@ -4,6 +4,7 @@ import { Radio, ChevronLeft, ChevronRight, Download, FileText, Maximize2, Minimi
 import jsPDF from 'jspdf';
 
 interface StudentLiveWhiteboardProps {
+  studentId?: string;
   studentName?: string;
   studentGrade?: string | null;
   teacherId?: string | null;
@@ -536,6 +537,7 @@ function isGradeMatch(gradeA?: string | null, gradeB?: string | null): boolean {
 }
 
 export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
+  studentId,
   studentName = 'Student',
   studentGrade = 'Grade 6',
   teacherId,
@@ -582,6 +584,11 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
   }, [followTeacher]);
   const teacherScrollRef = useRef<{ scrollTop: number; scrollRatio: number }>({ scrollTop: 0, scrollRatio: 0 });
 
+  const studentNameRef = useRef(studentName);
+  studentNameRef.current = studentName;
+  const studentIdRef = useRef(studentId);
+  studentIdRef.current = studentId;
+
   const effectiveGrade = studentGrade || 'Grade 6';
 
   const checkLiveStatus = useCallback(async () => {
@@ -596,11 +603,16 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
         setIsLive(true);
         if (data.teacherName) setTeacherName(data.teacherName);
         if (socketRef.current) {
-          socketRef.current.emit('whiteboard:join', { grade: effectiveGrade, teacherId, studentName });
+          socketRef.current.emit('whiteboard:join', {
+            grade: effectiveGrade,
+            teacherId,
+            studentName: studentNameRef.current,
+            studentId: studentIdRef.current
+          });
         }
       }
     } catch (_) {}
-  }, [effectiveGrade, teacherId, studentName]);
+  }, [effectiveGrade, teacherId]);
 
   // Connect to Socket.IO and join whiteboard room
   useEffect(() => {
@@ -610,7 +622,12 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
     socketRef.current = socket;
 
     socket.on('connect', () => {
-      socket.emit('whiteboard:join', { grade: effectiveGrade, teacherId, studentName });
+      socket.emit('whiteboard:join', {
+        grade: effectiveGrade,
+        teacherId,
+        studentName: studentNameRef.current,
+        studentId: studentIdRef.current
+      });
       void checkLiveStatus();
     });
 
@@ -916,10 +933,11 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
       }
     });
 
-    socket.on('whiteboard:reaction_event', (data: { emoji: string; studentName?: string }) => {
+    socket.on('whiteboard:reaction_event', (data: { emoji?: string; studentName?: string }) => {
+      const emoji = (data?.emoji && data.emoji !== 'undefined') ? data.emoji : '👍';
       const newReaction = {
         id: `${Date.now()}-${Math.random()}`,
-        emoji: data.emoji,
+        emoji,
         x: 20 + Math.random() * 60
       };
       setFloatingReactions((prev) => [...prev.slice(-15), newReaction]);
@@ -933,7 +951,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
       socket.disconnect();
       if (laserTimeoutRef.current) clearTimeout(laserTimeoutRef.current);
     };
-  }, [effectiveGrade, teacherId, checkLiveStatus]);
+  }, [effectiveGrade, teacherId]);
 
   // Image caching helper
   const getCachedImage = (dataUrl: string): HTMLImageElement => {
@@ -1704,7 +1722,9 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
   const isMeDelegated = Boolean(
     delegatedStudent &&
       (delegatedStudent.socketId === socketRef.current?.id ||
-        (delegatedStudent.studentName && delegatedStudent.studentName === studentName))
+        (delegatedStudent.studentId && studentId && delegatedStudent.studentId === studentId) ||
+        (delegatedStudent.studentName &&
+          delegatedStudent.studentName.trim().toLowerCase() === (studentName || '').trim().toLowerCase()))
   );
   const currentPermission = isMeDelegated ? delegatedStudent.permission : null;
 
@@ -1715,14 +1735,21 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
 
     // Laser pointer delegation
     if (currentPermission === 'pointer') {
+      setLaserPointer({ x, y, studentName: studentName || 'You' });
+      if (laserTimeoutRef.current) clearTimeout(laserTimeoutRef.current);
+      laserTimeoutRef.current = setTimeout(() => {
+        setLaserPointer(null);
+      }, 2500);
+
       const now = Date.now();
-      if (now - lastPointerEmitRef.current > 40) {
+      if (now - lastPointerEmitRef.current > 35) {
         lastPointerEmitRef.current = now;
         socketRef.current?.emit('whiteboard:student_pointer', {
           grade: effectiveGrade,
           teacherId,
           x,
           y,
+          studentName: studentName || 'Student',
           active: true
         });
       }
@@ -1757,14 +1784,25 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
   const handleCanvasPointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     if (!isLive || !currentPermission) return;
 
+    try {
+      (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    } catch (_) {}
+
     const { x, y } = getCanvasCoords(e);
 
     if (currentPermission === 'pointer') {
+      setLaserPointer({ x, y, studentName: studentName || 'You' });
+      if (laserTimeoutRef.current) clearTimeout(laserTimeoutRef.current);
+      laserTimeoutRef.current = setTimeout(() => {
+        setLaserPointer(null);
+      }, 2500);
+
       socketRef.current?.emit('whiteboard:student_pointer', {
         grade: effectiveGrade,
         teacherId,
         x,
         y,
+        studentName: studentName || 'Student',
         active: true
       });
       return;
@@ -1802,7 +1840,12 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
     }
   };
 
-  const handleCanvasPointerUp = () => {
+  const handleCanvasPointerUp = (e?: React.PointerEvent<HTMLCanvasElement>) => {
+    if (e) {
+      try {
+        (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+      } catch (_) {}
+    }
     if (!isLive || !currentPermission) return;
 
     if (currentPermission === 'chalk' && isDrawingChalkRef.current && chalkStrokeRef.current) {
@@ -1815,7 +1858,8 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
           grade: effectiveGrade,
           teacherId,
           pageIndex: viewingPageIndex,
-          stroke: finishedStroke
+          stroke: finishedStroke,
+          studentName: studentName || 'Student'
         });
 
         setPages((prevPages) => {
@@ -1832,28 +1876,32 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
     }
   };
 
-  const handleCanvasPointerLeave = () => {
+  const handleCanvasPointerLeave = (e: React.PointerEvent<HTMLCanvasElement>) => {
     if (currentPermission === 'pointer') {
+      setLaserPointer(null);
       socketRef.current?.emit('whiteboard:student_pointer', {
         grade: effectiveGrade,
         teacherId,
+        studentName: studentName || 'Student',
         active: false
       });
     }
     if (currentPermission === 'chalk') {
-      handleCanvasPointerUp();
+      handleCanvasPointerUp(e);
     }
   };
 
   const handleSendReaction = (emoji: string, label: string, sentiment: 'positive' | 'question' | 'slow_down' | 'speed_up') => {
     if (!socketRef.current || !isLive) return;
+    const type = sentiment === 'positive' ? 'understood' : sentiment === 'question' ? 'confused' : sentiment === 'slow_down' ? 'slower' : 'faster';
     socketRef.current.emit('whiteboard:reaction', {
       grade: effectiveGrade,
       teacherId,
       emoji,
       label,
       sentiment,
-      studentName
+      type,
+      studentName: (studentName && studentName.trim()) || 'Student'
     });
 
     const newReaction = {
@@ -2062,7 +2110,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
                 <button
                   type="button"
                   className="student-reaction-btn"
-                  onClick={() => handleSendReaction('👍', 'Understood', 'positive')}
+                  onClick={() => handleSendReaction('👍', 'Got it', 'positive')}
                   title="Understood / Got it!"
                 >
                   👍 <span>Got it</span>
@@ -2078,7 +2126,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
                 <button
                   type="button"
                   className="student-reaction-btn"
-                  onClick={() => handleSendReaction('🐢', 'Too fast', 'slow_down')}
+                  onClick={() => handleSendReaction('🐢', 'Slower', 'slow_down')}
                   title="Pacing is too fast, please slow down"
                 >
                   🐢 <span>Slower</span>
@@ -2240,6 +2288,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
               onPointerMove={handleCanvasPointerMove}
               onPointerUp={handleCanvasPointerUp}
               onPointerLeave={handleCanvasPointerLeave}
+              onPointerCancel={handleCanvasPointerUp}
             />
             {(pages[viewingPageIndex]?.widgets || [])
               .filter((w: any) => w.type === 'video')

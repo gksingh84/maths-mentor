@@ -2065,6 +2065,8 @@ function TeacherWhiteboard({
         setNotice('Revoked student board delegation.');
       } else {
         setNotice(`Delegated board ${permission === 'chalk' ? 'chalk ✏️' : 'laser pointer 🎯'} to ${studentName}.`);
+        setShowDoubtsDrawer(false);
+        setShowRosterDrawer(false);
       }
     }
   };
@@ -2121,21 +2123,48 @@ function TeacherWhiteboard({
 
       socket.on('whiteboard:delegation_changed', (data: { delegatedStudent: any }) => {
         setDelegatedStudent(data?.delegatedStudent || null);
+        const iframe = document.getElementById('teacher-whiteboard-iframe') as HTMLIFrameElement | null;
+        if (iframe?.contentWindow) {
+          iframe.contentWindow.postMessage({ type: 'ENGAGEMENT_STATE_SYNC', delegatedStudent: data?.delegatedStudent || null }, '*');
+        }
+        try {
+          const channel = new BroadcastChannel('eduashram_whiteboard_sync');
+          channel.postMessage({ type: 'ENGAGEMENT_STATE_SYNC', delegatedStudent: data?.delegatedStudent || null });
+          channel.close();
+        } catch (_) {}
       });
 
       socket.on('whiteboard:sentiment_update', (data: any) => {
         if (data && typeof data.comprehensionRate === 'number') {
-          setSentimentData(data);
+          setSentimentData({
+            comprehensionRate: data.comprehensionRate,
+            totalCount: data.totalCount ?? data.total ?? 0,
+            positiveCount: data.positiveCount ?? data.understood ?? 0,
+            questionCount: data.questionCount ?? data.confused ?? 0,
+            slowDownCount: data.slowDownCount ?? data.slower ?? 0,
+            speedUpCount: data.speedUpCount ?? data.faster ?? 0,
+          });
         }
       });
 
-      socket.on('whiteboard:reaction_event', (data: { emoji: string; studentName?: string; label?: string }) => {
+      socket.on('whiteboard:reaction_event', (data: { emoji?: string; studentName?: string; label?: string; type?: string }) => {
+        const typeEmojiMap: Record<string, { emoji: string; label: string }> = {
+          understood: { emoji: '👍', label: 'Got it' },
+          confused: { emoji: '❓', label: 'Doubt' },
+          slower: { emoji: '🐢', label: 'Slower' },
+          faster: { emoji: '⚡', label: 'Ready' },
+        };
+        const fallback = (data?.type && typeEmojiMap[data.type]) || { emoji: '👍', label: 'Reaction' };
+        const emoji = (data?.emoji && data.emoji !== 'undefined') ? data.emoji : fallback.emoji;
+        const studentName = (data?.studentName && data.studentName !== 'undefined' && data.studentName.trim()) || 'Student';
+        const label = (data?.label && data.label !== 'undefined') ? data.label : fallback.label;
+
         const id = `${Date.now()}-${Math.random()}`;
         const toast = {
           id,
-          emoji: data.emoji,
-          studentName: data.studentName || 'Student',
-          label: data.label || ''
+          emoji,
+          studentName,
+          label
         };
         setReactionToasts((prev) => [...prev.slice(-5), toast]);
         setTimeout(() => {
@@ -2144,8 +2173,13 @@ function TeacherWhiteboard({
 
         const iframe = document.getElementById('teacher-whiteboard-iframe') as HTMLIFrameElement | null;
         if (iframe?.contentWindow) {
-          iframe.contentWindow.postMessage({ type: 'REACTION_EVENT', emoji: data.emoji, studentName: data.studentName, label: data.label }, '*');
+          iframe.contentWindow.postMessage({ type: 'REACTION_EVENT', emoji, studentName, label }, '*');
         }
+        try {
+          const channel = new BroadcastChannel('eduashram_whiteboard_sync');
+          channel.postMessage({ type: 'REACTION_EVENT', emoji, studentName, label });
+          channel.close();
+        } catch (_) {}
       });
 
       socket.on('whiteboard:laser_pointer', (data: any) => {
@@ -2153,6 +2187,11 @@ function TeacherWhiteboard({
         if (iframe?.contentWindow) {
           iframe.contentWindow.postMessage({ type: 'STUDENT_LASER_POINTER', ...data }, '*');
         }
+        try {
+          const channel = new BroadcastChannel('eduashram_whiteboard_sync');
+          channel.postMessage({ type: 'STUDENT_LASER_POINTER', ...data });
+          channel.close();
+        } catch (_) {}
       });
 
       socket.on('whiteboard:stroke', (data: any) => {
@@ -2161,6 +2200,11 @@ function TeacherWhiteboard({
           if (iframe?.contentWindow) {
             iframe.contentWindow.postMessage({ type: 'STUDENT_STROKE', pageIndex: data.pageIndex, stroke: data.stroke }, '*');
           }
+          try {
+            const channel = new BroadcastChannel('eduashram_whiteboard_sync');
+            channel.postMessage({ type: 'STUDENT_STROKE', pageIndex: data.pageIndex, stroke: data.stroke });
+            channel.close();
+          } catch (_) {}
         }
       });
 
@@ -2975,7 +3019,7 @@ function TeacherWhiteboard({
         <div className="teacher-reaction-toast-container">
           {reactionToasts.map((toast) => (
             <div key={toast.id} className="teacher-reaction-toast">
-              <span style={{ fontSize: '1.1rem' }}>{toast.emoji}</span>
+              <span style={{ fontSize: '1.2rem', lineHeight: 1 }}>{toast.emoji || '👍'}</span>
               <span><strong>{toast.studentName}</strong>: {toast.label || 'Sent reaction'}</span>
             </div>
           ))}
@@ -9965,6 +10009,7 @@ function StudentApp({
               {tab === 'whiteboard' && (
                 <div style={{ marginTop: '0', width: '100%' }}>
                   <StudentLiveWhiteboard
+                    studentId={user.id}
                     studentName={user.name || 'Student'}
                     studentGrade={user.grade || 'Grade 10'}
                     teacherId={user.teacherId}
