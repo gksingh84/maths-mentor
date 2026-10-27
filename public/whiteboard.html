@@ -11641,6 +11641,49 @@
         }
       });
 
+      // Distance & intersection helpers for student vector eraser
+      function pointToSegmentDistSq(px, py, x1, y1, x2, y2) {
+        const l2 = (x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1);
+        if (l2 === 0) {
+          const dx = px - x1;
+          const dy = py - y1;
+          return dx * dx + dy * dy;
+        }
+        let t = ((px - x1) * (x2 - x1) + (py - y1) * (y2 - y1)) / l2;
+        t = Math.max(0, Math.min(1, t));
+        const projX = x1 + t * (x2 - x1);
+        const projY = y1 + t * (y2 - y1);
+        const dx = px - projX;
+        const dy = py - projY;
+        return dx * dx + dy * dy;
+      }
+
+      function strokeIntersectsErasePoints(stroke, erasePoints) {
+        if (!stroke) return false;
+        if (stroke.mode === "eraser") return true;
+        const pts = stroke.points;
+        if (!pts || !pts.length) return false;
+        const strokeRadius = Math.max(2, (stroke.width || 3) / 2);
+        for (let j = 0; j < erasePoints.length; j++) {
+          const ep = erasePoints[j];
+          const radius = ep.radius || 24;
+          const effRadius = radius + strokeRadius;
+          const eraseRadiusSq = effRadius * effRadius;
+          if (pts.length === 1) {
+            const dx = pts[0].x - ep.x;
+            const dy = pts[0].y - ep.y;
+            if (dx * dx + dy * dy <= eraseRadiusSq) return true;
+          } else {
+            for (let i = 0; i < pts.length - 1; i++) {
+              if (pointToSegmentDistSq(ep.x, ep.y, pts[i].x, pts[i].y, pts[i + 1].x, pts[i + 1].y) <= eraseRadiusSq) {
+                return true;
+              }
+            }
+          }
+        }
+        return false;
+      }
+
       // Listen for broadcast requests or page switch commands from host app (postMessage or BroadcastChannel)
       const _seenHostMsgIds = new Set();
       function handleHostMessage(data) {
@@ -11707,44 +11750,61 @@
           showStudentLaser(data.x, data.y, data.studentName, data.active);
         } else if (data.type === "STUDENT_STROKE" && data.stroke) {
           if (data.stroke.mode === "eraser") return;
-          const targetPage = pages[typeof data.pageIndex === "number" ? data.pageIndex : currentPageIndex];
+          const targetPageIndex = typeof data.pageIndex === "number" ? data.pageIndex : currentPageIndex;
+          const targetPage = pages[targetPageIndex];
           if (targetPage) {
             if (!targetPage.strokes) targetPage.strokes = [];
             targetPage.strokes.push(data.stroke);
-            if (data.pageIndex === currentPageIndex || typeof data.pageIndex !== "number") {
+            if (targetPageIndex === currentPageIndex) {
               updateBoardAppearance();
             }
+            notifyParentPageUpdate(targetPageIndex, true);
+            scheduleNotifyParentPages(200);
           }
-        } else if (data.type === "STUDENT_ERASE" && Array.isArray(data.erasePoints)) {
-          const targetPage = pages[typeof data.pageIndex === "number" ? data.pageIndex : currentPageIndex];
-          if (targetPage && targetPage.strokes) {
-            targetPage.strokes = targetPage.strokes.filter(function(stroke) {
-              if (stroke.mode === "eraser") return false;
-              const pts = stroke.points;
-              if (!pts || !pts.length) return false;
-              const strokeRadius = Math.max(2, (stroke.width || 3) / 2);
-              for (let j = 0; j < data.erasePoints.length; j++) {
-                const ep = data.erasePoints[j];
-                const radius = ep.radius || 22;
-                const effRadius = radius + strokeRadius;
-                const eraseRadiusSq = effRadius * effRadius;
-                if (pts.length === 1) {
-                  const dx = pts[0].x - ep.x;
-                  const dy = pts[0].y - ep.y;
-                  if (dx * dx + dy * dy <= eraseRadiusSq) return false;
-                } else {
-                  for (let i = 0; i < pts.length - 1; i++) {
-                    if (pointToSegmentDistSq(ep.x, ep.y, pts[i].x, pts[i].y, pts[i + 1].x, pts[i + 1].y) <= eraseRadiusSq) {
-                      return false;
-                    }
+        } else if (data.type === "STUDENT_ERASE") {
+          const targetPageIndex = typeof data.pageIndex === "number" ? data.pageIndex : currentPageIndex;
+          const targetPage = pages[targetPageIndex];
+          if (targetPage) {
+            if (Array.isArray(data.remainingStrokes)) {
+              targetPage.strokes = data.remainingStrokes.filter(function(s) {
+                return s && s.mode !== "eraser";
+              });
+            } else if (Array.isArray(data.erasePoints) && targetPage.strokes) {
+              targetPage.strokes = targetPage.strokes.filter(function(stroke) {
+                if (stroke.mode === "eraser") return false;
+                return !strokeIntersectsErasePoints(stroke, data.erasePoints);
+              });
+            }
+
+            // Also remove any shapes intersecting with erasePoints if provided
+            if (Array.isArray(data.erasePoints) && Array.isArray(targetPage.shapes) && targetPage.shapes.length > 0) {
+              targetPage.shapes = targetPage.shapes.filter(function(sh) {
+                if (sh.isPDFPage || sh.isPPTPage) return true;
+                for (let j = 0; j < data.erasePoints.length; j++) {
+                  const ep = data.erasePoints[j];
+                  const r = ep.radius || 24;
+                  if (sh.type === "rect" || sh.type === "image") {
+                    const minX = Math.min(sh.x, sh.x + (sh.w || 0)) - r;
+                    const maxX = Math.max(sh.x, sh.x + (sh.w || 0)) + r;
+                    const minY = Math.min(sh.y, sh.y + (sh.h || 0)) - r;
+                    const maxY = Math.max(sh.y, sh.y + (sh.h || 0)) + r;
+                    if (ep.x >= minX && ep.x <= maxX && ep.y >= minY && ep.y <= maxY) return false;
+                  } else if (sh.type === "circle") {
+                    const dist = Math.hypot(ep.x - sh.x, ep.y - sh.y);
+                    if (dist <= (sh.radius || 30) + r) return false;
+                  } else if (sh.type === "line" || sh.type === "arrow") {
+                    if (pointToSegmentDistSq(ep.x, ep.y, sh.x1 || 0, sh.y1 || 0, sh.x2 || 0, sh.y2 || 0) <= (r + 4) * (r + 4)) return false;
                   }
                 }
-              }
-              return true;
-            });
-            if (data.pageIndex === currentPageIndex || typeof data.pageIndex !== "number") {
+                return true;
+              });
+            }
+
+            if (targetPageIndex === currentPageIndex) {
               updateBoardAppearance();
             }
+            notifyParentPageUpdate(targetPageIndex, true);
+            scheduleNotifyParentPages(100);
           }
         } else if (data.type === "ENGAGEMENT_STATE_SYNC") {
           updateWhiteboardEngagement(data);

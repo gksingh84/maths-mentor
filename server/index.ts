@@ -4456,6 +4456,9 @@ io.on('connection', (socket) => {
         studentName: active.delegatedStudent.studentName,
       };
       io.to(`whiteboard:teacher:${active.teacherId}`).emit('whiteboard:stroke', strokePayload);
+      if (active.broadcasterSocketId) {
+        io.to(active.broadcasterSocketId).emit('whiteboard:stroke', strokePayload);
+      }
       socket.to(`whiteboard:${active.grade}`).emit('whiteboard:stroke', strokePayload);
       if (active.grade !== 'ALL') {
         socket.to('whiteboard:ALL').emit('whiteboard:stroke', strokePayload);
@@ -4489,7 +4492,7 @@ io.on('connection', (socket) => {
     if (!pts || !pts.length) return false;
     const strokeRadius = Math.max(2, (stroke.width || 3) / 2);
     for (const ep of erasePoints) {
-      const radius = ep.radius || 22;
+      const radius = ep.radius || 24;
       const effRadius = radius + strokeRadius;
       const eraseRadiusSq = effRadius * effRadius;
       if (pts.length === 1) {
@@ -4507,10 +4510,9 @@ io.on('connection', (socket) => {
     return false;
   }
 
-  socket.on('whiteboard:student_erase', (data: { erasePoints: Array<{ x: number; y: number; radius?: number }>; pageIndex: number; grade?: string; teacherId?: string; studentName?: string }) => {
+  socket.on('whiteboard:student_erase', (data: { erasePoints: Array<{ x: number; y: number; radius?: number }>; remainingStrokes?: any[]; pageIndex: number; grade?: string; teacherId?: string; studentName?: string }) => {
     const active = findActiveWhiteboardSession({ grade: data?.grade, teacherId: data?.teacherId });
     if (!active || !active.isLive || !active.delegatedStudent || active.delegatedStudent.permission !== 'chalk') return;
-    if (!Array.isArray(data?.erasePoints) || data.erasePoints.length === 0) return;
 
     const isAuthorized =
       active.delegatedStudent.socketId === socket.id ||
@@ -4523,19 +4525,30 @@ io.on('connection', (socket) => {
         active.delegatedStudent.socketId = socket.id;
       }
       const pIdx = typeof data.pageIndex === 'number' ? data.pageIndex : active.activePageIndex;
-      if (active.pages[pIdx]?.strokes) {
+      while (active.pages.length <= pIdx) {
+        active.pages.push({ strokes: [], shapes: [], texts: [], widgets: [] });
+      }
+
+      if (Array.isArray(data.remainingStrokes)) {
+        active.pages[pIdx].strokes = data.remainingStrokes.filter((stroke: any) => stroke && stroke.mode !== 'eraser');
+      } else if (Array.isArray(data.erasePoints) && data.erasePoints.length > 0 && active.pages[pIdx]?.strokes) {
         active.pages[pIdx].strokes = active.pages[pIdx].strokes.filter((stroke: any) => {
           if (stroke.mode === 'eraser') return false;
           return !strokeIntersectsErasePoints(stroke, data.erasePoints);
         });
       }
+
       const erasePayload = {
         pageIndex: pIdx,
-        erasePoints: data.erasePoints,
+        erasePoints: Array.isArray(data.erasePoints) ? data.erasePoints : [],
+        remainingStrokes: active.pages[pIdx]?.strokes || [],
         fromStudent: true,
         studentName: active.delegatedStudent.studentName,
       };
       io.to(`whiteboard:teacher:${active.teacherId}`).emit('whiteboard:erase', erasePayload);
+      if (active.broadcasterSocketId) {
+        io.to(active.broadcasterSocketId).emit('whiteboard:erase', erasePayload);
+      }
       socket.to(`whiteboard:${active.grade}`).emit('whiteboard:erase', erasePayload);
       if (active.grade !== 'ALL') {
         socket.to('whiteboard:ALL').emit('whiteboard:erase', erasePayload);

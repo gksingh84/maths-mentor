@@ -649,6 +649,10 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
   useEffect(() => {
     followTeacherRef.current = followTeacher;
   }, [followTeacher]);
+  const pagesRef = useRef<any[]>(pages);
+  useEffect(() => {
+    pagesRef.current = pages;
+  }, [pages]);
   const teacherScrollRef = useRef<{ scrollTop: number; scrollRatio: number }>({ scrollTop: 0, scrollRatio: 0 });
 
   const studentNameRef = useRef(studentName);
@@ -776,19 +780,26 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
       });
     });
 
-    socket.on('whiteboard:erase', (data: { pageIndex: number; erasePoints: Array<{ x: number; y: number; radius?: number }> }) => {
-      if (!data || !Array.isArray(data.erasePoints)) return;
+    socket.on('whiteboard:erase', (data: { pageIndex: number; erasePoints: Array<{ x: number; y: number; radius?: number }>; remainingStrokes?: any[] }) => {
+      if (!data) return;
+      const pIdx = typeof data.pageIndex === 'number' ? data.pageIndex : 0;
       setPages((prevPages) => {
         const next = [...prevPages];
-        const pIdx = typeof data.pageIndex === 'number' ? data.pageIndex : 0;
-        if (next[pIdx] && next[pIdx].strokes) {
-          next[pIdx] = {
-            ...next[pIdx],
-            strokes: next[pIdx].strokes.filter((stroke: any) => {
-              if (stroke.mode === 'eraser') return false;
-              return !strokeIntersectsErasePoints(stroke, data.erasePoints);
-            })
-          };
+        if (next[pIdx]) {
+          if (Array.isArray(data.remainingStrokes)) {
+            next[pIdx] = {
+              ...next[pIdx],
+              strokes: data.remainingStrokes.filter((stroke: any) => stroke && stroke.mode !== 'eraser')
+            };
+          } else if (Array.isArray(data.erasePoints) && next[pIdx].strokes) {
+            next[pIdx] = {
+              ...next[pIdx],
+              strokes: next[pIdx].strokes.filter((stroke: any) => {
+                if (stroke.mode === 'eraser') return false;
+                return !strokeIntersectsErasePoints(stroke, data.erasePoints);
+              })
+            };
+          }
         }
         return next;
       });
@@ -1882,13 +1893,14 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
     if (currentPermission === 'chalk' && isDrawingChalkRef.current) {
       if (chalkMode === 'eraser') {
         const lastP = lastErasePosRef.current || { x, y };
-        const newPoints = interpolatePoints(lastP, { x, y }, 14);
+        const newPoints = interpolatePoints(lastP, { x, y }, 12);
         lastErasePosRef.current = { x, y };
 
         for (const pt of newPoints) {
-          erasePointsBatchRef.current.push({ x: pt.x, y: pt.y, radius: 22 });
+          erasePointsBatchRef.current.push({ x: pt.x, y: pt.y, radius: 24 });
         }
 
+        let updatedRemaining: any[] = [];
         setPages((prevPages) => {
           const next = [...prevPages];
           const page = next[viewingPageIndex];
@@ -1900,12 +1912,13 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
             if (filtered.length !== initialCount) {
               next[viewingPageIndex] = { ...page, strokes: filtered };
             }
+            updatedRemaining = filtered;
           }
           return next;
         });
 
         const now = Date.now();
-        if (now - lastEraseEmitRef.current > 50 && erasePointsBatchRef.current.length > 0) {
+        if (now - lastEraseEmitRef.current > 40 && erasePointsBatchRef.current.length > 0) {
           lastEraseEmitRef.current = now;
           const batch = [...erasePointsBatchRef.current];
           erasePointsBatchRef.current = [];
@@ -1914,6 +1927,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
             teacherId,
             pageIndex: viewingPageIndex,
             erasePoints: batch,
+            remainingStrokes: updatedRemaining,
             studentName: studentName || 'Student'
           });
         }
@@ -1976,21 +1990,33 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
       if (chalkMode === 'eraser') {
         isDrawingChalkRef.current = true;
         lastErasePosRef.current = { x, y };
-        erasePointsBatchRef.current = [{ x, y, radius: 22 }];
+        erasePointsBatchRef.current = [{ x, y, radius: 24 }];
 
+        let updatedRemaining: any[] = [];
         setPages((prevPages) => {
           const next = [...prevPages];
           const page = next[viewingPageIndex];
           if (page && page.strokes) {
             const initialCount = page.strokes.length;
             const filtered = page.strokes.filter(
-              (s: any) => s.mode !== 'eraser' && !strokeIntersectsErasePoint(s, x, y, 22)
+              (s: any) => s.mode !== 'eraser' && !strokeIntersectsErasePoint(s, x, y, 24)
             );
             if (filtered.length !== initialCount) {
               next[viewingPageIndex] = { ...page, strokes: filtered };
             }
+            updatedRemaining = filtered;
           }
           return next;
+        });
+
+        lastEraseEmitRef.current = Date.now();
+        socketRef.current?.emit('whiteboard:student_erase', {
+          grade: effectiveGrade,
+          teacherId,
+          pageIndex: viewingPageIndex,
+          erasePoints: [{ x, y, radius: 24 }],
+          remainingStrokes: updatedRemaining,
+          studentName: studentName || 'Student'
         });
         return;
       }
@@ -2036,17 +2062,19 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
       lastErasePosRef.current = null;
 
       if (chalkMode === 'eraser') {
-        if (erasePointsBatchRef.current.length > 0) {
-          const batch = [...erasePointsBatchRef.current];
-          erasePointsBatchRef.current = [];
-          socketRef.current?.emit('whiteboard:student_erase', {
-            grade: effectiveGrade,
-            teacherId,
-            pageIndex: viewingPageIndex,
-            erasePoints: batch,
-            studentName: studentName || 'Student'
-          });
-        }
+        const batch = erasePointsBatchRef.current.length > 0 ? [...erasePointsBatchRef.current] : [];
+        erasePointsBatchRef.current = [];
+        const pageStrokes = pagesRef.current[viewingPageIndex]?.strokes || [];
+        const remaining = pageStrokes.filter((s: any) => s && s.mode !== 'eraser');
+
+        socketRef.current?.emit('whiteboard:student_erase', {
+          grade: effectiveGrade,
+          teacherId,
+          pageIndex: viewingPageIndex,
+          erasePoints: batch,
+          remainingStrokes: remaining,
+          studentName: studentName || 'Student'
+        });
         return;
       }
 

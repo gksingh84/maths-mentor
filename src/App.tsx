@@ -2268,11 +2268,21 @@ function TeacherWhiteboard({
         if (data && data.fromStudent) {
           const iframe = document.getElementById('teacher-whiteboard-iframe') as HTMLIFrameElement | null;
           if (iframe?.contentWindow) {
-            iframe.contentWindow.postMessage({ type: 'STUDENT_ERASE', pageIndex: data.pageIndex, erasePoints: data.erasePoints }, '*');
+            iframe.contentWindow.postMessage({
+              type: 'STUDENT_ERASE',
+              pageIndex: data.pageIndex,
+              erasePoints: data.erasePoints,
+              remainingStrokes: data.remainingStrokes
+            }, '*');
           }
           try {
             const channel = new BroadcastChannel('eduashram_whiteboard_sync');
-            channel.postMessage({ type: 'STUDENT_ERASE', pageIndex: data.pageIndex, erasePoints: data.erasePoints });
+            channel.postMessage({
+              type: 'STUDENT_ERASE',
+              pageIndex: data.pageIndex,
+              erasePoints: data.erasePoints,
+              remainingStrokes: data.remainingStrokes
+            });
             channel.close();
           } catch (_) {}
         }
