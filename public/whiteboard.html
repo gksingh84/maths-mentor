@@ -236,6 +236,32 @@
       color: #4338ca;
     }
 
+    #wbCanvasChatBtn {
+      display: none;
+    }
+
+    body.is-standalone #wbCanvasChatBtn {
+      display: inline-flex !important;
+    }
+
+    /* In full screen mode, top header bar (.whiteboard-fullscreen-bar) already provides
+       Go Live, Chat, New Window, Exit Fullscreen.
+       Hide redundant New Window, Fullscreen, and Chat buttons from the canvas bar below. */
+    .app-root.is-fullscreen #newWindowButton,
+    .app-root.is-fullscreen #fullScreenButton,
+    .app-root.is-fullscreen #wbCanvasChatBtn,
+    body.is-fullscreen #newWindowButton,
+    body.is-fullscreen #fullScreenButton,
+    body.is-fullscreen #wbCanvasChatBtn,
+    :fullscreen #newWindowButton,
+    :fullscreen #fullScreenButton,
+    :fullscreen #wbCanvasChatBtn,
+    :-webkit-full-screen #newWindowButton,
+    :-webkit-full-screen #fullScreenButton,
+    :-webkit-full-screen #wbCanvasChatBtn {
+      display: none !important;
+    }
+
     /* ==========================================================================
    Confirmation & Settings Banners
    ========================================================================== */
@@ -1562,47 +1588,7 @@
         <button type="button" class="top-bar__button" id="topNextPageBtn" title="Next Page (Right Arrow)"
           style="padding:2px 7px;min-width:26px;font-weight:700;font-size:0.75rem;">▶</button>
         <button type="button" class="top-bar__button" id="topAddPageBtn" title="Add New Blank Page"
-          style="padding:2px 7px;color:#16a34a;font-weight:700;border-color:#86efac;background:#f0fdf4;font-size:0.75rem;">+
-          Page</button>
-      </div>
-      <button class="top-bar__button" id="newWindowButton"
-        title="Open whiteboard in an independent window adjacent to other apps">
-        New window
-      </button>
-      <button class="top-bar__button" id="fullScreenButton" title="Enter full screen">
-        Full screen
-      </button>
-      <!-- Live Engagement Controls (visible in maximum full screen mode and normal mode when broadcasting) -->
-      <div class="top-bar__engagement-group" id="topBarEngagementGroup" style="display:none;align-items:center;gap:6px;margin-left:6px;flex-shrink:0;">
-        <span class="wb-live-indicator" id="wbLiveIndicator">
-          <span class="wb-live-pulse-dot"></span>
-          <span id="wbLiveText">LIVE</span>
-        </span>
-
-        <!-- Doubts Queue Button -->
-        <button type="button" class="teacher-doubts-btn" id="wbDoubtsBtn" title="Student Doubt Queue">
-          <span style="font-size:0.85rem;">✋</span>
-          <span>Doubts</span>
-          <span class="teacher-doubts-badge" id="wbDoubtsBadge" style="display:none;">0</span>
-        </button>
-
-        <!-- Connected Students Roster Button -->
-        <button type="button" class="teacher-doubts-btn" id="wbRosterBtn" title="Connected Students & Delegation">
-          <span style="font-size:0.85rem;">👥</span>
-          <span id="wbRosterCount">0</span>
-        </button>
-
-        <!-- Classroom Sentiment Pill -->
-        <div class="teacher-sentiment-pill teacher-sentiment-pill--high" id="wbSentimentPill" title="Live Student Sentiment">
-          <span id="wbSentimentDot">🟢</span>
-          <span id="wbSentimentRate">100%</span>
-        </div>
-
-        <!-- Active Student Delegation Badge -->
-        <div id="wbDelegatedBadge" style="display:none;align-items:center;gap:5px;background:#ecfdf5;border:1px solid #a7f3d0;color:#065f46;padding:2px 8px;border-radius:9999px;font-size:0.72rem;font-weight:700;">
-          <span id="wbDelegatedLabel">✏️ Student</span>
-          <button type="button" id="wbRevokeBtn" style="background:#ef4444;color:#fff;border:none;border-radius:4px;font-size:0.65rem;padding:1px 5px;cursor:pointer;font-weight:700;" title="Revoke student board access">Revoke</button>
-        </div>
+          style="padding:2px 7px;color:#16a34a;font-weight:700;border-color:#86efac;background:#f0fdf4;font-size:0.75rem;">+ Page</button>
       </div>
       <div class="top-bar__spacer"></div>
       <button class="top-bar__button" id="clearPageButton" title="Clear everything on this page">
@@ -12233,9 +12219,24 @@
       }
 
       function isFullScreen() {
-        return !!(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement);
+        return !!(
+          document.fullscreenElement ||
+          document.webkitFullscreenElement ||
+          document.mozFullScreenElement ||
+          document.msFullscreenElement ||
+          (window.self !== window.top && window.parent && (window.parent.document.fullscreenElement || window.parent.document.webkitFullscreenElement))
+        );
       }
       function enterFullScreen() {
+        if (window.self !== window.top) {
+          try {
+            if (window.parent && window.parent.document && window.parent.document.documentElement.requestFullscreen) {
+              window.parent.document.documentElement.requestFullscreen().catch(() => {});
+            }
+          } catch (_) {}
+          postMessageToHost({ type: "REQUEST_COMPLETE_FULLSCREEN" });
+          return;
+        }
         const el = appRoot || document.documentElement;
         if (el.requestFullscreen) el.requestFullscreen();
         else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
@@ -12243,19 +12244,41 @@
         else if (el.msRequestFullscreen) el.msRequestFullscreen();
       }
       function exitFullScreen() {
+        if (window.self !== window.top) {
+          try {
+            if (window.parent && window.parent.document && window.parent.document.exitFullscreen) {
+              window.parent.document.exitFullscreen().catch(() => {});
+            }
+          } catch (_) {}
+          postMessageToHost({ type: "EXIT_COMPLETE_FULLSCREEN" });
+          return;
+        }
         if (document.exitFullscreen) document.exitFullscreen();
         else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
         else if (document.mozCancelFullScreen) document.mozCancelFullScreen();
         else if (document.msExitFullscreen) document.msExitFullscreen();
       }
       function updateFullScreenButton() {
-        if (!fullScreenButton) return;
         const full = isFullScreen();
         if (appRoot) {
           appRoot.classList.toggle("is-fullscreen", full);
         }
-        fullScreenButton.textContent = full ? "Exit full screen" : "Full screen";
-        fullScreenButton.title = full ? "Exit full screen" : "Enter full screen";
+        if (document.body) {
+          document.body.classList.toggle("is-fullscreen", full);
+        }
+        const newWindowBtn = document.getElementById("newWindowButton");
+        if (full) {
+          if (fullScreenButton) fullScreenButton.style.setProperty("display", "none", "important");
+          if (newWindowBtn) newWindowBtn.style.setProperty("display", "none", "important");
+        } else {
+          if (fullScreenButton) {
+            fullScreenButton.style.display = "";
+            fullScreenButton.textContent = "Full screen";
+            fullScreenButton.title = "Enter full screen";
+          }
+          if (newWindowBtn) newWindowBtn.style.display = "";
+        }
+        syncCanvasChatBtnVisibility();
         resizeCanvas();
         updateBoardAppearance();
       }
@@ -12268,6 +12291,37 @@
         document.addEventListener("webkitfullscreenchange", updateFullScreenButton);
         document.addEventListener("mozfullscreenchange", updateFullScreenButton);
         document.addEventListener("MSFullscreenChange", updateFullScreenButton);
+
+        try {
+          if (window.self !== window.top && window.parent && window.parent.document) {
+            window.parent.document.addEventListener("fullscreenchange", updateFullScreenButton);
+            window.parent.document.addEventListener("webkitfullscreenchange", updateFullScreenButton);
+          }
+        } catch (_) {}
+      }
+
+      const wbCanvasChatBtn = document.getElementById("wbCanvasChatBtn");
+      function syncCanvasChatBtnVisibility() {
+        if (!wbCanvasChatBtn) return;
+        const full = isFullScreen();
+        const isStandalone = window.self === window.top;
+        if (full) {
+          wbCanvasChatBtn.style.setProperty("display", "none", "important");
+        } else if (isStandalone) {
+          wbCanvasChatBtn.style.setProperty("display", "inline-flex", "important");
+        } else {
+          wbCanvasChatBtn.style.setProperty("display", "none", "important");
+        }
+      }
+      if (window.self === window.top && document.body) {
+        document.body.classList.add("is-standalone");
+      }
+      syncCanvasChatBtnVisibility();
+
+      if (wbCanvasChatBtn) {
+        wbCanvasChatBtn.addEventListener("click", () => {
+          postMessageToHost({ type: "TOGGLE_CLASSROOM_CHAT" });
+        });
       }
 
       document.getElementById("newWindowButton")?.addEventListener("click", () => {
@@ -12336,6 +12390,14 @@
         }
         if (e.data && e.data.type === "SET_BOARD_TYPE" && e.data.boardType) {
           setBoardType(e.data.boardType);
+        }
+        if (e.data && e.data.type === "CHAT_UNREAD_CHANGE") {
+          const badge = document.getElementById("wbCanvasChatBadge");
+          if (badge) {
+            const count = Number(e.data.count) || 0;
+            badge.textContent = count > 99 ? "99+" : count;
+            badge.style.display = count > 0 ? "inline-block" : "none";
+          }
         }
       });
 

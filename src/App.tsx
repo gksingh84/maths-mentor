@@ -361,6 +361,15 @@ function App() {
   });
   const [previousView, setPreviousView] = useState<'portal' | 'dashboard' | 'superadmin'>('portal');
   const [notice, setNotice] = useState('');
+  const [activeBroadcastGrade, setActiveBroadcastGrade] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('teacher_broadcast_grade');
+        if (saved) return saved;
+      } catch (_) {}
+    }
+    return null;
+  });
 
   async function signOut() {
     try {
@@ -647,6 +656,7 @@ function App() {
             setPreviousView('dashboard');
             setView('user_guide');
           }}
+          onBroadcastGradeChange={setActiveBroadcastGrade}
         />
       ) : (
         <StudentApp
@@ -661,7 +671,7 @@ function App() {
           }}
         />
       )}
-      <ClassroomChatWidget user={user} />
+      <ClassroomChatWidget user={user} activeBroadcastGrade={activeBroadcastGrade} />
     </>
   );
 }
@@ -759,6 +769,7 @@ function TeacherApp({
   setNotice,
   onViewPortal,
   onOpenUserGuide,
+  onBroadcastGradeChange,
 }: {
   user: User;
   onSignOut: () => void;
@@ -766,6 +777,7 @@ function TeacherApp({
   setNotice: (text: string) => void;
   onViewPortal?: () => void;
   onOpenUserGuide?: () => void;
+  onBroadcastGradeChange?: (grade: string | null) => void;
 }) {
   type TeacherTab = 'overview' | 'ai_assistant' | 'quizzes' | 'worksheets' | 'archive' | 'calendar' | 'whiteboard' | 'students' | 'results' | 'settings' | 'ai_settings';
   const [tab, setTabState] = useState<TeacherTab>(() => {
@@ -1217,7 +1229,10 @@ function TeacherApp({
               setNotice={setNotice}
               teacherName={user?.name}
               defaultGrade={getDefaultGrade()}
-              onBroadcastChange={setIsTeacherWhiteboardLive}
+              onBroadcastChange={(isLive, grade) => {
+                setIsTeacherWhiteboardLive(isLive);
+                onBroadcastGradeChange?.(grade || 'ALL');
+              }}
               isActiveTab={tab === 'whiteboard'}
             />
           </div>
@@ -2045,7 +2060,7 @@ function TeacherWhiteboard({
   setNotice: (msg: string) => void;
   teacherName?: string;
   defaultGrade?: string;
-  onBroadcastChange?: (isLive: boolean) => void;
+  onBroadcastChange?: (isLive: boolean, grade?: string | null) => void;
   isActiveTab?: boolean;
 }) {
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -2089,11 +2104,22 @@ function TeacherWhiteboard({
   const viewersRosterRef = useRef(viewersRoster);
   viewersRosterRef.current = viewersRoster;
 
+  useEffect(() => {
+    onBroadcastChangeRef.current?.(isBroadcasting, selectedGrade);
+    window.dispatchEvent(new CustomEvent('classroom-broadcast-change', {
+      detail: { isLive: isBroadcasting, grade: selectedGrade }
+    }));
+  }, [selectedGrade, isBroadcasting]);
+
   const handleSelectGrade = (newGrade: string) => {
     setSelectedGrade(newGrade);
     try {
       localStorage.setItem('teacher_broadcast_grade', newGrade);
     } catch (_) {}
+    onBroadcastChangeRef.current?.(isBroadcasting, newGrade);
+    window.dispatchEvent(new CustomEvent('classroom-broadcast-change', {
+      detail: { isLive: isBroadcasting, grade: newGrade }
+    }));
   };
 
   useEffect(() => {
@@ -2378,7 +2404,10 @@ function TeacherWhiteboard({
 
     setIsBroadcasting(true);
     broadcastInitializedRef.current = false;
-    onBroadcastChangeRef.current?.(true);
+    onBroadcastChangeRef.current?.(true, selectedGrade);
+    window.dispatchEvent(new CustomEvent('classroom-broadcast-change', {
+      detail: { isLive: true, grade: selectedGrade }
+    }));
     setNotice(`Live broadcast started for ${selectedGrade === 'ALL' ? 'All Grades' : selectedGrade}. Students can now view your board in real-time.`);
   };
 
@@ -2395,7 +2424,10 @@ function TeacherWhiteboard({
       socketRef.current = null;
     }
     setIsBroadcasting(false);
-    onBroadcastChangeRef.current?.(false);
+    onBroadcastChangeRef.current?.(false, selectedGrade);
+    window.dispatchEvent(new CustomEvent('classroom-broadcast-change', {
+      detail: { isLive: false, grade: selectedGrade }
+    }));
     setViewerCount(0);
     setDoubts([]);
     setViewersRoster([]);
@@ -2433,10 +2465,48 @@ function TeacherWhiteboard({
     syncEngagementToWhiteboard();
   }, [syncEngagementToWhiteboard]);
 
+  const enterCompleteFullscreen = useCallback(() => {
+    setIsFullscreen(true);
+    try {
+      if (document.documentElement.requestFullscreen && !document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(() => {});
+      }
+    } catch (_) {}
+  }, []);
+
+  const exitCompleteFullscreen = useCallback(() => {
+    setIsFullscreen(false);
+    try {
+      if (document.fullscreenElement && document.exitFullscreen) {
+        document.exitFullscreen().catch(() => {});
+      }
+    } catch (_) {}
+  }, []);
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      const isNative = Boolean(document.fullscreenElement || (document as any).webkitFullscreenElement);
+      if (!isNative && isFullscreen) {
+        setIsFullscreen(false);
+      }
+      const iframe = document.getElementById('teacher-whiteboard-iframe') as HTMLIFrameElement | null;
+      try {
+        iframe?.contentWindow?.postMessage({ type: 'FULLSCREEN_CHANGE', isFullscreen: isNative || isFullscreen }, '*');
+      } catch (_) {}
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+    };
+  }, [isFullscreen]);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && isFullscreen) {
-        setIsFullscreen(false);
+        exitCompleteFullscreen();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -2450,7 +2520,7 @@ function TeacherWhiteboard({
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isFullscreen]);
+  }, [isFullscreen, exitCompleteFullscreen]);
 
   const teacherNameRef = useRef(teacherName);
   teacherNameRef.current = teacherName;
@@ -2589,8 +2659,14 @@ function TeacherWhiteboard({
       startBroadcastRef.current?.();
     } else if (data.type === 'WHITEBOARD_STOP_LIVE') {
       stopBroadcastRef.current?.();
+    } else if (data.type === 'TOGGLE_CLASSROOM_CHAT') {
+      window.dispatchEvent(new CustomEvent('toggle-classroom-chat'));
+    } else if (data.type === 'REQUEST_COMPLETE_FULLSCREEN' || data.type === 'WHITEBOARD_REQUEST_FULLSCREEN') {
+      enterCompleteFullscreen();
+    } else if (data.type === 'EXIT_COMPLETE_FULLSCREEN' || data.type === 'WHITEBOARD_EXIT_FULLSCREEN') {
+      exitCompleteFullscreen();
     }
-  }, [handleSetDelegation, handleDismissDoubt, handleClearAllDoubts]);
+  }, [handleSetDelegation, handleDismissDoubt, handleClearAllDoubts, enterCompleteFullscreen, exitCompleteFullscreen]);
 
   // Handle postMessage and BroadcastChannel events from the whiteboard to stream real-time vectors
   useEffect(() => {
@@ -2599,6 +2675,15 @@ function TeacherWhiteboard({
     };
 
     window.addEventListener('message', handleMessage);
+
+    const handleChatUnreadChange = (e: Event) => {
+      const count = (e as CustomEvent<number>).detail;
+      const iframe = document.getElementById('teacher-whiteboard-iframe') as HTMLIFrameElement | null;
+      try {
+        iframe?.contentWindow?.postMessage({ type: 'CHAT_UNREAD_CHANGE', count }, '*');
+      } catch (_) {}
+    };
+    window.addEventListener('classroom-chat-unread-change', handleChatUnreadChange);
 
     let channel: BroadcastChannel | null = null;
     try {
@@ -2612,6 +2697,7 @@ function TeacherWhiteboard({
 
     return () => {
       window.removeEventListener('message', handleMessage);
+      window.removeEventListener('classroom-chat-unread-change', handleChatUnreadChange);
       if (channel) {
         channel.close();
       }
@@ -2626,7 +2712,10 @@ function TeacherWhiteboard({
         socketRef.current.disconnect();
         socketRef.current = null;
       }
-      onBroadcastChangeRef.current?.(false);
+      onBroadcastChangeRef.current?.(false, selectedGradeRef.current);
+      window.dispatchEvent(new CustomEvent('classroom-broadcast-change', {
+        detail: { isLive: false, grade: selectedGradeRef.current }
+      }));
     };
   }, []);
 
@@ -2763,8 +2852,8 @@ function TeacherWhiteboard({
             <button
               type="button"
               className="button button-secondary whiteboard-action-btn"
-              onClick={() => setIsFullscreen(true)}
-              title="Expand whiteboard to full screen view"
+              onClick={enterCompleteFullscreen}
+              title="Expand whiteboard to complete full screen view"
             >
               <Maximize2 size={14} /> Fullscreen
             </button>
@@ -2901,6 +2990,7 @@ function TeacherWhiteboard({
                 <Radio size={13} /> Go Live
               </button>
             )}
+            <ClassroomChatHeaderButton />
             <button
               type="button"
               className="button button-secondary"
@@ -2914,7 +3004,7 @@ function TeacherWhiteboard({
               type="button"
               className="button button-primary"
               style={{ minHeight: '32px', padding: '4px 14px' }}
-              onClick={() => setIsFullscreen(false)}
+              onClick={exitCompleteFullscreen}
             >
               <Minimize2 size={13} /> Exit Fullscreen
             </button>
@@ -9354,7 +9444,8 @@ function StudentApp({
         });
         const data = await res.json();
         if (isMounted) {
-          if (data && data.isLive) {
+          const matchesGrade = !data?.grade || data.grade === 'ALL' || data.grade.toLowerCase() === 'all grades' || isGradeMatch(data.grade, user.grade);
+          if (data && data.isLive && matchesGrade) {
             setLiveWhiteboardInfo(data);
           } else {
             setLiveWhiteboardInfo(null);
@@ -9381,10 +9472,12 @@ function StudentApp({
     socket.on('whiteboard:status_update', (data: any) => {
       if (!isMounted) return;
       const matchesTeacher = !user.teacherId || !data.teacherId || data.teacherId === user.teacherId;
-      const matchesGrade = !data.grade || data.grade === 'ALL' || !user.grade || isGradeMatch(data.grade, user.grade);
+      const matchesGrade = !data.grade || data.grade === 'ALL' || data.grade.toLowerCase() === 'all grades' || isGradeMatch(data.grade, user.grade);
       if (data?.isLive) {
-        if (matchesTeacher || matchesGrade) {
+        if (matchesTeacher && matchesGrade) {
           setLiveWhiteboardInfo(data);
+        } else {
+          setLiveWhiteboardInfo(null);
         }
       } else {
         setLiveWhiteboardInfo(null);

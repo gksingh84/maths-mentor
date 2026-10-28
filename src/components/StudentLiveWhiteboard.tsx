@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import { Radio, ChevronLeft, ChevronRight, Download, FileText, Maximize2, Minimize2, Bookmark, CheckCircle2, RefreshCw, Hand, X, Send, PenTool, Eraser } from 'lucide-react';
 import jsPDF from 'jspdf';
+import { ClassroomChatHeaderButton } from './ClassroomChatWidget';
 
 interface StudentLiveWhiteboardProps {
   studentId?: string;
@@ -612,6 +613,34 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
   const [viewingPageIndex, setViewingPageIndex] = useState(0);
   const [viewerCount, setViewerCount] = useState(1);
   const [isFullscreen, setIsFullscreen] = useState(false);
+
+  const toggleStudentFullscreen = useCallback(() => {
+    const next = !isFullscreen;
+    setIsFullscreen(next);
+    try {
+      if (next && document.documentElement.requestFullscreen && !document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(() => {});
+      } else if (!next && document.fullscreenElement && document.exitFullscreen) {
+        document.exitFullscreen().catch(() => {});
+      }
+    } catch (_) {}
+  }, [isFullscreen]);
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      const isNative = Boolean(document.fullscreenElement || (document as any).webkitFullscreenElement);
+      if (!isNative && isFullscreen) {
+        setIsFullscreen(false);
+      }
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+    };
+  }, [isFullscreen]);
+
   const [followTeacher, setFollowTeacher] = useState(true);
   const [videoSyncEvents, setVideoSyncEvents] = useState<Record<string, any>>({});
 
@@ -670,7 +699,8 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
         credentials: 'include'
       });
       const data = await res.json();
-      if (data?.isLive) {
+      const matchesGrade = !data?.grade || data.grade === 'ALL' || data.grade.toLowerCase() === 'all grades' || isGradeMatch(data.grade, effectiveGrade);
+      if (data?.isLive && matchesGrade) {
         setIsLive(true);
         if (data.teacherName) setTeacherName(data.teacherName);
         if (socketRef.current) {
@@ -681,6 +711,9 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
             studentId: studentIdRef.current
           });
         }
+      } else {
+        setIsLive(false);
+        setPages([]);
       }
     } catch (_) {}
   }, [effectiveGrade, teacherId]);
@@ -745,16 +778,16 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
     });
 
     socket.on('whiteboard:status_update', (data: any) => {
-      const matchesGrade = !data.grade || data.grade === 'ALL' || isGradeMatch(data.grade, effectiveGrade);
+      const matchesGrade = !data.grade || data.grade === 'ALL' || data.grade.toLowerCase() === 'all grades' || isGradeMatch(data.grade, effectiveGrade);
       const matchesTeacher = !teacherId || !data.teacherId || data.teacherId === teacherId;
-      if (matchesGrade || matchesTeacher) {
-        if (data.isLive) {
-          setIsLive(true);
-          setTeacherName(data.teacherName || 'Teacher');
-          socket.emit('whiteboard:join', { grade: effectiveGrade, teacherId });
-        } else {
-          setIsLive(false);
-        }
+      if (data?.isLive && matchesGrade && matchesTeacher) {
+        setIsLive(true);
+        setTeacherName(data.teacherName || 'Teacher');
+        socket.emit('whiteboard:join', { grade: effectiveGrade, teacherId });
+      } else {
+        setIsLive(false);
+        setPages([]);
+        setVideoSyncEvents({});
       }
     });
 
@@ -1102,13 +1135,39 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
     return imageCacheRef.current.get(dataUrl)!;
   };
 
+  const ensureImageLoaded = (dataUrl?: string): Promise<HTMLImageElement | null> => {
+    if (!dataUrl) return Promise.resolve(null);
+    const cached = imageCacheRef.current.get(dataUrl);
+    if (cached && cached.complete && cached.naturalWidth > 0) return Promise.resolve(cached);
+    return new Promise((resolve) => {
+      const img = new Image();
+      if (!dataUrl.startsWith('data:') && !dataUrl.startsWith('blob:')) {
+        img.crossOrigin = 'anonymous';
+      }
+      img.onload = () => {
+        imageCacheRef.current.set(dataUrl, img);
+        resolve(img);
+      };
+      img.onerror = () => resolve(null);
+      img.src = dataUrl;
+    });
+  };
+
   // Helper to render whiteboard page content (used by both live canvas and PDF export)
   const renderWhiteboardPage = (
     ctx: CanvasRenderingContext2D,
     page: any,
     displayWidth: number,
     displayHeight: number,
-    options?: { isExport?: boolean; pageNum?: number; totalPages?: number; watermarkTitle?: string }
+    options?: {
+      isExport?: boolean;
+      pageNum?: number;
+      totalPages?: number;
+      watermarkTitle?: string;
+      watermarkOnly?: boolean;
+      offsetX?: number;
+      offsetY?: number;
+    }
   ) => {
     if (!page) {
       ctx.fillStyle = '#ffffff';
@@ -1211,6 +1270,12 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
     }
 
     if (!page) return;
+
+    const hasOffset = Boolean(options?.offsetX || options?.offsetY);
+    if (hasOffset) {
+      ctx.save();
+      ctx.translate(options?.offsetX || 0, options?.offsetY || 0);
+    }
 
     // Draw background image if present (PDF, PPT slide, or imported image)
     if (page.background && page.background.dataUrl) {
@@ -1701,6 +1766,10 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
       });
     }
 
+    if (hasOffset) {
+      ctx.restore();
+    }
+
     // Watermark, Header, & Footer (when exporting class notes as PDF)
     if (options?.isExport) {
       ctx.save();
@@ -1714,35 +1783,37 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
       ctx.fillText(`EduAshram Live Classroom • ${effectiveGrade}`, 0, 0);
       ctx.restore();
 
-      // Header Banner
-      ctx.save();
-      ctx.fillStyle = '#0f172a';
-      ctx.fillRect(0, 0, displayWidth, 38);
-      ctx.fillStyle = '#f8fafc';
-      ctx.font = 'bold 13px "Plus Jakarta Sans", Arial, sans-serif';
-      ctx.textBaseline = 'middle';
-      ctx.textAlign = 'left';
-      ctx.fillText(
-        `📚 EduAshram Class Notes • ${effectiveGrade} • Teacher: ${teacherName} • ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`,
-        18,
-        19
-      );
-      ctx.textAlign = 'right';
-      ctx.fillText(`Page ${options.pageNum} of ${options.totalPages}`, displayWidth - 18, 19);
-      ctx.restore();
+      if (!options?.watermarkOnly) {
+        // Header Banner
+        ctx.save();
+        ctx.fillStyle = '#0f172a';
+        ctx.fillRect(0, 0, displayWidth, 38);
+        ctx.fillStyle = '#f8fafc';
+        ctx.font = 'bold 13px "Plus Jakarta Sans", Arial, sans-serif';
+        ctx.textBaseline = 'middle';
+        ctx.textAlign = 'left';
+        ctx.fillText(
+          `📚 EduAshram Class Notes • ${effectiveGrade} • Teacher: ${teacherName} • ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`,
+          18,
+          19
+        );
+        ctx.textAlign = 'right';
+        ctx.fillText(`Page ${options.pageNum} of ${options.totalPages}`, displayWidth - 18, 19);
+        ctx.restore();
 
-      // Footer Banner
-      ctx.save();
-      ctx.fillStyle = isDark ? 'rgba(255, 255, 255, 0.5)' : 'rgba(15, 23, 42, 0.55)';
-      ctx.font = '10px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(
-        `EduAshram Digital Teaching System • Notes for ${studentName} • ${new Date().toLocaleDateString('en-GB')}`,
-        displayWidth / 2,
-        displayHeight - 12
-      );
-      ctx.restore();
+        // Footer Banner
+        ctx.save();
+        ctx.fillStyle = isDark ? 'rgba(255, 255, 255, 0.5)' : 'rgba(15, 23, 42, 0.55)';
+        ctx.font = '10px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(
+          `EduAshram Digital Teaching System • Notes for ${studentName} • ${new Date().toLocaleDateString('en-GB')}`,
+          displayWidth / 2,
+          displayHeight - 12
+        );
+        ctx.restore();
+      }
     }
   };
 
@@ -2171,42 +2242,221 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
     if (setNotice) setNotice(`Downloaded Page ${viewingPageIndex + 1} as PNG.`);
   };
 
-  // One-Click "Export Class Notes as PDF": generates clean, compressed PDF of all pages with watermark
+  // One-Click "Export Class Notes as PDF": generates clean, complete PDF of all pages without cropping
   const handleExportPDF = async () => {
     if (!pages || !pages.length) return;
     setIsExportingPDF(true);
     try {
-      const pdfW = 1200;
-      const pdfH = 800;
-      const pdf = new jsPDF({ orientation: 'landscape', unit: 'px', format: [pdfW, pdfH] });
-
-      const offCanvas = document.createElement('canvas');
-      offCanvas.width = pdfW;
-      offCanvas.height = pdfH;
-      const offCtx = offCanvas.getContext('2d');
-      if (!offCtx) return;
-
       const totalPgs = pages.length;
-      for (let i = 0; i < totalPgs; i++) {
-        if (i > 0) {
-          pdf.addPage([pdfW, pdfH], 'landscape');
-        }
-        offCtx.clearRect(0, 0, pdfW, pdfH);
-        renderWhiteboardPage(offCtx, pages[i], pdfW, pdfH, {
-          isExport: true,
-          pageNum: i + 1,
-          totalPages: totalPgs,
-          watermarkTitle: `EduAshram • ${effectiveGrade}`
-        });
+      let pdf: jsPDF | null = null;
 
-        const imgData = offCanvas.toDataURL('image/jpeg', 0.88);
-        pdf.addImage(imgData, 'JPEG', 0, 0, pdfW, pdfH, undefined, 'FAST');
+      for (let i = 0; i < totalPgs; i++) {
+        const page = pages[i];
+        if (!page) continue;
+
+        // 1. Preload any background or shape images
+        if (page.background?.dataUrl) {
+          await ensureImageLoaded(page.background.dataUrl);
+        }
+        if (page.shapes && Array.isArray(page.shapes)) {
+          for (const sh of page.shapes) {
+            if (sh?.type === 'image' && sh.dataUrl) {
+              await ensureImageLoaded(sh.dataUrl);
+            }
+          }
+        }
+
+        // 2. Measure the exact bounding box of all strokes, shapes, texts, widgets, and background
+        let minX = Infinity;
+        let maxX = 0;
+        let minY = Infinity;
+        let maxY = 0;
+        let hasContent = false;
+
+        if (page.strokes && Array.isArray(page.strokes)) {
+          for (const st of page.strokes) {
+            if (!st || st.mode === 'eraser' || !st.points) continue;
+            const halfW = Math.max(1, ((st.width || 2) / 2) + 2);
+            for (const pt of st.points) {
+              if (typeof pt.x === 'number' && typeof pt.y === 'number') {
+                hasContent = true;
+                if (pt.x - halfW < minX) minX = pt.x - halfW;
+                if (pt.x + halfW > maxX) maxX = pt.x + halfW;
+                if (pt.y - halfW < minY) minY = pt.y - halfW;
+                if (pt.y + halfW > maxY) maxY = pt.y + halfW;
+              }
+            }
+          }
+        }
+
+        if (page.shapes && Array.isArray(page.shapes)) {
+          for (const sh of page.shapes) {
+            if (!sh) continue;
+            hasContent = true;
+            const strokeHalf = Math.max(1, ((sh.width || 2) / 2) + 2);
+            const x1 = Math.min(sh.start?.x ?? sh.x ?? 0, sh.end?.x ?? (sh.x || 0) + (sh.width || 0)) - strokeHalf;
+            const x2 = Math.max(sh.start?.x ?? sh.x ?? 0, sh.end?.x ?? (sh.x || 0) + (sh.width || 0)) + strokeHalf;
+            const y1 = Math.min(sh.start?.y ?? sh.y ?? 0, sh.end?.y ?? (sh.y || 0) + (sh.height || 0)) - strokeHalf;
+            const y2 = Math.max(sh.start?.y ?? sh.y ?? 0, sh.end?.y ?? (sh.y || 0) + (sh.height || 0)) + strokeHalf;
+            if (x1 < minX) minX = x1;
+            if (x2 > maxX) maxX = x2;
+            if (y1 < minY) minY = y1;
+            if (y2 > maxY) maxY = y2;
+          }
+        }
+
+        if (page.texts && Array.isArray(page.texts)) {
+          for (const tx of page.texts) {
+            if (!tx || tx.text == null || tx.text === '') continue;
+            hasContent = true;
+            const x = tx.x || 0;
+            const y = tx.y || 0;
+            const fs = tx.fontSize || 20;
+            const lines = String(tx.text).split('\n');
+            const linesCount = lines.length;
+            let maxLineChars = 10;
+            lines.forEach((l) => { if (l.length > maxLineChars) maxLineChars = l.length; });
+            const approxW = tx.sticky ? Math.max(140, maxLineChars * (fs * 0.7) + 30) : Math.max(100, maxLineChars * (fs * 0.65) + 20);
+            const textH = linesCount * (fs * 1.35) + 30;
+            if (x < minX) minX = x;
+            if (x + approxW > maxX) maxX = x + approxW;
+            if (y < minY) minY = y;
+            if (y + textH > maxY) maxY = y + textH;
+          }
+        }
+
+        if (page.widgets && Array.isArray(page.widgets)) {
+          for (const w of page.widgets) {
+            if (!w) continue;
+            hasContent = true;
+            const x = w.x || 60;
+            const y = w.y || 60;
+            const wWidth = w.type === 'poll' ? 360 : 260;
+            const wHeight = w.type === 'poll' ? 220 : 80;
+            if (x < minX) minX = x;
+            if (x + wWidth > maxX) maxX = x + wWidth;
+            if (y < minY) minY = y;
+            if (y + wHeight > maxY) maxY = y + wHeight;
+          }
+        }
+
+        if (page.background && page.background.dataUrl) {
+          hasContent = true;
+          const bg = page.background;
+          const bx = bg.x || 0;
+          const by = bg.y || 0;
+          const bw = bg.w || 1200;
+          const bh = bg.h || 800;
+          if (bx < minX) minX = bx;
+          if (bx + bw > maxX) maxX = bx + bw;
+          if (by < minY) minY = by;
+          if (by + bh > maxY) maxY = by + bh;
+        }
+
+        // Shift content if coordinates are negative
+        const offsetX = (hasContent && minX < 0) ? Math.ceil(-minX + 24) : 0;
+        const offsetY = (hasContent && minY < 0) ? Math.ceil(-minY + 24) : 0;
+
+        const contentMaxX = hasContent ? Math.ceil(maxX + offsetX) : 1200;
+        const contentMaxY = hasContent ? Math.ceil(maxY + offsetY) : 800;
+
+        // Base dimensions: at least standard 1200 x 800, expanding dynamically to encompass all content
+        const baseW = 1200;
+        const baseH = (typeof page.height === 'number' && page.height > 0 && page.height <= 1200) ? page.height : 800;
+
+        const whiteboardW = Math.max(baseW, contentMaxX + 40);
+        const whiteboardH = Math.max(baseH, contentMaxY + 50);
+
+        const HEADER_HEIGHT = 40;
+        const FOOTER_HEIGHT = 30;
+
+        const pageW = whiteboardW;
+        const pageH = HEADER_HEIGHT + whiteboardH + FOOTER_HEIGHT;
+
+        // Render at 1.5x scale for sharp text and fine pen strokes without massive memory footprint
+        const exportScale = 1.5;
+        const offCanvas = document.createElement('canvas');
+        offCanvas.width = Math.round(pageW * exportScale);
+        offCanvas.height = Math.round(pageH * exportScale);
+        const offCtx = offCanvas.getContext('2d');
+        if (!offCtx) continue;
+
+        offCtx.scale(exportScale, exportScale);
+
+        // 1. Draw Header Banner in dedicated top zone
+        offCtx.fillStyle = '#0f172a';
+        offCtx.fillRect(0, 0, pageW, HEADER_HEIGHT);
+        offCtx.fillStyle = '#f8fafc';
+        offCtx.font = 'bold 13px "Plus Jakarta Sans", Arial, sans-serif';
+        offCtx.textBaseline = 'middle';
+        offCtx.textAlign = 'left';
+        offCtx.fillText(
+          `📚 EduAshram Class Notes • ${effectiveGrade} • Teacher: ${teacherName} • ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`,
+          18,
+          HEADER_HEIGHT / 2
+        );
+        offCtx.textAlign = 'right';
+        offCtx.fillText(`Page ${i + 1} of ${totalPgs}`, pageW - 18, HEADER_HEIGHT / 2);
+
+        // 2. Draw Whiteboard Area with zero overlap from header/footer
+        offCtx.save();
+        offCtx.translate(0, HEADER_HEIGHT);
+        renderWhiteboardPage(offCtx, page, whiteboardW, whiteboardH, {
+          isExport: true,
+          watermarkOnly: true,
+          offsetX,
+          offsetY,
+        });
+        offCtx.restore();
+
+        // 3. Draw Footer Banner in dedicated bottom zone
+        const isDark = page.boardType === 'black' || page.boardType === 'green';
+        offCtx.fillStyle = isDark ? (page.boardType === 'black' ? '#090d16' : '#033327') : '#f8fafc';
+        offCtx.fillRect(0, HEADER_HEIGHT + whiteboardH, pageW, FOOTER_HEIGHT);
+
+        offCtx.strokeStyle = isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(15, 23, 42, 0.08)';
+        offCtx.lineWidth = 1;
+        offCtx.beginPath();
+        offCtx.moveTo(0, HEADER_HEIGHT + whiteboardH);
+        offCtx.lineTo(pageW, HEADER_HEIGHT + whiteboardH);
+        offCtx.stroke();
+
+        offCtx.fillStyle = isDark ? 'rgba(255, 255, 255, 0.65)' : 'rgba(15, 23, 42, 0.65)';
+        offCtx.font = '10px "Plus Jakarta Sans", Arial, sans-serif';
+        offCtx.textAlign = 'center';
+        offCtx.textBaseline = 'middle';
+        offCtx.fillText(
+          `EduAshram Digital Teaching System • Notes for ${studentName} • ${new Date().toLocaleDateString('en-GB')}`,
+          pageW / 2,
+          HEADER_HEIGHT + whiteboardH + FOOTER_HEIGHT / 2
+        );
+
+        // 4. Add Page to PDF with exact page format
+        const orientation = pageW >= pageH ? 'landscape' : 'portrait';
+        if (!pdf) {
+          pdf = new jsPDF({
+            orientation,
+            unit: 'px',
+            format: [pageW, pageH],
+            hotfixes: ['px_scaling'],
+          });
+        } else {
+          pdf.addPage([pageW, pageH], orientation);
+        }
+
+        const imgData = offCanvas.toDataURL('image/jpeg', 0.94);
+        pdf.addImage(imgData, 'JPEG', 0, 0, pageW, pageH, undefined, 'FAST');
+      }
+
+      if (!pdf) {
+        if (setNotice) setNotice('No pages available to export.');
+        return;
       }
 
       const dateStr = new Date().toISOString().slice(0, 10);
       const safeGrade = effectiveGrade.replace(/[^a-zA-Z0-9_-]/g, '_');
       pdf.save(`EduAshram_Class_Notes_${safeGrade}_${dateStr}.pdf`);
-      if (setNotice) setNotice(`Downloaded ${totalPgs}-page Class Notes as PDF.`);
+      if (setNotice) setNotice(`Downloaded ${totalPgs}-page complete Class Notes as PDF.`);
     } catch (err) {
       console.error('Error generating PDF notes:', err);
       if (setNotice) setNotice('Failed to generate PDF. Please try again.');
@@ -2406,10 +2656,13 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
               </button>
             </>
           )}
+          {isFullscreen && (
+            <ClassroomChatHeaderButton style={{ minHeight: '30px', padding: '4px 10px', fontSize: '0.8rem' }} />
+          )}
           <button
             type="button"
             className="button button-secondary student-action-btn"
-            onClick={() => setIsFullscreen(!isFullscreen)}
+            onClick={toggleStudentFullscreen}
             title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
           >
             {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}

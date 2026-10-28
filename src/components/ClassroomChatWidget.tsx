@@ -42,14 +42,25 @@ export interface TeacherPeer {
   subject?: string | null;
 }
 
+export interface ChatNotificationToast {
+  id: string;
+  senderName: string;
+  content: string;
+  channel: 'everyone' | 'direct';
+  studentId?: string | null;
+  timestamp: number;
+}
+
 interface ClassroomChatWidgetProps {
   user: {
     id?: string;
     name?: string;
     role: 'admin' | 'teacher' | 'superadmin' | 'student';
+    grade?: string | null;
     teacherId?: string | null;
     teacherName?: string | null;
   };
+  activeBroadcastGrade?: string | null;
 }
 
 const QUICK_REACTIONS = ['👍', '✋', '💡', '❓', '📐', '⭐', '👏', '😊'];
@@ -60,10 +71,62 @@ function formatGradeBracket(grade?: string | null): string {
   return cleaned ? ` (${cleaned})` : '';
 }
 
-export function ClassroomChatWidget({ user }: ClassroomChatWidgetProps) {
+function normalizeGradeNumber(gradeStr?: string | null): string | null {
+  if (!gradeStr) return null;
+  const match = gradeStr.match(/\d+/);
+  return match ? match[0] : gradeStr.trim().toLowerCase();
+}
+
+export function matchesBroadcastGrade(studentGrade?: string | null, targetGrade?: string | null): boolean {
+  if (!targetGrade || targetGrade === 'ALL' || targetGrade.toLowerCase() === 'all grades') {
+    return true;
+  }
+  if (!studentGrade) return false;
+  const sNorm = normalizeGradeNumber(studentGrade);
+  const tNorm = normalizeGradeNumber(targetGrade);
+  if (sNorm && tNorm) {
+    return sNorm === tNorm;
+  }
+  return studentGrade.trim().toLowerCase() === targetGrade.trim().toLowerCase();
+}
+
+function playChatNotificationSound(): void {
+  try {
+    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    const now = ctx.currentTime;
+
+    const osc1 = ctx.createOscillator();
+    const gain1 = ctx.createGain();
+    osc1.type = 'sine';
+    osc1.frequency.setValueAtTime(587.33, now); // D5
+    gain1.gain.setValueAtTime(0.08, now);
+    gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+    osc1.connect(gain1);
+    gain1.connect(ctx.destination);
+    osc1.start(now);
+    osc1.stop(now + 0.15);
+
+    const osc2 = ctx.createOscillator();
+    const gain2 = ctx.createGain();
+    osc2.type = 'sine';
+    osc2.frequency.setValueAtTime(880, now + 0.12); // A5
+    gain2.gain.setValueAtTime(0.12, now + 0.12);
+    gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+    osc2.connect(gain2);
+    gain2.connect(ctx.destination);
+    osc2.start(now + 0.12);
+    osc2.stop(now + 0.35);
+  } catch {
+    // browser audio policy silently handled
+  }
+}
+
+export function ClassroomChatWidget({ user, activeBroadcastGrade }: ClassroomChatWidgetProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
-  const [activeTab, setActiveTab] = useState<'everyone' | 'direct'>('everyone');
+  const [activeTab, setActiveTab] = useState<'everyone' | 'direct' | 'other_grades'>('everyone');
   const [height, setHeight] = useState<number>(() => {
     if (typeof window !== 'undefined') {
       const saved = Number(localStorage.getItem('classroom_chat_height'));
@@ -75,6 +138,196 @@ export function ClassroomChatWidget({ user }: ClassroomChatWidgetProps) {
   const [classroomTeacher, setClassroomTeacher] = useState<TeacherPeer | null>(null);
   const [students, setStudents] = useState<StudentPeer[]>([]);
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
+  const [selectedOtherStudentId, setSelectedOtherStudentId] = useState<string | null>(null);
+
+  // Floating Notification Toasts for incoming student messages
+  const [toasts, setToasts] = useState<ChatNotificationToast[]>([]);
+  const [broadcastGrade, setBroadcastGrade] = useState<string | null>(() => {
+    if (activeBroadcastGrade) return activeBroadcastGrade;
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('teacher_broadcast_grade');
+        if (saved) return saved;
+      } catch (_) {}
+    }
+    return null;
+  });
+  const [isBroadcastLive, setIsBroadcastLive] = useState(false);
+
+  useEffect(() => {
+    if (activeBroadcastGrade !== undefined && activeBroadcastGrade !== null) {
+      setBroadcastGrade(activeBroadcastGrade);
+    }
+  }, [activeBroadcastGrade]);
+
+  useEffect(() => {
+    const handleBroadcastChange = (e: Event) => {
+      const detail = (e as CustomEvent<{ isLive?: boolean; grade?: string | null }>).detail;
+      if (detail) {
+        if (typeof detail.isLive === 'boolean') {
+          setIsBroadcastLive(detail.isLive);
+        }
+        if (detail.grade !== undefined && detail.grade !== null) {
+          setBroadcastGrade(detail.grade);
+        }
+      }
+    };
+    window.addEventListener('classroom-broadcast-change', handleBroadcastChange);
+
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === 'teacher_broadcast_grade' && e.newValue) {
+        setBroadcastGrade(e.newValue);
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+
+    return () => {
+      window.removeEventListener('classroom-broadcast-change', handleBroadcastChange);
+      window.removeEventListener('storage', handleStorage);
+    };
+  }, []);
+
+  const studentsRef = useRef<StudentPeer[]>(students);
+  studentsRef.current = students;
+  const toastedMessageIdsRef = useRef<Set<string>>(new Set());
+
+  // Grade-scoped student list when teacher's live broadcast is active for a specific grade
+  const isBroadcastGradeFiltered = Boolean(
+    broadcastGrade &&
+    broadcastGrade !== 'ALL' &&
+    broadcastGrade.toLowerCase() !== 'all grades'
+  );
+
+  const filteredStudents = React.useMemo(() => {
+    if (!isBroadcastGradeFiltered) {
+      return students;
+    }
+    return students.filter((st) => matchesBroadcastGrade(st.grade, broadcastGrade));
+  }, [students, isBroadcastGradeFiltered, broadcastGrade]);
+
+  const otherStudents = React.useMemo(() => {
+    if (!isBroadcastGradeFiltered) {
+      return [];
+    }
+    return students.filter((st) => !matchesBroadcastGrade(st.grade, broadcastGrade));
+  }, [students, isBroadcastGradeFiltered, broadcastGrade]);
+
+  const [studentEnrolledGrade, setStudentEnrolledGrade] = useState<string | null>(user.grade || null);
+
+  // Check if current user is a student from a grade different from the active broadcast class
+  const effectiveStudentGrade = user.grade || studentEnrolledGrade;
+  const isStudentFromOtherGrade = Boolean(
+    user.role === 'student' &&
+    isBroadcastGradeFiltered &&
+    effectiveStudentGrade &&
+    !matchesBroadcastGrade(effectiveStudentGrade, broadcastGrade)
+  );
+
+  // If student is from another grade, they get only One to One option (not Everyone)
+  useEffect(() => {
+    if (isStudentFromOtherGrade && activeTab === 'everyone') {
+      setActiveTab('direct');
+    }
+  }, [isStudentFromOtherGrade, activeTab]);
+
+  const isBroadcastGradeFilteredRef = useRef(isBroadcastGradeFiltered);
+  isBroadcastGradeFilteredRef.current = isBroadcastGradeFiltered;
+  const broadcastGradeRef = useRef(broadcastGrade);
+  broadcastGradeRef.current = broadcastGrade;
+
+  const isFromBroadcastClass = useCallback((studentId?: string | null): boolean => {
+    if (!isBroadcastGradeFilteredRef.current) return true;
+    if (!studentId) return true;
+    const st = studentsRef.current.find((s) => s.id === studentId);
+    if (!st) return false;
+    return matchesBroadcastGrade(st.grade, broadcastGradeRef.current);
+  }, []);
+
+  useEffect(() => {
+    if (user.role === 'student') return;
+    if (filteredStudents.length > 0) {
+      const isSelectedInList = filteredStudents.some((st) => st.id === selectedStudentId);
+      if (!isSelectedInList) {
+        setSelectedStudentId(filteredStudents[0].id);
+      }
+    } else if (students.length > 0 && isBroadcastGradeFiltered) {
+      setSelectedStudentId(null);
+    }
+  }, [filteredStudents, selectedStudentId, user.role, students.length, isBroadcastGradeFiltered]);
+
+  useEffect(() => {
+    if (user.role === 'student') return;
+    if (otherStudents.length > 0) {
+      const isSelectedInList = otherStudents.some((st) => st.id === selectedOtherStudentId);
+      if (!isSelectedInList) {
+        setSelectedOtherStudentId(otherStudents[0].id);
+      }
+    } else {
+      setSelectedOtherStudentId(null);
+    }
+  }, [otherStudents, selectedOtherStudentId, user.role]);
+
+  const triggerToast = useCallback((toastData: {
+    id: string;
+    senderName: string;
+    content: string;
+    channel: 'everyone' | 'direct';
+    studentId?: string | null;
+  }) => {
+    if (user.role === 'student') return;
+    if (toastData.id && toastedMessageIdsRef.current.has(toastData.id)) return;
+    if (toastData.id) {
+      toastedMessageIdsRef.current.add(toastData.id);
+      if (toastedMessageIdsRef.current.size > 200) {
+        const first = toastedMessageIdsRef.current.values().next().value;
+        if (first) toastedMessageIdsRef.current.delete(first);
+      }
+    }
+
+    const newToast: ChatNotificationToast = {
+      id: toastData.id || `toast_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      senderName: toastData.senderName,
+      content: toastData.content,
+      channel: toastData.channel,
+      studentId: toastData.studentId,
+      timestamp: Date.now(),
+    };
+
+    setToasts((prev) => [newToast, ...prev.filter((t) => t.id !== newToast.id).slice(0, 4)]);
+    playChatNotificationSound();
+  }, [user.role]);
+
+  // Auto-dismiss oldest toast after 6.5s
+  useEffect(() => {
+    if (toasts.length === 0) return;
+    const timer = setTimeout(() => {
+      setToasts((prev) => prev.slice(0, prev.length - 1));
+    }, 6500);
+    return () => clearTimeout(timer);
+  }, [toasts]);
+
+  const handleToastClick = (toast: ChatNotificationToast) => {
+    setIsOpen(true);
+    setIsMinimized(false);
+    if (toast.channel === 'direct' && toast.studentId) {
+      const isOther = otherStudents.some((s) => s.id === toast.studentId);
+      if (isOther) {
+        setActiveTab('other_grades');
+        setSelectedOtherStudentId(toast.studentId);
+      } else {
+        setActiveTab('direct');
+        setSelectedStudentId(toast.studentId);
+      }
+    } else {
+      setActiveTab('everyone');
+    }
+    setToasts((prev) => prev.filter((t) => t.id !== toast.id));
+  };
+
+  const dismissToast = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  };
 
   // Independent in-memory caches: instant tab switching with 0ms delay
   const [everyoneMessages, setEveryoneMessages] = useState<ChatMessageItem[]>([]);
@@ -88,6 +341,7 @@ export function ClassroomChatWidget({ user }: ClassroomChatWidgetProps) {
   // Unread badge counters
   const [unreadEveryone, setUnreadEveryone] = useState(0);
   const [unreadDirect, setUnreadDirect] = useState(0);
+  const [unreadOtherGrades, setUnreadOtherGrades] = useState(0);
   const [studentUnreadMap, setStudentUnreadMap] = useState<Record<string, number>>({});
 
   const socketRef = useRef<Socket | null>(null);
@@ -106,9 +360,13 @@ export function ClassroomChatWidget({ user }: ClassroomChatWidgetProps) {
   activeTabRef.current = activeTab;
   const selectedStudentIdRef = useRef(selectedStudentId);
   selectedStudentIdRef.current = selectedStudentId;
+  const selectedOtherStudentIdRef = useRef(selectedOtherStudentId);
+  selectedOtherStudentIdRef.current = selectedOtherStudentId;
 
   // Active direct message key (studentId for teacher, 'teacher' for student)
-  const activeDirectKey = user.role === 'student' ? 'teacher' : (selectedStudentId || '');
+  const activeDirectKey = user.role === 'student'
+    ? 'teacher'
+    : (activeTab === 'other_grades' ? (selectedOtherStudentId || '') : (selectedStudentId || ''));
   const rawMessages = activeTab === 'everyone'
     ? everyoneMessages
     : (activeDirectKey ? (directMessagesMap[activeDirectKey] || []) : []);
@@ -140,6 +398,16 @@ export function ClassroomChatWidget({ user }: ClassroomChatWidgetProps) {
       const data = await res.json().catch(() => ({}));
       if (res.ok && data) {
         if (data.teacher) setClassroomTeacher(data.teacher);
+        if (data.studentGrade) setStudentEnrolledGrade(data.studentGrade);
+        if (data.activeBroadcastGrade !== undefined) {
+          if (data.isBroadcastLive) {
+            setBroadcastGrade(data.activeBroadcastGrade);
+            setIsBroadcastLive(true);
+          } else {
+            setBroadcastGrade(null);
+            setIsBroadcastLive(false);
+          }
+        }
         if (data.students && Array.isArray(data.students)) {
           setStudents(data.students);
           if (data.students.length > 0 && !selectedStudentIdRef.current) {
@@ -180,7 +448,11 @@ export function ClassroomChatWidget({ user }: ClassroomChatWidgetProps) {
           const mapKey = user.role === 'student' ? 'teacher' : (studentId || '');
           if (mapKey) {
             setDirectMessagesMap((prev) => ({ ...prev, [mapKey]: data.messages }));
-            setUnreadDirect(0);
+            if (activeTabRef.current === 'direct') {
+              setUnreadDirect(0);
+            } else if (activeTabRef.current === 'other_grades') {
+              setUnreadOtherGrades(0);
+            }
             if (studentId) {
               setStudentUnreadMap((prev) => ({ ...prev, [studentId]: 0 }));
             }
@@ -204,9 +476,13 @@ export function ClassroomChatWidget({ user }: ClassroomChatWidgetProps) {
         if (user.role === 'student' || selectedStudentId) {
           void fetchChannelMessages('direct', selectedStudentId);
         }
+      } else if (activeTab === 'other_grades') {
+        if (selectedOtherStudentId) {
+          void fetchChannelMessages('direct', selectedOtherStudentId);
+        }
       }
     }
-  }, [isOpen, isMinimized, activeTab, selectedStudentId, fetchChannelMessages, user.role]);
+  }, [isOpen, isMinimized, activeTab, selectedStudentId, selectedOtherStudentId, fetchChannelMessages, user.role]);
 
   // Auto-scroll on new messages
   useEffect(() => {
@@ -221,6 +497,20 @@ export function ClassroomChatWidget({ user }: ClassroomChatWidgetProps) {
     socketRef.current = socket;
 
     socket.on('chat:message', (newMsg: ChatMessageItem) => {
+      // Trigger pop-up toast with student name and message preview for teacher ONLY if student belongs to active broadcast grade
+      if (user.role !== 'student' && newMsg.senderRole === 'student') {
+        const fromBroadcast = isFromBroadcastClass(newMsg.studentId);
+        if (fromBroadcast) {
+          triggerToast({
+            id: newMsg.id,
+            senderName: newMsg.senderName,
+            content: newMsg.content,
+            channel: newMsg.channel,
+            studentId: newMsg.studentId,
+          });
+        }
+      }
+
       if (newMsg.channel === 'everyone') {
         setEveryoneMessages((prev) => {
           if (prev.some((m) => m.id === newMsg.id)) return prev;
@@ -255,19 +545,38 @@ export function ClassroomChatWidget({ user }: ClassroomChatWidgetProps) {
           return { ...prev, [key]: [...list, newMsg] };
         });
 
-        const isViewing =
-          isOpenRef.current &&
-          !isMinimizedRef.current &&
-          activeTabRef.current === 'direct' &&
-          (user.role === 'student' || selectedStudentIdRef.current === newMsg.studentId);
+        const fromBroadcast = isFromBroadcastClass(newMsg.studentId);
+        if (user.role !== 'student' && !fromBroadcast) {
+          const isViewingOther =
+            isOpenRef.current &&
+            !isMinimizedRef.current &&
+            activeTabRef.current === 'other_grades' &&
+            selectedOtherStudentIdRef.current === newMsg.studentId;
 
-        if (!isViewing) {
-          setUnreadDirect((c) => c + 1);
-          if (newMsg.studentId) {
-            setStudentUnreadMap((prev) => ({
-              ...prev,
-              [newMsg.studentId!]: (prev[newMsg.studentId!] || 0) + 1,
-            }));
+          if (!isViewingOther) {
+            setUnreadOtherGrades((c) => c + 1);
+            if (newMsg.studentId) {
+              setStudentUnreadMap((prev) => ({
+                ...prev,
+                [newMsg.studentId!]: (prev[newMsg.studentId!] || 0) + 1,
+              }));
+            }
+          }
+        } else {
+          const isViewing =
+            isOpenRef.current &&
+            !isMinimizedRef.current &&
+            activeTabRef.current === 'direct' &&
+            (user.role === 'student' || selectedStudentIdRef.current === newMsg.studentId);
+
+          if (!isViewing) {
+            setUnreadDirect((c) => c + 1);
+            if (newMsg.studentId) {
+              setStudentUnreadMap((prev) => ({
+                ...prev,
+                [newMsg.studentId!]: (prev[newMsg.studentId!] || 0) + 1,
+              }));
+            }
           }
         }
       }
@@ -278,8 +587,56 @@ export function ClassroomChatWidget({ user }: ClassroomChatWidgetProps) {
       setDirectMessagesMap({});
       setUnreadEveryone(0);
       setUnreadDirect(0);
+      setUnreadOtherGrades(0);
       setStudentUnreadMap({});
       loadedTabsRef.current.clear();
+    });
+
+    socket.on('chat:cleared_student', ({ studentId }: { studentId?: string }) => {
+      if (user.role === 'student') {
+        if (!studentId || studentId === user.id) {
+          setEveryoneMessages([]);
+          setDirectMessagesMap({});
+          setUnreadEveryone(0);
+          setUnreadDirect(0);
+          setUnreadOtherGrades(0);
+          setStudentUnreadMap({});
+          loadedTabsRef.current.clear();
+        }
+      } else if (studentId) {
+        setDirectMessagesMap((prev) => {
+          const next = { ...prev };
+          delete next[studentId];
+          return next;
+        });
+        setStudentUnreadMap((prev) => {
+          const next = { ...prev };
+          delete next[studentId];
+          return next;
+        });
+        setToasts((prev) => prev.filter((t) => t.studentId !== studentId));
+        loadedTabsRef.current.delete(`direct:${studentId}`);
+      }
+    });
+
+    socket.on('chat:student_cleared', ({ studentId }: { studentId?: string }) => {
+      if (studentId) {
+        setEveryoneMessages((prev) => prev.filter((m) => m.senderId !== studentId));
+        if (user.role !== 'student') {
+          setDirectMessagesMap((prev) => {
+            const next = { ...prev };
+            delete next[studentId];
+            return next;
+          });
+          setStudentUnreadMap((prev) => {
+            const next = { ...prev };
+            delete next[studentId];
+            return next;
+          });
+          setToasts((prev) => prev.filter((t) => t.studentId !== studentId));
+          loadedTabsRef.current.delete(`direct:${studentId}`);
+        }
+      }
     });
 
     socket.on('chat:message_deleted', ({ messageId, channel, studentId }: { messageId: string; channel: string; studentId?: string | null }) => {
@@ -304,14 +661,68 @@ export function ClassroomChatWidget({ user }: ClassroomChatWidgetProps) {
       }
     });
 
-    socket.on('chat:direct_notification', ({ studentId }: { studentId: string }) => {
+    socket.on('chat:direct_notification', ({ studentId, message }: { studentId: string; message?: ChatMessageItem }) => {
       if (user.role !== 'student') {
-        if (!isOpenRef.current || isMinimizedRef.current || activeTabRef.current !== 'direct' || selectedStudentIdRef.current !== studentId) {
-          setUnreadDirect((c) => c + 1);
-          setStudentUnreadMap((prev) => ({
-            ...prev,
-            [studentId]: (prev[studentId] || 0) + 1,
-          }));
+        if (message && message.id) {
+          setDirectMessagesMap((prev) => {
+            const list = prev[studentId] || [];
+            if (list.some((m) => m.id === message.id)) return prev;
+            return { ...prev, [studentId]: [...list, message] };
+          });
+        }
+
+        const fromBroadcast = isFromBroadcastClass(studentId);
+        // Only trigger pop-up toast if the student belongs to active broadcast grade
+        if (fromBroadcast) {
+          const senderName = message?.senderName || studentsRef.current.find((s) => s.id === studentId)?.name || 'Student';
+          const content = message?.content || 'Sent you a private message';
+          triggerToast({
+            id: message?.id || `notif_${studentId}_${Date.now()}`,
+            senderName,
+            content,
+            channel: 'direct',
+            studentId,
+          });
+        }
+
+        if (!fromBroadcast) {
+          const isViewingOther =
+            isOpenRef.current &&
+            !isMinimizedRef.current &&
+            activeTabRef.current === 'other_grades' &&
+            selectedOtherStudentIdRef.current === studentId;
+
+          if (!isViewingOther) {
+            setUnreadOtherGrades((c) => c + 1);
+            setStudentUnreadMap((prev) => ({
+              ...prev,
+              [studentId]: (prev[studentId] || 0) + 1,
+            }));
+          }
+        } else {
+          if (!isOpenRef.current || isMinimizedRef.current || activeTabRef.current !== 'direct' || selectedStudentIdRef.current !== studentId) {
+            setUnreadDirect((c) => c + 1);
+            setStudentUnreadMap((prev) => ({
+              ...prev,
+              [studentId]: (prev[studentId] || 0) + 1,
+            }));
+          }
+        }
+      }
+    });
+
+    socket.on('whiteboard:status_update', (data: { grade?: string; teacherId?: string; isLive?: boolean }) => {
+      if (data) {
+        if (user.role === 'student' && user.teacherId && data.teacherId && data.teacherId !== user.teacherId) {
+          return;
+        }
+        if (typeof data.isLive === 'boolean') {
+          setIsBroadcastLive(data.isLive);
+          if (data.isLive && data.grade) {
+            setBroadcastGrade(data.grade);
+          } else if (!data.isLive) {
+            setBroadcastGrade(null);
+          }
         }
       }
     });
@@ -319,14 +730,18 @@ export function ClassroomChatWidget({ user }: ClassroomChatWidgetProps) {
     return () => {
       socket.disconnect();
     };
-  }, [user.role]);
+  }, [user.role, user.teacherId, isFromBroadcastClass]);
 
   // Join direct room for teacher when student is selected
   useEffect(() => {
-    if (user.role !== 'student' && selectedStudentId && socketRef.current) {
-      socketRef.current.emit('chat:join_direct', selectedStudentId);
+    if (user.role !== 'student' && socketRef.current) {
+      if (activeTab === 'other_grades' && selectedOtherStudentId) {
+        socketRef.current.emit('chat:join_direct', selectedOtherStudentId);
+      } else if (selectedStudentId) {
+        socketRef.current.emit('chat:join_direct', selectedStudentId);
+      }
     }
-  }, [user.role, selectedStudentId]);
+  }, [user.role, selectedStudentId, selectedOtherStudentId, activeTab]);
 
   // 4. Send Message Handler with Instant Optimistic UI
   async function handleSendMessage(textToSend?: string) {
@@ -337,16 +752,25 @@ export function ClassroomChatWidget({ user }: ClassroomChatWidgetProps) {
       alert('Please select a student from the list to send a direct message.');
       return;
     }
+    if (activeTab === 'other_grades' && user.role !== 'student' && !selectedOtherStudentId) {
+      alert('Please select a student from other grades to send a direct message.');
+      return;
+    }
+
+    const isDirect = activeTab === 'direct' || activeTab === 'other_grades';
+    const targetStudentId = isDirect
+      ? (user.role === 'student' ? user.id || null : (activeTab === 'other_grades' ? selectedOtherStudentId : selectedStudentId))
+      : null;
 
     const tempId = `temp_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
     const optimisticMsg: ChatMessageItem = {
       id: tempId,
       teacherId: classroomTeacher?.id || user.teacherId || '',
-      studentId: activeTab === 'direct' ? (user.role === 'student' ? user.id || null : selectedStudentId) : null,
+      studentId: targetStudentId,
       senderId: user.id || 'me',
       senderName: user.name || (user.role === 'student' ? 'Kid' : 'Teacher'),
       senderRole: user.role === 'student' ? 'student' : 'teacher',
-      channel: activeTab,
+      channel: isDirect ? 'direct' : 'everyone',
       content: msg,
       createdAt: new Date().toISOString(),
     };
@@ -367,11 +791,11 @@ export function ClassroomChatWidget({ user }: ClassroomChatWidgetProps) {
 
     try {
       const payload: any = {
-        channel: activeTab,
+        channel: isDirect ? 'direct' : 'everyone',
         content: msg,
       };
-      if (activeTab === 'direct' && user.role !== 'student') {
-        payload.studentId = selectedStudentId;
+      if (isDirect && user.role !== 'student' && targetStudentId) {
+        payload.studentId = targetStudentId;
       }
 
       const res = await fetch('/api/chat/messages', {
@@ -447,6 +871,7 @@ export function ClassroomChatWidget({ user }: ClassroomChatWidgetProps) {
         setDirectMessagesMap({});
         setUnreadEveryone(0);
         setUnreadDirect(0);
+        setUnreadOtherGrades(0);
         setStudentUnreadMap({});
         loadedTabsRef.current.clear();
       }
@@ -486,7 +911,9 @@ export function ClassroomChatWidget({ user }: ClassroomChatWidgetProps) {
         const data = await res.json().catch(() => ({}));
         alert(data.error || 'Failed to delete message.');
         // Re-fetch to sync state if deletion failed
-        void fetchChannelMessages(activeTab, selectedStudentId);
+        const channelToFetch = activeTab === 'everyone' ? 'everyone' : 'direct';
+        const studentToFetch = activeTab === 'other_grades' ? selectedOtherStudentId : selectedStudentId;
+        void fetchChannelMessages(channelToFetch, studentToFetch);
       }
     } catch (err) {
       console.error('Error deleting message:', err);
@@ -540,7 +967,7 @@ export function ClassroomChatWidget({ user }: ClassroomChatWidgetProps) {
     localStorage.setItem('classroom_chat_height', String(nextH));
   }
 
-  const totalUnread = unreadEveryone + unreadDirect;
+  const totalUnread = unreadEveryone + unreadDirect + unreadOtherGrades;
   const teacherDisplayName = classroomTeacher?.name || user.teacherName || 'Teacher';
 
   // Broadcast unread count to topbar button
@@ -643,31 +1070,52 @@ export function ClassroomChatWidget({ user }: ClassroomChatWidgetProps) {
 
           {!isMinimized && (
             <>
-              {/* Channel Tabs: Everyone vs One to One */}
+              {/* Channel Tabs: Everyone vs One to One vs Messages */}
               <div className="chat-tabs-bar">
-                <button
-                  type="button"
-                  className={`chat-tab-btn ${activeTab === 'everyone' ? 'chat-tab-btn--active' : ''}`}
-                  onClick={() => setActiveTab('everyone')}
-                >
-                  <Users size={15} />
-                  <span>Everyone</span>
-                  {unreadEveryone > 0 && (
-                    <span className="chat-tab-badge">{unreadEveryone}</span>
-                  )}
-                </button>
+                {!isStudentFromOtherGrade && (
+                  <button
+                    type="button"
+                    className={`chat-tab-btn ${activeTab === 'everyone' ? 'chat-tab-btn--active' : ''}`}
+                    onClick={() => setActiveTab('everyone')}
+                  >
+                    <Users size={14} />
+                    <span>Everyone</span>
+                    {unreadEveryone > 0 && (
+                      <span className="chat-tab-badge">{unreadEveryone}</span>
+                    )}
+                  </button>
+                )}
 
                 <button
                   type="button"
                   className={`chat-tab-btn ${activeTab === 'direct' ? 'chat-tab-btn--active' : ''}`}
                   onClick={() => setActiveTab('direct')}
                 >
-                  <MessageCircle size={15} />
-                  <span>One to One</span>
+                  <MessageCircle size={14} />
+                  <span>
+                    {user.role !== 'student' && isBroadcastGradeFiltered
+                      ? broadcastGrade
+                      : 'One to One'}
+                  </span>
                   {unreadDirect > 0 && (
                     <span className="chat-tab-badge">{unreadDirect}</span>
                   )}
                 </button>
+
+                {user.role !== 'student' && isBroadcastGradeFiltered && (
+                  <button
+                    type="button"
+                    className={`chat-tab-btn ${activeTab === 'other_grades' ? 'chat-tab-btn--active' : ''}`}
+                    onClick={() => setActiveTab('other_grades')}
+                    title="Direct messages from other students"
+                  >
+                    <MessageSquare size={14} />
+                    <span>Messages</span>
+                    {unreadOtherGrades > 0 && (
+                      <span className="chat-tab-badge">{unreadOtherGrades}</span>
+                    )}
+                  </button>
+                )}
               </div>
 
               {/* Sub-Header for One to One Tab */}
@@ -686,8 +1134,12 @@ export function ClassroomChatWidget({ user }: ClassroomChatWidgetProps) {
                         <label htmlFor="chatStudentSelect" className="chat-selector-label">
                           Student:
                         </label>
-                        {students.length === 0 ? (
-                          <span className="chat-no-students-label">No students enrolled yet</span>
+                        {filteredStudents.length === 0 ? (
+                          <span className="chat-no-students-label">
+                            {isBroadcastGradeFiltered
+                              ? `No students in ${broadcastGrade}`
+                              : 'No students enrolled yet'}
+                          </span>
                         ) : (
                           <div className="chat-student-select-wrap">
                             <select
@@ -696,7 +1148,7 @@ export function ClassroomChatWidget({ user }: ClassroomChatWidgetProps) {
                               value={selectedStudentId || ''}
                               onChange={(e) => setSelectedStudentId(e.target.value)}
                             >
-                              {students.map((st) => {
+                              {filteredStudents.map((st) => {
                                 const unread = studentUnreadMap[st.id] || 0;
                                 const unreadLabel = unread > 0 ? ` [${unread} new]` : '';
                                 const gradeLabel = formatGradeBracket(st.grade);
@@ -710,6 +1162,14 @@ export function ClassroomChatWidget({ user }: ClassroomChatWidgetProps) {
                             <ChevronDown size={13} className="chat-select-chevron" />
                           </div>
                         )}
+                        {isBroadcastGradeFiltered && (
+                          <span
+                            className="chat-broadcast-grade-badge"
+                            title={`Showing students of Broadcast Class selected in Whiteboard: ${broadcastGrade}`}
+                          >
+                            {isBroadcastLive ? `📡 Live (${broadcastGrade})` : `🎓 ${broadcastGrade}`}
+                          </span>
+                        )}
                         {selectedStudentId && (studentUnreadMap[selectedStudentId] || 0) > 0 ? (
                           <span className="chat-selected-unread-badge" title="Unread messages from this student">
                             {studentUnreadMap[selectedStudentId]} new
@@ -718,6 +1178,54 @@ export function ClassroomChatWidget({ user }: ClassroomChatWidgetProps) {
                       </div>
                     </div>
                   )}
+                </div>
+              )}
+
+              {/* Sub-Header for Other Grades Tab */}
+              {activeTab === 'other_grades' && (
+                <div className="chat-sub-channel-bar chat-sub-channel-bar--other">
+                  <div className="chat-direct-teacher-selector">
+                    <div className="chat-selector-row">
+                      <label htmlFor="chatOtherStudentSelect" className="chat-selector-label">
+                        Student:
+                      </label>
+                      {otherStudents.length === 0 ? (
+                        <span className="chat-no-students-label">No students from other grades</span>
+                      ) : (
+                        <div className="chat-student-select-wrap">
+                          <select
+                            id="chatOtherStudentSelect"
+                            className="chat-student-dropdown"
+                            value={selectedOtherStudentId || ''}
+                            onChange={(e) => setSelectedOtherStudentId(e.target.value)}
+                          >
+                            {otherStudents.map((st) => {
+                              const unread = studentUnreadMap[st.id] || 0;
+                              const unreadLabel = unread > 0 ? ` [${unread} new]` : '';
+                              const gradeLabel = formatGradeBracket(st.grade);
+                              return (
+                                <option key={st.id} value={st.id}>
+                                  {st.name}{gradeLabel}{unreadLabel}
+                                </option>
+                              );
+                            })}
+                          </select>
+                          <ChevronDown size={13} className="chat-select-chevron" />
+                        </div>
+                      )}
+                      <span
+                        className="chat-other-grade-tag"
+                        title="Messages from other classes stay quietly here without interrupting your live session"
+                      >
+                        Messages
+                      </span>
+                      {selectedOtherStudentId && (studentUnreadMap[selectedOtherStudentId] || 0) > 0 ? (
+                        <span className="chat-selected-unread-badge" title="Unread messages from this student">
+                          {studentUnreadMap[selectedOtherStudentId]} new
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
                 </div>
               )}
 
@@ -736,6 +1244,8 @@ export function ClassroomChatWidget({ user }: ClassroomChatWidgetProps) {
                     <h4>
                       {activeTab === 'everyone'
                         ? 'Welcome to the Chatroom!'
+                        : activeTab === 'other_grades'
+                        ? 'Messages'
                         : user.role === 'student'
                         ? `Direct Chat with ${teacherDisplayName}`
                         : 'Direct Student Chat'}
@@ -743,6 +1253,8 @@ export function ClassroomChatWidget({ user }: ClassroomChatWidgetProps) {
                     <p>
                       {activeTab === 'everyone'
                         ? 'Kids and teacher can ask questions, share answers, and collaborate here.'
+                        : activeTab === 'other_grades'
+                        ? 'Private messages sent by students outside the current broadcast class stay quietly here.'
                         : user.role === 'student'
                         ? 'Ask your teacher any question privately. Only you and your teacher can view this.'
                         : 'Have a private 1-on-1 discussion or offer individual math guidance.'}
@@ -750,15 +1262,15 @@ export function ClassroomChatWidget({ user }: ClassroomChatWidgetProps) {
                     <div className="chat-starter-pills">
                       <button
                         type="button"
-                        onClick={() => handleSendMessage('Hello everyone! 👋')}
+                        onClick={() => handleSendMessage('Hello! 👋')}
                       >
-                        Hello everyone! 👋
+                        Hello! 👋
                       </button>
                       <button
                         type="button"
-                        onClick={() => handleSendMessage('I have a question about maths ❓')}
+                        onClick={() => handleSendMessage('How can I help you today?')}
                       >
-                        I have a question ❓
+                        How can I help you?
                       </button>
                     </div>
                   </div>
@@ -879,6 +1391,8 @@ export function ClassroomChatWidget({ user }: ClassroomChatWidgetProps) {
                       ? 'Message everyone in class...'
                       : user.role === 'student'
                       ? `Message ${teacherDisplayName}...`
+                      : activeTab === 'other_grades'
+                      ? 'Type a message...'
                       : 'Type a private reply...'
                   }
                   value={inputText}
@@ -900,6 +1414,50 @@ export function ClassroomChatWidget({ user }: ClassroomChatWidgetProps) {
               </div>
             </>
           )}
+        </div>
+      )}
+
+      {/* Floating Incoming Student Message Notification Pop-up Toasts */}
+      {toasts.length > 0 && (
+        <div className="chat-toast-container">
+          {toasts.map((toast) => {
+            const initials =
+              toast.senderName
+                .split(' ')
+                .map((n) => n[0])
+                .slice(0, 2)
+                .join('')
+                .toUpperCase() || 'ST';
+            return (
+              <div
+                key={toast.id}
+                className="chat-toast-card"
+                onClick={() => handleToastClick(toast)}
+                title="Click to view message and open chat"
+              >
+                <div className="chat-toast-avatar">{initials}</div>
+                <div className="chat-toast-body">
+                  <div className="chat-toast-header">
+                    <span className="chat-toast-sender">{toast.senderName}</span>
+                    <span className="chat-toast-tag">
+                      {toast.channel === 'direct' ? 'One-to-One' : 'Classroom'}
+                    </span>
+                  </div>
+                  <div className="chat-toast-msg">{toast.content}</div>
+                  <div className="chat-toast-action-hint">Click to open chat 💬</div>
+                </div>
+                <button
+                  type="button"
+                  className="chat-toast-close"
+                  onClick={(e) => dismissToast(toast.id, e)}
+                  title="Dismiss notification"
+                  aria-label="Dismiss"
+                >
+                  <X size={15} />
+                </button>
+              </div>
+            );
+          })}
         </div>
       )}
     </>

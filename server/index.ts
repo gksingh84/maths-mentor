@@ -96,6 +96,50 @@ async function clearTeacherChatMessages(teacherId: string) {
   }
 }
 
+const activeStudentSockets = new Map<string, Set<string>>();
+const studentDisconnectTimers = new Map<string, NodeJS.Timeout>();
+
+async function clearStudentChatMessages(studentId: string) {
+  try {
+    const student = await db.student.findUnique({
+      where: { id: studentId },
+      select: { id: true, teacherId: true },
+    });
+    const teacherId = student?.teacherId;
+
+    // 1. Delete all chat messages involving this student:
+    // Both 1-to-1 direct messages (where studentId === student.id)
+    // AND any messages sent by this student (senderId === student.id)
+    const res = await (prisma as any).chatMessage.deleteMany({
+      where: {
+        OR: [
+          { studentId },
+          { senderId: studentId },
+        ],
+      },
+    });
+    console.log(`🧹 Deleted ${res.count} chat messages on student ${studentId} logout.`);
+
+    // 2. Clear in-memory cache
+    if (teacherId) {
+      chatMemoryCache.delete(`${teacherId}:direct:${studentId}`);
+
+      // Also clean up any message sent by this student from everyone cache
+      const everyoneKey = `${teacherId}:everyone`;
+      const cachedEveryone = chatMemoryCache.get(everyoneKey);
+      if (cachedEveryone && Array.isArray(cachedEveryone)) {
+        chatMemoryCache.set(everyoneKey, cachedEveryone.filter((m: any) => m.senderId !== studentId));
+      }
+
+      // 3. Emit real-time socket events so teacher and student chat boxes update immediately
+      io.to(`chat:${teacherId}:direct:${studentId}`).emit('chat:cleared_student', { studentId });
+      io.to(`chat:${teacherId}:teacher`).emit('chat:cleared_student', { studentId });
+      io.to(`chat:${teacherId}:everyone`).emit('chat:student_cleared', { studentId });
+    }
+  } catch (err) {
+    console.error(`Error clearing chat messages for student ${studentId}:`, err);
+  }
+}
 
 const teacherActiveCache = new Map<string, { time: number; active: boolean }>();
 const studentActiveCache = new Map<string, { time: number; active: boolean }>();
@@ -1334,6 +1378,8 @@ app.all('/api/auth/logout', async (req: Request, res: Response) => {
           if (tByEmail) teacherId = tByEmail.id;
         }
         await clearTeacherChatMessages(teacherId);
+      } else if (payload && payload.role === 'student') {
+        await clearStudentChatMessages(payload.id);
       }
     }
   } catch {
@@ -3719,7 +3765,20 @@ function broadcastSentimentUpdate(sessionObj: LiveWhiteboardSession) {
 function findActiveWhiteboardSession(options: { grade?: string | null; teacherId?: string | null }): LiveWhiteboardSession | undefined {
   const { grade, teacherId } = options;
 
-  // 1. If teacherId provided, check if that teacher has an active live session
+  // 1. If a specific student grade is provided, the session MUST match that grade (or be broadcast to 'ALL')
+  if (grade && grade !== 'ALL' && grade.toLowerCase() !== 'all grades') {
+    for (const sess of activeWhiteboardSessions.values()) {
+      if (!sess.isLive) continue;
+      const teacherMatches = !teacherId || sess.teacherId === teacherId;
+      const gradeMatches = sess.grade === 'ALL' || sess.grade.toLowerCase() === 'all grades' || gradesMatch(sess.grade, grade);
+      if (teacherMatches && gradeMatches) {
+        return sess;
+      }
+    }
+    return undefined;
+  }
+
+  // 2. If no grade restriction is requested (or 'ALL'), match by teacherId
   if (teacherId) {
     for (const sess of activeWhiteboardSessions.values()) {
       if (sess.teacherId === teacherId && sess.isLive) {
@@ -3728,31 +3787,9 @@ function findActiveWhiteboardSession(options: { grade?: string | null; teacherId
     }
   }
 
-  // 2. Exact grade match
-  if (grade) {
-    const trimmed = grade.trim();
-    const exact = activeWhiteboardSessions.get(trimmed);
-    if (exact && exact.isLive) return exact;
-  }
-
-  // 3. Global broadcast for 'ALL'
+  // 3. Fallback to global broadcast for 'ALL'
   const allSess = activeWhiteboardSessions.get('ALL');
   if (allSess && allSess.isLive) return allSess;
-
-  // 4. Flexible grade matching (Grade 10 vs 10 vs Class 10)
-  if (grade) {
-    for (const sess of activeWhiteboardSessions.values()) {
-      if (sess.isLive && (sess.grade === 'ALL' || gradesMatch(sess.grade, grade))) {
-        return sess;
-      }
-    }
-  }
-
-  // 5. If only 1 live session is broadcasting across the platform, connect student to it
-  const liveSessions = Array.from(activeWhiteboardSessions.values()).filter((s) => s.isLive);
-  if (liveSessions.length === 1) {
-    return liveSessions[0];
-  }
 
   return undefined;
 }
@@ -3767,6 +3804,39 @@ io.on('connection', (socket) => {
           socket.join(`chat:${st.teacherId}:everyone`);
           socket.join(`chat:${st.teacherId}:direct:${session.id}`);
         }
+
+        // If student had a pending disconnect timer (e.g. refreshed the page), cancel it
+        if (studentDisconnectTimers.has(session.id)) {
+          clearTimeout(studentDisconnectTimers.get(session.id)!);
+          studentDisconnectTimers.delete(session.id);
+          console.log(`Student ${session.id} reconnected; cancelled chat auto-clear timer.`);
+        }
+
+        let sockSet = activeStudentSockets.get(session.id);
+        if (!sockSet) {
+          sockSet = new Set();
+          activeStudentSockets.set(session.id, sockSet);
+        }
+        sockSet.add(socket.id);
+
+        socket.on('disconnect', () => {
+          const set = activeStudentSockets.get(session.id);
+          if (set) {
+            set.delete(socket.id);
+            if (set.size === 0) {
+              activeStudentSockets.delete(session.id);
+              // Wait 10 seconds before clearing chat to avoid wiping on page reload (F5)
+              const timer = setTimeout(async () => {
+                studentDisconnectTimers.delete(session.id);
+                if (!activeStudentSockets.has(session.id)) {
+                  console.log(`Student ${session.id} closed browser / disconnected. Auto-deleting student chats.`);
+                  await clearStudentChatMessages(session.id);
+                }
+              }, 10000);
+              studentDisconnectTimers.set(session.id, timer);
+            }
+          }
+        });
       })
       .catch(() => { });
   } else if (session.role === 'teacher' || session.role === 'admin' || session.role === 'superadmin') {
@@ -4769,10 +4839,22 @@ app.get('/api/chat/peers', authenticate(), async (req: AuthRequest, res: Respons
       if (!student || !student.teacherId) {
         return res.json({ teacher: null, classroomName: 'Chatroom', students: [] });
       }
+      let activeBroadcastGrade: string | null = null;
+      let isBroadcastLive = false;
+      for (const sess of activeWhiteboardSessions.values()) {
+        if (sess.teacherId === student.teacherId && sess.isLive) {
+          activeBroadcastGrade = sess.grade;
+          isBroadcastLive = true;
+          break;
+        }
+      }
       return res.json({
         teacher: student.teacher,
         classroomName: 'Chatroom',
         students: [],
+        studentGrade: student.grade,
+        activeBroadcastGrade,
+        isBroadcastLive,
       });
     }
 
@@ -4790,10 +4872,22 @@ app.get('/api/chat/peers', authenticate(), async (req: AuthRequest, res: Respons
       select: { id: true, name: true, school: true, subject: true },
     });
 
+    let activeBroadcastGrade: string | null = null;
+    let isBroadcastLive = false;
+    for (const sess of activeWhiteboardSessions.values()) {
+      if (sess.teacherId === teacherId && sess.isLive) {
+        activeBroadcastGrade = sess.grade;
+        isBroadcastLive = true;
+        break;
+      }
+    }
+
     return res.json({
       teacher,
       students,
       classroomName: 'Chatroom',
+      activeBroadcastGrade,
+      isBroadcastLive,
     });
   } catch (error) {
     errorResponse(res, error);
@@ -4889,12 +4983,30 @@ app.post('/api/chat/messages', authenticate(), async (req: AuthRequest, res: Res
     if (role === 'student') {
       const student = await prisma.student.findUnique({
         where: { id: req.session!.id },
-        select: { id: true, name: true, teacherId: true, active: true },
+        select: { id: true, name: true, grade: true, teacherId: true, active: true },
       });
       if (!student || !student.active || !student.teacherId) {
         return res.status(403).json({ error: 'You must be linked to an active teacher to send messages.' });
       }
       teacherId = student.teacherId;
+
+      // Guard: If teacher is currently broadcasting to a particular class and student is from another grade,
+      // prevent posting to 'everyone' channel (they must use One-to-One)
+      if (data.channel === 'everyone') {
+        let activeBroadcastGrade: string | null = null;
+        for (const sess of activeWhiteboardSessions.values()) {
+          if (sess.teacherId === teacherId && sess.isLive) {
+            activeBroadcastGrade = sess.grade;
+            break;
+          }
+        }
+        if (activeBroadcastGrade && activeBroadcastGrade !== 'ALL' && activeBroadcastGrade.toLowerCase() !== 'all grades') {
+          if (student.grade && !gradesMatch(activeBroadcastGrade, student.grade)) {
+            return res.status(403).json({ error: 'Everyone chat is reserved for students in the active broadcast class. Please use One-to-One chat.' });
+          }
+        }
+      }
+
       studentId = data.channel === 'direct' ? student.id : null;
       senderName = student.name;
     } else {
