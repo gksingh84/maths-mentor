@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { io, type Socket } from 'socket.io-client';
-import { AppWindow, Archive, ArrowLeft, ArrowRight, Award, BarChart3, Bell, BookOpen, BookOpenCheck, Calculator, Calendar, CalendarCheck, Camera, Check, CheckCircle2, CheckCheck, CheckSquare, ChevronDown, ChevronUp, CircleHelp, Clock3, Copy, CreditCard, Download, ExternalLink, Eye, FileSpreadsheet, FileText, Filter, Hand, KeyRound, ListChecks, Lock, LogOut, Mail, Maximize2, MessageCircle, Minimize2, Paperclip, Pause, Pencil, PenTool, Phone, Play, Plus, Printer, Radio, RefreshCw, RotateCcw, Save, Search, Send, Settings, ShieldCheck, SlidersHorizontal, Sparkles, Square, Table, Trash2, TrendingUp, Type, UploadCloud, UserCheck, Users, UserX, Volume2, VolumeX, X } from 'lucide-react';
+import { AppWindow, Archive, ArrowLeft, ArrowRight, Award, BarChart3, Bell, BookOpen, BookOpenCheck, Calculator, Calendar, CalendarCheck, Camera, Check, CheckCircle2, CheckCheck, CheckSquare, ChevronDown, ChevronUp, CircleHelp, Clock3, Copy, CreditCard, Download, ExternalLink, Eye, FileSpreadsheet, FileText, Filter, Hand, KeyRound, ListChecks, Lock, LogOut, Mail, Maximize2, MessageCircle, Minimize2, PanelLeftClose, PanelLeftOpen, Paperclip, Pause, Pencil, PenTool, Phone, Play, Plus, Printer, Radio, RefreshCw, RotateCcw, Save, Search, Send, Settings, ShieldCheck, SlidersHorizontal, Sparkles, Square, Table, Trash2, TrendingUp, Type, UploadCloud, UserCheck, Users, UserX, Volume2, VolumeX, X } from 'lucide-react';
 import { PublicPortal } from './components/PublicPortal';
 import { AuthModal, type AuthMode } from './components/AuthModal';
 import { SuperAdminConsole } from './components/SuperAdminConsole';
@@ -823,6 +823,42 @@ function TeacherApp({
     }
   }, [tab]);
 
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('teacher_sidebar_collapsed') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const toggleSidebar = useCallback(() => {
+    setIsSidebarCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('teacher_sidebar_collapsed', String(next));
+      } catch {}
+      return next;
+    });
+  }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b') {
+        e.preventDefault();
+        toggleSidebar();
+      } else if (e.key === '[' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        toggleSidebar();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [toggleSidebar]);
+
   const archivedQuizzes = quizzes.filter((q) => q.status === 'CLOSED');
   const activeQuizzes = quizzes.filter((q) => q.status !== 'CLOSED');
   const archivedWorksheets = worksheets.filter((w) => w.status === 'ARCHIVED');
@@ -915,10 +951,25 @@ function TeacherApp({
     }
   }
 
-  return <div className="app-shell">
-    <aside className="sidebar">
-      <div className="sidebar-brand"><span className="brand-mark"><img src="/logo.png" alt="EduAshram" className="brand-logo" /></span><span>EduAshram</span><span className="brand-dot" /></div>
-      <div className="sidebar-label">TEACHER SPACE</div>
+  return <div className={`app-shell ${isSidebarCollapsed ? 'app-shell--sidebar-collapsed' : ''}`}>
+    <aside className={`sidebar ${isSidebarCollapsed ? 'sidebar--collapsed' : ''}`} aria-hidden={isSidebarCollapsed}>
+      <div className="sidebar-brand">
+        <span className="brand-mark"><img src="/logo.png" alt="EduAshram" className="brand-logo" /></span>
+        <span>EduAshram</span>
+        <span className="brand-dot" />
+      </div>
+      <div className="sidebar-label-row">
+        <span className="sidebar-label">TEACHER SPACE</span>
+        <button
+          type="button"
+          className="sidebar-collapse-btn"
+          onClick={toggleSidebar}
+          title="Hide navigation sidebar (Ctrl+B)"
+          aria-label="Hide navigation sidebar"
+        >
+          <PanelLeftClose size={15} />
+        </button>
+      </div>
       <nav className="side-nav" aria-label="Teacher navigation">
         <NavItem active={tab === 'overview'} icon={<BarChart3 size={17} />} label="Overview" onClick={() => setTab('overview')} />
         <NavItem active={tab === 'ai_assistant'} icon={<Sparkles size={17} />} label="AI Teaching Assistant" onClick={() => setTab('ai_assistant')} />
@@ -941,6 +992,18 @@ function TeacherApp({
       </nav>
       <div className="sidebar-bottom"><div className="teacher-profile"><div className="avatar avatar-green">{(user.email ?? 'T').slice(0, 1).toUpperCase()}</div><div className="profile-copy"><strong>{user.email?.split('@')[0]}</strong><span>Teacher account</span></div><button className="icon-button quiet" title="Sign out" aria-label="Sign out" onClick={onSignOut}><LogOut size={16} /></button></div><div className="sidebar-footnote">A little progress, every day.</div></div>
     </aside>
+    {isSidebarCollapsed && (
+      <button
+        type="button"
+        className="floating-sidebar-unhide-btn"
+        onClick={toggleSidebar}
+        title="Unhide navigation sidebar (Ctrl+B)"
+        aria-label="Unhide navigation sidebar"
+      >
+        <PanelLeftOpen size={16} />
+        <span>Menu</span>
+      </button>
+    )}
     <main className="workspace">
       <header className="topbar">
         <div className="breadcrumb">Your classroom <span>/</span> <strong>{tabLabel(tab)}</strong></div>
@@ -9230,6 +9293,42 @@ function StudentApp({
     localStorage.setItem('student_active_tab', newTab);
   };
 
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('student_sidebar_collapsed') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const toggleSidebar = useCallback(() => {
+    setIsSidebarCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('student_sidebar_collapsed', String(next));
+      } catch {}
+      return next;
+    });
+  }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b') {
+        e.preventDefault();
+        toggleSidebar();
+      } else if (e.key === '[' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        toggleSidebar();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [toggleSidebar]);
+
   const [liveWhiteboardInfo, setLiveWhiteboardInfo] = useState<{ isLive: boolean; grade?: string; teacherName?: string } | null>(null);
 
   useEffect(() => {
@@ -9848,14 +9947,25 @@ function StudentApp({
   }
 
   return (
-    <div className="app-shell">
-      <aside className="sidebar">
+    <div className={`app-shell ${isSidebarCollapsed ? 'app-shell--sidebar-collapsed' : ''}`}>
+      <aside className={`sidebar ${isSidebarCollapsed ? 'sidebar--collapsed' : ''}`} aria-hidden={isSidebarCollapsed}>
         <div className="sidebar-brand">
           <span className="brand-mark"><img src="/logo.png" alt="EduAshram" className="brand-logo" /></span>
           <span>EduAshram</span>
           <span className="brand-dot" />
         </div>
-        <div className="sidebar-label">STUDENT DASHBOARD</div>
+        <div className="sidebar-label-row">
+          <span className="sidebar-label">STUDENT DASHBOARD</span>
+          <button
+            type="button"
+            className="sidebar-collapse-btn"
+            onClick={toggleSidebar}
+            title="Hide navigation sidebar (Ctrl+B)"
+            aria-label="Hide navigation sidebar"
+          >
+            <PanelLeftClose size={15} />
+          </button>
+        </div>
         <nav className="side-nav" aria-label="Student navigation">
           <NavItem
             active={tab === 'open'}
@@ -9921,6 +10031,19 @@ function StudentApp({
           <div className="sidebar-footnote">Learn at your own rhythm.</div>
         </div>
       </aside>
+
+      {isSidebarCollapsed && (
+        <button
+          type="button"
+          className="floating-sidebar-unhide-btn"
+          onClick={toggleSidebar}
+          title="Unhide navigation sidebar (Ctrl+B)"
+          aria-label="Unhide navigation sidebar"
+        >
+          <PanelLeftOpen size={16} />
+          <span>Menu</span>
+        </button>
+      )}
 
       <main className="workspace">
         <header className="topbar">
