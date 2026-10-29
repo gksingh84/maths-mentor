@@ -48,6 +48,7 @@ app.use(helmet({
       mediaSrc: ["'self'", 'data:', 'blob:', 'https:', 'http:', '/uploads/'],
       frameSrc: ["'self'", 'https://www.youtube.com', 'https://youtube.com', 'https://www.youtube-nocookie.com', 'https://youtube-nocookie.com', 'https://player.vimeo.com', 'https://*.vimeo.com', 'https://vimeo.com'],
       connectSrc: ["'self'", 'https:', 'wss:', 'ws:'],
+      upgradeInsecureRequests: null,
     }
   },
 }));
@@ -67,7 +68,7 @@ const sessionCookie = 'livequiz_session';
 type Role = 'superadmin' | 'teacher' | 'admin' | 'student';
 type Session = { id: string; role: Role; username?: string; email?: string; name?: string };
 type AuthRequest = Request & { session?: Session };
-const cookieOptions = { httpOnly: true, sameSite: 'lax' as const, secure: process.env.NODE_ENV === 'production', path: '/' };
+const cookieOptions = { httpOnly: true, sameSite: 'lax' as const, secure: process.env.COOKIE_SECURE === 'true', path: '/' };
 const passkeyLookup = (passkey: string) => createHmac('sha256', 'livequiz-passkey-lookup-salt').update(passkey.toUpperCase()).digest('hex');
 const signSession = (session: Session) => jwt.sign(session, secret, { expiresIn: '12h' });
 const sendSession = (res: Response, session: Session) => res.cookie(sessionCookie, signSession(session), cookieOptions);
