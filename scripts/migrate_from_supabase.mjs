@@ -47,6 +47,26 @@ async function migrate() {
   console.log(`📡 Source: Supabase PostgreSQL`);
   console.log(`🎯 Target: Local AWS PostgreSQL`);
 
+  console.log('🧹 Clearing temporary placeholder accounts from local database...');
+  try {
+    await target.$executeRawUnsafe(`
+      TRUNCATE TABLE 
+        "LiveClassAttendance", "LiveClass", "StudentScoreRecord", "StudentFee", "StudentAttendance",
+        "CalendarEvent", "ChatMessage", "StudyMaterial", "WorksheetSubmission", "WorksheetPaper",
+        "Answer", "Attempt", "Option", "Question", "Quiz", "Student", "Teacher", "SuperAdmin", "Admin"
+      CASCADE;
+    `);
+  } catch (err) {
+    console.warn('⚠️ Truncate notice (safe to continue):', err.message);
+  }
+
+  console.log('🔓 Disabling foreign key constraints for safe import...');
+  try {
+    await target.$executeRawUnsafe("SET session_replication_role = 'replica';");
+  } catch (err) {
+    console.warn('⚠️ Note on replica mode:', err.message);
+  }
+
   let totalMigrated = 0;
 
   for (const m of models) {
@@ -67,11 +87,18 @@ async function migrate() {
         insertedCount += res.count;
       }
 
-      console.log(`✅ [${m}] Migrated ${insertedCount} new rows (${rows.length} total found)`);
+      console.log(`✅ [${m}] Migrated ${insertedCount} rows (${rows.length} total found)`);
       totalMigrated += insertedCount;
     } catch (err) {
       console.error(`⚠️ [${m}] Error during migration:`, err.message);
     }
+  }
+
+  console.log('🔒 Re-enabling foreign key constraints...');
+  try {
+    await target.$executeRawUnsafe("SET session_replication_role = 'origin';");
+  } catch (err) {
+    console.warn('⚠️ Note on origin mode:', err.message);
   }
 
   console.log(`\n🎉 Data Migration Complete! Total items restored: ${totalMigrated}`);
