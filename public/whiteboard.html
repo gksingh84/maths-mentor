@@ -33,6 +33,25 @@
       } catch (_) {}
     }
   </script>
+  <script>
+    window.MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']],
+        displayMath: [['$$', '$$'], ['\\[', '\\]']],
+        packages: { '[+]': ['ams', 'color'] }
+      },
+      svg: {
+        fontCache: 'none'
+      },
+      options: {
+        enableMenu: false
+      },
+      startup: {
+        typeset: false
+      }
+    };
+  </script>
+  <script src="vendor/mathjax-tex-svg.js"></script>
   <style>
     *,
     *::before,
@@ -434,16 +453,21 @@
    Main Layout & Tool Bar
    ========================================================================== */
 
+    :root {
+      --properties-panel-width: 290px;
+    }
+
     .main-layout {
       display: grid;
-      grid-template-columns: auto 1fr minmax(0, 215px);
+      grid-template-columns: auto 1fr var(--properties-panel-width, 290px);
       grid-template-rows: 1fr;
       flex: 1;
       min-height: 0;
+      transition: grid-template-columns 0.12s ease-out;
     }
 
     .main-layout.no-left {
-      grid-template-columns: 1fr minmax(0, 215px);
+      grid-template-columns: 1fr var(--properties-panel-width, 290px);
     }
 
     .main-layout.no-right {
@@ -567,7 +591,11 @@
     }
 
     [data-tool="math"]::before {
-      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23475569' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect width='18' height='18' x='3' y='3' rx='2'/%3E%3Cpath d='M8 12h8'/%3E%3Cpath d='M12 8v8'/%3E%3C/svg%3E");
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23475569' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 13h3l3 8 4-16h8'/%3E%3Cpath d='M15 11l4 5'/%3E%3Cpath d='M19 11l-4 5'/%3E%3C/svg%3E");
+    }
+
+    [data-tool="edu-tools"]::before {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23475569' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z'/%3E%3Cpath d='M12 9v4'/%3E%3Cpath d='M10 17h4'/%3E%3C/svg%3E");
     }
 
     [data-tool="charts"]::before {
@@ -784,16 +812,60 @@
    ========================================================================== */
 
     .properties-panel {
+      position: relative;
+      width: 100%;
+      min-width: 0;
+      box-sizing: border-box;
       display: flex;
       flex-direction: column;
       background-color: #ffffff;
       border-left: 1px solid #e2e8f0;
-      padding: 0.6rem 0.5rem;
+      padding: 0.6rem 0.65rem;
       color: #1e293b;
       overflow-y: auto;
       overflow-x: hidden;
       word-break: break-word;
       overflow-wrap: break-word;
+    }
+
+    .properties-panel-resizer {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 6px;
+      height: 100%;
+      cursor: col-resize;
+      z-index: 10;
+      transition: background 0.15s ease;
+    }
+
+    .properties-panel-resizer:hover,
+    .properties-panel-resizer.is-dragging {
+      background: rgba(2, 132, 199, 0.4);
+    }
+
+    .panel-width-btn {
+      padding: 2px 7px;
+      font-size: 0.68rem;
+      font-weight: 700;
+      border: none;
+      border-radius: 4px;
+      background: transparent;
+      color: #64748b;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .panel-width-btn:hover {
+      color: #0f172a;
+      background: rgba(0, 0, 0, 0.06);
+    }
+
+    .panel-width-btn.active {
+      background: #ffffff;
+      color: #0284c7;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+      font-weight: 800;
     }
 
     .properties-panel.is-hidden {
@@ -1564,6 +1636,613 @@
       background: #ecfdf5;
       border-color: #a7f3d0;
     }
+
+    /* ==========================================================================
+       Maths Equation Studio Modal
+       ========================================================================== */
+    .equation-modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.45);
+      backdrop-filter: blur(2px);
+      z-index: 1000000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 12px;
+    }
+    .equation-modal-card {
+      background: #ffffff;
+      border-radius: 12px;
+      box-shadow: 0 20px 45px rgba(0, 0, 0, 0.25);
+      width: 720px;
+      max-width: 96vw;
+      max-height: 92vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      border: 1px solid #cbd5e1;
+      font-family: inherit;
+      animation: eqPopIn 0.16s ease-out;
+    }
+    @keyframes eqPopIn {
+      from { transform: scale(0.96); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+    }
+    .equation-modal-header {
+      padding: 10px 16px;
+      background: #f8fafc;
+      border-bottom: 1px solid #e2e8f0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      user-select: none;
+      cursor: grab;
+    }
+    .equation-modal-header:active {
+      cursor: grabbing;
+    }
+    .equation-modal-close {
+      background: none;
+      border: none;
+      font-size: 1.25rem;
+      line-height: 1;
+      color: #64748b;
+      cursor: pointer;
+      padding: 3px 7px;
+      border-radius: 6px;
+    }
+    .equation-modal-close:hover {
+      background: #e2e8f0;
+      color: #0f172a;
+    }
+    .equation-tabs-bar {
+      display: flex;
+      gap: 4px;
+      padding: 8px 14px;
+      background: #f1f5f9;
+      border-bottom: 1px solid #e2e8f0;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    .equation-tabs-bar::-webkit-scrollbar {
+      display: none;
+    }
+    .equation-tab-btn {
+      appearance: none;
+      border: 1px solid #cbd5e1;
+      background: #ffffff;
+      color: #475569;
+      padding: 4px 11px;
+      border-radius: 9999px;
+      font-size: 0.76rem;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.12s ease;
+    }
+    .equation-tab-btn:hover {
+      background: #e2e8f0;
+      color: #0f172a;
+    }
+    .equation-tab-btn--active {
+      background: #0284c7 !important;
+      color: #ffffff !important;
+      border-color: #0284c7 !important;
+    }
+    .equation-palette-body {
+      padding: 10px 14px;
+      max-height: 140px;
+      overflow-y: auto;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      background: #fafafa;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    .equation-symbol-btn {
+      appearance: none;
+      border: 1px solid #cbd5e1;
+      background: #ffffff;
+      color: #1e293b;
+      padding: 4px 8px;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      font-family: inherit;
+      cursor: pointer;
+      min-width: 34px;
+      height: 32px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.1s ease;
+      user-select: none;
+    }
+    .equation-symbol-btn:hover {
+      background: #e0f2fe;
+      border-color: #7dd3fc;
+      color: #0369a1;
+      transform: translateY(-1px);
+    }
+    .equation-symbol-btn:active {
+      transform: translateY(0);
+    }
+    .equation-preview-wrap {
+      padding: 10px 14px 6px;
+    }
+    .equation-preview-label {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.74rem;
+      font-weight: 700;
+      color: #475569;
+      margin-bottom: 4px;
+    }
+    .equation-status-badge {
+      font-size: 0.68rem;
+      font-weight: 700;
+      padding: 1px 7px;
+      border-radius: 9999px;
+      background: #dcfce7;
+      color: #15803d;
+    }
+    .equation-status-badge--error {
+      background: #fef2f2;
+      color: #b91c1c;
+    }
+    .equation-preview-box {
+      min-height: 80px;
+      max-height: 150px;
+      overflow: auto;
+      background: #f8fafc;
+      border: 1px dashed #cbd5e1;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 12px;
+    }
+    .equation-rendered-output {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      user-select: none;
+    }
+    .equation-input-wrap {
+      padding: 6px 14px;
+    }
+    .equation-textarea {
+      width: 100%;
+      box-sizing: border-box;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-family: 'Consolas', 'Menlo', 'Courier New', monospace;
+      font-size: 0.88rem;
+      color: #0f172a;
+      resize: vertical;
+      min-height: 52px;
+      outline: none;
+      transition: border-color 0.15s ease;
+    }
+    .equation-textarea:focus {
+      border-color: #0284c7;
+      box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.15);
+    }
+    .equation-small-link {
+      background: none;
+      border: none;
+      color: #0284c7;
+      font-size: 0.72rem;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: underline;
+    }
+    .equation-controls-row {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      padding: 6px 14px 10px;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    .equation-control-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .equation-control-label {
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: #475569;
+    }
+    .equation-colors-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .equation-color-dot {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      border: 2px solid #cbd5e1;
+      cursor: pointer;
+      transition: transform 0.1s ease;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      box-sizing: border-box;
+    }
+    .equation-color-dot:hover {
+      transform: scale(1.15);
+    }
+    .equation-color-dot--active {
+      border-color: #0284c7 !important;
+      box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.35);
+    }
+    .equation-size-pill-row {
+      display: flex;
+      gap: 4px;
+    }
+    .equation-size-pill {
+      border: 1px solid #cbd5e1;
+      background: #ffffff;
+      color: #475569;
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .equation-size-pill--active {
+      background: #0284c7 !important;
+      color: #ffffff !important;
+      border-color: #0284c7 !important;
+    }
+    .equation-modal-footer {
+      padding: 10px 14px;
+      background: #f8fafc;
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+    .equation-btn {
+      padding: 7px 16px;
+      border-radius: 8px;
+      font-size: 0.82rem;
+      font-weight: 700;
+      cursor: pointer;
+      border: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.12s ease;
+    }
+    .equation-btn--secondary {
+      background: #e2e8f0;
+      color: #334155;
+    }
+    .equation-btn--secondary:hover {
+      background: #cbd5e1;
+    }
+    .equation-btn--primary {
+      background: #16a34a;
+      color: #ffffff;
+    }
+    .equation-btn--primary:hover {
+      background: #15803d;
+      box-shadow: 0 2px 8px rgba(22, 163, 74, 0.35);
+    }
+
+    /* ==========================================================================
+       Educational Tools: Interactive Ruler & Protractor Overlays
+       ========================================================================== */
+    .edu-instrument-overlay {
+      position: absolute;
+      z-index: 80;
+      user-select: none;
+      touch-action: none;
+      box-sizing: border-box;
+      filter: drop-shadow(0 14px 28px rgba(15, 23, 42, 0.18));
+      transition: opacity 0.15s ease;
+    }
+
+    /* --- Interactive Ruler --- */
+    .edu-ruler-overlay {
+      position: absolute;
+      z-index: 85;
+      height: 72px;
+      width: 540px;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.94) 0%, rgba(241, 245, 249, 0.88) 100%);
+      backdrop-filter: blur(6px);
+      border: 1.5px solid rgba(100, 116, 139, 0.55);
+      border-radius: 6px;
+      cursor: grab;
+      transform-origin: 50% 50%;
+      user-select: none;
+      touch-action: none;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .edu-ruler-overlay:active {
+      cursor: grabbing;
+    }
+    .edu-ruler-svg {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      overflow: visible;
+    }
+    .edu-ruler-center-bar {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(255, 255, 255, 0.96);
+      padding: 3px 8px;
+      border-radius: 9999px;
+      border: 1px solid #cbd5e1;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      z-index: 5;
+      cursor: grab;
+    }
+    .edu-ruler-center-bar:active {
+      cursor: grabbing;
+    }
+    .edu-ruler-grip {
+      color: #94a3b8;
+      font-size: 0.95rem;
+      line-height: 1;
+      cursor: grab;
+    }
+    .edu-instrument-badge {
+      font-size: 0.72rem;
+      font-weight: 700;
+      background: #0284c7;
+      color: #ffffff;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: monospace;
+      letter-spacing: -0.2px;
+      white-space: nowrap;
+    }
+    .edu-instrument-badge--length {
+      background: #334155;
+    }
+    .edu-ruler-btn {
+      appearance: none;
+      border: 1px solid #cbd5e1;
+      background: #ffffff;
+      color: #0f172a;
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 2px 6px;
+      border-radius: 4px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      transition: all 0.1s ease;
+    }
+    .edu-ruler-btn:hover {
+      background: #e0f2fe;
+      border-color: #7dd3fc;
+      color: #0369a1;
+    }
+    .edu-ruler-btn--primary {
+      background: #16a34a;
+      color: #ffffff;
+      border-color: #16a34a;
+    }
+    .edu-ruler-btn--primary:hover {
+      background: #15803d;
+      border-color: #15803d;
+      color: #ffffff;
+    }
+    .edu-ruler-close-btn {
+      background: none;
+      border: none;
+      color: #64748b;
+      cursor: pointer;
+      font-size: 0.85rem;
+      padding: 1px 4px;
+      border-radius: 4px;
+      line-height: 1;
+    }
+    .edu-ruler-close-btn:hover {
+      background: #fee2e2;
+      color: #dc2626;
+    }
+    .edu-ruler-rotate-handle {
+      position: absolute;
+      right: -32px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 28px;
+      height: 28px;
+      background: #0284c7;
+      color: #ffffff;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: grab;
+      box-shadow: 0 2px 8px rgba(2, 132, 199, 0.45);
+      border: 2px solid #ffffff;
+      font-size: 0.85rem;
+      z-index: 6;
+      transition: transform 0.1s ease;
+    }
+    .edu-ruler-rotate-handle:active {
+      cursor: grabbing;
+      transform: translateY(-50%) scale(1.1);
+    }
+    .edu-ruler-length-handle {
+      position: absolute;
+      right: -2px;
+      top: 0;
+      bottom: 0;
+      width: 10px;
+      cursor: ew-resize;
+      background: transparent;
+      z-index: 5;
+    }
+    .edu-ruler-length-handle::after {
+      content: "";
+      position: absolute;
+      right: 2px;
+      top: 20%;
+      bottom: 20%;
+      width: 3px;
+      background: #94a3b8;
+      border-radius: 9999px;
+    }
+
+    /* --- Interactive Protractor --- */
+    .edu-protractor-overlay {
+      position: absolute;
+      z-index: 85;
+      width: 460px;
+      height: 250px;
+      background: radial-gradient(circle at 50% 92%, rgba(255, 255, 255, 0.94) 0%, rgba(240, 249, 255, 0.86) 75%, rgba(224, 242, 254, 0.72) 100%);
+      backdrop-filter: blur(6px);
+      border: 2px solid rgba(2, 132, 199, 0.45);
+      border-radius: 230px 230px 10px 10px;
+      transform-origin: 50% 92%;
+      user-select: none;
+      touch-action: none;
+      box-sizing: border-box;
+      cursor: grab;
+    }
+    .edu-protractor-overlay:active {
+      cursor: grabbing;
+    }
+    .edu-protractor-overlay--full {
+      height: 460px;
+      border-radius: 50%;
+      transform-origin: 50% 50%;
+      background: radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.94) 0%, rgba(240, 249, 255, 0.86) 75%, rgba(224, 242, 254, 0.72) 100%);
+    }
+    .edu-protractor-svg {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      overflow: visible;
+    }
+    .edu-protractor-origin-handle {
+      position: absolute;
+      left: 50%;
+      bottom: 20px;
+      transform: translate(-50%, 50%);
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.9);
+      border: 2px solid #0284c7;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: grab;
+      color: #0284c7;
+      font-size: 0.95rem;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+      z-index: 10;
+    }
+    .edu-protractor-origin-handle:active {
+      cursor: grabbing;
+    }
+    .edu-protractor-needle-knob {
+      position: absolute;
+      width: 28px;
+      height: 28px;
+      background: #ea580c;
+      border: 2px solid #ffffff;
+      border-radius: 50%;
+      cursor: grab;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #ffffff;
+      box-shadow: 0 3px 10px rgba(234, 88, 12, 0.45);
+      z-index: 12;
+      transform: translate(-50%, -50%);
+      transition: transform 0.08s ease;
+    }
+    .edu-protractor-needle-knob:active {
+      cursor: grabbing;
+      transform: translate(-50%, -50%) scale(1.15);
+    }
+    .edu-protractor-controls-bar {
+      position: absolute;
+      top: -46px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      background: rgba(255, 255, 255, 0.98);
+      padding: 3px 8px;
+      border-radius: 9999px;
+      border: 1px solid #cbd5e1;
+      box-shadow: 0 4px 16px rgba(15, 23, 42, 0.16);
+      z-index: 25;
+      white-space: nowrap;
+    }
+    .edu-protractor-btn {
+      appearance: none;
+      border: 1px solid #cbd5e1;
+      background: #ffffff;
+      color: #0f172a;
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 2px 7px;
+      border-radius: 4px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      transition: all 0.1s ease;
+    }
+    .edu-protractor-btn:hover {
+      background: #e0f2fe;
+      border-color: #7dd3fc;
+      color: #0369a1;
+    }
+    .edu-protractor-btn--primary {
+      background: #16a34a;
+      color: #ffffff;
+      border-color: #16a34a;
+    }
+    .edu-protractor-btn--primary:hover {
+      background: #15803d;
+      border-color: #15803d;
+      color: #ffffff;
+    }
+    .edu-protractor-close-btn {
+      background: none;
+      border: none;
+      color: #64748b;
+      cursor: pointer;
+      font-size: 0.85rem;
+      padding: 1px 4px;
+      border-radius: 4px;
+      line-height: 1;
+    }
+    .edu-protractor-close-btn:hover {
+      background: #fee2e2;
+      color: #dc2626;
+    }
   </style>
 </head>
 
@@ -1707,7 +2386,8 @@
         <button class="tool-button" data-tool="shapes">Shapes</button>
         <button class="tool-button" data-tool="text">Text</button>
         <button class="tool-button" data-tool="notes">Sticky notes</button>
-        <button class="tool-button" data-tool="math">Symbols</button>
+        <button class="tool-button" data-tool="math" title="Maths Equation Editor">Equation</button>
+        <button class="tool-button" data-tool="edu-tools" title="Educational Tools (Ruler & Protractor)">Edu Tools</button>
         <button class="tool-button" data-tool="charts">Charts</button>
         <button class="tool-button" data-tool="stamps">Images</button>
         <button class="tool-button" data-tool="video">Video</button>
@@ -1729,6 +2409,41 @@
           <canvas id="boardCanvas"></canvas>
           <div id="textInputAnchor" class="text-input-anchor" aria-hidden="true"></div>
           <div id="videoWidgetsContainer" class="video-widgets-container"></div>
+
+          <!-- Educational Tools: Interactive Ruler Overlay -->
+          <div id="eduRulerOverlay" class="edu-ruler-overlay" style="display: none; left: 140px; top: 100px;">
+            <svg id="eduRulerSvg" class="edu-ruler-svg"></svg>
+            <div class="edu-ruler-center-bar" id="eduRulerDragHandle" title="Drag to move ruler">
+              <span class="edu-ruler-grip">⠿</span>
+              <span id="eduRulerAngleBadge" class="edu-instrument-badge">0.0°</span>
+              <span id="eduRulerLengthBadge" class="edu-instrument-badge edu-instrument-badge--length">15.0 cm</span>
+              <button type="button" class="edu-ruler-btn edu-ruler-btn--primary" id="eduRulerTraceBtn" title="Draw line along top edge">✏️ Trace Line</button>
+              <button type="button" class="edu-ruler-btn" id="eduRulerResetAngleBtn" title="Reset angle to 0°">🔄 0°</button>
+              <button type="button" class="edu-ruler-close-btn" id="eduRulerCloseBtn" title="Close Ruler">✕</button>
+            </div>
+            <div class="edu-ruler-rotate-handle" id="eduRulerRotateHandle" title="Drag to rotate ruler">
+              ↻
+            </div>
+            <div class="edu-ruler-length-handle" id="eduRulerLengthHandle" title="Drag to change ruler length"></div>
+          </div>
+
+          <!-- Educational Tools: Interactive Protractor Overlay -->
+          <div id="eduProtractorOverlay" class="edu-protractor-overlay" style="display: none; left: 160px; top: 80px;">
+            <svg id="eduProtractorSvg" class="edu-protractor-svg" viewBox="0 0 460 250"></svg>
+            <div class="edu-protractor-origin-handle" id="eduProtractorOriginHandle" title="Drag to position protractor origin">⌖</div>
+            <div id="eduProtractorNeedleKnob" class="edu-protractor-needle-knob" title="Drag to measure angle">
+              <span style="font-size:0.7rem;">📐</span>
+            </div>
+            <div class="edu-protractor-controls-bar">
+              <span class="edu-ruler-grip" style="cursor:grab;margin-right:2px;" title="Drag to move protractor">⠿</span>
+              <span id="eduProtractorAngleBadge" class="edu-instrument-badge" style="background:#ea580c;">45.0°</span>
+              <button type="button" class="edu-protractor-btn edu-protractor-btn--primary" id="eduProtractorDrawAngleBtn" title="Draw angle onto board">✏️ Draw Angle</button>
+              <button type="button" class="edu-protractor-btn" id="eduProtractorToggleScaleBtn" title="Switch between Outer Scale (0° Right) and Inner Scale (0° Left)">🔵 Outer (0°⭢)</button>
+              <button type="button" class="edu-protractor-btn" id="eduProtractorToggleModeBtn" title="Toggle 180° / 360°">🌓 180°</button>
+              <button type="button" class="edu-protractor-btn" id="eduProtractorResetBtn" title="Reset angle to 0°">🔄 0°</button>
+              <button type="button" class="edu-protractor-close-btn" id="eduProtractorCloseBtn" title="Close Protractor">✕</button>
+            </div>
+          </div>
           <div class="board-overlay">
             <span id="boardInfoLabel" class="board-info-label">
               Whiteboard - Page 1
@@ -1745,7 +2460,16 @@
       </section>
 
       <aside class="properties-panel" id="propertiesPanel">
-        <h2 class="properties-panel__title">Tool Options</h2>
+        <div id="propertiesPanelResizer" class="properties-panel-resizer" title="Drag to adjust panel width (double-click to reset)"></div>
+        <div class="properties-panel__header" style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem; gap: 4px;">
+          <h2 class="properties-panel__title" style="margin: 0; white-space: nowrap;">Tool Options</h2>
+          <div class="properties-panel__width-selector" style="display: flex; align-items: center; gap: 2px; background: #f1f5f9; padding: 2px; border-radius: 6px; border: 1px solid #e2e8f0;" title="Panel Width: Standard (240px), Medium (300px), Large (360px), Extra Large (420px)">
+            <button type="button" class="panel-width-btn" data-width="240" title="Standard width (240px)">S</button>
+            <button type="button" class="panel-width-btn" data-width="300" title="Medium width (300px)">M</button>
+            <button type="button" class="panel-width-btn" data-width="360" title="Wide width (360px)">L</button>
+            <button type="button" class="panel-width-btn" data-width="420" title="Extra Wide width (420px)">XL</button>
+          </div>
+        </div>
         <div id="propertiesContent" class="properties-panel__content">
           <p>Select a tool to see its options.</p>
         </div>
@@ -1825,6 +2549,85 @@
 
     <!-- Floating Live Reactions Container -->
     <div id="wbFloatingReactions" style="position:fixed;bottom:70px;right:30px;pointer-events:none;z-index:999999;display:flex;flex-direction:column-reverse;gap:8px;"></div>
+
+    <!-- Maths Equation Studio Modal -->
+    <div id="equationStudioModal" class="equation-modal-overlay" style="display: none;">
+      <div class="equation-modal-card" id="equationModalCard">
+        <div class="equation-modal-header" id="equationModalHeader">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 1.15rem;">📐</span>
+            <h3 style="margin: 0; font-size: 1.02rem; font-weight: 700; color: #0f172a;">Maths Equation Studio</h3>
+          </div>
+          <button type="button" class="equation-modal-close" id="equationModalCloseBtn" title="Close">✕</button>
+        </div>
+
+        <!-- Palette Category Tabs -->
+        <div class="equation-tabs-bar" id="equationTabsBar">
+          <button type="button" class="equation-tab-btn equation-tab-btn--active" data-eq-tab="basic">Basic & Fractions</button>
+          <button type="button" class="equation-tab-btn" data-eq-tab="algebra">Algebra & Formulas</button>
+          <button type="button" class="equation-tab-btn" data-eq-tab="geometry">Geometry & Trig</button>
+          <button type="button" class="equation-tab-btn" data-eq-tab="calculus">Calculus & Limits</button>
+          <button type="button" class="equation-tab-btn" data-eq-tab="matrices">Matrices & Sets</button>
+        </div>
+
+        <!-- Palette Symbol Grid -->
+        <div class="equation-palette-body" id="equationPaletteBody"></div>
+
+        <!-- Live Preview Area -->
+        <div class="equation-preview-wrap">
+          <div class="equation-preview-label">
+            <span>Live Rendered Preview:</span>
+            <span id="equationStatusBadge" class="equation-status-badge">Ready</span>
+          </div>
+          <div class="equation-preview-box" id="equationPreviewBox">
+            <div id="equationRenderedOutput" class="equation-rendered-output"></div>
+          </div>
+        </div>
+
+        <!-- LaTeX Input Area -->
+        <div class="equation-input-wrap">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+            <label for="equationLatexInput" style="font-size: 0.76rem; font-weight: 700; color: #475569;">LaTeX Formula (type or click symbols above):</label>
+            <button type="button" id="equationClearInputBtn" class="equation-small-link">Clear</button>
+          </div>
+          <textarea id="equationLatexInput" class="equation-textarea" rows="2" placeholder="e.g. \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a} or x^2 + y^2 = r^2"></textarea>
+        </div>
+
+        <!-- Controls Row: Colors and Sizes -->
+        <div class="equation-controls-row">
+          <div class="equation-control-group">
+            <span class="equation-control-label">Color:</span>
+            <div class="equation-colors-row" id="equationColorsRow">
+              <div class="equation-color-dot equation-color-dot--active" data-color="auto" title="Auto (Adapts to board background)" style="background: #0f172a; border-color: #0284c7;"></div>
+              <div class="equation-color-dot" data-color="#0f172a" title="Dark Slate" style="background: #0f172a;"></div>
+              <div class="equation-color-dot" data-color="#2563eb" title="Royal Blue" style="background: #2563eb;"></div>
+              <div class="equation-color-dot" data-color="#16a34a" title="Forest Green" style="background: #16a34a;"></div>
+              <div class="equation-color-dot" data-color="#dc2626" title="Crimson Red" style="background: #dc2626;"></div>
+              <div class="equation-color-dot" data-color="#9333ea" title="Purple" style="background: #9333ea;"></div>
+              <div class="equation-color-dot" data-color="#d97706" title="Amber Gold" style="background: #d97706;"></div>
+              <div class="equation-color-dot" data-color="#ffffff" title="Chalk White" style="background: #ffffff;"></div>
+            </div>
+          </div>
+          <div class="equation-control-group">
+            <span class="equation-control-label">Scale:</span>
+            <div class="equation-size-pill-row" id="equationSizePillRow">
+              <button type="button" class="equation-size-pill" data-eq-scale="0.8">Small</button>
+              <button type="button" class="equation-size-pill equation-size-pill--active" data-eq-scale="1.15">Medium</button>
+              <button type="button" class="equation-size-pill" data-eq-scale="1.6">Large</button>
+              <button type="button" class="equation-size-pill" data-eq-scale="2.2">Huge</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Footer Buttons -->
+        <div class="equation-modal-footer">
+          <button type="button" class="equation-btn equation-btn--secondary" id="equationCancelBtn">Cancel</button>
+          <button type="button" class="equation-btn equation-btn--primary" id="equationInsertBtn">
+            <span id="equationInsertBtnText">Insert onto Whiteboard</span>
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script>
@@ -1889,6 +2692,81 @@
         "#000000", "#0f172a", "#1f2937", "#2563eb", "#dc2626", "#16a34a", "#ea580c", "#eab308",
         "#7c3aed", "#f97316", "#22c55e", "#0ea5e9", "#ec4899", "#6366f1", "#facc15", "#9ca3af", "#ffffff",
       ];
+
+      // --- Tool Options Panel Width Manager & Drag Resizer ---
+      function setOptionsPanelWidth(widthPx, save = true) {
+        const w = Math.max(220, Math.min(550, Math.round(widthPx)));
+        document.documentElement.style.setProperty("--properties-panel-width", w + "px");
+        if (save) {
+          try { localStorage.setItem("whiteboard_options_panel_width", String(w)); } catch (_) {}
+        }
+        document.querySelectorAll(".panel-width-btn").forEach((btn) => {
+          const btnW = parseInt(btn.getAttribute("data-width"), 10);
+          const isNearest = Math.abs(btnW - w) <= 30;
+          btn.classList.toggle("active", isNearest);
+        });
+        try {
+          if (typeof resizeCanvas === "function" && typeof pages !== "undefined" && Array.isArray(pages) && typeof currentPageIndex === "number") {
+            resizeCanvas();
+          }
+        } catch (_) {}
+      }
+      window.setOptionsPanelWidth = setOptionsPanelWidth;
+
+      // Load saved width or default to 300px
+      const savedPanelWidth = parseInt(localStorage.getItem("whiteboard_options_panel_width"), 10) || 300;
+      setOptionsPanelWidth(savedPanelWidth, false);
+
+      // Width buttons click
+      document.querySelectorAll(".panel-width-btn").forEach((btn) => {
+        btn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          const targetW = parseInt(btn.getAttribute("data-width"), 10);
+          if (targetW) setOptionsPanelWidth(targetW, true);
+        });
+      });
+
+      // Draggable Resizer on left edge of properties panel
+      const panelResizer = document.getElementById("propertiesPanelResizer");
+      if (panelResizer) {
+        let isResizingPanel = false;
+        let startX = 0;
+        let startW = 300;
+
+        panelResizer.addEventListener("mousedown", (e) => {
+          e.preventDefault();
+          isResizingPanel = true;
+          panelResizer.classList.add("is-dragging");
+          startX = e.clientX;
+          startW = rightPanel ? rightPanel.getBoundingClientRect().width : 300;
+          document.body.style.cursor = "col-resize";
+          document.body.style.userSelect = "none";
+        });
+
+        window.addEventListener("mousemove", (e) => {
+          if (!isResizingPanel) return;
+          const delta = startX - e.clientX;
+          const newW = startW + delta;
+          setOptionsPanelWidth(newW, false);
+        });
+
+        window.addEventListener("mouseup", () => {
+          if (!isResizingPanel) return;
+          isResizingPanel = false;
+          panelResizer.classList.remove("is-dragging");
+          document.body.style.cursor = "";
+          document.body.style.userSelect = "";
+          const finalW = rightPanel ? rightPanel.getBoundingClientRect().width : 300;
+          setOptionsPanelWidth(finalW, true);
+        });
+
+        // Double-click resizer to toggle Standard (240px) <-> Wide (360px)
+        panelResizer.addEventListener("dblclick", () => {
+          const curW = rightPanel ? rightPanel.getBoundingClientRect().width : 300;
+          const nextW = curW > 300 ? 240 : 360;
+          setOptionsPanelWidth(nextW, true);
+        });
+      }
       function generateId() {
         return "id-" + Date.now() + "-" + Math.random().toString(36).slice(2, 9);
       }
@@ -2263,12 +3141,13 @@
         if (!boardCanvas) return;
         const wrapper = boardCanvas.closest(".canvas-wrapper");
         const container = boardCanvas.closest(".canvas-container");
-        const page = pages[currentPageIndex];
-        const isInfinite = page ? page.infiniteScroll !== false : defaultInfinite;
+        const page = (typeof pages !== "undefined" && typeof currentPageIndex === "number" && pages[currentPageIndex]) ? pages[currentPageIndex] : null;
+        const isInfinite = page ? page.infiniteScroll !== false : (typeof defaultInfinite !== "undefined" ? defaultInfinite : false);
         const minH = container ? Math.max(container.clientHeight, 600) : 600;
 
+        const currentZoom = (typeof zoom !== "undefined") ? zoom : 1;
         if (container) {
-          container.style.overflowX = zoom > 1 ? "auto" : "hidden";
+          container.style.overflowX = currentZoom > 1 ? "auto" : "hidden";
           container.style.overflowY = isInfinite ? "auto" : "hidden";
         }
         if (wrapper) {
@@ -2276,8 +3155,8 @@
           if (isInfinite) {
             pageHeight = Math.max((page && page.height) ? page.height : 2400, minH);
           }
-          wrapper.style.height = (pageHeight * zoom) + "px";
-          wrapper.style.width = zoom > 1 ? (zoom * 100) + "%" : "100%";
+          wrapper.style.height = (pageHeight * currentZoom) + "px";
+          wrapper.style.width = currentZoom > 1 ? (currentZoom * 100) + "%" : "100%";
           wrapper.style.minWidth = "100%";
           wrapper.style.maxWidth = "none";
           wrapper.style.margin = "0";
@@ -3989,6 +4868,539 @@
         }
       }
 
+
+      // --- Educational Diagram Renderers (Phase 4B) ---
+      function drawNumberLineDiagram(ctx, shape) {
+        const { start, end } = shape;
+        const x1 = Math.min(start.x, end.x);
+        const x2 = Math.max(start.x, end.x);
+        const y1 = Math.min(start.y, end.y);
+        const y2 = Math.max(start.y, end.y);
+        const cy = (y1 + y2) / 2;
+        const w = x2 - x1 || 300;
+        const color = shape.color || "#0f172a";
+
+        const min = typeof shape.min === "number" ? shape.min : -5;
+        const max = typeof shape.max === "number" ? shape.max : 5;
+        const step = typeof shape.step === "number" && shape.step > 0 ? shape.step : 1;
+        const count = Math.max(1, Math.round((max - min) / step));
+
+        ctx.save();
+        ctx.strokeStyle = color;
+        ctx.fillStyle = color;
+        ctx.lineWidth = shape.width || 2;
+        ctx.lineCap = "round";
+
+        // Main axis line
+        ctx.beginPath();
+        ctx.moveTo(x1 + 16, cy);
+        ctx.lineTo(x2 - 16, cy);
+        ctx.stroke();
+
+        // Arrows on left and right
+        const head = 10;
+        ctx.beginPath();
+        ctx.moveTo(x1 + 16, cy);
+        ctx.lineTo(x1 + 16 + head, cy - 5);
+        ctx.moveTo(x1 + 16, cy);
+        ctx.lineTo(x1 + 16 + head, cy + 5);
+        ctx.moveTo(x2 - 16, cy);
+        ctx.lineTo(x2 - 16 - head, cy - 5);
+        ctx.moveTo(x2 - 16, cy);
+        ctx.lineTo(x2 - 16 - head, cy + 5);
+        ctx.stroke();
+
+        // Equidistant tick marks and numeric labels
+        const leftMargin = 32;
+        const usableW = Math.max(20, w - leftMargin * 2);
+        const dx = usableW / count;
+
+        ctx.font = "bold 11px sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "top";
+
+        for (let i = 0; i <= count; i++) {
+          const val = min + i * step;
+          const tx = x1 + leftMargin + i * dx;
+          const isZero = Math.abs(val) < 0.0001;
+
+          ctx.beginPath();
+          ctx.strokeStyle = isZero ? "#0284c7" : color;
+          ctx.lineWidth = isZero ? (shape.width || 2) + 1 : (shape.width || 2);
+          const tickH = isZero ? 13 : 8;
+          ctx.moveTo(tx, cy - tickH);
+          ctx.lineTo(tx, cy + tickH);
+          ctx.stroke();
+
+          // Value label
+          ctx.fillStyle = isZero ? "#0284c7" : color;
+          let labelText = String(Math.round(val * 100) / 100);
+          if (shape.stylePreset === "fractions") {
+            if (val === 0) labelText = "0";
+            else if (val === 1) labelText = "1";
+            else if (val === 0.5) labelText = "1/2";
+            else if (val === 0.25) labelText = "1/4";
+            else if (val === 0.75) labelText = "3/4";
+          }
+          ctx.fillText(labelText, tx, cy + 14);
+        }
+
+        // Plotted point marker if specified
+        if (typeof shape.pointVal === "number") {
+          const clamped = Math.max(min, Math.min(max, shape.pointVal));
+          const px = x1 + leftMargin + ((clamped - min) / (max - min)) * usableW;
+          ctx.fillStyle = "#ea580c";
+          ctx.beginPath();
+          ctx.arc(px, cy, 5.5, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = "#ffffff";
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+        }
+
+        ctx.restore();
+      }
+
+      function drawCoordinateAxesDiagram(ctx, shape) {
+        const { start, end } = shape;
+        const x1 = Math.min(start.x, end.x);
+        const x2 = Math.max(start.x, end.x);
+        const y1 = Math.min(start.y, end.y);
+        const y2 = Math.max(start.y, end.y);
+        const w = x2 - x1 || 240;
+        const h = y2 - y1 || 240;
+        const color = shape.color || "#0f172a";
+        const isPos = shape.mode === "positiveQuadrant";
+
+        const originX = isPos ? x1 + 24 : (x1 + x2) / 2;
+        const originY = isPos ? y2 - 24 : (y1 + y2) / 2;
+
+        ctx.save();
+
+        // 1. Optional background grid (similar to whiteboard grid, increased visibility by 20%)
+        if (shape.gridVisible !== false) {
+          const isDark = (typeof currentBoardType !== "undefined" && (currentBoardType === "black" || currentBoardType === "green")) ||
+                         (typeof pages !== "undefined" && pages[currentPageIndex] && (pages[currentPageIndex].boardType === "black" || pages[currentPageIndex].boardType === "green"));
+          ctx.strokeStyle = isDark ? "rgba(255, 255, 255, 0.28)" : "rgba(0, 0, 0, 0.24)";
+          ctx.lineWidth = 0.9;
+          const stepX = isPos ? (w - 32) / 6 : (w / 2 - 16) / 5;
+          const stepY = isPos ? (h - 32) / 6 : (h / 2 - 16) / 5;
+
+          if (isPos) {
+            for (let x = originX; x <= x2 - 10; x += stepX) {
+              ctx.beginPath(); ctx.moveTo(x, y1 + 10); ctx.lineTo(x, originY); ctx.stroke();
+            }
+            for (let y = originY; y >= y1 + 10; y -= stepY) {
+              ctx.beginPath(); ctx.moveTo(originX, y); ctx.lineTo(x2 - 10, y); ctx.stroke();
+            }
+          } else {
+            for (let x = originX; x <= x2 - 10; x += stepX) {
+              ctx.beginPath(); ctx.moveTo(x, y1 + 10); ctx.lineTo(x, y2 - 10); ctx.stroke();
+            }
+            for (let x = originX - stepX; x >= x1 + 10; x -= stepX) {
+              ctx.beginPath(); ctx.moveTo(x, y1 + 10); ctx.lineTo(x, y2 - 10); ctx.stroke();
+            }
+            for (let y = originY; y <= y2 - 10; y += stepY) {
+              ctx.beginPath(); ctx.moveTo(x1 + 10, y); ctx.lineTo(x2 - 10, y); ctx.stroke();
+            }
+            for (let y = originY - stepY; y >= y1 + 10; y -= stepY) {
+              ctx.beginPath(); ctx.moveTo(x1 + 10, y); ctx.lineTo(x2 - 10, y); ctx.stroke();
+            }
+          }
+        }
+
+        // 2. Main Axes with Arrows
+        ctx.strokeStyle = color;
+        ctx.lineWidth = shape.width || 2;
+        ctx.lineCap = "round";
+
+        // X-axis
+        ctx.beginPath();
+        ctx.moveTo(isPos ? originX : x1 + 8, originY);
+        ctx.lineTo(x2 - 8, originY);
+        ctx.stroke();
+
+        // X arrow
+        ctx.beginPath();
+        ctx.moveTo(x2 - 8, originY);
+        ctx.lineTo(x2 - 18, originY - 5);
+        ctx.moveTo(x2 - 8, originY);
+        ctx.lineTo(x2 - 18, originY + 5);
+        ctx.stroke();
+
+        // Y-axis
+        ctx.beginPath();
+        ctx.moveTo(originX, isPos ? originY : y2 - 8);
+        ctx.lineTo(originX, y1 + 8);
+        ctx.stroke();
+
+        // Y arrow
+        ctx.beginPath();
+        ctx.moveTo(originX, y1 + 8);
+        ctx.lineTo(originX - 5, y1 + 18);
+        ctx.moveTo(originX, y1 + 8);
+        ctx.lineTo(originX + 5, y1 + 18);
+        ctx.stroke();
+
+        // Labels
+        ctx.font = "bold 13px serif";
+        ctx.fillStyle = color;
+        ctx.textAlign = "left";
+        ctx.textBaseline = "middle";
+        ctx.fillText("x", x2 + 2, originY);
+        ctx.textAlign = "center";
+        ctx.textBaseline = "bottom";
+        ctx.fillText("y", originX, y1 + 4);
+
+        // Origin label "O"
+        ctx.font = "italic 11px sans-serif";
+        ctx.textAlign = "right";
+        ctx.textBaseline = "top";
+        ctx.fillText("0", originX - 4, originY + 3);
+
+        ctx.restore();
+      }
+
+      function drawVennDiagramShape(ctx, shape) {
+        const { start, end } = shape;
+        const x1 = Math.min(start.x, end.x);
+        const x2 = Math.max(start.x, end.x);
+        const y1 = Math.min(start.y, end.y);
+        const y2 = Math.max(start.y, end.y);
+        const cx = (x1 + x2) / 2;
+        const cy = (y1 + y2) / 2;
+        const w = Math.max(20, x2 - x1);
+        const h = Math.max(20, y2 - y1);
+        const is3Sets = shape.sets === 3;
+
+        ctx.save();
+
+        // Universal Set box U
+        ctx.strokeStyle = "#64748b";
+        ctx.lineWidth = Math.max(1.5, Math.min(3.5, w * 0.005));
+        if (ctx.roundRect) {
+          ctx.beginPath();
+          ctx.roundRect(x1, y1, w, h, 8);
+          ctx.stroke();
+        } else {
+          ctx.strokeRect(x1, y1, w, h);
+        }
+
+        const uFontSize = Math.max(12, Math.min(32, Math.round(Math.min(w, h) * 0.065)));
+        ctx.font = "bold " + uFontSize + "px sans-serif";
+        ctx.fillStyle = "#334155";
+        ctx.textAlign = "left";
+        ctx.textBaseline = "top";
+        ctx.fillText(shape.labelU || "U", x1 + 12, y1 + 10);
+
+        if (!is3Sets) {
+          // 2-Set Venn Diagram
+          // Dynamically scale circle radius to fill the box proportionately without arbitrary caps
+          const maxRw = (w - 36) / 3.2;
+          const maxRh = (h - 48) / 2.2;
+          const r = Math.max(12, Math.min(maxRw, maxRh));
+          const offset = r * 0.58;
+          const setLineWidth = Math.max(1.8, Math.min(4.5, r * 0.024));
+
+          // Set A
+          ctx.save();
+          ctx.fillStyle = "rgba(2, 132, 199, 0.16)";
+          ctx.strokeStyle = "#0284c7";
+          ctx.lineWidth = setLineWidth;
+          ctx.beginPath();
+          ctx.arc(cx - offset, cy, r, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+          ctx.restore();
+
+          // Set B
+          ctx.save();
+          ctx.fillStyle = "rgba(234, 88, 12, 0.16)";
+          ctx.strokeStyle = "#ea580c";
+          ctx.lineWidth = setLineWidth;
+          ctx.beginPath();
+          ctx.arc(cx + offset, cy, r, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+          ctx.restore();
+
+          // Set Labels scaled with radius
+          const setFontSize = Math.max(12, Math.min(36, Math.round(r * 0.18)));
+          ctx.font = "bold " + setFontSize + "px sans-serif";
+          ctx.fillStyle = "#0284c7";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "bottom";
+          ctx.fillText(shape.labelA || "A", cx - offset - r * 0.45, cy - r * 0.6);
+
+          ctx.fillStyle = "#ea580c";
+          ctx.fillText(shape.labelB || "B", cx + offset + r * 0.45, cy - r * 0.6);
+
+          // Intersection notation hint scaled with radius
+          const interFontSize = Math.max(10, Math.min(26, Math.round(r * 0.14)));
+          ctx.font = "bold " + interFontSize + "px sans-serif";
+          ctx.fillStyle = "#475569";
+          ctx.textBaseline = "middle";
+          ctx.fillText("A ∩ B", cx, cy);
+        } else {
+          // 3-Set Venn Diagram
+          // Dynamically scale circle radius to fill the box proportionately without arbitrary caps
+          const maxRw = (w - 36) / 3.3;
+          const maxRh = (h - 52) / 3.0;
+          const r = Math.max(12, Math.min(maxRw, maxRh));
+          const topY = cy - r * 0.45;
+          const botY = cy + r * 0.45;
+          const offset = r * 0.6;
+          const setLineWidth = Math.max(1.6, Math.min(4, r * 0.024));
+
+          // Set A (top)
+          ctx.save();
+          ctx.fillStyle = "rgba(2, 132, 199, 0.14)";
+          ctx.strokeStyle = "#0284c7";
+          ctx.lineWidth = setLineWidth;
+          ctx.beginPath();
+          ctx.arc(cx, topY, r, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+          ctx.restore();
+
+          // Set B (bottom left)
+          ctx.save();
+          ctx.fillStyle = "rgba(234, 88, 12, 0.14)";
+          ctx.strokeStyle = "#ea580c";
+          ctx.lineWidth = setLineWidth;
+          ctx.beginPath();
+          ctx.arc(cx - offset, botY, r, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+          ctx.restore();
+
+          // Set C (bottom right)
+          ctx.save();
+          ctx.fillStyle = "rgba(22, 163, 74, 0.14)";
+          ctx.strokeStyle = "#16a34a";
+          ctx.lineWidth = setLineWidth;
+          ctx.beginPath();
+          ctx.arc(cx + offset, botY, r, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+          ctx.restore();
+
+          // Labels scaled with radius
+          const setFontSize = Math.max(11, Math.min(32, Math.round(r * 0.18)));
+          ctx.font = "bold " + setFontSize + "px sans-serif";
+          ctx.fillStyle = "#0284c7";
+          ctx.textAlign = "center";
+          ctx.fillText(shape.labelA || "A", cx, topY - r - 3);
+
+          ctx.fillStyle = "#ea580c";
+          ctx.fillText(shape.labelB || "B", cx - offset - r * 0.7, botY + r * 0.4);
+
+          ctx.fillStyle = "#16a34a";
+          ctx.fillText(shape.labelC || "C", cx + offset + r * 0.7, botY + r * 0.4);
+        }
+
+        ctx.restore();
+      }
+
+      function drawFractionModelDiagram(ctx, shape) {
+        const { start, end } = shape;
+        const x1 = Math.min(start.x, end.x);
+        const x2 = Math.max(start.x, end.x);
+        const y1 = Math.min(start.y, end.y);
+        const y2 = Math.max(start.y, end.y);
+        const cx = (x1 + x2) / 2;
+        const cy = (y1 + y2) / 2;
+        const w = Math.max(20, x2 - x1);
+        const h = Math.max(20, y2 - y1);
+        const total = Math.max(1, Math.min(48, shape.totalParts || 4));
+        const shaded = Math.max(0, Math.min(total, shape.shadedParts !== undefined ? shape.shadedParts : 3));
+        const color = shape.color || "#0f172a";
+        const fillColor = shape.fillColor || "#0284c7";
+
+        ctx.save();
+
+        if (shape.modelType === "bar") {
+          // Rectangular Fraction Strip
+          const barH = Math.min(h * 0.55, 75);
+          const barY = cy - barH / 2 - 8;
+          const colW = w / total;
+
+          for (let i = 0; i < total; i++) {
+            const bx = x1 + i * colW;
+            if (i < shaded) {
+              ctx.fillStyle = fillColor;
+              ctx.fillRect(bx, barY, colW, barH);
+            }
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 1.6;
+            ctx.strokeRect(bx, barY, colW, barH);
+          }
+
+          // Fraction label below scaled with strip height
+          const fs = Math.max(12, Math.min(28, Math.round(barH * 0.35)));
+          ctx.font = "bold " + fs + "px sans-serif";
+          ctx.fillStyle = color;
+          ctx.textAlign = "center";
+          ctx.textBaseline = "top";
+          ctx.fillText(shaded + " / " + total, cx, barY + barH + 8);
+        } else {
+          // Circular Fraction Pie
+          const r = Math.max(15, Math.min(w, h) / 2 - 18);
+          const sliceAngle = (2 * Math.PI) / total;
+
+          for (let i = 0; i < total; i++) {
+            const startAng = -Math.PI / 2 + i * sliceAngle;
+            const endAng = startAng + sliceAngle;
+
+            ctx.beginPath();
+            ctx.moveTo(cx, cy);
+            ctx.arc(cx, cy, r, startAng, endAng);
+            ctx.closePath();
+
+            if (i < shaded) {
+              ctx.fillStyle = fillColor;
+              ctx.fill();
+            }
+
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 1.6;
+            ctx.stroke();
+          }
+
+          // Fraction label below scaled with radius
+          const fs = Math.max(12, Math.min(32, Math.round(r * 0.22)));
+          ctx.font = "bold " + fs + "px sans-serif";
+          ctx.fillStyle = color;
+          ctx.textAlign = "center";
+          ctx.textBaseline = "top";
+          ctx.fillText(shaded + " / " + total, cx, cy + r + 8);
+        }
+
+        ctx.restore();
+      }
+
+      function drawGeometricDiagramShape(ctx, shape) {
+        const { start, end } = shape;
+        const x1 = Math.min(start.x, end.x);
+        const x2 = Math.max(start.x, end.x);
+        const y1 = Math.min(start.y, end.y);
+        const y2 = Math.max(start.y, end.y);
+        const cx = (x1 + x2) / 2;
+        const cy = (y1 + y2) / 2;
+        const color = shape.color || "#0f172a";
+        const width = shape.width || 2;
+
+        ctx.save();
+        ctx.strokeStyle = color;
+        ctx.lineWidth = width;
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+
+        if (shape.geoType === "rightTriangle") {
+          // Right-angled triangle (A at top-left, C at bottom-left, B at bottom-right)
+          ctx.beginPath();
+          ctx.moveTo(x1, y1);
+          ctx.lineTo(x1, y2);
+          ctx.lineTo(x2, y2);
+          ctx.closePath();
+          ctx.stroke();
+
+          // Right angle square marker at (x1, y2)
+          const sq = 14;
+          ctx.strokeRect(x1, y2 - sq, sq, sq);
+
+          // Labels
+          ctx.font = "italic 13px sans-serif";
+          ctx.fillStyle = color;
+          ctx.textAlign = "right";
+          ctx.textBaseline = "middle";
+          ctx.fillText("a", x1 - 6, (y1 + y2) / 2);
+
+          ctx.textAlign = "center";
+          ctx.textBaseline = "top";
+          ctx.fillText("b", (x1 + x2) / 2, y2 + 6);
+
+          ctx.textAlign = "left";
+          ctx.textBaseline = "bottom";
+          ctx.fillText("c", (x1 + x2) / 2 + 6, (y1 + y2) / 2 - 4);
+        } else if (shape.geoType === "equilateralTriangle") {
+          // Equilateral triangle with side ticks and 60° angle marks
+          const apexX = cx;
+          const apexY = y1;
+          const leftX = x1;
+          const leftY = y2;
+          const rightX = x2;
+          const rightY = y2;
+
+          ctx.beginPath();
+          ctx.moveTo(apexX, apexY);
+          ctx.lineTo(leftX, leftY);
+          ctx.lineTo(rightX, rightY);
+          ctx.closePath();
+          ctx.stroke();
+
+          // Equal length side tick marks
+          function drawTick(mx, my, ang) {
+            const tLen = 6;
+            ctx.beginPath();
+            ctx.moveTo(mx - tLen * Math.cos(ang), my - tLen * Math.sin(ang));
+            ctx.lineTo(mx + tLen * Math.cos(ang), my + tLen * Math.sin(ang));
+            ctx.stroke();
+          }
+          drawTick((apexX + leftX) / 2, (apexY + leftY) / 2, 0.5);
+          drawTick((apexX + rightX) / 2, (apexY + rightY) / 2, -0.5);
+          drawTick(cx, y2, Math.PI / 2);
+
+          // Angle arc marks
+          ctx.strokeStyle = "#0284c7";
+          ctx.beginPath(); ctx.arc(leftX, leftY, 20, -Math.PI / 3, 0); ctx.stroke();
+          ctx.beginPath(); ctx.arc(rightX, rightY, 20, Math.PI, Math.PI + Math.PI / 3); ctx.stroke();
+          ctx.beginPath(); ctx.arc(apexX, apexY, 20, Math.PI / 3, Math.PI - Math.PI / 3); ctx.stroke();
+        } else if (shape.geoType === "circleRadius") {
+          // Circle with center O and radius line OP
+          const r = Math.min((x2 - x1), (y2 - y1)) / 2 - 8;
+          ctx.beginPath();
+          ctx.arc(cx, cy, r, 0, Math.PI * 2);
+          ctx.stroke();
+
+          // Center point O
+          ctx.fillStyle = "#0284c7";
+          ctx.beginPath();
+          ctx.arc(cx, cy, 4, 0, Math.PI * 2);
+          ctx.fill();
+
+          // Radius line from O to (cx + r, cy)
+          ctx.strokeStyle = "#0284c7";
+          ctx.lineWidth = 1.8;
+          ctx.beginPath();
+          ctx.moveTo(cx, cy);
+          ctx.lineTo(cx + r, cy);
+          ctx.stroke();
+
+          // Point P on circumference
+          ctx.beginPath();
+          ctx.arc(cx + r, cy, 3.5, 0, Math.PI * 2);
+          ctx.fill();
+
+          // Labels
+          ctx.font = "bold 12px sans-serif";
+          ctx.fillStyle = color;
+          ctx.textAlign = "right";
+          ctx.textBaseline = "middle";
+          ctx.fillText("O", cx - 7, cy);
+
+          ctx.textAlign = "left";
+          ctx.fillText("P", cx + r + 6, cy);
+
+          ctx.textAlign = "center";
+          ctx.textBaseline = "bottom";
+          ctx.fillStyle = "#0284c7";
+          ctx.fillText("r", cx + r / 2, cy - 4);
+        }
+
+        ctx.restore();
+      }
+
       function drawShape(ctx, shape, isPreview) {
         const { start, end } = shape;
         if (!start || !end) return;
@@ -4067,6 +5479,38 @@
             ctx.arc(end.x, end.y, dotRadius, 0, Math.PI * 2);
             ctx.fill();
           }
+        } else if (type === "numberLine") {
+          drawNumberLineDiagram(ctx, shape);
+        } else if (type === "coordinateAxes") {
+          drawCoordinateAxesDiagram(ctx, shape);
+        } else if (type === "vennDiagram") {
+          drawVennDiagramShape(ctx, shape);
+        } else if (type === "fractionModel") {
+          drawFractionModelDiagram(ctx, shape);
+        } else if (type === "geometricDiagram") {
+          drawGeometricDiagramShape(ctx, shape);
+        } else if (type === "angleArc" || type === "arc") {
+          const vx = (shape.vertex && typeof shape.vertex.x === "number") ? shape.vertex.x : cx;
+          const vy = (shape.vertex && typeof shape.vertex.y === "number") ? shape.vertex.y : cy;
+          const arcR = shape.radius || 38;
+          const sAngle = typeof shape.startAngle === "number" ? shape.startAngle : 0;
+          const eAngle = typeof shape.endAngle === "number" ? shape.endAngle : Math.PI / 2;
+          const anticlockwise = shape.anticlockwise !== undefined ? shape.anticlockwise : false;
+
+          if (shape.fill && shape.fill !== "transparent") {
+            ctx.save();
+            ctx.fillStyle = shape.fill;
+            ctx.beginPath();
+            ctx.moveTo(vx, vy);
+            ctx.arc(vx, vy, arcR, sAngle, eAngle, anticlockwise);
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+          }
+
+          ctx.beginPath();
+          ctx.arc(vx, vy, arcR, sAngle, eAngle, anticlockwise);
+          ctx.stroke();
         } else if (type === "rectangle") {
           ctx.rect(x1, y1, w, h);
           if (shape.fillMode === "solid") { ctx.save(); ctx.globalAlpha = fillOpacity; ctx.fill(); ctx.restore(); }
@@ -4418,7 +5862,7 @@
             }
           }
           ctx.restore();
-        } else if (type === "image" && shape.dataUrl) {
+        } else if ((type === "image" || type === "equation") && shape.dataUrl) {
           const img = getCachedImage(shape.dataUrl);
           if (img && img.complete) {
             ctx.save();
@@ -4731,6 +6175,9 @@
         updateZoomLabel();
         resizeCanvas();
         updateBoardAppearance();
+        if (typeof syncEduInstrumentsToPage === "function" && (rulerState.visible || protractorState.visible)) {
+          syncEduInstrumentsToPage(true);
+        }
       }
 
       function updateLayoutForPanels() {
@@ -4755,7 +6202,10 @@
         if (tool === "stamps") {
           heading.textContent = "Saved images";
         } else if (tool === "math") {
-          heading.textContent = "Symbols";
+          heading.textContent = "Math Equation";
+          if (typeof openEquationStudio === "function") { openEquationStudio(); }
+        } else if (tool === "edu-tools") {
+          heading.textContent = "Educational Tools";
         } else if (tool === "notes") {
           heading.textContent = "Sticky notes";
         } else {
@@ -4778,6 +6228,8 @@
           renderStickyOptions();
         } else if (tool === "math") {
           renderMathSymbolsOptions();
+        } else if (tool === "edu-tools") {
+          renderEduToolsOptions();
         } else if (tool === "select") {
           renderSelectOptions();
         } else if (tool === "charts") {
@@ -5006,6 +6458,46 @@
           actionsRow.style.gap = "0.35rem";
           actionsRow.style.alignItems = "center";
 
+          if (selectedShapes.length === 1 && selectedShapes[0].type === "equation") {
+            const editEqBtn = document.createElement("button");
+            editEqBtn.type = "button";
+            editEqBtn.innerHTML = "✏️ Edit Equation";
+            editEqBtn.style.padding = "0.35rem 0.75rem";
+            editEqBtn.style.minHeight = "32px";
+            editEqBtn.style.borderRadius = "6px";
+            editEqBtn.style.border = "1px solid #7dd3fc";
+            editEqBtn.style.backgroundColor = "#e0f2fe";
+            editEqBtn.style.color = "#0369a1";
+            editEqBtn.style.fontSize = "0.78rem";
+            editEqBtn.style.fontWeight = "600";
+            editEqBtn.style.cursor = "pointer";
+            editEqBtn.addEventListener("click", () => {
+              if (typeof openEquationStudio === "function") {
+                openEquationStudio(selectedShapes[0]);
+              }
+            });
+            actionsRow.appendChild(editEqBtn);
+          }
+          if (selectedShapes.length === 1 && selectedShapes[0].type === "fractionModel") {
+            const editFracBtn = document.createElement("button");
+            editFracBtn.type = "button";
+            editFracBtn.innerHTML = "🍕 Edit Fraction";
+            editFracBtn.style.padding = "0.35rem 0.75rem";
+            editFracBtn.style.minHeight = "32px";
+            editFracBtn.style.borderRadius = "6px";
+            editFracBtn.style.border = "1px solid #7dd3fc";
+            editFracBtn.style.backgroundColor = "#e0f2fe";
+            editFracBtn.style.color = "#0369a1";
+            editFracBtn.style.fontSize = "0.78rem";
+            editFracBtn.style.fontWeight = "600";
+            editFracBtn.style.cursor = "pointer";
+            editFracBtn.addEventListener("click", () => {
+              window._isEduDiagramsOpen = true;
+              window._selectedEduDiagCategory = "fractions";
+              handleToolSelection("edu-tools");
+            });
+            actionsRow.appendChild(editFracBtn);
+          }
           const delBtn = document.createElement("button");
           delBtn.type = "button";
           delBtn.textContent = "Delete selected";
@@ -7331,70 +8823,75 @@
         if (!propertiesContent) return;
         const wrap = document.createElement("div");
         wrap.className = "tool-options-group";
+
+        const openStudioBtn = document.createElement("button");
+        openStudioBtn.type = "button";
+        openStudioBtn.innerHTML = "<span style='font-size:1.15rem;'>📐</span> Open Equation Studio";
+        openStudioBtn.style.width = "100%";
+        openStudioBtn.style.padding = "0.6rem 0.8rem";
+        openStudioBtn.style.background = "#0284c7";
+        openStudioBtn.style.color = "#ffffff";
+        openStudioBtn.style.fontWeight = "700";
+        openStudioBtn.style.fontSize = "0.85rem";
+        openStudioBtn.style.borderRadius = "8px";
+        openStudioBtn.style.border = "none";
+        openStudioBtn.style.cursor = "pointer";
+        openStudioBtn.style.marginBottom = "0.85rem";
+        openStudioBtn.style.display = "flex";
+        openStudioBtn.style.alignItems = "center";
+        openStudioBtn.style.justifyContent = "center";
+        openStudioBtn.style.gap = "8px";
+        openStudioBtn.style.boxShadow = "0 2px 6px rgba(2, 132, 199, 0.35)";
+        openStudioBtn.addEventListener("click", () => {
+          if (typeof openEquationStudio === "function") openEquationStudio();
+        });
+        wrap.appendChild(openStudioBtn);
+
         const info = document.createElement("p");
-        info.style.fontSize = "0.8rem";
-        info.style.color = "#9ca3af";
-        info.style.margin = "0 0 0.5rem 0";
-        info.textContent = "Tap a symbol to add it to the board. You can move or resize it with the Pointer tool.";
+        info.style.fontSize = "0.78rem";
+        info.style.color = "#64748b";
+        info.style.margin = "0 0 0.6rem 0";
+        info.textContent = "Quick formula templates (tap to open in Equation Studio):";
         wrap.appendChild(info);
-        const sizeLabel = document.createElement("span");
-        sizeLabel.className = "tool-options-label";
-        sizeLabel.textContent = "Font size";
-        wrap.appendChild(sizeLabel);
-        const sizeRow = document.createElement("div");
-        sizeRow.className = "color-swatch-row";
-        sizeRow.style.alignItems = "center";
-        sizeRow.style.marginTop = "0.25rem";
-        const slider = document.createElement("input");
-        slider.type = "range";
-        slider.min = "12";
-        slider.max = "120";
-        slider.value = String(symbolSettings.fontSize);
-        slider.style.flex = "1";
-        slider.style.minWidth = "80px";
-        const sizeValue = document.createElement("span");
-        sizeValue.style.minWidth = "2.5rem";
-        sizeValue.style.fontSize = "0.8rem";
-        sizeValue.style.color = "#e5e7eb";
-        sizeValue.textContent = symbolSettings.fontSize;
-        slider.addEventListener("input", () => {
-          symbolSettings.fontSize = Number(slider.value);
-          sizeValue.textContent = symbolSettings.fontSize;
-        });
-        sizeRow.appendChild(slider);
-        sizeRow.appendChild(sizeValue);
-        wrap.appendChild(sizeRow);
-        const groups = [
-          { label: "Greek letters", items: ["α", "β", "γ", "θ", "λ", "μ", "π", "σ", "Ω"] },
-          { label: "Operators", items: ["+", "−", "×", "÷", "=", "≠", "≈", "∝"] },
-          { label: "Relations / sets", items: ["<", "≤", ">", "≥", "∈", "∉", "⊂", "⊆"] },
-          { label: "Common expressions", items: ["x²", "y²", "a² + b² = c²", "√x", "∑", "∫", "lim", "∞"] },
+
+        const quickTemplates = [
+          { label: "Fraction a/b", latex: "\\frac{a}{b}" },
+          { label: "x² + y² = r²", latex: "x^2 + y^2 = r^2" },
+          { label: "Pythagoras", latex: "a^2 + b^2 = c^2" },
+          { label: "Quadratic", latex: "x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}" },
+          { label: "Circle Area", latex: "A = \\pi r^2" },
+          { label: "sin²θ+cos²θ=1", latex: "\\sin^2\\theta + \\cos^2\\theta = 1" },
+          { label: "Integral ∫ f(x)dx", latex: "\\int f(x)\\,dx" },
+          { label: "Derivative df/dx", latex: "\\frac{df}{dx}" }
         ];
-        groups.forEach((groupDef) => {
-          const groupLabel = document.createElement("span");
-          groupLabel.className = "tool-options-label";
-          groupLabel.textContent = groupDef.label;
-          wrap.appendChild(groupLabel);
-          const row = document.createElement("div");
-          row.className = "color-swatch-row";
-          row.style.flexWrap = "wrap";
-          groupDef.items.forEach((sym) => {
-            const btn = document.createElement("button");
-            btn.type = "button";
-            btn.textContent = sym;
-            btn.style.fontSize = "0.9rem";
-            btn.style.padding = "0.25rem 0.5rem";
-            btn.style.borderRadius = "999px";
-            btn.style.border = "1px solid #111827";
-            btn.style.backgroundColor = "#020617";
-            btn.style.color = "#e5e7eb";
-            btn.style.cursor = "pointer";
-            btn.style.marginBottom = "0.2rem";
-            btn.addEventListener("click", () => { insertMathSnippet(sym); });
-            row.appendChild(btn);
+
+        const row = document.createElement("div");
+        row.style.display = "flex";
+        row.style.flexDirection = "column";
+        row.style.gap = "5px";
+
+        quickTemplates.forEach((item) => {
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.textContent = item.label;
+          btn.style.padding = "0.35rem 0.6rem";
+          btn.style.borderRadius = "6px";
+          btn.style.border = "1px solid #cbd5e1";
+          btn.style.backgroundColor = "#ffffff";
+          btn.style.color = "#0f172a";
+          btn.style.fontSize = "0.76rem";
+          btn.style.fontWeight = "600";
+          btn.style.cursor = "pointer";
+          btn.style.textAlign = "left";
+          btn.addEventListener("click", () => {
+            const input = document.getElementById("equationLatexInput");
+            if (input) input.value = item.latex;
+            if (typeof openEquationStudio === "function") openEquationStudio();
           });
-          wrap.appendChild(row);
+          row.appendChild(btn);
         });
+        wrap.appendChild(row);
+
         propertiesContent.appendChild(wrap);
       }
 
@@ -8608,7 +10105,8 @@
                 strokes: page.strokes || [],
                 shapes: page.shapes || [],
                 texts: page.texts || [],
-                widgets: page.widgets || []
+                widgets: page.widgets || [],
+                eduInstruments: page.eduInstruments || null
               },
               totalPages: pages.length
             });
@@ -8727,6 +10225,7 @@
         if (currentTool === "select" && propertiesContent) handleToolSelection("select");
         updateTopPageNav();
         notifyParentPageChange(currentPageIndex);
+        if (typeof syncEduInstrumentsToPage === "function") syncEduInstrumentsToPage(true);
       }
 
       function updateCanvasRect() {
@@ -9848,10 +11347,26 @@
             let finalW = Math.abs(origEnd.x - origStart.x);
             let finalH = Math.abs(origEnd.y - origStart.y);
 
-            if (shape.type === "image" && shape.dataUrl) {
-              const img = getCachedImage(shape.dataUrl);
-              if (img && img.complete && img.width > 0 && img.height > 0) {
-                const aspect = img.width / img.height;
+            const isVenn = shape.type === "vennDiagram";
+            const isImgOrEq = (shape.type === "image" || shape.type === "equation") && shape.dataUrl;
+
+            if (isImgOrEq || isVenn) {
+              let aspect = 1;
+              let canAspect = false;
+              if (isImgOrEq) {
+                const img = getCachedImage(shape.dataUrl);
+                if (img && img.complete && img.width > 0 && img.height > 0) {
+                  aspect = img.width / img.height;
+                  canAspect = true;
+                }
+              } else if (isVenn) {
+                const origW = Math.abs(origEnd.x - origStart.x) || 360;
+                const origH = Math.abs(origEnd.y - origStart.y) || 240;
+                aspect = origW / origH;
+                canAspect = true;
+              }
+
+              if (canAspect) {
                 let desiredW, desiredH, fixedX, fixedY;
                 if (corner === "br") {
                   fixedX = xMin; fixedY = yMin;
@@ -12573,6 +14088,2691 @@
           });
         }
       }
+
+
+      /* ==========================================================================
+         Maths Equation Studio Core Implementation
+         ========================================================================== */
+      let currentEditingEquationShape = null;
+      let activeEqTab = "basic";
+      let activeEqColor = "auto";
+      let activeEqScale = 1.15;
+      let eqPreviewTimer = null;
+      let equationStudioListenersInitialized = false;
+
+      function convertLatexToSvgDataUrl(latex, colorOverride = null) {
+        if (!window.MathJax) {
+          console.warn("MathJax is not yet loaded");
+          return null;
+        }
+        let color = colorOverride;
+        if (!color || color === "auto") {
+          const isDark = (typeof currentBoardType === "string" && (currentBoardType === "black" || currentBoardType === "green")) ||
+                         (pages[currentPageIndex]?.boardType === "black" || pages[currentPageIndex]?.boardType === "green");
+          color = isDark ? "#ffffff" : "#0f172a";
+        }
+
+        try {
+          let svg = null;
+          // 1. MathJax tex2svg helper if available
+          if (typeof window.MathJax.tex2svg === "function") {
+            const node = window.MathJax.tex2svg(latex, { display: true });
+            svg = node ? (node.nodeName.toLowerCase() === "svg" ? node : node.querySelector("svg")) : null;
+          }
+
+          // 2. Typeset into temporary DOM node
+          if (!svg) {
+            const tempDiv = document.createElement("div");
+            tempDiv.style.visibility = "hidden";
+            tempDiv.style.position = "absolute";
+            tempDiv.style.left = "-9999px";
+            tempDiv.innerHTML = '$$' + latex + '$$';
+            document.body.appendChild(tempDiv);
+
+            if (typeof window.MathJax.typeset === "function") {
+              window.MathJax.typeset([tempDiv]);
+            }
+            svg = tempDiv.querySelector("svg");
+            if (tempDiv.parentNode) {
+              tempDiv.parentNode.removeChild(tempDiv);
+            }
+          }
+
+          if (!svg) {
+            console.warn("MathJax produced no SVG for:", latex);
+            return null;
+          }
+
+          let w = 180;
+          let h = 60;
+          const viewBox = svg.getAttribute("viewBox");
+          if (viewBox) {
+            const parts = viewBox.trim().split(/\s+/).map(Number);
+            if (parts.length === 4 && parts[2] > 0 && parts[3] > 0) {
+              const baseRatio = 0.04;
+              w = Math.round(parts[2] * baseRatio);
+              h = Math.round(parts[3] * baseRatio);
+            }
+          } else {
+            const wEx = parseFloat(svg.getAttribute("width")) || 10;
+            const hEx = parseFloat(svg.getAttribute("height")) || 3;
+            w = Math.round(wEx * 16);
+            h = Math.round(hEx * 16);
+          }
+
+          w = Math.max(50, w);
+          h = Math.max(28, h);
+
+          const clone = svg.cloneNode(true);
+          clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+          clone.removeAttribute("style");
+          clone.setAttribute("width", String(w));
+          clone.setAttribute("height", String(h));
+          if (viewBox) clone.setAttribute("viewBox", viewBox);
+          clone.setAttribute("color", color);
+
+          const paths = clone.querySelectorAll("path");
+          paths.forEach((p) => {
+            if (!p.getAttribute("fill") || p.getAttribute("fill") === "currentColor") {
+              p.setAttribute("fill", color);
+            }
+          });
+          const rects = clone.querySelectorAll("rect");
+          rects.forEach((r) => {
+            if (!r.getAttribute("fill") || r.getAttribute("fill") === "currentColor") {
+              r.setAttribute("fill", color);
+            }
+          });
+          const allG = clone.querySelectorAll("g");
+          allG.forEach((g) => {
+            if (g.getAttribute("stroke") === "currentColor") g.setAttribute("stroke", color);
+            if (g.getAttribute("fill") === "currentColor") g.setAttribute("fill", color);
+          });
+
+          const xml = new XMLSerializer().serializeToString(clone);
+          const dataUrl = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(xml);
+
+          return {
+            dataUrl,
+            width: w,
+            height: h,
+            color
+          };
+        } catch (err) {
+          console.warn("LaTeX render error:", err);
+          return null;
+        }
+      }
+      window.convertLatexToSvgDataUrl = convertLatexToSvgDataUrl;
+
+      const EQUATION_PALETTES = {
+        basic: [
+          { label: "a/b", latex: "\\frac{a}{b}", desc: "Fraction" },
+          { label: "1/2", latex: "\\frac{1}{2}", desc: "Half" },
+          { label: "3/4", latex: "\\frac{3}{4}", desc: "Three quarters" },
+          { label: "x²", latex: "x^{2}", desc: "Square power" },
+          { label: "xⁿ", latex: "x^{n}", desc: "n-th power" },
+          { label: "x₁", latex: "x_{1}", desc: "Subscript 1" },
+          { label: "xₙ", latex: "x_{n}", desc: "Subscript n" },
+          { label: "√x", latex: "\\sqrt{x}", desc: "Square root" },
+          { label: "∛x", latex: "\\sqrt[3]{x}", desc: "Cube root" },
+          { label: "±", latex: "\\pm", desc: "Plus-minus" },
+          { label: "×", latex: "\\times", desc: "Multiplication" },
+          { label: "÷", latex: "\\div", desc: "Division" },
+          { label: "·", latex: "\\cdot", desc: "Dot product" },
+          { label: "=", latex: "=", desc: "Equals" },
+          { label: "≠", latex: "\\ne", desc: "Not equal" },
+          { label: "≈", latex: "\\approx", desc: "Approximately" },
+          { label: "≤", latex: "\\le", desc: "Less or equal" },
+          { label: "≥", latex: "\\ge", desc: "Greater or equal" },
+          { label: "%", latex: "\\%", desc: "Percent" },
+          { label: "∞", latex: "\\infty", desc: "Infinity" }
+        ],
+        algebra: [
+          { label: "Quad Formula", latex: "x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}", desc: "Quadratic Formula" },
+          { label: "Pythagoras", latex: "a^2 + b^2 = c^2", desc: "Pythagorean Theorem" },
+          { label: "Circle Area", latex: "A = \\pi r^2", desc: "Area of Circle" },
+          { label: "Circumference", latex: "C = 2\\pi r", desc: "Circumference" },
+          { label: "Linear Eqn", latex: "y = mx + c", desc: "Slope-intercept form" },
+          { label: "(a+b)²", latex: "(a + b)^2 = a^2 + 2ab + b^2", desc: "Expansion" },
+          { label: "a² - b²", latex: "a^2 - b^2 = (a - b)(a + b)", desc: "Difference of squares" },
+          { label: "log₁₀(x)", latex: "\\log_{10}(x)", desc: "Common Log" },
+          { label: "ln(x)", latex: "\\ln(x)", desc: "Natural Log" },
+          { label: "AP nth term", latex: "a_n = a_1 + (n - 1)d", desc: "Arithmetic Progression" },
+          { label: "AP Sum", latex: "S_n = \\frac{n}{2}\\left(2a + (n-1)d\\right)", desc: "Sum of AP" },
+          { label: "∑ xᵢ", latex: "\\sum_{i=1}^{n} x_i", desc: "Summation" },
+          { label: "∏ xᵢ", latex: "\\prod_{i=1}^{n} x_i", desc: "Product" }
+        ],
+        geometry: [
+          { label: "sin θ", latex: "\\sin\\theta", desc: "Sine" },
+          { label: "cos θ", latex: "\\cos\\theta", desc: "Cosine" },
+          { label: "tan θ", latex: "\\tan\\theta", desc: "Tangent" },
+          { label: "sin²θ+cos²θ=1", latex: "\\sin^2\\theta + \\cos^2\\theta = 1", desc: "Pythagorean Identity" },
+          { label: "sin⁻¹(x)", latex: "\\sin^{-1}(x)", desc: "Arcsin" },
+          { label: "θ", latex: "\\theta", desc: "Theta" },
+          { label: "α", latex: "\\alpha", desc: "Alpha" },
+          { label: "β", latex: "\\beta", desc: "Beta" },
+          { label: "γ", latex: "\\gamma", desc: "Gamma" },
+          { label: "Δ", latex: "\\Delta", desc: "Delta" },
+          { label: "π", latex: "\\pi", desc: "Pi" },
+          { label: "λ", latex: "\\lambda", desc: "Lambda" },
+          { label: "μ", latex: "\\mu", desc: "Mu" },
+          { label: "∠ABC", latex: "\\angle ABC", desc: "Angle" },
+          { label: "△ABC", latex: "\\triangle ABC", desc: "Triangle" },
+          { label: "∥", latex: "\\parallel", desc: "Parallel" },
+          { label: "⊥", latex: "\\perp", desc: "Perpendicular" },
+          { label: "≅", latex: "\\cong", desc: "Congruent" },
+          { label: "∼", latex: "\\sim", desc: "Similar" },
+          { label: "360°", latex: "360^\\circ", desc: "Degrees" },
+          { label: "v⃗", latex: "\\vec{v}", desc: "Vector v" },
+          { label: "î + ĵ + k̂", latex: "\\hat{i} + \\hat{j} + \\hat{k}", desc: "Unit vectors" }
+        ],
+        calculus: [
+          { label: "∫ f(x) dx", latex: "\\int f(x)\\,dx", desc: "Indefinite Integral" },
+          { label: "∫ₐᵇ f(x) dx", latex: "\\int_{a}^{b} f(x)\\,dx", desc: "Definite Integral" },
+          { label: "∬ f(x,y) dA", latex: "\\iint f(x, y)\\,dA", desc: "Double Integral" },
+          { label: "df/dx", latex: "\\frac{df}{dx}", desc: "First Derivative" },
+          { label: "d²y/dx²", latex: "\\frac{d^2y}{dx^2}", desc: "Second Derivative" },
+          { label: "∂f/∂x", latex: "\\frac{\\partial f}{\\partial x}", desc: "Partial Derivative" },
+          { label: "f'(x)", latex: "f'(x)", desc: "Prime Derivative" },
+          { label: "lim x→0", latex: "\\lim_{x \\to 0} f(x)", desc: "Limit as x approaches 0" },
+          { label: "lim x→∞", latex: "\\lim_{x \\to \\infty} \\frac{1}{x} = 0", desc: "Limit at Infinity" }
+        ],
+        matrices: [
+          { label: "( x )", latex: "\\left( x \\right)", desc: "Parentheses" },
+          { label: "[ x ]", latex: "\\left[ x \\right]", desc: "Square Brackets" },
+          { label: "{ x }", latex: "\\left\\{ x \\right\\}", desc: "Curly Brackets" },
+          { label: "| x |", latex: "\\left| x \\right|", desc: "Absolute / Modulus" },
+          { label: "2×2 Matrix", latex: "\\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix}", desc: "2x2 Matrix" },
+          { label: "2×2 Det", latex: "\\begin{vmatrix} a & b \\\\ c & d \\end{vmatrix}", desc: "2x2 Determinant" },
+          { label: "3×3 Matrix", latex: "\\begin{pmatrix} a & b & c \\\\ d & e & f \\\\ g & h & i \\end{pmatrix}", desc: "3x3 Matrix" },
+          { label: "∈", latex: "\\in", desc: "Element of" },
+          { label: "∉", latex: "\\notin", desc: "Not element of" },
+          { label: "⊂", latex: "\\subset", desc: "Subset of" },
+          { label: "∪", latex: "\\cup", desc: "Union" },
+          { label: "∩", latex: "\\cap", desc: "Intersection" },
+          { label: "∅", latex: "\\emptyset", desc: "Empty set" },
+          { label: "ℝ", latex: "\\mathbb{R}", desc: "Real numbers" },
+          { label: "ℕ", latex: "\\mathbb{N}", desc: "Natural numbers" },
+          { label: "ℤ", latex: "\\mathbb{Z}", desc: "Integers" }
+        ]
+      };
+
+      function renderEquationPalette(category = "basic") {
+        activeEqTab = category;
+        const container = document.getElementById("equationPaletteBody");
+        if (!container) return;
+        container.innerHTML = "";
+
+        const items = EQUATION_PALETTES[category] || EQUATION_PALETTES.basic;
+        items.forEach((item) => {
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "equation-symbol-btn";
+          btn.textContent = item.label;
+          btn.title = item.desc || item.label;
+          btn.addEventListener("click", () => {
+            insertLatexSnippet(item.latex);
+          });
+          container.appendChild(btn);
+        });
+
+        const tabBtns = document.querySelectorAll("#equationTabsBar .equation-tab-btn");
+        tabBtns.forEach((b) => {
+          const tab = b.getAttribute("data-eq-tab");
+          if (tab === category) {
+            b.classList.add("equation-tab-btn--active");
+          } else {
+            b.classList.remove("equation-tab-btn--active");
+          }
+        });
+      }
+      window.renderEquationPalette = renderEquationPalette;
+
+      function insertLatexSnippet(latex) {
+        const input = document.getElementById("equationLatexInput");
+        if (!input) return;
+        const start = input.selectionStart || 0;
+        const end = input.selectionEnd || 0;
+        const val = input.value;
+        const sel = val.substring(start, end);
+
+        let snippet = latex;
+        if (sel && snippet.includes("{a}")) {
+          snippet = snippet.replace("{a}", "{" + sel + "}");
+        } else if (sel && snippet.includes("{x}")) {
+          snippet = snippet.replace("{x}", "{" + sel + "}");
+        }
+
+        input.value = val.substring(0, start) + snippet + val.substring(end);
+        const newPos = start + snippet.length;
+        input.selectionStart = newPos;
+        input.selectionEnd = newPos;
+        input.focus();
+        updateEquationPreview();
+      }
+
+      function updateEquationPreview() {
+        clearTimeout(eqPreviewTimer);
+        eqPreviewTimer = setTimeout(() => {
+          const input = document.getElementById("equationLatexInput");
+          const output = document.getElementById("equationRenderedOutput");
+          const badge = document.getElementById("equationStatusBadge");
+          if (!input || !output) return;
+
+          const latex = input.value.trim();
+          if (!latex) {
+            output.innerHTML = '<span style="color:#94a3b8; font-size:0.85rem; font-style:italic;">Formula preview will appear here...</span>';
+            if (badge) {
+              badge.textContent = "Empty";
+              badge.className = "equation-status-badge";
+            }
+            return;
+          }
+
+          const res = convertLatexToSvgDataUrl(latex, activeEqColor === "auto" ? null : activeEqColor);
+          if (res && res.dataUrl) {
+            const previewWidth = Math.min(520, Math.round(res.width * activeEqScale));
+            output.innerHTML = '<img src="' + res.dataUrl + '" alt="Equation Preview" style="width: ' + previewWidth + 'px; max-width: 100%; height: auto; display: block;" />';
+            if (badge) {
+              badge.textContent = "✓ Valid";
+              badge.className = "equation-status-badge";
+            }
+          } else {
+            if (badge) {
+              badge.textContent = "Typing...";
+              badge.className = "equation-status-badge equation-status-badge--error";
+            }
+          }
+        }, 80);
+      }
+      window.updateEquationPreview = updateEquationPreview;
+
+      function openEquationStudio(existingShape = null) {
+        setupEquationStudioListeners();
+        currentEditingEquationShape = existingShape;
+        const modal = document.getElementById("equationStudioModal");
+        const input = document.getElementById("equationLatexInput");
+        const btnText = document.getElementById("equationInsertBtnText");
+        if (!modal || !input) return;
+
+        if (existingShape && existingShape.type === "equation") {
+          input.value = existingShape.latex || "";
+          activeEqColor = existingShape.color || "auto";
+          activeEqScale = existingShape.scale || 1.15;
+          if (btnText) btnText.textContent = "Update Equation";
+        } else {
+          if (!input.value.trim()) {
+            input.value = "\\frac{a}{b}";
+          }
+          if (btnText) btnText.textContent = "Insert onto Whiteboard";
+        }
+
+        renderEquationPalette(activeEqTab || "basic");
+        updateEquationColorPicker();
+        updateEquationScalePicker();
+        updateEquationPreview();
+
+        modal.style.display = "flex";
+        setTimeout(() => {
+          input.focus();
+          input.select();
+        }, 50);
+      }
+      window.openEquationStudio = openEquationStudio;
+
+      function closeEquationStudio() {
+        const modal = document.getElementById("equationStudioModal");
+        if (modal) modal.style.display = "none";
+        currentEditingEquationShape = null;
+      }
+      window.closeEquationStudio = closeEquationStudio;
+
+      function updateEquationColorPicker() {
+        const dots = document.querySelectorAll("#equationColorsRow .equation-color-dot");
+        dots.forEach((dot) => {
+          const c = dot.getAttribute("data-color");
+          if (c === activeEqColor) {
+            dot.classList.add("equation-color-dot--active");
+          } else {
+            dot.classList.remove("equation-color-dot--active");
+          }
+        });
+      }
+
+      function updateEquationScalePicker() {
+        const pills = document.querySelectorAll("#equationSizePillRow .equation-size-pill");
+        pills.forEach((p) => {
+          const s = parseFloat(p.getAttribute("data-eq-scale"));
+          if (Math.abs(s - activeEqScale) < 0.1) {
+            p.classList.add("equation-size-pill--active");
+          } else {
+            p.classList.remove("equation-size-pill--active");
+          }
+        });
+      }
+
+      let isApplyingEquation = false;
+      function applyEquationToWhiteboard() {
+        if (isApplyingEquation) return;
+        isApplyingEquation = true;
+        try {
+          const input = document.getElementById("equationLatexInput");
+          if (!input) return;
+          const latex = input.value.trim();
+          if (!latex) {
+            input.focus();
+            return;
+          }
+
+          const res = convertLatexToSvgDataUrl(latex, activeEqColor === "auto" ? null : activeEqColor);
+          if (!res || !res.dataUrl) {
+            alert("Could not render the equation. Please check your formula syntax.");
+            return;
+          }
+
+          const page = pages[currentPageIndex];
+          if (!page) return;
+          if (!page.shapes) page.shapes = [];
+
+          pushUndo();
+
+          const w = Math.round(res.width * activeEqScale);
+          const h = Math.round(res.height * activeEqScale);
+
+          if (currentEditingEquationShape && currentEditingEquationShape.type === "equation") {
+            currentEditingEquationShape.latex = latex;
+            currentEditingEquationShape.dataUrl = res.dataUrl;
+            currentEditingEquationShape.color = res.color;
+            currentEditingEquationShape.scale = activeEqScale;
+            const origW = Math.abs(currentEditingEquationShape.end.x - currentEditingEquationShape.start.x);
+            const origH = Math.abs(currentEditingEquationShape.end.y - currentEditingEquationShape.start.y);
+            currentEditingEquationShape.end.x = currentEditingEquationShape.start.x + Math.max(origW, w);
+            currentEditingEquationShape.end.y = currentEditingEquationShape.start.y + Math.max(origH, h);
+          } else {
+            const { x: cx, y: cy } = getVisibleBoardCenter();
+            const shape = {
+              id: generateId(),
+              type: "equation",
+              latex: latex,
+              dataUrl: res.dataUrl,
+              color: res.color,
+              scale: activeEqScale,
+              start: { x: cx - w / 2, y: cy - h / 2 },
+              end: { x: cx + w / 2, y: cy + h / 2 },
+              createdAt: Date.now()
+            };
+            page.shapes.push(shape);
+            selectedShapes = [shape];
+            selectedTexts = [];
+            selectedWidgets = [];
+            handleToolSelection("select");
+          }
+
+          // Cache image immediately for instantaneous canvas render
+          getCachedImage(res.dataUrl);
+
+          closeEquationStudio();
+          updateBoardAppearance();
+          notifyParentPageUpdate(currentPageIndex, true);
+          scheduleNotifyParentPages(100);
+        } finally {
+          setTimeout(() => { isApplyingEquation = false; }, 350);
+        }
+      }
+      window.applyEquationToWhiteboard = applyEquationToWhiteboard;
+
+      function setupEquationStudioListeners() {
+        if (equationStudioListenersInitialized) return;
+        const modalCloseBtn = document.getElementById("equationModalCloseBtn");
+        const cancelBtn = document.getElementById("equationCancelBtn");
+        const insertBtn = document.getElementById("equationInsertBtn");
+        const clearBtn = document.getElementById("equationClearInputBtn");
+        const input = document.getElementById("equationLatexInput");
+        const tabsBar = document.getElementById("equationTabsBar");
+        const colorsRow = document.getElementById("equationColorsRow");
+        const sizeRow = document.getElementById("equationSizePillRow");
+        const modalHeader = document.getElementById("equationModalHeader");
+        const modalCard = document.getElementById("equationModalCard");
+
+        if (!insertBtn || !input) return; // Not yet in DOM
+        equationStudioListenersInitialized = true;
+
+        if (modalCloseBtn) modalCloseBtn.onclick = closeEquationStudio;
+        if (cancelBtn) cancelBtn.onclick = closeEquationStudio;
+        if (insertBtn) insertBtn.onclick = applyEquationToWhiteboard;
+        if (clearBtn) clearBtn.onclick = () => {
+          if (input) {
+            input.value = "";
+            input.focus();
+            updateEquationPreview();
+          }
+        };
+
+        if (input) {
+          input.addEventListener("input", updateEquationPreview);
+          input.addEventListener("keyup", updateEquationPreview);
+          input.addEventListener("keydown", (e) => {
+            if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+              e.preventDefault();
+              applyEquationToWhiteboard();
+            }
+          });
+        }
+
+        if (tabsBar) {
+          tabsBar.addEventListener("click", (e) => {
+            const btn = e.target.closest(".equation-tab-btn");
+            if (btn) {
+              const tab = btn.getAttribute("data-eq-tab");
+              if (tab) renderEquationPalette(tab);
+            }
+          });
+        }
+
+        if (colorsRow) {
+          colorsRow.addEventListener("click", (e) => {
+            const dot = e.target.closest(".equation-color-dot");
+            if (dot) {
+              activeEqColor = dot.getAttribute("data-color") || "auto";
+              updateEquationColorPicker();
+              updateEquationPreview();
+            }
+          });
+        }
+
+        if (sizeRow) {
+          sizeRow.addEventListener("click", (e) => {
+            const pill = e.target.closest(".equation-size-pill");
+            if (pill) {
+              activeEqScale = parseFloat(pill.getAttribute("data-eq-scale")) || 1.15;
+              updateEquationScalePicker();
+              updateEquationPreview();
+            }
+          });
+        }
+
+        // Draggable modal header
+        if (modalHeader && modalCard) {
+          let isDragging = false;
+          let dragStartX = 0;
+          let dragStartY = 0;
+          let cardStartX = 0;
+          let cardStartY = 0;
+
+          modalHeader.addEventListener("mousedown", (e) => {
+            if (e.target.closest("button")) return;
+            isDragging = true;
+            dragStartX = e.clientX;
+            dragStartY = e.clientY;
+            const rect = modalCard.getBoundingClientRect();
+            cardStartX = rect.left;
+            cardStartY = rect.top;
+            modalCard.style.position = "fixed";
+            modalCard.style.left = cardStartX + "px";
+            modalCard.style.top = cardStartY + "px";
+            modalCard.style.margin = "0";
+            e.preventDefault();
+          });
+
+          window.addEventListener("mousemove", (e) => {
+            if (!isDragging) return;
+            const dx = e.clientX - dragStartX;
+            const dy = e.clientY - dragStartY;
+            modalCard.style.left = Math.max(10, Math.min(window.innerWidth - 300, cardStartX + dx)) + "px";
+            modalCard.style.top = Math.max(10, Math.min(window.innerHeight - 200, cardStartY + dy)) + "px";
+          });
+
+          window.addEventListener("mouseup", () => {
+            isDragging = false;
+          });
+        }
+
+        // Double click on canvas to edit equation
+        if (boardCanvas) {
+          boardCanvas.addEventListener("dblclick", (evt) => {
+            const point = getCanvasPoint(evt);
+            const clickedShape = hitTestShape(point);
+            if (clickedShape && clickedShape.type === "equation") {
+              openEquationStudio(clickedShape);
+            }
+          });
+        }
+      }
+
+      setupEquationStudioListeners();
+
+
+      /* ==========================================================================
+         Educational Tools (Ruler & Protractor) Implementation
+         ========================================================================== */
+      const rulerState = {
+        visible: false,
+        x: 140,
+        y: 100,
+        angle: 0,
+        lengthCm: 15,
+        pxPerCm: 36
+      };
+
+      const protractorState = {
+        visible: false,
+        x: 180,
+        y: 100,
+        angle: 45, // Needle angle (0 to 180 or 360)
+        baseRotation: 0,
+        isFullCircle: false,
+        scaleMode: "outer", // "outer" (0° on Right) or "inner" (0° on Left)
+        radius: 200
+      };
+
+      function updateProtractorScaleButton() {
+        const btn = document.getElementById("eduProtractorToggleScaleBtn");
+        if (!btn) return;
+        const isInner = protractorState.scaleMode === "inner";
+        btn.textContent = isInner ? "🟠 Inner (⭠0°)" : "🔵 Outer (0°⭢)";
+        btn.style.color = isInner ? "#c2410c" : "#0369a1";
+        btn.style.borderColor = isInner ? "#ea580c" : "#0284c7";
+        btn.style.background = isInner ? "#ffedd5" : "#e0f2fe";
+      }
+
+      function syncEduInstrumentsToPage(immediate = false) {
+        const page = pages[currentPageIndex];
+        if (!page) return;
+
+        let rulerData = null;
+        if (rulerState.visible) {
+          const overlay = document.getElementById("eduRulerOverlay");
+          let logicalPt = { x: rulerState.x, y: rulerState.y };
+          if (overlay && boardCanvas) {
+            const rect = overlay.getBoundingClientRect();
+            const cx = rect.left + rect.width / 2;
+            const cy = rect.top + rect.height / 2;
+            logicalPt = getCanvasPointFromClient(cx, cy);
+          }
+          rulerData = {
+            visible: true,
+            x: logicalPt.x,
+            y: logicalPt.y,
+            angle: rulerState.angle,
+            lengthCm: rulerState.lengthCm,
+            pxPerCm: rulerState.pxPerCm
+          };
+        } else {
+          rulerData = { visible: false };
+        }
+
+        let protractorData = null;
+        if (protractorState.visible) {
+          const overlay = document.getElementById("eduProtractorOverlay");
+          let originPt = { x: protractorState.x + 230, y: protractorState.y + 230 };
+          if (overlay && boardCanvas) {
+            const rect = overlay.getBoundingClientRect();
+            const isFull = protractorState.isFullCircle;
+            const cx = rect.left + 230;
+            const cy = rect.top + (isFull ? 230 : 230);
+            originPt = getCanvasPointFromClient(cx, cy);
+          }
+          protractorData = {
+            visible: true,
+            x: originPt.x,
+            y: originPt.y,
+            angle: protractorState.angle,
+            baseRotation: protractorState.baseRotation,
+            isFullCircle: protractorState.isFullCircle,
+            scaleMode: protractorState.scaleMode || "outer",
+            radius: 210
+          };
+        } else {
+          protractorData = { visible: false };
+        }
+
+        page.eduInstruments = {
+          ruler: rulerData,
+          protractor: protractorData
+        };
+
+        notifyParentPageUpdate(currentPageIndex, immediate);
+      }
+      window.syncEduInstrumentsToPage = syncEduInstrumentsToPage;
+
+      function renderEduToolsOptions() {
+        if (!propertiesContent) return;
+        let wrap = document.getElementById("eduToolsOptionsWrap");
+        if (wrap) {
+          wrap.innerHTML = "";
+        } else {
+          wrap = document.createElement("div");
+          wrap.id = "eduToolsOptionsWrap";
+          wrap.className = "tool-options-group";
+          propertiesContent.appendChild(wrap);
+        }
+
+        const intro = document.createElement("p");
+        intro.style.fontSize = "0.78rem";
+        intro.style.color = "#64748b";
+        intro.style.margin = "0 0 0.75rem 0";
+        intro.textContent = "Interactive drafting instruments. Move, rotate, measure, and stamp directly onto the board:";
+        wrap.appendChild(intro);
+
+        // Section: Instruments Toggles
+        const instrumentsBox = document.createElement("div");
+        instrumentsBox.style.display = "flex";
+        instrumentsBox.style.flexDirection = "column";
+        instrumentsBox.style.gap = "8px";
+        instrumentsBox.style.marginBottom = "1rem";
+
+        // Ruler Toggle Button
+        const rulerBtn = document.createElement("button");
+        rulerBtn.type = "button";
+        rulerBtn.innerHTML = "<span style='font-size:1.1rem;'>📏</span> " + (rulerState.visible ? "Hide Ruler (Scale)" : "Show Ruler (Scale)");
+        rulerBtn.style.padding = "0.6rem 0.8rem";
+        rulerBtn.style.borderRadius = "8px";
+        rulerBtn.style.border = rulerState.visible ? "1.5px solid #0284c7" : "1px solid #cbd5e1";
+        rulerBtn.style.background = rulerState.visible ? "#e0f2fe" : "#ffffff";
+        rulerBtn.style.color = rulerState.visible ? "#0369a1" : "#1e293b";
+        rulerBtn.style.fontWeight = "700";
+        rulerBtn.style.fontSize = "0.85rem";
+        rulerBtn.style.cursor = "pointer";
+        rulerBtn.style.display = "flex";
+        rulerBtn.style.alignItems = "center";
+        rulerBtn.style.gap = "8px";
+        rulerBtn.addEventListener("click", () => {
+          toggleRuler(!rulerState.visible);
+          renderEduToolsOptions();
+        });
+        instrumentsBox.appendChild(rulerBtn);
+
+        // Protractor Toggle Button
+        const protractorBtn = document.createElement("button");
+        protractorBtn.type = "button";
+        protractorBtn.innerHTML = "<span style='font-size:1.1rem;'>📐</span> " + (protractorState.visible ? "Hide Protractor" : "Show Protractor (180° / 360°)");
+        protractorBtn.style.padding = "0.6rem 0.8rem";
+        protractorBtn.style.borderRadius = "8px";
+        protractorBtn.style.border = protractorState.visible ? "1.5px solid #ea580c" : "1px solid #cbd5e1";
+        protractorBtn.style.background = protractorState.visible ? "#ffedd5" : "#ffffff";
+        protractorBtn.style.color = protractorState.visible ? "#9a3412" : "#1e293b";
+        protractorBtn.style.fontWeight = "700";
+        protractorBtn.style.fontSize = "0.85rem";
+        protractorBtn.style.cursor = "pointer";
+        protractorBtn.style.display = "flex";
+        protractorBtn.style.alignItems = "center";
+        protractorBtn.style.gap = "8px";
+        protractorBtn.addEventListener("click", () => {
+          toggleProtractor(!protractorState.visible);
+          renderEduToolsOptions();
+        });
+        instrumentsBox.appendChild(protractorBtn);
+
+        // 3. Educational Diagrams Toggle Button (matching Ruler and Protractor)
+        const isDiagOpen = !!window._isEduDiagramsOpen;
+        const diagBtn = document.createElement("button");
+        diagBtn.type = "button";
+        diagBtn.innerHTML = "<span style='font-size:1.1rem;'>📊</span> " + (isDiagOpen ? "Hide Educational Diagrams" : "Show Educational Diagrams");
+        diagBtn.style.padding = "0.6rem 0.8rem";
+        diagBtn.style.borderRadius = "8px";
+        diagBtn.style.border = isDiagOpen ? "1.5px solid #7c3aed" : "1px solid #cbd5e1";
+        diagBtn.style.background = isDiagOpen ? "#f5f3ff" : "#ffffff";
+        diagBtn.style.color = isDiagOpen ? "#6d28d9" : "#1e293b";
+        diagBtn.style.fontWeight = "700";
+        diagBtn.style.fontSize = "0.85rem";
+        diagBtn.style.cursor = "pointer";
+        diagBtn.style.display = "flex";
+        diagBtn.style.alignItems = "center";
+        diagBtn.style.gap = "8px";
+        diagBtn.addEventListener("click", () => {
+          window._isEduDiagramsOpen = !isDiagOpen;
+          renderEduToolsOptions();
+        });
+        instrumentsBox.appendChild(diagBtn);
+
+        wrap.appendChild(instrumentsBox);
+
+        // ==========================================
+        // Educational Diagrams Library (Hierarchical)
+        // ==========================================
+        function insertDiagramHelper(shapeData) {
+          const page = pages[currentPageIndex];
+          if (!page) return;
+          if (!page.shapes) page.shapes = [];
+          pushUndo();
+          page.shapes.push(shapeData);
+          updateBoardAppearance();
+          notifyParentPageUpdate(currentPageIndex, true);
+          scheduleNotifyParentPages(100);
+          selectedShapes = [shapeData];
+          selectedTexts = [];
+          selectedWidgets = [];
+          handleToolSelection("select");
+        }
+
+        if (isDiagOpen) {
+          const categories = [
+            {
+              id: "numberLine",
+              icon: "🔢",
+              theme: { bg: "#eff6ff", border: "#bfdbfe", text: "#1d4ed8", badgeBg: "#dbeafe" },
+              title: "Number Lines",
+              subtitle: "Integers, fractions & decimals",
+              count: "5 presets"
+            },
+            {
+              id: "axes",
+              icon: "📈",
+              theme: { bg: "#f5f3ff", border: "#ddd6fe", text: "#6d28d9", badgeBg: "#ede9fe" },
+              title: "Coordinate Axes",
+              subtitle: "Cartesian plane & grid options",
+              count: "3 presets"
+            },
+            {
+              id: "venn",
+              icon: "⭕",
+              theme: { bg: "#fff1f2", border: "#fecdd3", text: "#be123c", badgeBg: "#ffe4e6" },
+              title: "Venn Diagrams",
+              subtitle: "2-Set & 3-Set theory models",
+              count: "2 models"
+            },
+            {
+              id: "fractions",
+              icon: "🍕",
+              theme: { bg: "#fffbeb", border: "#fde68a", text: "#b45309", badgeBg: "#fef3c7" },
+              title: "Fraction Models",
+              subtitle: "Custom pies, bar strips & presets",
+              count: "Custom + 6"
+            },
+            {
+              id: "geometry",
+              icon: "📐",
+              theme: { bg: "#ecfdf5", border: "#a7f3d0", text: "#047857", badgeBg: "#d1fae5" },
+              title: "Geometric Figures",
+              subtitle: "Triangles, circles & theorems",
+              count: "3 figures"
+            }
+          ];
+
+          const diagBox = document.createElement("div");
+          diagBox.style.background = "#f8fafc";
+          diagBox.style.border = "1.5px solid #e2e8f0";
+          diagBox.style.borderRadius = "10px";
+          diagBox.style.padding = "10px";
+          diagBox.style.marginBottom = "1rem";
+          diagBox.style.boxShadow = "inset 0 1px 2px rgba(0,0,0,0.02)";
+
+          const selectedCatId = window._selectedEduDiagCategory;
+
+          // Helper function for creating high-end preset item cards
+          function createPresetCard({ chip, chipTheme, title, subtitle, onClick }) {
+            const card = document.createElement("div");
+            card.style.display = "flex";
+            card.style.alignItems = "center";
+            card.style.justifyContent = "space-between";
+            card.style.gap = "8px";
+            card.style.width = "100%";
+            card.style.padding = "8px 10px";
+            card.style.marginBottom = "6px";
+            card.style.background = "#ffffff";
+            card.style.border = "1.5px solid #e2e8f0";
+            card.style.borderRadius = "8px";
+            card.style.cursor = "pointer";
+            card.style.transition = "all 0.16s cubic-bezier(0.4, 0, 0.2, 1)";
+            card.style.boxShadow = "0 1px 2px rgba(0,0,0,0.03)";
+
+            const leftStack = document.createElement("div");
+            leftStack.style.display = "flex";
+            leftStack.style.flexDirection = "column";
+            leftStack.style.gap = "2px";
+            leftStack.style.minWidth = "0";
+            leftStack.style.flex = "1";
+
+            const topRow = document.createElement("div");
+            topRow.style.display = "flex";
+            topRow.style.alignItems = "center";
+            topRow.style.gap = "6px";
+
+            const chipEl = document.createElement("span");
+            chipEl.style.fontSize = "0.68rem";
+            chipEl.style.fontWeight = "800";
+            chipEl.style.padding = "2px 6px";
+            chipEl.style.borderRadius = "4px";
+            chipEl.style.background = chipTheme?.bg || "#f1f5f9";
+            chipEl.style.color = chipTheme?.color || "#0369a1";
+            chipEl.style.border = "1px solid " + (chipTheme?.border || "#cbd5e1");
+            chipEl.style.whiteSpace = "nowrap";
+            chipEl.style.fontFamily = "ui-monospace, monospace, sans-serif";
+            chipEl.textContent = chip;
+            topRow.appendChild(chipEl);
+
+            const titleEl = document.createElement("span");
+            titleEl.style.fontSize = "0.78rem";
+            titleEl.style.fontWeight = "700";
+            titleEl.style.color = "#0f172a";
+            titleEl.style.whiteSpace = "nowrap";
+            titleEl.style.overflow = "hidden";
+            titleEl.style.textOverflow = "ellipsis";
+            titleEl.textContent = title;
+            topRow.appendChild(titleEl);
+            leftStack.appendChild(topRow);
+
+            if (subtitle) {
+              const subEl = document.createElement("span");
+              subEl.style.fontSize = "0.68rem";
+              subEl.style.color = "#64748b";
+              subEl.style.lineHeight = "1.25";
+              subEl.textContent = subtitle;
+              leftStack.appendChild(subEl);
+            }
+            card.appendChild(leftStack);
+
+            const actionBtn = document.createElement("button");
+            actionBtn.type = "button";
+            actionBtn.innerHTML = "+ Add";
+            actionBtn.style.padding = "4px 8px";
+            actionBtn.style.fontSize = "0.70rem";
+            actionBtn.style.fontWeight = "700";
+            actionBtn.style.color = "#0284c7";
+            actionBtn.style.background = "#e0f2fe";
+            actionBtn.style.border = "1px solid #bae6fd";
+            actionBtn.style.borderRadius = "5px";
+            actionBtn.style.cursor = "pointer";
+            actionBtn.style.flexShrink = "0";
+            actionBtn.style.transition = "all 0.15s ease";
+            card.appendChild(actionBtn);
+
+            card.addEventListener("mouseenter", () => {
+              card.style.background = "#f8fafc";
+              card.style.borderColor = "#38bdf8";
+              card.style.boxShadow = "0 3px 8px rgba(2, 132, 199, 0.12)";
+              card.style.transform = "translateY(-1px)";
+              actionBtn.style.background = "#0284c7";
+              actionBtn.style.color = "#ffffff";
+              actionBtn.style.borderColor = "#0284c7";
+            });
+            card.addEventListener("mouseleave", () => {
+              card.style.background = "#ffffff";
+              card.style.borderColor = "#e2e8f0";
+              card.style.boxShadow = "0 1px 2px rgba(0,0,0,0.03)";
+              card.style.transform = "translateY(0)";
+              actionBtn.style.background = "#e0f2fe";
+              actionBtn.style.color = "#0284c7";
+              actionBtn.style.borderColor = "#bae6fd";
+            });
+
+            card.addEventListener("click", onClick);
+            return card;
+          }
+
+          if (!selectedCatId) {
+            // --- Level 1: Sleek Category Selection Cards ---
+            const catHeader = document.createElement("div");
+            catHeader.style.display = "flex";
+            catHeader.style.alignItems = "center";
+            catHeader.style.justifyContent = "space-between";
+            catHeader.style.marginBottom = "8px";
+            catHeader.style.padding = "0 2px";
+
+            const catTitle = document.createElement("span");
+            catTitle.style.fontSize = "0.74rem";
+            catTitle.style.fontWeight = "800";
+            catTitle.style.color = "#475569";
+            catTitle.style.textTransform = "uppercase";
+            catTitle.style.letterSpacing = "0.4px";
+            catTitle.textContent = "Select Category";
+            catHeader.appendChild(catTitle);
+
+            const catBadge = document.createElement("span");
+            catBadge.style.fontSize = "0.68rem";
+            catBadge.style.fontWeight = "700";
+            catBadge.style.color = "#64748b";
+            catBadge.style.background = "#e2e8f0";
+            catBadge.style.padding = "1px 7px";
+            catBadge.style.borderRadius = "999px";
+            catBadge.textContent = "5 Topics";
+            catHeader.appendChild(catBadge);
+            diagBox.appendChild(catHeader);
+
+            categories.forEach((cat) => {
+              const catBtn = document.createElement("button");
+              catBtn.type = "button";
+              catBtn.style.width = "100%";
+              catBtn.style.padding = "9px 10px";
+              catBtn.style.marginBottom = "7px";
+              catBtn.style.background = "#ffffff";
+              catBtn.style.border = "1.5px solid #e2e8f0";
+              catBtn.style.borderRadius = "9px";
+              catBtn.style.cursor = "pointer";
+              catBtn.style.display = "flex";
+              catBtn.style.alignItems = "center";
+              catBtn.style.justifyContent = "space-between";
+              catBtn.style.gap = "10px";
+              catBtn.style.textAlign = "left";
+              catBtn.style.transition = "all 0.16s cubic-bezier(0.4, 0, 0.2, 1)";
+              catBtn.style.boxShadow = "0 1px 2px rgba(0,0,0,0.03)";
+
+              const leftWrap = document.createElement("div");
+              leftWrap.style.display = "flex";
+              leftWrap.style.alignItems = "center";
+              leftWrap.style.gap = "10px";
+              leftWrap.style.minWidth = "0";
+              leftWrap.style.flex = "1";
+
+              const iconBox = document.createElement("div");
+              iconBox.style.width = "36px";
+              iconBox.style.height = "36px";
+              iconBox.style.minWidth = "36px";
+              iconBox.style.borderRadius = "8px";
+              iconBox.style.background = cat.theme.bg;
+              iconBox.style.border = "1px solid " + cat.theme.border;
+              iconBox.style.display = "flex";
+              iconBox.style.alignItems = "center";
+              iconBox.style.justifyContent = "center";
+              iconBox.style.fontSize = "1.2rem";
+              iconBox.textContent = cat.icon;
+              leftWrap.appendChild(iconBox);
+
+              const textStack = document.createElement("div");
+              textStack.style.display = "flex";
+              textStack.style.flexDirection = "column";
+              textStack.style.minWidth = "0";
+              textStack.style.flex = "1";
+
+              const titleRow = document.createElement("div");
+              titleRow.style.display = "flex";
+              titleRow.style.alignItems = "center";
+              titleRow.style.gap = "6px";
+
+              const titleSpan = document.createElement("span");
+              titleSpan.style.fontWeight = "700";
+              titleSpan.style.fontSize = "0.82rem";
+              titleSpan.style.color = "#0f172a";
+              titleSpan.style.whiteSpace = "nowrap";
+              titleSpan.style.overflow = "hidden";
+              titleSpan.style.textOverflow = "ellipsis";
+              titleSpan.textContent = cat.title;
+              titleRow.appendChild(titleSpan);
+
+              const countPill = document.createElement("span");
+              countPill.style.fontSize = "0.64rem";
+              countPill.style.fontWeight = "700";
+              countPill.style.color = cat.theme.text;
+              countPill.style.background = cat.theme.badgeBg;
+              countPill.style.padding = "1px 5px";
+              countPill.style.borderRadius = "999px";
+              countPill.style.whiteSpace = "nowrap";
+              countPill.style.flexShrink = "0";
+              countPill.textContent = cat.count;
+              titleRow.appendChild(countPill);
+              textStack.appendChild(titleRow);
+
+              const subSpan = document.createElement("span");
+              subSpan.style.fontSize = "0.69rem";
+              subSpan.style.color = "#64748b";
+              subSpan.style.marginTop = "2px";
+              subSpan.style.lineHeight = "1.2";
+              subSpan.textContent = cat.subtitle;
+              textStack.appendChild(subSpan);
+
+              leftWrap.appendChild(textStack);
+              catBtn.appendChild(leftWrap);
+
+              const arrowCircle = document.createElement("div");
+              arrowCircle.style.width = "24px";
+              arrowCircle.style.height = "24px";
+              arrowCircle.style.minWidth = "24px";
+              arrowCircle.style.borderRadius = "50%";
+              arrowCircle.style.background = "#f1f5f9";
+              arrowCircle.style.border = "1px solid #e2e8f0";
+              arrowCircle.style.display = "flex";
+              arrowCircle.style.alignItems = "center";
+              arrowCircle.style.justifyContent = "center";
+              arrowCircle.style.fontSize = "0.80rem";
+              arrowCircle.style.fontWeight = "800";
+              arrowCircle.style.color = "#64748b";
+              arrowCircle.style.transition = "all 0.15s ease";
+              arrowCircle.textContent = "›";
+              catBtn.appendChild(arrowCircle);
+
+              catBtn.addEventListener("mouseenter", () => {
+                catBtn.style.background = "#ffffff";
+                catBtn.style.borderColor = cat.theme.border;
+                catBtn.style.boxShadow = "0 3px 10px rgba(0,0,0,0.06)";
+                catBtn.style.transform = "translateY(-1px)";
+                arrowCircle.style.background = cat.theme.bg;
+                arrowCircle.style.color = cat.theme.text;
+                arrowCircle.style.borderColor = cat.theme.border;
+              });
+              catBtn.addEventListener("mouseleave", () => {
+                catBtn.style.background = "#ffffff";
+                catBtn.style.borderColor = "#e2e8f0";
+                catBtn.style.boxShadow = "0 1px 2px rgba(0,0,0,0.03)";
+                catBtn.style.transform = "translateY(0)";
+                arrowCircle.style.background = "#f1f5f9";
+                arrowCircle.style.color = "#64748b";
+                arrowCircle.style.borderColor = "#e2e8f0";
+              });
+              catBtn.addEventListener("click", () => {
+                window._selectedEduDiagCategory = cat.id;
+                renderEduToolsOptions();
+              });
+
+              diagBox.appendChild(catBtn);
+            });
+          } else {
+            // --- Level 2: Sub-options for the Selected Category ---
+            const currentCat = categories.find((c) => c.id === selectedCatId) || categories[0];
+
+            // 1. Navigation Header Bar (Back button on dedicated top row)
+            const navTopRow = document.createElement("div");
+            navTopRow.style.display = "flex";
+            navTopRow.style.alignItems = "center";
+            navTopRow.style.justifyContent = "space-between";
+            navTopRow.style.marginBottom = "8px";
+
+            const backBtn = document.createElement("button");
+            backBtn.type = "button";
+            backBtn.innerHTML = "<span style='font-size:0.85rem; font-weight:800;'>‹</span> Back to Categories";
+            backBtn.style.display = "inline-flex";
+            backBtn.style.alignItems = "center";
+            backBtn.style.gap = "5px";
+            backBtn.style.padding = "4px 10px";
+            backBtn.style.fontSize = "0.73rem";
+            backBtn.style.fontWeight = "700";
+            backBtn.style.borderRadius = "6px";
+            backBtn.style.border = "1px solid #cbd5e1";
+            backBtn.style.background = "#ffffff";
+            backBtn.style.color = "#475569";
+            backBtn.style.cursor = "pointer";
+            backBtn.style.transition = "all 0.15s ease";
+            backBtn.addEventListener("mouseenter", () => {
+              backBtn.style.background = "#f1f5f9";
+              backBtn.style.color = "#0f172a";
+              backBtn.style.borderColor = "#94a3b8";
+            });
+            backBtn.addEventListener("mouseleave", () => {
+              backBtn.style.background = "#ffffff";
+              backBtn.style.color = "#475569";
+              backBtn.style.borderColor = "#cbd5e1";
+            });
+            backBtn.addEventListener("click", () => {
+              window._selectedEduDiagCategory = null;
+              renderEduToolsOptions();
+            });
+            navTopRow.appendChild(backBtn);
+            diagBox.appendChild(navTopRow);
+
+            // 2. Category Title Banner Card
+            const catBanner = document.createElement("div");
+            catBanner.style.display = "flex";
+            catBanner.style.alignItems = "center";
+            catBanner.style.justifyContent = "space-between";
+            catBanner.style.background = "#ffffff";
+            catBanner.style.border = "1.5px solid " + currentCat.theme.border;
+            catBanner.style.borderRadius = "8px";
+            catBanner.style.padding = "7px 10px";
+            catBanner.style.marginBottom = "10px";
+            catBanner.style.boxShadow = "0 1px 2px rgba(0,0,0,0.03)";
+
+            const bannerLeft = document.createElement("div");
+            bannerLeft.style.display = "flex";
+            bannerLeft.style.alignItems = "center";
+            bannerLeft.style.gap = "8px";
+
+            const bannerIcon = document.createElement("div");
+            bannerIcon.style.width = "28px";
+            bannerIcon.style.height = "28px";
+            bannerIcon.style.borderRadius = "6px";
+            bannerIcon.style.background = currentCat.theme.bg;
+            bannerIcon.style.border = "1px solid " + currentCat.theme.border;
+            bannerIcon.style.display = "flex";
+            bannerIcon.style.alignItems = "center";
+            bannerIcon.style.justifyContent = "center";
+            bannerIcon.style.fontSize = "1rem";
+            bannerIcon.textContent = currentCat.icon;
+            bannerLeft.appendChild(bannerIcon);
+
+            const bannerTitle = document.createElement("span");
+            bannerTitle.style.fontWeight = "800";
+            bannerTitle.style.fontSize = "0.82rem";
+            bannerTitle.style.color = "#0f172a";
+            bannerTitle.textContent = currentCat.title;
+            bannerLeft.appendChild(bannerTitle);
+            catBanner.appendChild(bannerLeft);
+
+            const bannerCount = document.createElement("span");
+            bannerCount.style.fontSize = "0.68rem";
+            bannerCount.style.fontWeight = "700";
+            bannerCount.style.color = currentCat.theme.text;
+            bannerCount.style.background = currentCat.theme.badgeBg;
+            bannerCount.style.padding = "2px 7px";
+            bannerCount.style.borderRadius = "999px";
+            bannerCount.textContent = currentCat.count;
+            catBanner.appendChild(bannerCount);
+
+            diagBox.appendChild(catBanner);
+
+            // Sub-options content by category
+            if (selectedCatId === "numberLine") {
+              const desc = document.createElement("p");
+              desc.style.margin = "0 0 8px 0";
+              desc.style.fontSize = "0.72rem";
+              desc.style.color = "#64748b";
+              desc.textContent = "Click any preset to insert scale on board:";
+              diagBox.appendChild(desc);
+
+              const presets = [
+                {
+                  chip: "[-5, +5]",
+                  chipTheme: { bg: "#eff6ff", color: "#1d4ed8", border: "#bfdbfe" },
+                  title: "Standard Integers",
+                  subtitle: "Range -5 to +5 with symmetric arrows",
+                  min: -5, max: 5, step: 1, preset: "integers"
+                },
+                {
+                  chip: "[-10, +10]",
+                  chipTheme: { bg: "#eff6ff", color: "#1d4ed8", border: "#bfdbfe" },
+                  title: "Extended Integers",
+                  subtitle: "Broad scale from -10 to +10",
+                  min: -10, max: 10, step: 1, preset: "integers"
+                },
+                {
+                  chip: "[0, 10]",
+                  chipTheme: { bg: "#f0fdf4", color: "#15803d", border: "#bbf7d0" },
+                  title: "Whole Numbers",
+                  subtitle: "0 to 10 counting numbers ray",
+                  min: 0, max: 10, step: 1, preset: "integers"
+                },
+                {
+                  chip: "¼ ⅓ ½",
+                  chipTheme: { bg: "#fffbeb", color: "#b45309", border: "#fde68a" },
+                  title: "Fraction Line (0 to 1)",
+                  subtitle: "Quarters: 0, 1/4, 2/4, 3/4, 1",
+                  min: 0, max: 1, step: 0.25, preset: "fractions"
+                },
+                {
+                  chip: "0.1",
+                  chipTheme: { bg: "#faf5ff", color: "#7e22ce", border: "#e9d5ff" },
+                  title: "Decimal Line (0 to 1)",
+                  subtitle: "Tenths scale: 0.0 to 1.0",
+                  min: 0, max: 1, step: 0.1, preset: "decimals"
+                }
+              ];
+
+              presets.forEach((p) => {
+                const card = createPresetCard({
+                  chip: p.chip,
+                  chipTheme: p.chipTheme,
+                  title: p.title,
+                  subtitle: p.subtitle,
+                  onClick: () => {
+                    const { x: cx, y: cy } = getVisibleBoardCenter();
+                    insertDiagramHelper({
+                      id: generateId(),
+                      type: "numberLine",
+                      min: p.min,
+                      max: p.max,
+                      step: p.step,
+                      stylePreset: p.preset,
+                      color: penSettings.color || "#0f172a",
+                      width: 2,
+                      start: { x: cx - 220, y: cy - 25 },
+                      end: { x: cx + 220, y: cy + 25 },
+                      createdAt: Date.now()
+                    });
+                  }
+                });
+                diagBox.appendChild(card);
+              });
+            } else if (selectedCatId === "axes") {
+              const desc = document.createElement("p");
+              desc.style.margin = "0 0 8px 0";
+              desc.style.fontSize = "0.72rem";
+              desc.style.color = "#64748b";
+              desc.textContent = "Select Cartesian coordinate plane:";
+              diagBox.appendChild(desc);
+
+              const axesPresets = [
+                {
+                  chip: "4-Q Grid",
+                  chipTheme: { bg: "#f5f3ff", color: "#6d28d9", border: "#ddd6fe" },
+                  title: "4-Quadrant Full Grid",
+                  subtitle: "-5 to +5 Cartesian plane with full grid lines",
+                  mode: "fourQuadrant",
+                  grid: true
+                },
+                {
+                  chip: "4-Q Clean",
+                  chipTheme: { bg: "#f5f3ff", color: "#6d28d9", border: "#ddd6fe" },
+                  title: "4-Quadrant Clean Axes",
+                  subtitle: "-5 to +5 plane without grid lines",
+                  mode: "fourQuadrant",
+                  grid: false
+                },
+                {
+                  chip: "Quadrant I",
+                  chipTheme: { bg: "#ecfdf5", color: "#047857", border: "#a7f3d0" },
+                  title: "Quadrant I (Positive Only)",
+                  subtitle: "0 to +10 positive X & Y axes with grid",
+                  mode: "positiveQuadrant",
+                  grid: true
+                }
+              ];
+
+              axesPresets.forEach((ap) => {
+                const card = createPresetCard({
+                  chip: ap.chip,
+                  chipTheme: ap.chipTheme,
+                  title: ap.title,
+                  subtitle: ap.subtitle,
+                  onClick: () => {
+                    const { x: cx, y: cy } = getVisibleBoardCenter();
+                    const size = 150;
+                    insertDiagramHelper({
+                      id: generateId(),
+                      type: "coordinateAxes",
+                      mode: ap.mode,
+                      gridVisible: ap.grid,
+                      color: penSettings.color || "#0f172a",
+                      width: 2,
+                      start: { x: cx - size, y: cy - size },
+                      end: { x: cx + size, y: cy + size },
+                      createdAt: Date.now()
+                    });
+                  }
+                });
+                diagBox.appendChild(card);
+              });
+            } else if (selectedCatId === "venn") {
+              const desc = document.createElement("p");
+              desc.style.margin = "0 0 8px 0";
+              desc.style.fontSize = "0.72rem";
+              desc.style.color = "#64748b";
+              desc.textContent = "Select set theory Venn Diagram:";
+              diagBox.appendChild(desc);
+
+              const vennPresets = [
+                {
+                  chip: "A ∩ B",
+                  chipTheme: { bg: "#fff1f2", color: "#be123c", border: "#fecdd3" },
+                  title: "2-Set Venn Diagram",
+                  subtitle: "Sets A and B with Universal box U",
+                  sets: 2
+                },
+                {
+                  chip: "A ∩ B ∩ C",
+                  chipTheme: { bg: "#fff1f2", color: "#be123c", border: "#fecdd3" },
+                  title: "3-Set Venn Diagram",
+                  subtitle: "Overlapping A, B, C with 7 regions",
+                  sets: 3
+                }
+              ];
+
+              vennPresets.forEach((vp) => {
+                const card = createPresetCard({
+                  chip: vp.chip,
+                  chipTheme: vp.chipTheme,
+                  title: vp.title,
+                  subtitle: vp.subtitle,
+                  onClick: () => {
+                    const { x: cx, y: cy } = getVisibleBoardCenter();
+                    insertDiagramHelper({
+                      id: generateId(),
+                      type: "vennDiagram",
+                      sets: vp.sets,
+                      labelA: "A",
+                      labelB: "B",
+                      labelC: "C",
+                      labelU: "U",
+                      color: penSettings.color || "#0f172a",
+                      width: 2,
+                      start: { x: cx - 180, y: cy - 120 },
+                      end: { x: cx + 180, y: cy + 120 },
+                      createdAt: Date.now()
+                    });
+                  }
+                });
+                diagBox.appendChild(card);
+              });
+            } else if (selectedCatId === "fractions") {
+              const selectedFrac = (selectedShapes.length === 1 && selectedShapes[0].type === "fractionModel") ? selectedShapes[0] : null;
+
+              if (!window._customFractionState) {
+                window._customFractionState = {
+                  modelType: "circle",
+                  totalParts: 6,
+                  shadedParts: 4,
+                  fillColor: "#0284c7"
+                };
+              }
+              if (selectedFrac) {
+                window._customFractionState.modelType = selectedFrac.modelType || "circle";
+                window._customFractionState.totalParts = selectedFrac.totalParts || 6;
+                window._customFractionState.shadedParts = selectedFrac.shadedParts !== undefined ? selectedFrac.shadedParts : 4;
+                window._customFractionState.fillColor = selectedFrac.fillColor || "#0284c7";
+              }
+              const fracState = window._customFractionState;
+
+              // --- Custom Fraction Builder Card ---
+              const builderCard = document.createElement("div");
+              builderCard.style.background = "#ffffff";
+              builderCard.style.border = "1.5px solid #bae6fd";
+              builderCard.style.borderRadius = "8px";
+              builderCard.style.padding = "10px 12px";
+              builderCard.style.marginBottom = "10px";
+              builderCard.style.boxShadow = "0 1px 3px rgba(0,0,0,0.05)";
+
+              const cardHeader = document.createElement("div");
+              cardHeader.style.display = "flex";
+              cardHeader.style.alignItems = "center";
+              cardHeader.style.justifyContent = "space-between";
+              cardHeader.style.gap = "8px";
+              cardHeader.style.marginBottom = "10px";
+
+              const cardTitle = document.createElement("span");
+              cardTitle.style.fontWeight = "700";
+              cardTitle.style.fontSize = "0.80rem";
+              cardTitle.style.color = "#0369a1";
+              cardTitle.style.whiteSpace = "nowrap";
+              cardTitle.textContent = selectedFrac ? "✏️ Edit Fraction" : "🎨 Custom Fraction";
+              cardHeader.appendChild(cardTitle);
+
+              const badge = document.createElement("span");
+              badge.style.fontSize = "0.80rem";
+              badge.style.fontWeight = "800";
+              badge.style.background = "#e0f2fe";
+              badge.style.color = "#0284c7";
+              badge.style.padding = "3px 10px";
+              badge.style.borderRadius = "6px";
+              badge.style.whiteSpace = "nowrap";
+              badge.style.flexShrink = "0";
+              badge.textContent = fracState.shadedParts + " / " + fracState.totalParts;
+              cardHeader.appendChild(badge);
+              builderCard.appendChild(cardHeader);
+
+              // 1. Model Type Buttons (Circle Pie vs Bar Strip)
+              const typeGrid = document.createElement("div");
+              typeGrid.style.display = "grid";
+              typeGrid.style.gridTemplateColumns = "1fr 1fr";
+              typeGrid.style.gap = "8px";
+              typeGrid.style.marginBottom = "10px";
+
+              const isCircle = fracState.modelType === "circle";
+
+              const circleBtn = document.createElement("button");
+              circleBtn.type = "button";
+              circleBtn.textContent = "🍕 Circle Pie";
+              circleBtn.style.padding = "7px 6px";
+              circleBtn.style.fontSize = "0.76rem";
+              circleBtn.style.fontWeight = "700";
+              circleBtn.style.borderRadius = "6px";
+              circleBtn.style.cursor = "pointer";
+              circleBtn.style.width = "100%";
+              circleBtn.style.border = isCircle ? "1.5px solid #0284c7" : "1px solid #cbd5e1";
+              circleBtn.style.background = isCircle ? "#e0f2fe" : "#ffffff";
+              circleBtn.style.color = isCircle ? "#0369a1" : "#475569";
+              circleBtn.addEventListener("click", () => {
+                fracState.modelType = "circle";
+                if (selectedFrac) {
+                  pushUndo();
+                  selectedFrac.modelType = "circle";
+                  updateBoardAppearance();
+                  notifyParentPageUpdate(currentPageIndex, true);
+                }
+                renderEduToolsOptions();
+              });
+              typeGrid.appendChild(circleBtn);
+
+              const barBtn = document.createElement("button");
+              barBtn.type = "button";
+              barBtn.textContent = "▬ Bar Strip";
+              barBtn.style.padding = "7px 6px";
+              barBtn.style.fontSize = "0.76rem";
+              barBtn.style.fontWeight = "700";
+              barBtn.style.borderRadius = "6px";
+              barBtn.style.cursor = "pointer";
+              barBtn.style.width = "100%";
+              barBtn.style.border = !isCircle ? "1.5px solid #0284c7" : "1px solid #cbd5e1";
+              barBtn.style.background = !isCircle ? "#e0f2fe" : "#ffffff";
+              barBtn.style.color = !isCircle ? "#0369a1" : "#475569";
+              barBtn.addEventListener("click", () => {
+                fracState.modelType = "bar";
+                if (selectedFrac) {
+                  pushUndo();
+                  selectedFrac.modelType = "bar";
+                  updateBoardAppearance();
+                  notifyParentPageUpdate(currentPageIndex, true);
+                }
+                renderEduToolsOptions();
+              });
+              typeGrid.appendChild(barBtn);
+              builderCard.appendChild(typeGrid);
+
+              // Helper for Stepper Row with clean background card
+              function createStepperRow(labelText, val, minVal, maxVal, onValChange) {
+                const row = document.createElement("div");
+                row.style.display = "flex";
+                row.style.alignItems = "center";
+                row.style.justifyContent = "space-between";
+                row.style.gap = "8px";
+                row.style.marginBottom = "8px";
+                row.style.padding = "6px 10px";
+                row.style.background = "#f8fafc";
+                row.style.border = "1px solid #e2e8f0";
+                row.style.borderRadius = "6px";
+
+                const lbl = document.createElement("span");
+                lbl.style.fontWeight = "600";
+                lbl.style.fontSize = "0.75rem";
+                lbl.style.color = "#334155";
+                lbl.style.whiteSpace = "nowrap";
+                lbl.textContent = labelText;
+                row.appendChild(lbl);
+
+                const ctrl = document.createElement("div");
+                ctrl.style.display = "flex";
+                ctrl.style.alignItems = "center";
+                ctrl.style.gap = "4px";
+                ctrl.style.flexShrink = "0";
+
+                const dec = document.createElement("button");
+                dec.type = "button";
+                dec.textContent = "−";
+                dec.style.width = "26px";
+                dec.style.height = "26px";
+                dec.style.borderRadius = "5px";
+                dec.style.border = "1px solid #cbd5e1";
+                dec.style.background = "#ffffff";
+                dec.style.cursor = "pointer";
+                dec.style.fontWeight = "bold";
+                dec.style.fontSize = "0.85rem";
+                dec.style.color = "#334155";
+                dec.addEventListener("mouseenter", () => { dec.style.background = "#e2e8f0"; });
+                dec.addEventListener("mouseleave", () => { dec.style.background = "#ffffff"; });
+                dec.addEventListener("click", () => {
+                  if (val > minVal) onValChange(val - 1);
+                });
+                ctrl.appendChild(dec);
+
+                const num = document.createElement("span");
+                num.style.minWidth = "26px";
+                num.style.textAlign = "center";
+                num.style.fontWeight = "800";
+                num.style.fontSize = "0.85rem";
+                num.style.color = "#0f172a";
+                num.textContent = String(val);
+                ctrl.appendChild(num);
+
+                const inc = document.createElement("button");
+                inc.type = "button";
+                inc.textContent = "+";
+                inc.style.width = "26px";
+                inc.style.height = "26px";
+                inc.style.borderRadius = "5px";
+                inc.style.border = "1px solid #cbd5e1";
+                inc.style.background = "#ffffff";
+                inc.style.cursor = "pointer";
+                inc.style.fontWeight = "bold";
+                inc.style.fontSize = "0.85rem";
+                inc.style.color = "#334155";
+                inc.addEventListener("mouseenter", () => { inc.style.background = "#e2e8f0"; });
+                inc.addEventListener("mouseleave", () => { inc.style.background = "#ffffff"; });
+                inc.addEventListener("click", () => {
+                  if (val < maxVal) onValChange(val + 1);
+                });
+                ctrl.appendChild(inc);
+
+                row.appendChild(ctrl);
+                return row;
+              }
+
+              // 2. Denominator (Total Parts: 1 to 24)
+              builderCard.appendChild(createStepperRow("Total Parts (Denominator):", fracState.totalParts, 1, 24, (nv) => {
+                fracState.totalParts = nv;
+                if (fracState.shadedParts > nv) fracState.shadedParts = nv;
+                if (selectedFrac) {
+                  pushUndo();
+                  selectedFrac.totalParts = fracState.totalParts;
+                  selectedFrac.shadedParts = fracState.shadedParts;
+                  updateBoardAppearance();
+                  notifyParentPageUpdate(currentPageIndex, true);
+                }
+                renderEduToolsOptions();
+              }));
+
+              // 3. Numerator (Shaded Parts: 0 to totalParts)
+              builderCard.appendChild(createStepperRow("Shaded Parts (Numerator):", fracState.shadedParts, 0, fracState.totalParts, (nv) => {
+                fracState.shadedParts = nv;
+                if (selectedFrac) {
+                  pushUndo();
+                  selectedFrac.shadedParts = fracState.shadedParts;
+                  updateBoardAppearance();
+                  notifyParentPageUpdate(currentPageIndex, true);
+                }
+                renderEduToolsOptions();
+              }));
+
+              // 4. Fill Color Swatches (Header above, swatches below so never squished)
+              const colorRow = document.createElement("div");
+              colorRow.style.marginTop = "8px";
+              colorRow.style.marginBottom = "12px";
+
+              const colorLbl = document.createElement("div");
+              colorLbl.style.fontSize = "0.74rem";
+              colorLbl.style.fontWeight = "600";
+              colorLbl.style.color = "#334155";
+              colorLbl.style.marginBottom = "6px";
+              colorLbl.textContent = "Shade Color:";
+              colorRow.appendChild(colorLbl);
+
+              const swatchBox = document.createElement("div");
+              swatchBox.style.display = "flex";
+              swatchBox.style.gap = "8px";
+              swatchBox.style.alignItems = "center";
+              swatchBox.style.flexWrap = "wrap";
+
+              const fracColors = ["#0284c7", "#10b981", "#ea580c", "#8b5cf6", "#e11d48", "#f59e0b"];
+              fracColors.forEach((fc) => {
+                const sw = document.createElement("div");
+                sw.style.width = "22px";
+                sw.style.height = "22px";
+                sw.style.borderRadius = "50%";
+                sw.style.background = fc;
+                sw.style.cursor = "pointer";
+                sw.style.boxSizing = "border-box";
+                sw.style.transition = "transform 0.15s ease, box-shadow 0.15s ease";
+                if (fracState.fillColor === fc) {
+                  sw.style.border = "2.5px solid #0f172a";
+                  sw.style.transform = "scale(1.2)";
+                  sw.style.boxShadow = "0 2px 4px rgba(0,0,0,0.2)";
+                } else {
+                  sw.style.border = "1.5px solid rgba(0,0,0,0.15)";
+                }
+                sw.addEventListener("mouseenter", () => {
+                  if (fracState.fillColor !== fc) sw.style.transform = "scale(1.1)";
+                });
+                sw.addEventListener("mouseleave", () => {
+                  if (fracState.fillColor !== fc) sw.style.transform = "scale(1)";
+                });
+                sw.addEventListener("click", () => {
+                  fracState.fillColor = fc;
+                  if (selectedFrac) {
+                    pushUndo();
+                    selectedFrac.fillColor = fc;
+                    updateBoardAppearance();
+                    notifyParentPageUpdate(currentPageIndex, true);
+                  }
+                  renderEduToolsOptions();
+                });
+                swatchBox.appendChild(sw);
+              });
+              colorRow.appendChild(swatchBox);
+              builderCard.appendChild(colorRow);
+
+              // 5. Insert / Update Button (Flexible 100% width, beautifully styled)
+              const insertCustomBtn = document.createElement("button");
+              insertCustomBtn.type = "button";
+              insertCustomBtn.innerHTML = "+ Insert Custom Fraction <strong>(" + fracState.shadedParts + "/" + fracState.totalParts + ")</strong>";
+              insertCustomBtn.style.width = "100%";
+              insertCustomBtn.style.padding = "9px 12px";
+              insertCustomBtn.style.fontSize = "0.82rem";
+              insertCustomBtn.style.fontWeight = "700";
+              insertCustomBtn.style.borderRadius = "7px";
+              insertCustomBtn.style.border = "none";
+              insertCustomBtn.style.background = "#0284c7";
+              insertCustomBtn.style.color = "#ffffff";
+              insertCustomBtn.style.cursor = "pointer";
+              insertCustomBtn.style.boxShadow = "0 1px 3px rgba(2, 132, 199, 0.35)";
+              insertCustomBtn.addEventListener("mouseenter", () => { insertCustomBtn.style.background = "#0369a1"; });
+              insertCustomBtn.addEventListener("mouseleave", () => { insertCustomBtn.style.background = "#0284c7"; });
+              insertCustomBtn.addEventListener("click", () => {
+                const { x: cx, y: cy } = getVisibleBoardCenter();
+                const size = fracState.modelType === "bar"
+                  ? { w: Math.max(120, Math.min(260, fracState.totalParts * 24)), h: 48 }
+                  : { w: 90, h: 90 };
+                insertDiagramHelper({
+                  id: generateId(),
+                  type: "fractionModel",
+                  modelType: fracState.modelType,
+                  totalParts: fracState.totalParts,
+                  shadedParts: fracState.shadedParts,
+                  fillColor: fracState.fillColor,
+                  color: penSettings.color || "#0f172a",
+                  width: 2,
+                  start: { x: cx - size.w, y: cy - size.h },
+                  end: { x: cx + size.w, y: cy + size.h },
+                  createdAt: Date.now()
+                });
+              });
+              builderCard.appendChild(insertCustomBtn);
+
+              diagBox.appendChild(builderCard);
+
+              // Divider for Quick Presets
+              const presetsHeader = document.createElement("div");
+              presetsHeader.style.display = "flex";
+              presetsHeader.style.alignItems = "center";
+              presetsHeader.style.gap = "8px";
+              presetsHeader.style.margin = "12px 0 8px 0";
+              presetsHeader.innerHTML = '<span style="flex: 1; height: 1px; background: #e2e8f0;"></span>' +
+                '<span style="font-size: 0.68rem; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.3px;">Quick Presets</span>' +
+                '<span style="flex: 1; height: 1px; background: #e2e8f0;"></span>';
+              diagBox.appendChild(presetsHeader);
+
+              const fracPresets = [
+                { chip: "🍕 3/4", chipTheme: { bg: "#fffbeb", color: "#b45309", border: "#fde68a" }, title: "Three Quarters Pie", subtitle: "Circle with 3 of 4 parts shaded", type: "circle", total: 4, shaded: 3 },
+                { chip: "🍕 1/2", chipTheme: { bg: "#fffbeb", color: "#b45309", border: "#fde68a" }, title: "Half Circle Pie", subtitle: "Circle with 1 of 2 parts shaded", type: "circle", total: 2, shaded: 1 },
+                { chip: "🍕 5/8", chipTheme: { bg: "#fffbeb", color: "#b45309", border: "#fde68a" }, title: "Five Eighths Pie", subtitle: "Circle with 5 of 8 parts shaded", type: "circle", total: 8, shaded: 5 },
+                { chip: "🍕 2/3", chipTheme: { bg: "#fffbeb", color: "#b45309", border: "#fde68a" }, title: "Two Thirds Pie", subtitle: "Circle with 2 of 3 parts shaded", type: "circle", total: 3, shaded: 2 },
+                { chip: "▬ 3/5", chipTheme: { bg: "#eff6ff", color: "#1d4ed8", border: "#bfdbfe" }, title: "Three Fifths Strip", subtitle: "Bar model with 3 of 5 parts shaded", type: "bar", total: 5, shaded: 3 },
+                { chip: "▬ 5/6", chipTheme: { bg: "#eff6ff", color: "#1d4ed8", border: "#bfdbfe" }, title: "Five Sixths Strip", subtitle: "Bar model with 5 of 6 parts shaded", type: "bar", total: 6, shaded: 5 }
+              ];
+
+              fracPresets.forEach((fp) => {
+                const card = createPresetCard({
+                  chip: fp.chip,
+                  chipTheme: fp.chipTheme,
+                  title: fp.title,
+                  subtitle: fp.subtitle,
+                  onClick: () => {
+                    const { x: cx, y: cy } = getVisibleBoardCenter();
+                    const size = fp.type === "bar" ? { w: 160, h: 50 } : { w: 90, h: 90 };
+                    insertDiagramHelper({
+                      id: generateId(),
+                      type: "fractionModel",
+                      modelType: fp.type,
+                      totalParts: fp.total,
+                      shadedParts: fp.shaded,
+                      fillColor: "#0284c7",
+                      color: penSettings.color || "#0f172a",
+                      width: 2,
+                      start: { x: cx - size.w, y: cy - size.h },
+                      end: { x: cx + size.w, y: cy + size.h },
+                      createdAt: Date.now()
+                    });
+                  }
+                });
+                diagBox.appendChild(card);
+              });
+            } else if (selectedCatId === "geometry") {
+              const desc = document.createElement("p");
+              desc.style.margin = "0 0 8px 0";
+              desc.style.fontSize = "0.72rem";
+              desc.style.color = "#64748b";
+              desc.textContent = "Select geometric theorem or figure:";
+              diagBox.appendChild(desc);
+
+              const geoPresets = [
+                {
+                  chip: "90° △",
+                  chipTheme: { bg: "#ecfdf5", color: "#047857", border: "#a7f3d0" },
+                  title: "Right-Angled Triangle",
+                  subtitle: "Legs a, b, hypotenuse c with right square",
+                  type: "rightTriangle",
+                  w: 110,
+                  h: 80
+                },
+                {
+                  chip: "60° △",
+                  chipTheme: { bg: "#ecfdf5", color: "#047857", border: "#a7f3d0" },
+                  title: "Equilateral Triangle",
+                  subtitle: "Equal side tick marks and 60° angles",
+                  type: "equilateralTriangle",
+                  w: 100,
+                  h: 90
+                },
+                {
+                  chip: "○ Radius",
+                  chipTheme: { bg: "#f0fdf4", color: "#166534", border: "#bbf7d0" },
+                  title: "Circle with Radius",
+                  subtitle: "Center point O, radius r and circumference",
+                  type: "circleRadius",
+                  w: 90,
+                  h: 90
+                }
+              ];
+
+              geoPresets.forEach((gp) => {
+                const card = createPresetCard({
+                  chip: gp.chip,
+                  chipTheme: gp.chipTheme,
+                  title: gp.title,
+                  subtitle: gp.subtitle,
+                  onClick: () => {
+                    const { x: cx, y: cy } = getVisibleBoardCenter();
+                    insertDiagramHelper({
+                      id: generateId(),
+                      type: "geometricDiagram",
+                      geoType: gp.type,
+                      color: penSettings.color || "#0f172a",
+                      width: 2,
+                      start: { x: cx - gp.w, y: cy - gp.h },
+                      end: { x: cx + gp.w, y: cy + gp.h },
+                      createdAt: Date.now()
+                    });
+                  }
+                });
+                diagBox.appendChild(card);
+              });
+            }
+          }
+
+          wrap.appendChild(diagBox);
+        }
+
+
+        // Sub-controls if Ruler is active
+        if (rulerState.visible) {
+          const rulerSub = document.createElement("div");
+          rulerSub.style.background = "#f8fafc";
+          rulerSub.style.padding = "10px";
+          rulerSub.style.borderRadius = "8px";
+          rulerSub.style.border = "1px solid #e2e8f0";
+          rulerSub.style.marginBottom = "0.85rem";
+
+          const subTitle = document.createElement("div");
+          subTitle.style.fontSize = "0.75rem";
+          subTitle.style.fontWeight = "700";
+          subTitle.style.color = "#0369a1";
+          subTitle.style.marginBottom = "6px";
+          subTitle.textContent = "Ruler Controls:";
+          rulerSub.appendChild(subTitle);
+
+          const presetRow = document.createElement("div");
+          presetRow.style.display = "flex";
+          presetRow.style.gap = "4px";
+          presetRow.style.marginBottom = "8px";
+
+          [10, 15, 20, 25, 30].forEach((cm) => {
+            const btn = document.createElement("button");
+            btn.type = "button";
+            btn.textContent = cm + "cm";
+            btn.style.padding = "3px 7px";
+            btn.style.fontSize = "0.72rem";
+            btn.style.fontWeight = "600";
+            btn.style.borderRadius = "4px";
+            btn.style.border = "1px solid " + (rulerState.lengthCm === cm ? "#0284c7" : "#cbd5e1");
+            btn.style.background = rulerState.lengthCm === cm ? "#0284c7" : "#ffffff";
+            btn.style.color = rulerState.lengthCm === cm ? "#ffffff" : "#334155";
+            btn.style.cursor = "pointer";
+            btn.addEventListener("click", () => {
+              rulerState.lengthCm = cm;
+              renderRulerTicks();
+              renderEduToolsOptions();
+              syncEduInstrumentsToPage(true);
+            });
+            presetRow.appendChild(btn);
+          });
+          rulerSub.appendChild(presetRow);
+
+          const traceBtn = document.createElement("button");
+          traceBtn.type = "button";
+          traceBtn.innerHTML = "✏️ Trace Straight Line on Board";
+          traceBtn.style.width = "100%";
+          traceBtn.style.padding = "6px";
+          traceBtn.style.borderRadius = "6px";
+          traceBtn.style.border = "none";
+          traceBtn.style.background = "#16a34a";
+          traceBtn.style.color = "#ffffff";
+          traceBtn.style.fontWeight = "700";
+          traceBtn.style.fontSize = "0.78rem";
+          traceBtn.style.cursor = "pointer";
+          traceBtn.addEventListener("click", () => {
+            traceRulerLine();
+          });
+          rulerSub.appendChild(traceBtn);
+
+          wrap.appendChild(rulerSub);
+        }
+
+        // Sub-controls if Protractor is active
+        if (protractorState.visible) {
+          const protractorSub = document.createElement("div");
+          protractorSub.style.background = "#fffaf5";
+          protractorSub.style.padding = "10px";
+          protractorSub.style.borderRadius = "8px";
+          protractorSub.style.border = "1px solid #fed7aa";
+          protractorSub.style.marginBottom = "0.85rem";
+
+          const subTitle = document.createElement("div");
+          subTitle.style.fontSize = "0.75rem";
+          subTitle.style.fontWeight = "700";
+          subTitle.style.color = "#c2410c";
+          subTitle.style.marginBottom = "6px";
+          subTitle.textContent = "Protractor Controls:";
+          protractorSub.appendChild(subTitle);
+
+          const scaleRow = document.createElement("div");
+          scaleRow.style.display = "flex";
+          scaleRow.style.gap = "4px";
+          scaleRow.style.marginBottom = "6px";
+
+          const isInnerScale = protractorState.scaleMode === "inner";
+
+          const outerScaleBtn = document.createElement("button");
+          outerScaleBtn.type = "button";
+          outerScaleBtn.textContent = "🔵 Outer (0°⭢)";
+          outerScaleBtn.style.flex = "1";
+          outerScaleBtn.style.padding = "4px 2px";
+          outerScaleBtn.style.fontSize = "0.71rem";
+          outerScaleBtn.style.fontWeight = "700";
+          outerScaleBtn.style.borderRadius = "4px";
+          outerScaleBtn.style.cursor = "pointer";
+          outerScaleBtn.style.border = !isInnerScale ? "1.5px solid #0284c7" : "1px solid #cbd5e1";
+          outerScaleBtn.style.background = !isInnerScale ? "#e0f2fe" : "#ffffff";
+          outerScaleBtn.style.color = !isInnerScale ? "#0369a1" : "#475569";
+          outerScaleBtn.addEventListener("click", () => {
+            protractorState.scaleMode = "outer";
+            updateProtractorScaleButton();
+            renderProtractorSvg();
+            updateProtractorNeedle();
+            renderEduToolsOptions();
+            syncEduInstrumentsToPage(true);
+          });
+          scaleRow.appendChild(outerScaleBtn);
+
+          const innerScaleBtn = document.createElement("button");
+          innerScaleBtn.type = "button";
+          innerScaleBtn.textContent = "🟠 Inner (⭠0°)";
+          innerScaleBtn.style.flex = "1";
+          innerScaleBtn.style.padding = "4px 2px";
+          innerScaleBtn.style.fontSize = "0.71rem";
+          innerScaleBtn.style.fontWeight = "700";
+          innerScaleBtn.style.borderRadius = "4px";
+          innerScaleBtn.style.cursor = "pointer";
+          innerScaleBtn.style.border = isInnerScale ? "1.5px solid #ea580c" : "1px solid #cbd5e1";
+          innerScaleBtn.style.background = isInnerScale ? "#ffedd5" : "#ffffff";
+          innerScaleBtn.style.color = isInnerScale ? "#9a3412" : "#475569";
+          innerScaleBtn.addEventListener("click", () => {
+            protractorState.scaleMode = "inner";
+            updateProtractorScaleButton();
+            renderProtractorSvg();
+            updateProtractorNeedle();
+            renderEduToolsOptions();
+            syncEduInstrumentsToPage(true);
+          });
+          scaleRow.appendChild(innerScaleBtn);
+
+          protractorSub.appendChild(scaleRow);
+
+          const modeBtn = document.createElement("button");
+          modeBtn.type = "button";
+          modeBtn.textContent = protractorState.isFullCircle ? "Switch to 180° Semicircle" : "Switch to 360° Full Circle";
+          modeBtn.style.width = "100%";
+          modeBtn.style.padding = "5px";
+          modeBtn.style.marginBottom = "6px";
+          modeBtn.style.borderRadius = "6px";
+          modeBtn.style.border = "1px solid #fdba74";
+          modeBtn.style.background = "#ffffff";
+          modeBtn.style.color = "#9a3412";
+          modeBtn.style.fontSize = "0.74rem";
+          modeBtn.style.fontWeight = "600";
+          modeBtn.style.cursor = "pointer";
+          modeBtn.addEventListener("click", () => {
+            protractorState.isFullCircle = !protractorState.isFullCircle;
+            updateProtractorMode();
+            renderEduToolsOptions();
+            syncEduInstrumentsToPage(true);
+          });
+          protractorSub.appendChild(modeBtn);
+
+          const drawAngleBtn = document.createElement("button");
+          drawAngleBtn.type = "button";
+          drawAngleBtn.innerHTML = "✏️ Draw Angle (" + protractorState.angle.toFixed(1) + "°) on Board";
+          drawAngleBtn.style.width = "100%";
+          drawAngleBtn.style.padding = "6px";
+          drawAngleBtn.style.borderRadius = "6px";
+          drawAngleBtn.style.border = "none";
+          drawAngleBtn.style.background = "#ea580c";
+          drawAngleBtn.style.color = "#ffffff";
+          drawAngleBtn.style.fontWeight = "700";
+          drawAngleBtn.style.fontSize = "0.78rem";
+          drawAngleBtn.style.cursor = "pointer";
+          drawAngleBtn.addEventListener("click", () => {
+            drawProtractorAngle();
+          });
+          protractorSub.appendChild(drawAngleBtn);
+
+          wrap.appendChild(protractorSub);
+        }
+
+      }
+
+      function toggleRuler(show) {
+        rulerState.visible = (show !== undefined) ? show : !rulerState.visible;
+        const el = document.getElementById("eduRulerOverlay");
+        if (!el) return;
+        el.style.display = rulerState.visible ? "flex" : "none";
+        if (rulerState.visible) {
+          renderRulerTicks();
+          updateRulerPosition();
+        }
+        syncEduInstrumentsToPage(true);
+      }
+      window.toggleRuler = toggleRuler;
+
+      function renderRulerTicks() {
+        const svg = document.getElementById("eduRulerSvg");
+        const overlay = document.getElementById("eduRulerOverlay");
+        const lengthBadge = document.getElementById("eduRulerLengthBadge");
+        if (!svg || !overlay) return;
+
+        const pxPerCm = rulerState.pxPerCm;
+        const lengthCm = rulerState.lengthCm;
+        const totalPx = Math.round(lengthCm * pxPerCm);
+        const heightPx = 72;
+
+        overlay.style.width = (totalPx + 40) + "px"; // margin for handle
+        overlay.style.height = heightPx + "px";
+        if (lengthBadge) lengthBadge.textContent = lengthCm.toFixed(1) + " cm";
+
+        let lines = "";
+        // 1. Metric cm & mm ticks on TOP edge
+        const totalMm = Math.round(lengthCm * 10);
+        for (let i = 0; i <= totalMm; i++) {
+          const x = 20 + i * (pxPerCm / 10);
+          if (i % 10 === 0) {
+            const cmNum = i / 10;
+            lines += '<line x1="' + x + '" y1="0" x2="' + x + '" y2="20" stroke="#0f172a" stroke-width="1.5" />';
+            lines += '<text x="' + x + '" y="32" font-size="10" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="sans-serif">' + cmNum + '</text>';
+          } else if (i % 5 === 0) {
+            lines += '<line x1="' + x + '" y1="0" x2="' + x + '" y2="13" stroke="#334155" stroke-width="1.1" />';
+          } else {
+            lines += '<line x1="' + x + '" y1="0" x2="' + x + '" y2="7" stroke="#64748b" stroke-width="0.8" />';
+          }
+        }
+        lines += '<text x="' + (20 + totalPx + 8) + '" y="16" font-size="9" font-weight="700" fill="#0284c7" font-family="sans-serif">cm</text>';
+
+        // 2. Inches ticks on BOTTOM edge
+        const pxPerInch = pxPerCm * 2.54;
+        const totalInches = Math.floor(totalPx / pxPerInch);
+        for (let inIdx = 0; inIdx <= totalInches; inIdx++) {
+          const inchX = 20 + inIdx * pxPerInch;
+          lines += '<line x1="' + inchX + '" y1="' + heightPx + '" x2="' + inchX + '" y2="' + (heightPx - 18) + '" stroke="#0f172a" stroke-width="1.4" />';
+          lines += '<text x="' + inchX + '" y="' + (heightPx - 22) + '" font-size="9" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="sans-serif">' + inIdx + '</text>';
+          // Half inch tick
+          const halfX = inchX + pxPerInch / 2;
+          if (halfX <= 20 + totalPx) {
+            lines += '<line x1="' + halfX + '" y1="' + heightPx + '" x2="' + halfX + '" y2="' + (heightPx - 11) + '" stroke="#475569" stroke-width="1" />';
+          }
+        }
+        lines += '<text x="' + (20 + totalPx + 8) + '" y="' + (heightPx - 8) + '" font-size="9" font-weight="700" fill="#475569" font-family="sans-serif">in</text>';
+
+        svg.setAttribute("viewBox", '0 0 ' + (totalPx + 40) + ' ' + heightPx);
+        svg.innerHTML = lines;
+      }
+
+      function updateRulerPosition() {
+        const el = document.getElementById("eduRulerOverlay");
+        const angleBadge = document.getElementById("eduRulerAngleBadge");
+        if (!el) return;
+        el.style.left = rulerState.x + "px";
+        el.style.top = rulerState.y + "px";
+        el.style.transform = "rotate(" + rulerState.angle + "deg)";
+        if (angleBadge) {
+          const normAngle = ((rulerState.angle % 360) + 360) % 360;
+          angleBadge.textContent = normAngle.toFixed(1) + "°";
+        }
+      }
+
+      function traceRulerLine() {
+        const overlay = document.getElementById("eduRulerOverlay");
+        if (!overlay || !boardCanvas) return;
+        const page = pages[currentPageIndex];
+        if (!page) return;
+        if (!page.shapes) page.shapes = [];
+
+        pushUndo();
+
+        const rect = overlay.getBoundingClientRect();
+        const rad = (rulerState.angle * Math.PI) / 180;
+        const totalPx = rulerState.lengthCm * rulerState.pxPerCm;
+
+        // Top edge start point (0 cm) and end point in overlay local space
+        const localX1 = 20;
+        const localY1 = 0;
+        const localX2 = 20 + totalPx;
+        const localY2 = 0;
+
+        // Center of ruler overlay
+        const localCx = overlay.offsetWidth / 2;
+        const localCy = overlay.offsetHeight / 2;
+
+        // Overlay center in client space
+        const centerClientX = rect.left + rect.width / 2;
+        const centerClientY = rect.top + rect.height / 2;
+
+        // Rotate local points around local center
+        const rotX1 = (localX1 - localCx) * Math.cos(rad) - (localY1 - localCy) * Math.sin(rad);
+        const rotY1 = (localX1 - localCx) * Math.sin(rad) + (localY1 - localCy) * Math.cos(rad);
+        const rotX2 = (localX2 - localCx) * Math.cos(rad) - (localY2 - localCy) * Math.sin(rad);
+        const rotY2 = (localX2 - localCx) * Math.sin(rad) + (localY2 - localCy) * Math.cos(rad);
+
+        const clientX1 = centerClientX + rotX1;
+        const clientY1 = centerClientY + rotY1;
+        const clientX2 = centerClientX + rotX2;
+        const clientY2 = centerClientY + rotY2;
+
+        // Convert client coordinates to canvas coordinates
+        const pt1 = getCanvasPointFromClient(clientX1, clientY1);
+        const pt2 = getCanvasPointFromClient(clientX2, clientY2);
+
+        const strokeColor = penSettings.color || "#0f172a";
+        const strokeWidth = penSettings.width || 3;
+
+        const lineShape = {
+          id: generateId(),
+          type: "line",
+          color: strokeColor,
+          width: strokeWidth,
+          start: { x: pt1.x, y: pt1.y },
+          end: { x: pt2.x, y: pt2.y },
+          createdAt: Date.now()
+        };
+
+        page.shapes.push(lineShape);
+        updateBoardAppearance();
+        notifyParentPageUpdate(currentPageIndex, true);
+        scheduleNotifyParentPages(100);
+
+        // Visual flash feedback on ruler
+        overlay.style.boxShadow = "0 0 0 3px #16a34a, 0 12px 32px rgba(22, 163, 74, 0.4)";
+        setTimeout(() => {
+          overlay.style.boxShadow = "";
+        }, 220);
+      }
+      window.traceRulerLine = traceRulerLine;
+
+      function getCanvasPointFromClient(clientX, clientY) {
+        if (!cachedCanvasRect) updateCanvasRect();
+        const rect = cachedCanvasRect || (boardCanvas ? boardCanvas.getBoundingClientRect() : { left: 0, top: 0, width: 800, height: 600 });
+        const scale = window.devicePixelRatio || 1;
+        const logicalWidth = boardCanvas.width / scale;
+        const logicalHeight = boardCanvas.height / scale;
+
+        const rw = rect.width || 1;
+        const rh = rect.height || 1;
+        const xRatio = (clientX - rect.left) / rw;
+        const yRatio = (clientY - rect.top) / rh;
+
+        return {
+          x: (xRatio * logicalWidth) / zoom,
+          y: (yRatio * logicalHeight) / zoom
+        };
+      }
+
+      // --- Protractor Functions ---
+      function toggleProtractor(show) {
+        protractorState.visible = (show !== undefined) ? show : !protractorState.visible;
+        const el = document.getElementById("eduProtractorOverlay");
+        if (!el) return;
+        el.style.display = protractorState.visible ? "block" : "none";
+        if (protractorState.visible) {
+          updateProtractorMode();
+          updateProtractorPosition();
+          renderProtractorSvg();
+        }
+        syncEduInstrumentsToPage(true);
+      }
+      window.toggleProtractor = toggleProtractor;
+
+      function updateProtractorMode() {
+        const el = document.getElementById("eduProtractorOverlay");
+        const btn = document.getElementById("eduProtractorToggleModeBtn");
+        if (!el) return;
+        if (protractorState.isFullCircle) {
+          el.classList.add("edu-protractor-overlay--full");
+          if (btn) btn.textContent = "🌕 360°";
+        } else {
+          el.classList.remove("edu-protractor-overlay--full");
+          if (btn) btn.textContent = "🌓 180°";
+        }
+        renderProtractorSvg();
+        updateProtractorNeedle();
+        syncEduInstrumentsToPage(true);
+      }
+
+      function updateProtractorPosition() {
+        const el = document.getElementById("eduProtractorOverlay");
+        if (!el) return;
+        el.style.left = protractorState.x + "px";
+        el.style.top = protractorState.y + "px";
+        el.style.transform = "rotate(" + protractorState.baseRotation + "deg)";
+      }
+
+      function renderProtractorSvg() {
+        const svg = document.getElementById("eduProtractorSvg");
+        if (!svg) return;
+
+        const isFull = protractorState.isFullCircle;
+        const cx = 230;
+        const cy = isFull ? 230 : 230;
+        const r = 210;
+
+        let markup = "";
+        const maxDeg = isFull ? 360 : 180;
+        svg.setAttribute("viewBox", isFull ? "0 0 460 460" : "0 0 460 250");
+
+        // Dynamic Angle Sector Highlight (swept wedge for Inner or Outer scale)
+        const isInner = protractorState.scaleMode === "inner";
+        let wedgeX = cx;
+        let wedgeY = cy;
+        if (isInner) {
+          const cartesianDeg = 180 - protractorState.angle;
+          const angleRad = (cartesianDeg * Math.PI) / 180;
+          wedgeX = cx + r * Math.cos(angleRad);
+          wedgeY = cy - r * Math.sin(angleRad);
+          const largeArc = protractorState.angle > 180 ? 1 : 0;
+          markup += '<path d="M ' + cx + ' ' + cy + ' L ' + (cx - r) + ' ' + cy + ' A ' + r + ' ' + r + ' 0 ' + largeArc + ' 1 ' + wedgeX + ' ' + wedgeY + ' Z" fill="rgba(234, 88, 12, 0.22)" stroke="#ea580c" stroke-width="1.2" stroke-dasharray="3 2" />';
+        } else {
+          const angleRad = (protractorState.angle * Math.PI) / 180;
+          wedgeX = cx + r * Math.cos(angleRad);
+          wedgeY = cy - r * Math.sin(angleRad);
+          const largeArc = protractorState.angle > 180 ? 1 : 0;
+          markup += '<path d="M ' + cx + ' ' + cy + ' L ' + (cx + r) + ' ' + cy + ' A ' + r + ' ' + r + ' 0 ' + largeArc + ' 0 ' + wedgeX + ' ' + wedgeY + ' Z" fill="rgba(2, 132, 199, 0.20)" stroke="#0284c7" stroke-width="1.2" stroke-dasharray="3 2" />';
+        }
+
+        // Outer rim border
+        if (isFull) {
+          markup += '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="none" stroke="#0284c7" stroke-width="1.8" />';
+        } else {
+          markup += '<path d="M ' + (cx - r) + ' ' + cy + ' A ' + r + ' ' + r + ' 0 0 1 ' + (cx + r) + ' ' + cy + ' Z" fill="none" stroke="#0284c7" stroke-width="1.8" />';
+        }
+
+        // Degree ticks & labels
+        for (let deg = 0; deg <= maxDeg; deg++) {
+          const rad = (deg * Math.PI) / 180;
+          const cos = Math.cos(rad);
+          const sin = Math.sin(rad);
+
+          const isPrimary = (deg % 10 === 0);
+          const isMid = (deg % 5 === 0 && !isPrimary);
+
+          const tickLen = isPrimary ? 16 : (isMid ? 10 : 5);
+          const x1 = cx + r * cos;
+          const y1 = cy - r * sin;
+          const x2 = cx + (r - tickLen) * cos;
+          const y2 = cy - (r - tickLen) * sin;
+
+          const strokeColor = isPrimary ? "#0f172a" : (isMid ? "#334155" : "#94a3b8");
+          const strokeW = isPrimary ? 1.4 : (isMid ? 1 : 0.6);
+          markup += '<line x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" stroke="' + strokeColor + '" stroke-width="' + strokeW + '" />';
+
+          // Labels every 10 degrees
+          if (isPrimary && deg < maxDeg) {
+            // Outer scale (counter-clockwise 0 -> 180)
+            const textR1 = r - 26;
+            const tx1 = cx + textR1 * cos;
+            const ty1 = cy - textR1 * sin + 3;
+            markup += '<text x="' + tx1 + '" y="' + ty1 + '" font-size="9" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="sans-serif">' + deg + '</text>';
+
+            // Inner scale (clockwise 180 -> 0)
+            if (!isFull) {
+              const textR2 = r - 42;
+              const tx2 = cx + textR2 * cos;
+              const ty2 = cy - textR2 * sin + 3;
+              const innerDeg = 180 - deg;
+              markup += '<text x="' + tx2 + '" y="' + ty2 + '" font-size="8" font-weight="600" fill="#c2410c" text-anchor="middle" font-family="sans-serif">' + innerDeg + '</text>';
+            }
+          }
+        }
+
+        // Origin crosshair & center hole
+        markup += '<circle cx="' + cx + '" cy="' + cy + '" r="16" fill="rgba(255, 255, 255, 0.85)" stroke="#0284c7" stroke-width="1.5" />';
+        markup += '<line x1="' + (cx - 24) + '" y1="' + cy + '" x2="' + (cx + 24) + '" y2="' + cy + '" stroke="#0284c7" stroke-width="1.2" />';
+        markup += '<line x1="' + cx + '" y1="' + (cy - 24) + '" x2="' + cx + '" y2="' + (cy + 24) + '" stroke="#0284c7" stroke-width="1.2" />';
+
+        // Angle needle ray line
+        markup += '<line x1="' + cx + '" y1="' + cy + '" x2="' + wedgeX + '" y2="' + wedgeY + '" stroke="#ea580c" stroke-width="2.5" stroke-dasharray="4 2" />';
+
+        svg.innerHTML = markup;
+      }
+
+      function updateProtractorNeedle() {
+        const knob = document.getElementById("eduProtractorNeedleKnob");
+        const angleBadge = document.getElementById("eduProtractorAngleBadge");
+        if (!knob) return;
+
+        const isFull = protractorState.isFullCircle;
+        const isInner = protractorState.scaleMode === "inner";
+        const cx = 230;
+        const cy = isFull ? 230 : 230;
+        const r = 210;
+
+        const cartesianDeg = isInner ? (180 - protractorState.angle) : protractorState.angle;
+        const rad = (cartesianDeg * Math.PI) / 180;
+        const kx = cx + (r + 14) * Math.cos(rad);
+        const ky = cy - (r + 14) * Math.sin(rad);
+
+        knob.style.left = kx + "px";
+        knob.style.top = ky + "px";
+        knob.style.background = isInner ? "#ea580c" : "#0284c7";
+
+        if (angleBadge) {
+          angleBadge.textContent = protractorState.angle.toFixed(1) + "°" + (isInner ? " (Inner)" : " (Outer)");
+          angleBadge.style.background = isInner ? "#ea580c" : "#0284c7";
+        }
+        updateProtractorScaleButton();
+      }
+
+      function drawProtractorAngle() {
+        const overlay = document.getElementById("eduProtractorOverlay");
+        if (!overlay || !boardCanvas) return;
+        const page = pages[currentPageIndex];
+        if (!page) return;
+        if (!page.shapes) page.shapes = [];
+
+        pushUndo();
+
+        const rect = overlay.getBoundingClientRect();
+        const isFull = protractorState.isFullCircle;
+        const localCx = 230;
+        const localCy = isFull ? 230 : 230;
+
+        // Base rotation angle of protractor in canvas space
+        const baseRad = (protractorState.baseRotation * Math.PI) / 180;
+        const isInner = protractorState.scaleMode === "inner";
+
+        // Client coordinates of origin crosshair
+        const centerClientX = rect.left + localCx;
+        const centerClientY = rect.top + localCy;
+
+        // Vertex in canvas space
+        const vPt = getCanvasPointFromClient(centerClientX, centerClientY);
+
+        const rayLen = 170;
+        const strokeColor = penSettings.color || "#0f172a";
+        const strokeWidth = penSettings.width || 3;
+
+        let ray1Angle = baseRad;
+        let ray2Angle = baseRad;
+        let arcStartAngle = 0;
+        let arcEndAngle = 0;
+        let arcAnticlockwise = true;
+
+        if (isInner) {
+          // Inner Scale: Baseline extends to the LEFT (angle baseRad + PI)
+          ray1Angle = baseRad + Math.PI;
+          const cartesianDeg = 180 - protractorState.angle;
+          ray2Angle = baseRad - (cartesianDeg * Math.PI) / 180;
+          arcStartAngle = ray1Angle;
+          arcEndAngle = ray2Angle;
+          arcAnticlockwise = false; // Clockwise in screen coordinates from left baseline
+        } else {
+          // Outer Scale: Baseline extends to the RIGHT (angle baseRad)
+          ray1Angle = baseRad;
+          ray2Angle = baseRad - (protractorState.angle * Math.PI) / 180;
+          arcStartAngle = ray1Angle;
+          arcEndAngle = ray2Angle;
+          arcAnticlockwise = true; // Counter-clockwise in screen coordinates from right baseline
+        }
+
+        const ray1ClientX = centerClientX + rayLen * Math.cos(ray1Angle);
+        const ray1ClientY = centerClientY + rayLen * Math.sin(ray1Angle);
+        const ray1Pt = getCanvasPointFromClient(ray1ClientX, ray1ClientY);
+
+        const ray2ClientX = centerClientX + rayLen * Math.cos(ray2Angle);
+        const ray2ClientY = centerClientY + rayLen * Math.sin(ray2Angle);
+        const ray2Pt = getCanvasPointFromClient(ray2ClientX, ray2ClientY);
+
+        // 1. Ray 1 shape (Baseline Arm)
+        page.shapes.push({
+          id: generateId(),
+          type: "ray",
+          color: strokeColor,
+          width: strokeWidth,
+          start: { x: vPt.x, y: vPt.y },
+          end: { x: ray1Pt.x, y: ray1Pt.y },
+          createdAt: Date.now()
+        });
+
+        // 2. Ray 2 shape (Measured Angle Arm)
+        page.shapes.push({
+          id: generateId(),
+          type: "ray",
+          color: strokeColor,
+          width: strokeWidth,
+          start: { x: vPt.x, y: vPt.y },
+          end: { x: ray2Pt.x, y: ray2Pt.y },
+          createdAt: Date.now() + 1
+        });
+
+        // 3. Curve Symbol in Angle (Angle Arc between Ray 1 and Ray 2)
+        const arcRadius = 40;
+        page.shapes.push({
+          id: generateId(),
+          type: "angleArc",
+          color: isInner ? "#ea580c" : "#0284c7",
+          width: Math.max(1.8, strokeWidth * 0.75),
+          vertex: { x: vPt.x, y: vPt.y },
+          start: { x: vPt.x - arcRadius, y: vPt.y - arcRadius },
+          end: { x: vPt.x + arcRadius, y: vPt.y + arcRadius },
+          radius: arcRadius,
+          startAngle: arcStartAngle,
+          endAngle: arcEndAngle,
+          anticlockwise: arcAnticlockwise,
+          fill: isInner ? "rgba(234, 88, 12, 0.15)" : "rgba(2, 132, 199, 0.15)",
+          createdAt: Date.now() + 2
+        });
+
+        // 4. Text label with angle
+        let midAngle = (ray1Angle + ray2Angle) / 2;
+        if (Math.abs(ray1Angle - ray2Angle) > Math.PI) {
+          midAngle += Math.PI;
+        }
+        const labelDist = 62;
+        const labelX = vPt.x + labelDist * Math.cos(midAngle);
+        const labelY = vPt.y + labelDist * Math.sin(midAngle);
+
+        if (!page.texts) page.texts = [];
+        page.texts.push({
+          id: generateId(),
+          text: protractorState.angle.toFixed(0) + "°",
+          x: labelX,
+          y: labelY,
+          fontSize: 18,
+          fontFamily: "Arial",
+          color: isInner ? "#ea580c" : "#0284c7",
+          bold: true
+        });
+
+        updateBoardAppearance();
+        notifyParentPageUpdate(currentPageIndex, true);
+        scheduleNotifyParentPages(100);
+
+        // Flash feedback
+        overlay.style.boxShadow = "0 0 0 3px #ea580c, 0 16px 36px rgba(234, 88, 12, 0.4)";
+        setTimeout(() => {
+          overlay.style.boxShadow = "";
+        }, 220);
+      }
+      window.drawProtractorAngle = drawProtractorAngle;
+
+      function setupEduToolsListeners() {
+        const rulerOverlay = document.getElementById("eduRulerOverlay");
+        const rulerRotateHandle = document.getElementById("eduRulerRotateHandle");
+        const rulerLengthHandle = document.getElementById("eduRulerLengthHandle");
+        const rulerTraceBtn = document.getElementById("eduRulerTraceBtn");
+        const rulerResetAngleBtn = document.getElementById("eduRulerResetAngleBtn");
+        const rulerCloseBtn = document.getElementById("eduRulerCloseBtn");
+
+        const protractorOverlay = document.getElementById("eduProtractorOverlay");
+        const protractorNeedleKnob = document.getElementById("eduProtractorNeedleKnob");
+        const protractorDrawAngleBtn = document.getElementById("eduProtractorDrawAngleBtn");
+        const protractorToggleScaleBtn = document.getElementById("eduProtractorToggleScaleBtn");
+        const protractorToggleModeBtn = document.getElementById("eduProtractorToggleModeBtn");
+        const protractorResetBtn = document.getElementById("eduProtractorResetBtn");
+        const protractorCloseBtn = document.getElementById("eduProtractorCloseBtn");
+
+        // --- Ruler Buttons ---
+        if (rulerTraceBtn) rulerTraceBtn.onclick = traceRulerLine;
+        if (rulerResetAngleBtn) rulerResetAngleBtn.onclick = () => {
+          rulerState.angle = 0;
+          updateRulerPosition();
+          syncEduInstrumentsToPage(true);
+        };
+        if (rulerCloseBtn) rulerCloseBtn.onclick = () => toggleRuler(false);
+
+        // --- Ruler Dragging Anywhere on Body (Mouse, Touch, Stylus) ---
+        if (rulerOverlay) {
+          let isDragging = false;
+          let startClientX = 0;
+          let startClientY = 0;
+          let initialX = 0;
+          let initialY = 0;
+
+          rulerOverlay.addEventListener("pointerdown", (e) => {
+            if (e.target.closest("button") || e.target === rulerRotateHandle || e.target.closest(".edu-ruler-rotate-handle") || e.target === rulerLengthHandle || e.target.closest(".edu-ruler-length-handle")) return;
+            isDragging = true;
+            startClientX = e.clientX;
+            startClientY = e.clientY;
+            initialX = rulerState.x;
+            initialY = rulerState.y;
+            try {
+              rulerOverlay.setPointerCapture(e.pointerId);
+            } catch (_) {}
+            e.preventDefault();
+            e.stopPropagation();
+          });
+
+          rulerOverlay.addEventListener("pointermove", (e) => {
+            if (!isDragging) return;
+            const dx = e.clientX - startClientX;
+            const dy = e.clientY - startClientY;
+            rulerState.x = initialX + dx;
+            rulerState.y = initialY + dy;
+            updateRulerPosition();
+            syncEduInstrumentsToPage(false);
+            e.preventDefault();
+            e.stopPropagation();
+          });
+
+          const onEndDrag = (e) => {
+            if (!isDragging) return;
+            isDragging = false;
+            try {
+              rulerOverlay.releasePointerCapture(e.pointerId);
+            } catch (_) {}
+            syncEduInstrumentsToPage(true);
+          };
+          rulerOverlay.addEventListener("pointerup", onEndDrag);
+          rulerOverlay.addEventListener("pointercancel", onEndDrag);
+        }
+
+        // --- Ruler Rotating Handle ---
+        if (rulerRotateHandle && rulerOverlay) {
+          let isRotating = false;
+
+          rulerRotateHandle.addEventListener("pointerdown", (e) => {
+            isRotating = true;
+            try {
+              rulerRotateHandle.setPointerCapture(e.pointerId);
+            } catch (_) {}
+            e.stopPropagation();
+            e.preventDefault();
+          });
+
+          rulerRotateHandle.addEventListener("pointermove", (e) => {
+            if (!isRotating) return;
+            const rect = rulerOverlay.getBoundingClientRect();
+            const cx = rect.left + rect.width / 2;
+            const cy = rect.top + rect.height / 2;
+
+            let angleDeg = Math.atan2(e.clientY - cy, e.clientX - cx) * (180 / Math.PI);
+            if (e.shiftKey) {
+              angleDeg = Math.round(angleDeg / 15) * 15;
+            } else {
+              angleDeg = Math.round(angleDeg * 2) / 2;
+            }
+            rulerState.angle = angleDeg;
+            updateRulerPosition();
+            syncEduInstrumentsToPage(false);
+            e.stopPropagation();
+            e.preventDefault();
+          });
+
+          const onEndRotate = (e) => {
+            if (!isRotating) return;
+            isRotating = false;
+            try {
+              rulerRotateHandle.releasePointerCapture(e.pointerId);
+            } catch (_) {}
+            syncEduInstrumentsToPage(true);
+          };
+          rulerRotateHandle.addEventListener("pointerup", onEndRotate);
+          rulerRotateHandle.addEventListener("pointercancel", onEndRotate);
+        }
+
+        // --- Ruler Length Resizing ---
+        if (rulerLengthHandle && rulerOverlay) {
+          let isResizing = false;
+          let startX = 0;
+          let startLen = 15;
+
+          rulerLengthHandle.addEventListener("pointerdown", (e) => {
+            isResizing = true;
+            startX = e.clientX;
+            startLen = rulerState.lengthCm;
+            try {
+              rulerLengthHandle.setPointerCapture(e.pointerId);
+            } catch (_) {}
+            e.stopPropagation();
+            e.preventDefault();
+          });
+
+          rulerLengthHandle.addEventListener("pointermove", (e) => {
+            if (!isResizing) return;
+            const dx = e.clientX - startX;
+            const deltaCm = dx / rulerState.pxPerCm;
+            rulerState.lengthCm = Math.max(10, Math.min(30, Math.round((startLen + deltaCm) * 2) / 2));
+            renderRulerTicks();
+            syncEduInstrumentsToPage(false);
+            e.stopPropagation();
+            e.preventDefault();
+          });
+
+          const onEndResize = (e) => {
+            if (!isResizing) return;
+            isResizing = false;
+            try {
+              rulerLengthHandle.releasePointerCapture(e.pointerId);
+            } catch (_) {}
+            syncEduInstrumentsToPage(true);
+          };
+          rulerLengthHandle.addEventListener("pointerup", onEndResize);
+          rulerLengthHandle.addEventListener("pointercancel", onEndResize);
+        }
+
+        // --- Protractor Buttons ---
+        if (protractorDrawAngleBtn) protractorDrawAngleBtn.onclick = drawProtractorAngle;
+        if (protractorToggleScaleBtn) protractorToggleScaleBtn.onclick = () => {
+          protractorState.scaleMode = protractorState.scaleMode === "inner" ? "outer" : "inner";
+          updateProtractorScaleButton();
+          renderProtractorSvg();
+          updateProtractorNeedle();
+          renderEduToolsOptions();
+          syncEduInstrumentsToPage(true);
+        };
+        if (protractorToggleModeBtn) protractorToggleModeBtn.onclick = () => {
+          protractorState.isFullCircle = !protractorState.isFullCircle;
+          updateProtractorMode();
+        };
+        if (protractorResetBtn) protractorResetBtn.onclick = () => {
+          protractorState.angle = 0;
+          renderProtractorSvg();
+          updateProtractorNeedle();
+          syncEduInstrumentsToPage(true);
+        };
+        if (protractorCloseBtn) protractorCloseBtn.onclick = () => toggleProtractor(false);
+
+        // --- Protractor Dragging Anywhere on Body ---
+        if (protractorOverlay) {
+          let isDragging = false;
+          let startClientX = 0;
+          let startClientY = 0;
+          let initialX = 0;
+          let initialY = 0;
+
+          protractorOverlay.addEventListener("pointerdown", (e) => {
+            if (e.target.closest("button") || e.target === protractorNeedleKnob || e.target.closest(".edu-protractor-needle-knob")) return;
+            isDragging = true;
+            startClientX = e.clientX;
+            startClientY = e.clientY;
+            initialX = protractorState.x;
+            initialY = protractorState.y;
+            try {
+              protractorOverlay.setPointerCapture(e.pointerId);
+            } catch (_) {}
+            e.preventDefault();
+            e.stopPropagation();
+          });
+
+          protractorOverlay.addEventListener("pointermove", (e) => {
+            if (!isDragging) return;
+            protractorState.x = initialX + (e.clientX - startClientX);
+            protractorState.y = Math.max(52, initialY + (e.clientY - startClientY));
+            updateProtractorPosition();
+            syncEduInstrumentsToPage(false);
+            e.preventDefault();
+            e.stopPropagation();
+          });
+
+          const onEndDrag = (e) => {
+            if (!isDragging) return;
+            isDragging = false;
+            try {
+              protractorOverlay.releasePointerCapture(e.pointerId);
+            } catch (_) {}
+            syncEduInstrumentsToPage(true);
+          };
+          protractorOverlay.addEventListener("pointerup", onEndDrag);
+          protractorOverlay.addEventListener("pointercancel", onEndDrag);
+        }
+
+        // --- Protractor Needle Knob Dragging ---
+        if (protractorNeedleKnob && protractorOverlay) {
+          let isMeasuring = false;
+
+          protractorNeedleKnob.addEventListener("pointerdown", (e) => {
+            isMeasuring = true;
+            try {
+              protractorNeedleKnob.setPointerCapture(e.pointerId);
+            } catch (_) {}
+            e.stopPropagation();
+            e.preventDefault();
+          });
+
+          protractorNeedleKnob.addEventListener("pointermove", (e) => {
+            if (!isMeasuring) return;
+            const rect = protractorOverlay.getBoundingClientRect();
+            const isFull = protractorState.isFullCircle;
+            const isInner = protractorState.scaleMode === "inner";
+            const cx = rect.left + 230;
+            const cy = rect.top + 230;
+
+            const dx = e.clientX - cx;
+            const dy = cy - e.clientY;
+
+            let rawDeg = Math.atan2(dy, dx) * (180 / Math.PI);
+            if (rawDeg < 0) {
+              rawDeg += 360;
+            }
+
+            let angleDeg = rawDeg;
+            if (isInner) {
+              rawDeg = Math.max(0, Math.min(180, rawDeg));
+              angleDeg = 180 - rawDeg;
+            } else {
+              if (!isFull) {
+                angleDeg = Math.max(0, Math.min(180, angleDeg));
+              }
+            }
+
+            if (e.shiftKey) {
+              angleDeg = Math.round(angleDeg / 5) * 5;
+            } else {
+              angleDeg = Math.round(angleDeg * 2) / 2;
+            }
+
+            protractorState.angle = angleDeg;
+            renderProtractorSvg();
+            updateProtractorNeedle();
+            syncEduInstrumentsToPage(false);
+            e.stopPropagation();
+            e.preventDefault();
+          });
+
+          const onEndMeasure = (e) => {
+            if (!isMeasuring) return;
+            isMeasuring = false;
+            try {
+              protractorNeedleKnob.releasePointerCapture(e.pointerId);
+            } catch (_) {}
+            syncEduInstrumentsToPage(true);
+          };
+          protractorNeedleKnob.addEventListener("pointerup", onEndMeasure);
+          protractorNeedleKnob.addEventListener("pointercancel", onEndMeasure);
+        }
+      }
+
+      setupEduToolsListeners();
 
       setInterval(() => {
         const page = pages[currentPageIndex];

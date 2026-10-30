@@ -1153,6 +1153,888 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
     });
   };
 
+  // Render Educational Instruments (Ruler) synced from teacher
+  const drawStudentRuler = (ctx: CanvasRenderingContext2D, r: any) => {
+    if (!r || !r.visible) return;
+    const lengthCm = typeof r.lengthCm === 'number' ? r.lengthCm : 15;
+    const pxPerCm = typeof r.pxPerCm === 'number' ? r.pxPerCm : 36;
+    const totalPx = Math.round(lengthCm * pxPerCm);
+    const w = totalPx + 40;
+    const h = 72;
+    const x = typeof r.x === 'number' ? r.x : 200;
+    const y = typeof r.y === 'number' ? r.y : 150;
+    const angle = typeof r.angle === 'number' ? r.angle : 0;
+
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate((angle * Math.PI) / 180);
+
+    // Frosted acrylic ruler body
+    ctx.shadowColor = 'rgba(15, 23, 42, 0.22)';
+    ctx.shadowBlur = 14;
+    ctx.shadowOffsetY = 4;
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.92)';
+    ctx.strokeStyle = 'rgba(100, 116, 139, 0.7)';
+    ctx.lineWidth = 1.5;
+
+    const left = -w / 2;
+    const top = -h / 2;
+    if (ctx.roundRect) {
+      ctx.beginPath();
+      ctx.roundRect(left, top, w, h, 6);
+      ctx.fill();
+      ctx.stroke();
+    } else {
+      ctx.beginPath();
+      ctx.rect(left, top, w, h);
+      ctx.fill();
+      ctx.stroke();
+    }
+
+    // Clear shadow for markings
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetY = 0;
+
+    // 1. Metric cm & mm ticks on TOP edge
+    const totalMm = Math.round(lengthCm * 10);
+    const startX = -totalPx / 2;
+    for (let i = 0; i <= totalMm; i++) {
+      const tx = startX + i * (pxPerCm / 10);
+      if (i % 10 === 0) {
+        const cmNum = i / 10;
+        ctx.strokeStyle = '#0f172a';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(tx, top);
+        ctx.lineTo(tx, top + 18);
+        ctx.stroke();
+
+        ctx.font = 'bold 10px "Plus Jakarta Sans", sans-serif';
+        ctx.fillStyle = '#0f172a';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        ctx.fillText(String(cmNum), tx, top + 21);
+      } else if (i % 5 === 0) {
+        ctx.strokeStyle = '#334155';
+        ctx.lineWidth = 1.1;
+        ctx.beginPath();
+        ctx.moveTo(tx, top);
+        ctx.lineTo(tx, top + 12);
+        ctx.stroke();
+      } else {
+        ctx.strokeStyle = '#64748b';
+        ctx.lineWidth = 0.8;
+        ctx.beginPath();
+        ctx.moveTo(tx, top);
+        ctx.lineTo(tx, top + 7);
+        ctx.stroke();
+      }
+    }
+
+    // cm label
+    ctx.font = 'bold 9px "Plus Jakarta Sans", sans-serif';
+    ctx.fillStyle = '#0284c7';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText('cm', totalPx / 2 + 6, top + 10);
+
+    // 2. Inch ticks on BOTTOM edge
+    const pxPerInch = pxPerCm * 2.54;
+    const totalInches = Math.floor(totalPx / pxPerInch);
+    const bottom = top + h;
+    for (let inIdx = 0; inIdx <= totalInches; inIdx++) {
+      const ix = startX + inIdx * pxPerInch;
+      ctx.strokeStyle = '#0f172a';
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      ctx.moveTo(ix, bottom);
+      ctx.lineTo(ix, bottom - 16);
+      ctx.stroke();
+
+      ctx.font = 'bold 9px "Plus Jakarta Sans", sans-serif';
+      ctx.fillStyle = '#0f172a';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'bottom';
+      ctx.fillText(String(inIdx), ix, bottom - 18);
+
+      const halfIx = ix + pxPerInch / 2;
+      if (halfIx <= totalPx / 2) {
+        ctx.strokeStyle = '#475569';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(halfIx, bottom);
+        ctx.lineTo(halfIx, bottom - 10);
+        ctx.stroke();
+      }
+    }
+
+    // in label
+    ctx.font = 'bold 9px "Plus Jakarta Sans", sans-serif';
+    ctx.fillStyle = '#475569';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'bottom';
+    ctx.fillText('in', totalPx / 2 + 6, bottom - 6);
+
+    // Center badge pill
+    const normAngle = ((angle % 360) + 360) % 360;
+    const badgeText = `📏 ${lengthCm.toFixed(1)} cm • ${normAngle.toFixed(1)}°`;
+    ctx.font = 'bold 10px monospace';
+    const tw = ctx.measureText(badgeText).width;
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.96)';
+    ctx.strokeStyle = '#cbd5e1';
+    ctx.lineWidth = 1;
+    const pw = tw + 16;
+    const ph = 20;
+    if (ctx.roundRect) {
+      ctx.beginPath();
+      ctx.roundRect(-pw / 2, -ph / 2, pw, ph, 999);
+      ctx.fill();
+      ctx.stroke();
+    } else {
+      ctx.beginPath();
+      ctx.rect(-pw / 2, -ph / 2, pw, ph);
+      ctx.fill();
+      ctx.stroke();
+    }
+    ctx.fillStyle = '#0284c7';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(badgeText, 0, 0);
+
+    ctx.restore();
+  };
+
+  // Render Educational Instruments (Protractor) synced from teacher
+  const drawStudentProtractor = (ctx: CanvasRenderingContext2D, p: any) => {
+    if (!p || !p.visible) return;
+    const isFull = !!p.isFullCircle;
+    const isInner = p.scaleMode === 'inner';
+    const r = typeof p.radius === 'number' ? p.radius : 210;
+    const x = typeof p.x === 'number' ? p.x : 250;
+    const y = typeof p.y === 'number' ? p.y : 200;
+    const angle = typeof p.angle === 'number' ? p.angle : 45;
+    const baseRotation = typeof p.baseRotation === 'number' ? p.baseRotation : 0;
+
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate((baseRotation * Math.PI) / 180);
+
+    // Frosted acrylic background
+    ctx.shadowColor = 'rgba(15, 23, 42, 0.2)';
+    ctx.shadowBlur = 18;
+    ctx.shadowOffsetY = 6;
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.90)';
+    ctx.strokeStyle = isInner ? 'rgba(234, 88, 12, 0.65)' : 'rgba(2, 132, 199, 0.6)';
+    ctx.lineWidth = 1.8;
+
+    ctx.beginPath();
+    if (isFull) {
+      ctx.arc(0, 0, r, 0, Math.PI * 2);
+    } else {
+      // Semicircle above baseline: from 0 counter-clockwise to PI, then close back to (r, 0)
+      ctx.arc(0, 0, r, 0, Math.PI, true);
+      ctx.closePath();
+    }
+    ctx.fill();
+    ctx.stroke();
+
+    // Clear shadow
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetY = 0;
+
+    // Dynamic Angle Sector Highlight (swept wedge for Inner or Outer scale)
+    if (angle > 0) {
+      ctx.save();
+      if (isInner) {
+        const cartesianDeg = 180 - angle;
+        const angleRad = (cartesianDeg * Math.PI) / 180;
+        ctx.fillStyle = 'rgba(234, 88, 12, 0.22)';
+        ctx.strokeStyle = '#ea580c';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(-r, 0);
+        ctx.arc(0, 0, r, Math.PI, -angleRad, false);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+      } else {
+        const angleRad = (angle * Math.PI) / 180;
+        ctx.fillStyle = 'rgba(2, 132, 199, 0.20)';
+        ctx.strokeStyle = '#0284c7';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(r, 0);
+        ctx.arc(0, 0, r, 0, -angleRad, true);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    // Degree ticks & labels
+    const maxDeg = isFull ? 360 : 180;
+    for (let deg = 0; deg <= maxDeg; deg++) {
+      const rad = (deg * Math.PI) / 180;
+      const cos = Math.cos(rad);
+      const sin = Math.sin(rad);
+
+      const isPrimary = (deg % 10 === 0);
+      const isMid = (deg % 5 === 0 && !isPrimary);
+
+      const tickLen = isPrimary ? 16 : (isMid ? 10 : 5);
+      const x1 = r * cos;
+      const y1 = -r * sin;
+      const x2 = (r - tickLen) * cos;
+      const y2 = -(r - tickLen) * sin;
+
+      ctx.strokeStyle = isPrimary ? '#0f172a' : (isMid ? '#334155' : '#94a3b8');
+      ctx.lineWidth = isPrimary ? 1.4 : (isMid ? 1 : 0.6);
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+
+      // Labels every 10 degrees
+      if (isPrimary && deg < maxDeg) {
+        // Outer scale (counter-clockwise 0 -> 180)
+        const textR1 = r - 26;
+        const tx1 = textR1 * cos;
+        const ty1 = -textR1 * sin;
+        ctx.font = 'bold 9px "Plus Jakarta Sans", sans-serif';
+        ctx.fillStyle = '#0f172a';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(String(deg), tx1, ty1);
+
+        // Inner scale (clockwise 180 -> 0)
+        if (!isFull) {
+          const textR2 = r - 42;
+          const tx2 = textR2 * cos;
+          const ty2 = -textR2 * sin;
+          const innerDeg = 180 - deg;
+          ctx.font = '600 8px "Plus Jakarta Sans", sans-serif';
+          ctx.fillStyle = '#c2410c';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(String(innerDeg), tx2, ty2);
+        }
+      }
+    }
+
+    // Origin crosshair & center hole
+    ctx.save();
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.92)';
+    ctx.strokeStyle = '#0284c7';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(0, 0, 16, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(-24, 0);
+    ctx.lineTo(24, 0);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(0, -24);
+    ctx.lineTo(0, 24);
+    ctx.stroke();
+    ctx.restore();
+
+    // Angle needle ray line
+    const cartesianDeg = isInner ? (180 - angle) : angle;
+    const needleRad = (cartesianDeg * Math.PI) / 180;
+    const wedgeX = r * Math.cos(needleRad);
+    const wedgeY = -r * Math.sin(needleRad);
+    ctx.save();
+    ctx.strokeStyle = isInner ? '#ea580c' : '#0284c7';
+    ctx.lineWidth = 2.5;
+    ctx.setLineDash([5, 3]);
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(wedgeX, wedgeY);
+    ctx.stroke();
+
+    // Knob indicator at needle tip
+    ctx.setLineDash([]);
+    ctx.fillStyle = isInner ? '#ea580c' : '#0284c7';
+    ctx.beginPath();
+    ctx.arc(wedgeX, wedgeY, 8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(wedgeX, wedgeY, 3, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Angle readout badge near the swept sector
+    const badgeDist = r * 0.52;
+    const midAngleRad = isInner ? (Math.PI + needleRad) / 2 : needleRad / 2;
+    const bx = badgeDist * Math.cos(midAngleRad);
+    const by = -badgeDist * Math.sin(midAngleRad);
+    const badgeText = `${angle.toFixed(1)}° (${isInner ? 'Inner' : 'Outer'})`;
+    ctx.font = 'bold 10px monospace';
+    const btw = ctx.measureText(badgeText).width;
+    ctx.fillStyle = isInner ? '#ea580c' : '#0284c7';
+    const pw = btw + 14;
+    if (ctx.roundRect) {
+      ctx.beginPath();
+      ctx.roundRect(bx - pw / 2, by - 9, pw, 18, 4);
+      ctx.fill();
+    } else {
+      ctx.beginPath();
+      ctx.rect(bx - pw / 2, by - 9, pw, 18);
+      ctx.fill();
+    }
+    ctx.fillStyle = '#ffffff';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(badgeText, bx, by);
+    ctx.restore();
+
+    ctx.restore();
+  };
+
+  // --- Educational Diagram Renderers (Phase 4B) ---
+  const drawStudentNumberLine = (ctx: CanvasRenderingContext2D, shape: any, strokeColor: string, lineWidth: number) => {
+    const { start, end } = shape;
+    if (!start || !end) return;
+    const x1 = Math.min(start.x, end.x);
+    const x2 = Math.max(start.x, end.x);
+    const y1 = Math.min(start.y, end.y);
+    const y2 = Math.max(start.y, end.y);
+    const cy = (y1 + y2) / 2;
+    const w = x2 - x1 || 300;
+    const color = strokeColor || shape.color || '#0f172a';
+
+    const min = typeof shape.min === 'number' ? shape.min : -5;
+    const max = typeof shape.max === 'number' ? shape.max : 5;
+    const step = typeof shape.step === 'number' && shape.step > 0 ? shape.step : 1;
+    const count = Math.max(1, Math.round((max - min) / step));
+
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+    ctx.lineWidth = lineWidth || shape.width || 2;
+    ctx.lineCap = 'round';
+
+    // Main axis line
+    ctx.beginPath();
+    ctx.moveTo(x1 + 16, cy);
+    ctx.lineTo(x2 - 16, cy);
+    ctx.stroke();
+
+    // Arrows on left and right
+    const head = 10;
+    ctx.beginPath();
+    ctx.moveTo(x1 + 16, cy);
+    ctx.lineTo(x1 + 16 + head, cy - 5);
+    ctx.moveTo(x1 + 16, cy);
+    ctx.lineTo(x1 + 16 + head, cy + 5);
+    ctx.moveTo(x2 - 16, cy);
+    ctx.lineTo(x2 - 16 - head, cy - 5);
+    ctx.moveTo(x2 - 16, cy);
+    ctx.lineTo(x2 - 16 - head, cy + 5);
+    ctx.stroke();
+
+    // Equidistant tick marks and numeric labels
+    const leftMargin = 32;
+    const usableW = Math.max(20, w - leftMargin * 2);
+    const dx = usableW / count;
+
+    ctx.font = 'bold 11px "Plus Jakarta Sans", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+
+    for (let i = 0; i <= count; i++) {
+      const val = min + i * step;
+      const tx = x1 + leftMargin + i * dx;
+      const isZero = Math.abs(val) < 0.0001;
+
+      ctx.beginPath();
+      ctx.strokeStyle = isZero ? '#0284c7' : color;
+      ctx.lineWidth = isZero ? (lineWidth || 2) + 1 : (lineWidth || 2);
+      const tickH = isZero ? 13 : 8;
+      ctx.moveTo(tx, cy - tickH);
+      ctx.lineTo(tx, cy + tickH);
+      ctx.stroke();
+
+      // Value label
+      ctx.fillStyle = isZero ? '#0284c7' : color;
+      let labelText = String(Math.round(val * 100) / 100);
+      if (shape.stylePreset === 'fractions') {
+        if (val === 0) labelText = '0';
+        else if (val === 1) labelText = '1';
+        else if (val === 0.5) labelText = '1/2';
+        else if (val === 0.25) labelText = '1/4';
+        else if (val === 0.75) labelText = '3/4';
+      }
+      ctx.fillText(labelText, tx, cy + 14);
+    }
+
+    // Plotted point marker if specified
+    if (typeof shape.pointVal === 'number') {
+      const clamped = Math.max(min, Math.min(max, shape.pointVal));
+      const px = x1 + leftMargin + ((clamped - min) / (max - min)) * usableW;
+      ctx.fillStyle = '#ea580c';
+      ctx.beginPath();
+      ctx.arc(px, cy, 5.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
+
+    ctx.restore();
+  };
+
+  const drawStudentCoordinateAxes = (ctx: CanvasRenderingContext2D, shape: any, strokeColor: string, lineWidth: number, isDark = false) => {
+    const { start, end } = shape;
+    if (!start || !end) return;
+    const x1 = Math.min(start.x, end.x);
+    const x2 = Math.max(start.x, end.x);
+    const y1 = Math.min(start.y, end.y);
+    const y2 = Math.max(start.y, end.y);
+    const w = x2 - x1 || 240;
+    const h = y2 - y1 || 240;
+    const color = strokeColor || shape.color || '#0f172a';
+    const isPos = shape.mode === 'positiveQuadrant';
+
+    const originX = isPos ? x1 + 24 : (x1 + x2) / 2;
+    const originY = isPos ? y2 - 24 : (y1 + y2) / 2;
+
+    ctx.save();
+
+    // 1. Optional background grid (similar to whiteboard grid, increased visibility by 20%)
+    if (shape.gridVisible !== false) {
+      ctx.strokeStyle = isDark ? 'rgba(255, 255, 255, 0.28)' : 'rgba(0, 0, 0, 0.24)';
+      ctx.lineWidth = 0.9;
+      const stepX = isPos ? (w - 32) / 6 : (w / 2 - 16) / 5;
+      const stepY = isPos ? (h - 32) / 6 : (h / 2 - 16) / 5;
+
+      if (isPos) {
+        for (let x = originX; x <= x2 - 10; x += stepX) {
+          ctx.beginPath(); ctx.moveTo(x, y1 + 10); ctx.lineTo(x, originY); ctx.stroke();
+        }
+        for (let y = originY; y >= y1 + 10; y -= stepY) {
+          ctx.beginPath(); ctx.moveTo(originX, y); ctx.lineTo(x2 - 10, y); ctx.stroke();
+        }
+      } else {
+        for (let x = originX; x <= x2 - 10; x += stepX) {
+          ctx.beginPath(); ctx.moveTo(x, y1 + 10); ctx.lineTo(x, y2 - 10); ctx.stroke();
+        }
+        for (let x = originX - stepX; x >= x1 + 10; x -= stepX) {
+          ctx.beginPath(); ctx.moveTo(x, y1 + 10); ctx.lineTo(x, y2 - 10); ctx.stroke();
+        }
+        for (let y = originY; y <= y2 - 10; y += stepY) {
+          ctx.beginPath(); ctx.moveTo(x1 + 10, y); ctx.lineTo(x2 - 10, y); ctx.stroke();
+        }
+        for (let y = originY - stepY; y >= y1 + 10; y -= stepY) {
+          ctx.beginPath(); ctx.moveTo(x1 + 10, y); ctx.lineTo(x2 - 10, y); ctx.stroke();
+        }
+      }
+    }
+
+    // 2. Main Axes with Arrows
+    ctx.strokeStyle = color;
+    ctx.lineWidth = lineWidth || shape.width || 2;
+    ctx.lineCap = 'round';
+
+    // X-axis
+    ctx.beginPath();
+    ctx.moveTo(isPos ? originX : x1 + 8, originY);
+    ctx.lineTo(x2 - 8, originY);
+    ctx.stroke();
+
+    // X arrow
+    ctx.beginPath();
+    ctx.moveTo(x2 - 8, originY);
+    ctx.lineTo(x2 - 18, originY - 5);
+    ctx.moveTo(x2 - 8, originY);
+    ctx.lineTo(x2 - 18, originY + 5);
+    ctx.stroke();
+
+    // Y-axis
+    ctx.beginPath();
+    ctx.moveTo(originX, isPos ? originY : y2 - 8);
+    ctx.lineTo(originX, y1 + 8);
+    ctx.stroke();
+
+    // Y arrow
+    ctx.beginPath();
+    ctx.moveTo(originX, y1 + 8);
+    ctx.lineTo(originX - 5, y1 + 18);
+    ctx.moveTo(originX, y1 + 8);
+    ctx.lineTo(originX + 5, y1 + 18);
+    ctx.stroke();
+
+    // Labels
+    ctx.font = 'bold 13px serif';
+    ctx.fillStyle = color;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('x', x2 + 2, originY);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    ctx.fillText('y', originX, y1 + 4);
+
+    // Origin label "0"
+    ctx.font = 'italic 11px "Plus Jakarta Sans", sans-serif';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'top';
+    ctx.fillText('0', originX - 4, originY + 3);
+
+    ctx.restore();
+  };
+
+  const drawStudentVennDiagram = (ctx: CanvasRenderingContext2D, shape: any, _strokeColor: string, lineWidth: number) => {
+    const { start, end } = shape;
+    if (!start || !end) return;
+    const x1 = Math.min(start.x, end.x);
+    const x2 = Math.max(start.x, end.x);
+    const y1 = Math.min(start.y, end.y);
+    const y2 = Math.max(start.y, end.y);
+    const cx = (x1 + x2) / 2;
+    const cy = (y1 + y2) / 2;
+    const w = Math.max(20, x2 - x1);
+    const h = Math.max(20, y2 - y1);
+    const is3Sets = shape.sets === 3;
+
+    ctx.save();
+
+    // Universal Set box U
+    ctx.strokeStyle = '#64748b';
+    ctx.lineWidth = Math.max(1.5, Math.min(3.5, w * 0.005));
+    if (ctx.roundRect) {
+      ctx.beginPath();
+      ctx.roundRect(x1, y1, w, h, 8);
+      ctx.stroke();
+    } else {
+      ctx.strokeRect(x1, y1, w, h);
+    }
+
+    const uFontSize = Math.max(12, Math.min(32, Math.round(Math.min(w, h) * 0.065)));
+    ctx.font = `bold ${uFontSize}px "Plus Jakarta Sans", sans-serif`;
+    ctx.fillStyle = '#334155';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText(shape.labelU || 'U', x1 + 12, y1 + 10);
+
+    if (!is3Sets) {
+      // 2-Set Venn Diagram
+      // Dynamically scale circle radius to fill the box proportionately without arbitrary caps
+      const maxRw = (w - 36) / 3.2;
+      const maxRh = (h - 48) / 2.2;
+      const r = Math.max(12, Math.min(maxRw, maxRh));
+      const offset = r * 0.58;
+      const setLineWidth = Math.max(1.8, Math.min(4.5, lineWidth || (r * 0.024)));
+
+      // Set A
+      ctx.save();
+      ctx.fillStyle = 'rgba(2, 132, 199, 0.16)';
+      ctx.strokeStyle = '#0284c7';
+      ctx.lineWidth = setLineWidth;
+      ctx.beginPath();
+      ctx.arc(cx - offset, cy, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+
+      // Set B
+      ctx.save();
+      ctx.fillStyle = 'rgba(234, 88, 12, 0.16)';
+      ctx.strokeStyle = '#ea580c';
+      ctx.lineWidth = setLineWidth;
+      ctx.beginPath();
+      ctx.arc(cx + offset, cy, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+
+      // Set Labels scaled with radius
+      const setFontSize = Math.max(12, Math.min(36, Math.round(r * 0.18)));
+      ctx.font = `bold ${setFontSize}px "Plus Jakarta Sans", sans-serif`;
+      ctx.fillStyle = '#0284c7';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'bottom';
+      ctx.fillText(shape.labelA || 'A', cx - offset - r * 0.45, cy - r * 0.6);
+
+      ctx.fillStyle = '#ea580c';
+      ctx.fillText(shape.labelB || 'B', cx + offset + r * 0.45, cy - r * 0.6);
+
+      // Intersection notation hint scaled with radius
+      const interFontSize = Math.max(10, Math.min(26, Math.round(r * 0.14)));
+      ctx.font = `bold ${interFontSize}px "Plus Jakarta Sans", sans-serif`;
+      ctx.fillStyle = '#475569';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('A ∩ B', cx, cy);
+    } else {
+      // 3-Set Venn Diagram
+      // Dynamically scale circle radius to fill the box proportionately without arbitrary caps
+      const maxRw = (w - 36) / 3.3;
+      const maxRh = (h - 52) / 3.0;
+      const r = Math.max(12, Math.min(maxRw, maxRh));
+      const topY = cy - r * 0.45;
+      const botY = cy + r * 0.45;
+      const offset = r * 0.6;
+      const setLineWidth = Math.max(1.6, Math.min(4, lineWidth || (r * 0.024)));
+
+      // Set A (top)
+      ctx.save();
+      ctx.fillStyle = 'rgba(2, 132, 199, 0.14)';
+      ctx.strokeStyle = '#0284c7';
+      ctx.lineWidth = setLineWidth;
+      ctx.beginPath();
+      ctx.arc(cx, topY, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+
+      // Set B (bottom left)
+      ctx.save();
+      ctx.fillStyle = 'rgba(234, 88, 12, 0.14)';
+      ctx.strokeStyle = '#ea580c';
+      ctx.lineWidth = setLineWidth;
+      ctx.beginPath();
+      ctx.arc(cx - offset, botY, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+
+      // Set C (bottom right)
+      ctx.save();
+      ctx.fillStyle = 'rgba(22, 163, 74, 0.14)';
+      ctx.strokeStyle = '#16a34a';
+      ctx.lineWidth = setLineWidth;
+      ctx.beginPath();
+      ctx.arc(cx + offset, botY, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+
+      // Labels scaled with radius
+      const setFontSize = Math.max(11, Math.min(32, Math.round(r * 0.18)));
+      ctx.font = `bold ${setFontSize}px "Plus Jakarta Sans", sans-serif`;
+      ctx.fillStyle = '#0284c7';
+      ctx.textAlign = 'center';
+      ctx.fillText(shape.labelA || 'A', cx, topY - r - 3);
+
+      ctx.fillStyle = '#ea580c';
+      ctx.fillText(shape.labelB || 'B', cx - offset - r * 0.7, botY + r * 0.4);
+
+      ctx.fillStyle = '#16a34a';
+      ctx.fillText(shape.labelC || 'C', cx + offset + r * 0.7, botY + r * 0.4);
+    }
+
+    ctx.restore();
+  };
+
+  const drawStudentFractionModel = (ctx: CanvasRenderingContext2D, shape: any, strokeColor: string, lineWidth: number) => {
+    const { start, end } = shape;
+    if (!start || !end) return;
+    const x1 = Math.min(start.x, end.x);
+    const x2 = Math.max(start.x, end.x);
+    const y1 = Math.min(start.y, end.y);
+    const y2 = Math.max(start.y, end.y);
+    const cx = (x1 + x2) / 2;
+    const cy = (y1 + y2) / 2;
+    const w = x2 - x1 || 200;
+    const h = y2 - y1 || 200;
+    const total = Math.max(1, shape.totalParts || 4);
+    const shaded = Math.max(0, Math.min(total, shape.shadedParts !== undefined ? shape.shadedParts : 3));
+    const color = strokeColor || shape.color || '#0f172a';
+    const fillColor = shape.fillColor || '#0284c7';
+
+    ctx.save();
+
+    if (shape.modelType === 'bar') {
+      // Rectangular Fraction Strip
+      const barH = Math.min(h * 0.55, 60);
+      const barY = cy - barH / 2 - 8;
+      const colW = w / total;
+
+      for (let i = 0; i < total; i++) {
+        const bx = x1 + i * colW;
+        if (i < shaded) {
+          ctx.fillStyle = fillColor;
+          ctx.fillRect(bx, barY, colW, barH);
+        }
+        ctx.strokeStyle = color;
+        ctx.lineWidth = lineWidth || 1.6;
+        ctx.strokeRect(bx, barY, colW, barH);
+      }
+
+      // Fraction label below scaled with strip height
+      const fs = Math.max(12, Math.min(28, Math.round(barH * 0.35)));
+      ctx.font = `bold ${fs}px "Plus Jakarta Sans", sans-serif`;
+      ctx.fillStyle = color;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      ctx.fillText(`${shaded} / ${total}`, cx, barY + barH + 8);
+    } else {
+      // Circular Fraction Pie
+      const r = Math.max(15, Math.min(w, h) / 2 - 18);
+      const sliceAngle = (2 * Math.PI) / total;
+
+      for (let i = 0; i < total; i++) {
+        const startAng = -Math.PI / 2 + i * sliceAngle;
+        const endAng = startAng + sliceAngle;
+
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.arc(cx, cy, r, startAng, endAng);
+        ctx.closePath();
+
+        if (i < shaded) {
+          ctx.fillStyle = fillColor;
+          ctx.fill();
+        }
+
+        ctx.strokeStyle = color;
+        ctx.lineWidth = lineWidth || 1.6;
+        ctx.stroke();
+      }
+
+      // Fraction label below scaled with radius
+      const fs = Math.max(12, Math.min(32, Math.round(r * 0.22)));
+      ctx.font = `bold ${fs}px "Plus Jakarta Sans", sans-serif`;
+      ctx.fillStyle = color;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      ctx.fillText(`${shaded} / ${total}`, cx, cy + r + 8);
+    }
+
+    ctx.restore();
+  };
+
+  const drawStudentGeometricDiagram = (ctx: CanvasRenderingContext2D, shape: any, strokeColor: string, lineWidth: number) => {
+    const { start, end } = shape;
+    if (!start || !end) return;
+    const x1 = Math.min(start.x, end.x);
+    const x2 = Math.max(start.x, end.x);
+    const y1 = Math.min(start.y, end.y);
+    const y2 = Math.max(start.y, end.y);
+    const cx = (x1 + x2) / 2;
+    const cy = (y1 + y2) / 2;
+    const color = strokeColor || shape.color || '#0f172a';
+    const width = lineWidth || shape.width || 2;
+
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    if (shape.geoType === 'rightTriangle') {
+      // Right-angled triangle (A at top-left, C at bottom-left, B at bottom-right)
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x1, y2);
+      ctx.lineTo(x2, y2);
+      ctx.closePath();
+      ctx.stroke();
+
+      // Right angle square marker at (x1, y2)
+      const sq = 14;
+      ctx.strokeRect(x1, y2 - sq, sq, sq);
+
+      // Labels
+      ctx.font = 'italic 13px "Plus Jakarta Sans", sans-serif';
+      ctx.fillStyle = color;
+      ctx.textAlign = 'right';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('a', x1 - 6, (y1 + y2) / 2);
+
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      ctx.fillText('b', (x1 + x2) / 2, y2 + 6);
+
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'bottom';
+      ctx.fillText('c', (x1 + x2) / 2 + 6, (y1 + y2) / 2 - 4);
+    } else if (shape.geoType === 'equilateralTriangle') {
+      // Equilateral triangle with side ticks and 60° angle marks
+      const apexX = cx;
+      const apexY = y1;
+      const leftX = x1;
+      const leftY = y2;
+      const rightX = x2;
+      const rightY = y2;
+
+      ctx.beginPath();
+      ctx.moveTo(apexX, apexY);
+      ctx.lineTo(leftX, leftY);
+      ctx.lineTo(rightX, rightY);
+      ctx.closePath();
+      ctx.stroke();
+
+      // Equal length side tick marks
+      const drawTick = (mx: number, my: number, ang: number) => {
+        const tLen = 6;
+        ctx.beginPath();
+        ctx.moveTo(mx - tLen * Math.cos(ang), my - tLen * Math.sin(ang));
+        ctx.lineTo(mx + tLen * Math.cos(ang), my + tLen * Math.sin(ang));
+        ctx.stroke();
+      };
+      drawTick((apexX + leftX) / 2, (apexY + leftY) / 2, 0.5);
+      drawTick((apexX + rightX) / 2, (apexY + rightY) / 2, -0.5);
+      drawTick(cx, y2, Math.PI / 2);
+
+      // Angle arc marks
+      ctx.strokeStyle = '#0284c7';
+      ctx.beginPath(); ctx.arc(leftX, leftY, 20, -Math.PI / 3, 0); ctx.stroke();
+      ctx.beginPath(); ctx.arc(rightX, rightY, 20, Math.PI, Math.PI + Math.PI / 3); ctx.stroke();
+      ctx.beginPath(); ctx.arc(apexX, apexY, 20, Math.PI / 3, Math.PI - Math.PI / 3); ctx.stroke();
+    } else if (shape.geoType === 'circleRadius') {
+      // Circle with center O and radius line OP
+      const r = Math.min((x2 - x1), (y2 - y1)) / 2 - 8;
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // Center point O
+      ctx.fillStyle = '#0284c7';
+      ctx.beginPath();
+      ctx.arc(cx, cy, 4, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Radius line from O to (cx + r, cy)
+      ctx.strokeStyle = '#0284c7';
+      ctx.lineWidth = 1.8;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(cx + r, cy);
+      ctx.stroke();
+
+      // Point P on circumference
+      ctx.beginPath();
+      ctx.arc(cx + r, cy, 3.5, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Labels
+      ctx.font = 'bold 12px "Plus Jakarta Sans", sans-serif';
+      ctx.fillStyle = color;
+      ctx.textAlign = 'right';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('O', cx - 7, cy);
+
+      ctx.textAlign = 'left';
+      ctx.fillText('P', cx + r + 6, cy);
+
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'bottom';
+      ctx.fillStyle = '#0284c7';
+      ctx.fillText('r', cx + r / 2, cy - 4);
+    }
+
+    ctx.restore();
+  };
+
   // Helper to render whiteboard page content (used by both live canvas and PDF export)
   const renderWhiteboardPage = (
     ctx: CanvasRenderingContext2D,
@@ -1326,8 +2208,8 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
         return;
       }
 
-      if (type === 'image' && sh.dataUrl) {
-        const img = getCachedImage(sh.dataUrl);
+      if ((type === 'image' || type === 'equation') && (sh.dataUrl || sh.svgDataUrl)) {
+        const img = getCachedImage(sh.dataUrl || sh.svgDataUrl);
         if (img && img.complete) {
           ctx.drawImage(img, x1, y1, w, h);
         }
@@ -1373,6 +2255,50 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
           ctx.lineTo(hxStart + uy * (headLength / 2), hyStart - ux * (headLength / 2));
           ctx.stroke();
         }
+
+        // Endpoint dots (matching teacher whiteboard)
+        const dotRadius = Math.max(2, lineWidth * 1.2);
+        ctx.fillStyle = strokeColor;
+        ctx.beginPath();
+        ctx.arc(start.x, start.y, dotRadius, 0, Math.PI * 2);
+        ctx.fill();
+        if (type === 'line' || type === 'arrow') {
+          ctx.beginPath();
+          ctx.arc(end.x, end.y, dotRadius, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      } else if (type === 'angleArc' || type === 'arc') {
+        const vx = (sh.vertex && typeof sh.vertex.x === 'number') ? sh.vertex.x : cx;
+        const vy = (sh.vertex && typeof sh.vertex.y === 'number') ? sh.vertex.y : cy;
+        const arcR = sh.radius || 38;
+        const sAngle = typeof sh.startAngle === 'number' ? sh.startAngle : 0;
+        const eAngle = typeof sh.endAngle === 'number' ? sh.endAngle : Math.PI / 2;
+        const anticlockwise = sh.anticlockwise !== undefined ? sh.anticlockwise : false;
+
+        if (sh.fill && sh.fill !== 'transparent') {
+          ctx.save();
+          ctx.fillStyle = sh.fill;
+          ctx.beginPath();
+          ctx.moveTo(vx, vy);
+          ctx.arc(vx, vy, arcR, sAngle, eAngle, anticlockwise);
+          ctx.closePath();
+          ctx.fill();
+          ctx.restore();
+        }
+
+        ctx.beginPath();
+        ctx.arc(vx, vy, arcR, sAngle, eAngle, anticlockwise);
+        ctx.stroke();
+      } else if (type === 'numberLine') {
+        drawStudentNumberLine(ctx, sh, strokeColor, lineWidth);
+      } else if (type === 'coordinateAxes') {
+        drawStudentCoordinateAxes(ctx, sh, strokeColor, lineWidth, isDark);
+      } else if (type === 'vennDiagram') {
+        drawStudentVennDiagram(ctx, sh, strokeColor, lineWidth);
+      } else if (type === 'fractionModel') {
+        drawStudentFractionModel(ctx, sh, strokeColor, lineWidth);
+      } else if (type === 'geometricDiagram') {
+        drawStudentGeometricDiagram(ctx, sh, strokeColor, lineWidth);
       } else if (type === 'rectangle' || type === 'rect') {
         if (isSolid) {
           ctx.save();
@@ -1766,6 +2692,16 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
       });
     }
 
+    // 5. Draw active Educational Instruments (Ruler & Protractor synced from teacher)
+    if (!options?.isExport && page?.eduInstruments) {
+      if (page.eduInstruments.ruler && page.eduInstruments.ruler.visible) {
+        drawStudentRuler(ctx, page.eduInstruments.ruler);
+      }
+      if (page.eduInstruments.protractor && page.eduInstruments.protractor.visible) {
+        drawStudentProtractor(ctx, page.eduInstruments.protractor);
+      }
+    }
+
     if (hasOffset) {
       ctx.restore();
     }
@@ -1851,6 +2787,12 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
       for (const tx of page.texts) {
         if ((tx.y || 0) + 120 > computedHeight) computedHeight = Math.ceil((tx.y || 0) + 120);
       }
+    }
+    if (page?.eduInstruments?.ruler?.visible && typeof page.eduInstruments.ruler.y === 'number') {
+      if (page.eduInstruments.ruler.y + 120 > computedHeight) computedHeight = Math.ceil(page.eduInstruments.ruler.y + 120);
+    }
+    if (page?.eduInstruments?.protractor?.visible && typeof page.eduInstruments.protractor.y === 'number') {
+      if (page.eduInstruments.protractor.y + 260 > computedHeight) computedHeight = Math.ceil(page.eduInstruments.protractor.y + 260);
     }
 
     const displayHeight = Math.max(computedHeight, container ? container.clientHeight : 720);
@@ -2260,8 +3202,8 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
         }
         if (page.shapes && Array.isArray(page.shapes)) {
           for (const sh of page.shapes) {
-            if (sh?.type === 'image' && sh.dataUrl) {
-              await ensureImageLoaded(sh.dataUrl);
+            if ((sh?.type === 'image' || sh?.type === 'equation') && (sh.dataUrl || sh.svgDataUrl)) {
+              await ensureImageLoaded(sh.dataUrl || sh.svgDataUrl);
             }
           }
         }
