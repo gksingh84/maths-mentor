@@ -4200,6 +4200,14 @@ io.on('connection', (socket) => {
     });
   });
 
+  socket.on('whiteboard:periodic_table_action', (data: { grade?: string; action: string; elementZ?: number }) => {
+    if (session.role !== 'teacher' && session.role !== 'admin' && session.role !== 'superadmin') return;
+    const grade = (data.grade || 'ALL').trim();
+    const active = findTeacherSession(grade);
+    const targetGrade = active?.grade || grade;
+    socket.to(getTeacherBroadcastRooms(targetGrade)).emit('whiteboard:periodic_table_action', data);
+  });
+
   socket.on('whiteboard:video_action', (data: { grade: string; pageIndex: number; action: string; widgetId?: string; currentTime?: number; playing?: boolean; [key: string]: any }) => {
     if (session.role !== 'teacher' && session.role !== 'admin' && session.role !== 'superadmin') return;
     const grade = (data.grade || 'ALL').trim();

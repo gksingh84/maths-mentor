@@ -2636,6 +2636,14 @@ function TeacherWhiteboard({
           height: data.height
         });
       }
+    } else if (data.type === 'WHITEBOARD_BROADCAST_PERIODIC_TABLE') {
+      if (isBroadcastingRef.current && socketRef.current) {
+        socketRef.current.emit('whiteboard:periodic_table_action', {
+          grade: selectedGradeRef.current,
+          action: data.action || 'open',
+          elementZ: data.elementZ
+        });
+      }
     } else if (data.type === 'WHITEBOARD_VIDEO_ACTION') {
       if (isBroadcastingRef.current && socketRef.current) {
         socketRef.current.emit('whiteboard:video_action', {

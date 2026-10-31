@@ -977,6 +977,20 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
       }
     });
 
+    socket.on('whiteboard:periodic_table_action', (data: any) => {
+      if (data?.action === 'open') {
+        const engine = (window as any).EduAshramPeriodicTable;
+        if (engine && typeof engine.openPeriodicTableModal === 'function') {
+          engine.openPeriodicTableModal(null, null, { isStudent: true, initialZ: data.elementZ });
+        }
+      } else if (data?.action === 'close') {
+        const engine = (window as any).EduAshramPeriodicTable;
+        if (engine && typeof engine.closePeriodicTableModal === 'function') {
+          engine.closePeriodicTableModal();
+        }
+      }
+    });
+
     socket.on('whiteboard:video_action', (data: { pageIndex: number; action: string; widgetId?: string; widget?: any; currentTime?: number; playing?: boolean; [key: string]: any }) => {
       const widgetId = data.widgetId || data.widget?.id;
       if (widgetId) {
@@ -4123,6 +4137,30 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
 
     const { x, y } = getCanvasCoords(e);
 
+    // Interactive click on stamped Periodic Table or Element Card
+    const curPage = pages[viewingPageIndex];
+    if (curPage && Array.isArray(curPage.shapes)) {
+      for (let i = curPage.shapes.length - 1; i >= 0; i--) {
+        const sh = curPage.shapes[i];
+        if (sh.type === 'periodicTable' || sh.type === 'elementCard') {
+          const { start, end } = sh;
+          if (start && end) {
+            const x1 = Math.min(start.x, end.x);
+            const x2 = Math.max(start.x, end.x);
+            const y1 = Math.min(start.y, end.y);
+            const y2 = Math.max(start.y, end.y);
+            if (x >= x1 && x <= x2 && y >= y1 && y <= y2) {
+              const engine = (window as any).EduAshramPeriodicTable;
+              if (engine && typeof engine.openPeriodicTableModal === 'function') {
+                engine.openPeriodicTableModal(null, null, { isStudent: true, initialZ: sh.atomicNumber || 11 });
+              }
+              return;
+            }
+          }
+        }
+      }
+    }
+
     if (currentPermission === 'pointer') {
       setLaserPointer({ x, y, studentName: studentName || 'You' });
       if (laserTimeoutRef.current) clearTimeout(laserTimeoutRef.current);
@@ -4661,6 +4699,36 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
         <div className="student-actions-group">
           {isLive && (
             <>
+              {/* Interactive Periodic Table Button */}
+              <button
+                type="button"
+                className="student-periodic-table-btn"
+                onClick={() => {
+                  const engine = (window as any).EduAshramPeriodicTable;
+                  if (engine && typeof engine.openPeriodicTableModal === 'function') {
+                    engine.openPeriodicTableModal(null, null, { isStudent: true });
+                  }
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '5px 12px',
+                  background: '#f0fdf4',
+                  color: '#15803d',
+                  border: '1.5px solid #86efac',
+                  borderRadius: '7px',
+                  fontWeight: 700,
+                  fontSize: '0.80rem',
+                  cursor: 'pointer',
+                  boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                }}
+                title="Open Interactive Periodic Table of Elements"
+              >
+                <span style={{ fontSize: '1rem' }}>🔬</span>
+                <span>Periodic Table</span>
+              </button>
+
               {/* Raise Hand & Doubt Button */}
               <button
                 type="button"
@@ -4857,7 +4925,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
               ref={canvasRef}
               className="student-whiteboard-canvas"
               style={{
-                pointerEvents: currentPermission ? 'auto' : 'none',
+                pointerEvents: 'auto',
                 cursor: currentPermission === 'pointer' ? 'crosshair' : currentPermission === 'chalk' ? (chalkMode === 'eraser' ? "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23f43f5e' stroke-width='2'%3E%3Ccircle cx='12' cy='12' r='9' stroke-dasharray='3 3'/%3E%3Ccircle cx='12' cy='12' r='2' fill='%23f43f5e'/%3E%3C/svg%3E\") 12 12, crosshair" : 'crosshair') : 'default',
                 display: 'block',
                 touchAction: currentPermission ? 'none' : 'auto'

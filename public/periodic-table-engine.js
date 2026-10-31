@@ -657,14 +657,15 @@
 
   let activeModalOverlay = null;
 
-  function openPeriodicTableModal(onStampElement, onStampTable) {
+  function openPeriodicTableModal(onStampElement, onStampTable, options) {
     if (activeModalOverlay) {
       activeModalOverlay.remove();
       activeModalOverlay = null;
     }
 
     let isFullscreen = false;
-    let selectedZ = 11; // Default to Sodium (Na)
+    const isStudent = Boolean(options && options.isStudent);
+    let selectedZ = (options && typeof options.initialZ === "number") ? options.initialZ : 11;
     let currentFilter = "all"; // all | first20 | metal | nonmetal | metalloid | solid | liquid | gas
     let currentTrend = "none"; // none | radius | valency | metallic | electronegativity
     let searchQuery = "";
@@ -730,6 +731,41 @@
     headRight.style.display = "flex";
     headRight.style.alignItems = "center";
     headRight.style.gap = "8px";
+
+    if (!isStudent) {
+      const shareBtn = document.createElement("button");
+      shareBtn.type = "button";
+      shareBtn.innerHTML = "📡 Share with Students";
+      shareBtn.title = "Open this interactive Periodic Table for all students";
+      shareBtn.style.padding = "5px 10px";
+      shareBtn.style.fontSize = "0.76rem";
+      shareBtn.style.fontWeight = "700";
+      shareBtn.style.background = "#eff6ff";
+      shareBtn.style.color = "#1d4ed8";
+      shareBtn.style.border = "1.5px solid #bfdbfe";
+      shareBtn.style.borderRadius = "6px";
+      shareBtn.style.cursor = "pointer";
+      shareBtn.addEventListener("click", () => {
+        try {
+          if (typeof postMessageToHost === "function") {
+            postMessageToHost({ type: "WHITEBOARD_BROADCAST_PERIODIC_TABLE", action: "open", elementZ: selectedZ });
+          } else if (window.parent && window.parent !== window) {
+            window.parent.postMessage({ type: "WHITEBOARD_BROADCAST_PERIODIC_TABLE", action: "open", elementZ: selectedZ }, "*");
+          }
+          shareBtn.innerHTML = "✓ Shared with Students!";
+          shareBtn.style.background = "#ecfdf5";
+          shareBtn.style.color = "#047857";
+          shareBtn.style.borderColor = "#a7f3d0";
+          setTimeout(() => {
+            shareBtn.innerHTML = "📡 Share with Students";
+            shareBtn.style.background = "#eff6ff";
+            shareBtn.style.color = "#1d4ed8";
+            shareBtn.style.borderColor = "#bfdbfe";
+          }, 2500);
+        } catch (_) {}
+      });
+      headRight.appendChild(shareBtn);
+    }
 
     const fsBtn = document.createElement("button");
     fsBtn.type = "button";
@@ -1290,6 +1326,19 @@
       btnCol.style.gap = "6px";
       btnCol.style.marginTop = "auto";
 
+      if (isStudent || (!onStampElement && !onStampTable)) {
+        const studentTip = document.createElement("div");
+        studentTip.style.padding = "9px 11px";
+        studentTip.style.background = "#f0fdf4";
+        studentTip.style.border = "1.5px solid #bbf7d0";
+        studentTip.style.borderRadius = "8px";
+        studentTip.style.fontSize = "0.76rem";
+        studentTip.style.color = "#166534";
+        studentTip.style.lineHeight = "1.4";
+        studentTip.style.fontWeight = "600";
+        studentTip.innerHTML = "👆 <b>Interactive Mode:</b> Tap any element in the table to inspect its Bohr electron shells, valency, and properties!";
+        btnCol.appendChild(studentTip);
+      } else {
       const stampCardBtn = document.createElement("button");
       stampCardBtn.type = "button";
       stampCardBtn.innerHTML = "📋 Stamp Element Card on Board";
@@ -1330,6 +1379,7 @@
         }
       });
       btnCol.appendChild(stampTableBtn);
+      }
 
       inspector.appendChild(btnCol);
     }
@@ -1355,13 +1405,21 @@
   // 5. Global Export
   // =========================================================================
 
+  function closePeriodicTableModal() {
+    if (activeModalOverlay) {
+      activeModalOverlay.remove();
+      activeModalOverlay = null;
+    }
+  }
+
   window.EduAshramPeriodicTable = {
     elements,
     CATEGORIES,
     renderBohrAtom,
     drawElementCardShape,
     drawPeriodicTableShape,
-    openPeriodicTableModal
+    openPeriodicTableModal,
+    closePeriodicTableModal
   };
 
   console.log("EduAshram Periodic Table Engine loaded successfully (118 elements ready).");
