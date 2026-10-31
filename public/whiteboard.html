@@ -10766,17 +10766,17 @@
         searchRow.style.flexDirection = "column";
         searchRow.style.gap = "0.45rem";
 
-        const searchInput = document.createElement("input");
-        searchInput.type = "text";
-        searchInput.placeholder = "e.g. India map, diagram, classroom";
-        searchInput.style.width = "100%";
-        searchInput.style.boxSizing = "border-box";
-        searchInput.style.padding = "0.4rem 0.55rem";
-        searchInput.style.fontSize = "0.82rem";
-        searchInput.style.background = "#ffffff";
-        searchInput.style.color = "#0f172a";
-        searchInput.style.border = "1px solid #cbd5e1";
-        searchInput.style.borderRadius = "6px";
+        const googleSearchInput = document.createElement("input");
+        googleSearchInput.type = "text";
+        googleSearchInput.placeholder = "e.g. India map, diagram, classroom";
+        googleSearchInput.style.width = "100%";
+        googleSearchInput.style.boxSizing = "border-box";
+        googleSearchInput.style.padding = "0.4rem 0.55rem";
+        googleSearchInput.style.fontSize = "0.82rem";
+        googleSearchInput.style.background = "#ffffff";
+        googleSearchInput.style.color = "#0f172a";
+        googleSearchInput.style.border = "1px solid #cbd5e1";
+        googleSearchInput.style.borderRadius = "6px";
 
         const googleImagesBtn = document.createElement("button");
         googleImagesBtn.type = "button";
@@ -10796,16 +10796,16 @@
         googleImagesBtn.style.justifyContent = "center";
 
         function openGoogleImages() {
-          const q = (searchInput.value || "").trim() || "diagram";
+          const q = (googleSearchInput.value || "").trim() || "diagram";
           window.open("https://www.google.com/search?tbm=isch&q=" + encodeURIComponent(q), "_blank", "noopener,noreferrer");
         }
 
         googleImagesBtn.addEventListener("click", openGoogleImages);
-        searchInput.addEventListener("keydown", (e) => {
+        googleSearchInput.addEventListener("keydown", (e) => {
           if (e.key === "Enter") openGoogleImages();
         });
 
-        searchRow.appendChild(searchInput);
+        searchRow.appendChild(googleSearchInput);
         searchRow.appendChild(googleImagesBtn);
         googleSection.appendChild(searchRow);
 
