@@ -52,6 +52,7 @@
     };
   </script>
   <script src="vendor/mathjax-tex-svg.js"></script>
+  <script src="science-diagrams-engine.js"></script>
   <style>
     /* Initial Light Loading Screen */
     .whiteboard-initial-loader {
@@ -6358,6 +6359,10 @@
           drawGeometricDiagramShape(ctx, shape);
         } else if (type === "3dSolid") {
           draw3dSolidShape(ctx, shape);
+        } else if (type === "scienceDiagram") {
+          if (typeof drawScienceDiagramShape === "function") {
+            drawScienceDiagramShape(ctx, shape, isPreview);
+          }
         } else if (type === "angleArc" || type === "arc") {
           const vx = (shape.vertex && typeof shape.vertex.x === "number") ? shape.vertex.x : cx;
           const vy = (shape.vertex && typeof shape.vertex.y === "number") ? shape.vertex.y : cy;
@@ -7836,6 +7841,9 @@
           }
           if (selectedShapes.length === 1 && ["barChart", "horizontalBarChart", "pictograph", "pieChart"].includes(selectedShapes[0].type)) {
             renderSelectedChartEditor(selectedShapes[0], wrap);
+          }
+          if (selectedShapes.length === 1 && selectedShapes[0].type === "scienceDiagram") {
+            renderSelectedScienceDiagramEditor(selectedShapes[0], wrap);
           }
           const delBtn = document.createElement("button");
           delBtn.type = "button";
@@ -9500,6 +9508,204 @@
         }
 
         card.appendChild(checkRow);
+        parentWrap.appendChild(card);
+      }
+
+      function renderSelectedScienceDiagramEditor(shape, parentWrap) {
+        if (!shape || shape.type !== "scienceDiagram") return;
+        const catalog = window.SCIENCE_DIAGRAMS_CATALOG || {};
+        const diag = catalog[shape.diagramId] || { title: "Science Diagram", grade: "Grades 6–10", chapter: "Science", labels: [] };
+
+        const card = document.createElement("div");
+        card.style.background = "#f8fafc";
+        card.style.border = "1.5px solid #0284c7";
+        card.style.borderRadius = "8px";
+        card.style.padding = "10px";
+        card.style.marginTop = "0.75rem";
+        card.style.marginBottom = "0.5rem";
+
+        // Header with title and chapter
+        const header = document.createElement("div");
+        header.style.display = "flex";
+        header.style.flexDirection = "column";
+        header.style.gap = "2px";
+        header.style.marginBottom = "8px";
+
+        const titleText = document.createElement("span");
+        titleText.style.fontWeight = "700";
+        titleText.style.fontSize = "0.85rem";
+        titleText.style.color = "#0369a1";
+        titleText.textContent = (diag.icon ? diag.icon + " " : "🧬 ") + (diag.title || "Science Diagram");
+        header.appendChild(titleText);
+
+        const subBadge = document.createElement("span");
+        subBadge.style.fontSize = "0.72rem";
+        subBadge.style.fontWeight = "600";
+        subBadge.style.color = "#64748b";
+        subBadge.textContent = (diag.grade || "Class 10") + " · " + (diag.chapter || "NCERT");
+        header.appendChild(subBadge);
+
+        card.appendChild(header);
+
+        // Mode Switcher Label
+        const modeLbl = document.createElement("span");
+        modeLbl.className = "tool-options-label";
+        modeLbl.style.fontSize = "0.72rem";
+        modeLbl.textContent = "Interactive Label Mode:";
+        card.appendChild(modeLbl);
+
+        const modeRow = document.createElement("div");
+        modeRow.style.display = "flex";
+        modeRow.style.gap = "4px";
+        modeRow.style.marginTop = "3px";
+        modeRow.style.marginBottom = "8px";
+
+        const modes = [
+          { id: "study", label: "📖 Study (Show All)" },
+          { id: "quiz", label: "❓ Quiz (Numbered)" },
+          { id: "blind", label: "🙈 Blind (No Labels)" }
+        ];
+
+        const currentMode = shape.labelMode || "study";
+
+        modes.forEach((m) => {
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.textContent = m.label;
+          btn.style.flex = "1";
+          btn.style.padding = "4px 6px";
+          btn.style.fontSize = "0.72rem";
+          btn.style.fontWeight = "600";
+          btn.style.borderRadius = "6px";
+          btn.style.cursor = "pointer";
+
+          const isActive = currentMode === m.id;
+          btn.style.background = isActive ? "#0284c7" : "#ffffff";
+          btn.style.color = isActive ? "#ffffff" : "#475569";
+          btn.style.border = isActive ? "1.5px solid #0284c7" : "1px solid #cbd5e1";
+
+          btn.addEventListener("click", () => {
+            pushUndo();
+            shape.labelMode = m.id;
+            updateBoardAppearance();
+            notifyParentPageUpdate(currentPageIndex, true);
+            scheduleNotifyParentPages(100);
+            if (propertiesContent && currentTool === "select") handleToolSelection("select");
+          });
+          modeRow.appendChild(btn);
+        });
+        card.appendChild(modeRow);
+
+        // If in Quiz Mode: Quick Reveal / Hide All & Labels Checklist
+        if (currentMode === "quiz") {
+          const quizControls = document.createElement("div");
+          quizControls.style.display = "flex";
+          quizControls.style.gap = "6px";
+          quizControls.style.marginBottom = "8px";
+
+          const revealAllBtn = document.createElement("button");
+          revealAllBtn.type = "button";
+          revealAllBtn.textContent = "👁️ Reveal All";
+          revealAllBtn.style.flex = "1";
+          revealAllBtn.style.padding = "4px 8px";
+          revealAllBtn.style.fontSize = "0.72rem";
+          revealAllBtn.style.fontWeight = "600";
+          revealAllBtn.style.background = "#f0fdf4";
+          revealAllBtn.style.color = "#15803d";
+          revealAllBtn.style.border = "1px solid #bbf7d0";
+          revealAllBtn.style.borderRadius = "6px";
+          revealAllBtn.style.cursor = "pointer";
+          revealAllBtn.addEventListener("click", () => {
+            pushUndo();
+            shape.revealedLabels = {};
+            (diag.labels || []).forEach((lbl) => {
+              shape.revealedLabels[lbl.id] = true;
+            });
+            updateBoardAppearance();
+            notifyParentPageUpdate(currentPageIndex, true);
+            scheduleNotifyParentPages(100);
+            if (propertiesContent && currentTool === "select") handleToolSelection("select");
+          });
+          quizControls.appendChild(revealAllBtn);
+
+          const hideAllBtn = document.createElement("button");
+          hideAllBtn.type = "button";
+          hideAllBtn.textContent = "🔒 Hide All";
+          hideAllBtn.style.flex = "1";
+          hideAllBtn.style.padding = "4px 8px";
+          hideAllBtn.style.fontSize = "0.72rem";
+          hideAllBtn.style.fontWeight = "600";
+          hideAllBtn.style.background = "#f8fafc";
+          hideAllBtn.style.color = "#475569";
+          hideAllBtn.style.border = "1px solid #cbd5e1";
+          hideAllBtn.style.borderRadius = "6px";
+          hideAllBtn.style.cursor = "pointer";
+          hideAllBtn.addEventListener("click", () => {
+            pushUndo();
+            shape.revealedLabels = {};
+            updateBoardAppearance();
+            notifyParentPageUpdate(currentPageIndex, true);
+            scheduleNotifyParentPages(100);
+            if (propertiesContent && currentTool === "select") handleToolSelection("select");
+          });
+          quizControls.appendChild(hideAllBtn);
+          card.appendChild(quizControls);
+
+          const quizHint = document.createElement("p");
+          quizHint.style.fontSize = "0.70rem";
+          quizHint.style.color = "#0369a1";
+          quizHint.style.margin = "0 0 6px 0";
+          quizHint.style.lineHeight = "1.35";
+          quizHint.textContent = "💡 Tap any numbered badge [1], [2] directly on the board to reveal or hide it!";
+          card.appendChild(quizHint);
+
+          // Checklist of labels
+          const listWrap = document.createElement("div");
+          listWrap.style.display = "flex";
+          listWrap.style.flexDirection = "column";
+          listWrap.style.gap = "3px";
+          listWrap.style.maxHeight = "150px";
+          listWrap.style.overflowY = "auto";
+          listWrap.style.padding = "4px";
+          listWrap.style.background = "#ffffff";
+          listWrap.style.border = "1px solid #e2e8f0";
+          listWrap.style.borderRadius = "6px";
+
+          shape.revealedLabels = shape.revealedLabels || {};
+
+          (diag.labels || []).forEach((lbl) => {
+            const itemRow = document.createElement("label");
+            itemRow.style.display = "flex";
+            itemRow.style.alignItems = "center";
+            itemRow.style.gap = "6px";
+            itemRow.style.fontSize = "0.74rem";
+            itemRow.style.cursor = "pointer";
+            itemRow.style.color = shape.revealedLabels[lbl.id] ? "#15803d" : "#475569";
+            itemRow.style.fontWeight = shape.revealedLabels[lbl.id] ? "600" : "500";
+
+            const chk = document.createElement("input");
+            chk.type = "checkbox";
+            chk.checked = !!shape.revealedLabels[lbl.id];
+            chk.style.cursor = "pointer";
+            chk.addEventListener("change", () => {
+              pushUndo();
+              shape.revealedLabels[lbl.id] = chk.checked;
+              updateBoardAppearance();
+              notifyParentPageUpdate(currentPageIndex, true);
+              scheduleNotifyParentPages(100);
+              if (propertiesContent && currentTool === "select") handleToolSelection("select");
+            });
+
+            const txt = document.createElement("span");
+            txt.textContent = lbl.id + ". " + lbl.text;
+
+            itemRow.appendChild(chk);
+            itemRow.appendChild(txt);
+            listWrap.appendChild(itemRow);
+          });
+          card.appendChild(listWrap);
+        }
+
         parentWrap.appendChild(card);
       }
 
@@ -13394,6 +13600,19 @@
               if (propertiesContent) handleToolSelection("select");
             }
           } else if (shapeHit) {
+            if (shapeHit.shape.type === "scienceDiagram" && shapeHit.shape.labelMode === "quiz" && typeof hitTestScienceDiagramBadge === "function") {
+              const clickedBadgeId = hitTestScienceDiagramBadge(shapeHit.shape, point);
+              if (clickedBadgeId !== null) {
+                pushUndo();
+                shapeHit.shape.revealedLabels = shapeHit.shape.revealedLabels || {};
+                shapeHit.shape.revealedLabels[clickedBadgeId] = !shapeHit.shape.revealedLabels[clickedBadgeId];
+                updateBoardAppearance();
+                notifyParentPageUpdate(currentPageIndex, true);
+                scheduleNotifyParentPages(100);
+                if (propertiesContent && currentTool === "select") handleToolSelection("select");
+                return;
+              }
+            }
             if (shift) {
               const idx = selectedShapes.indexOf(shapeHit.shape);
               if (idx >= 0) {
@@ -17156,7 +17375,29 @@
         });
         instrumentsBox.appendChild(setSquareBtn);
 
-        // 3. Educational Diagrams Toggle Button (matching Ruler and Protractor)
+        // 3. Science Diagram Library Toggle Button (NCERT / CBSE Grades 6-10)
+        const isScienceOpen = window._isScienceDiagramsOpen !== false;
+        const scienceBtn = document.createElement("button");
+        scienceBtn.type = "button";
+        scienceBtn.innerHTML = "<span style='font-size:1.1rem;'>🧬</span> " + (isScienceOpen ? "Hide Science Diagrams (NCERT)" : "Show Science Diagrams (NCERT)");
+        scienceBtn.style.padding = "0.6rem 0.8rem";
+        scienceBtn.style.borderRadius = "8px";
+        scienceBtn.style.border = isScienceOpen ? "1.5px solid #0284c7" : "1px solid #cbd5e1";
+        scienceBtn.style.background = isScienceOpen ? "#e0f2fe" : "#ffffff";
+        scienceBtn.style.color = isScienceOpen ? "#0369a1" : "#1e293b";
+        scienceBtn.style.fontWeight = "700";
+        scienceBtn.style.fontSize = "0.85rem";
+        scienceBtn.style.cursor = "pointer";
+        scienceBtn.style.display = "flex";
+        scienceBtn.style.alignItems = "center";
+        scienceBtn.style.gap = "8px";
+        scienceBtn.addEventListener("click", () => {
+          window._isScienceDiagramsOpen = !isScienceOpen;
+          renderEduToolsOptions();
+        });
+        instrumentsBox.appendChild(scienceBtn);
+
+        // 4. Educational Diagrams Toggle Button (matching Ruler and Protractor)
         const isDiagOpen = !!window._isEduDiagramsOpen;
         const diagBtn = document.createElement("button");
         diagBtn.type = "button";
@@ -17179,6 +17420,277 @@
         instrumentsBox.appendChild(diagBtn);
 
         wrap.appendChild(instrumentsBox);
+
+        // ==========================================
+        // Science Diagram Library (NCERT Grades 6–10)
+        // ==========================================
+        if (isScienceOpen) {
+          const sciBox = document.createElement("div");
+          sciBox.style.display = "flex";
+          sciBox.style.flexDirection = "column";
+          sciBox.style.gap = "8px";
+          sciBox.style.marginBottom = "1.25rem";
+          sciBox.style.padding = "10px";
+          sciBox.style.background = "#f8fafc";
+          sciBox.style.border = "1.5px solid #bae6fd";
+          sciBox.style.borderRadius = "8px";
+
+          const sciHeader = document.createElement("div");
+          sciHeader.style.display = "flex";
+          sciHeader.style.justifyContent = "space-between";
+          sciHeader.style.alignItems = "center";
+
+          const sciTitle = document.createElement("span");
+          sciTitle.style.fontWeight = "700";
+          sciTitle.style.fontSize = "0.84rem";
+          sciTitle.style.color = "#0369a1";
+          sciTitle.textContent = "🧬 NCERT Science Diagrams";
+          sciHeader.appendChild(sciTitle);
+          sciBox.appendChild(sciHeader);
+
+          // Search Input
+          const sciSearch = document.createElement("input");
+          sciSearch.type = "text";
+          sciSearch.placeholder = "🔍 Search (e.g. heart, eye, stomata, circuit)...";
+          sciSearch.value = window._sciDiagramSearch || "";
+          sciSearch.style.width = "100%";
+          sciSearch.style.padding = "4px 8px";
+          sciSearch.style.fontSize = "0.78rem";
+          sciSearch.style.borderRadius = "6px";
+          sciSearch.style.border = "1px solid #cbd5e1";
+          sciSearch.style.background = "#ffffff";
+          sciSearch.style.boxSizing = "border-box";
+          sciSearch.addEventListener("input", (e) => {
+            window._sciDiagramSearch = e.target.value;
+            renderScienceGrid();
+          });
+          sciBox.appendChild(sciSearch);
+
+          // Subject Filters
+          const subRow = document.createElement("div");
+          subRow.style.display = "flex";
+          subRow.style.gap = "4px";
+          subRow.style.flexWrap = "wrap";
+
+          const subjects = [
+            { id: "all", label: "All Subjects" },
+            { id: "biology", label: "🧬 Biology" },
+            { id: "chemistry", label: "🧪 Chemistry" },
+            { id: "physics", label: "⚡ Physics" }
+          ];
+
+          window._sciSubjectFilter = window._sciSubjectFilter || "all";
+
+          subjects.forEach((s) => {
+            const btn = document.createElement("button");
+            btn.type = "button";
+            btn.textContent = s.label;
+            btn.style.padding = "2px 6px";
+            btn.style.fontSize = "0.68rem";
+            btn.style.fontWeight = "600";
+            btn.style.borderRadius = "4px";
+            btn.style.cursor = "pointer";
+
+            const isActive = window._sciSubjectFilter === s.id;
+            btn.style.background = isActive ? "#0284c7" : "#ffffff";
+            btn.style.color = isActive ? "#ffffff" : "#475569";
+            btn.style.border = isActive ? "1px solid #0284c7" : "1px solid #cbd5e1";
+
+            btn.addEventListener("click", () => {
+              window._sciSubjectFilter = s.id;
+              renderEduToolsOptions();
+            });
+            subRow.appendChild(btn);
+          });
+          sciBox.appendChild(subRow);
+
+          // Grade Filters
+          const gradeRow = document.createElement("div");
+          gradeRow.style.display = "flex";
+          gradeRow.style.gap = "4px";
+          gradeRow.style.flexWrap = "wrap";
+
+          const grades = [
+            { id: "all", label: "All Grades (6–10)" },
+            { id: "middle", label: "Class 6–8" },
+            { id: "secondary", label: "Class 9–10" }
+          ];
+
+          window._sciGradeFilter = window._sciGradeFilter || "all";
+
+          grades.forEach((g) => {
+            const btn = document.createElement("button");
+            btn.type = "button";
+            btn.textContent = g.label;
+            btn.style.padding = "2px 6px";
+            btn.style.fontSize = "0.68rem";
+            btn.style.fontWeight = "600";
+            btn.style.borderRadius = "4px";
+            btn.style.cursor = "pointer";
+
+            const isActive = window._sciGradeFilter === g.id;
+            btn.style.background = isActive ? "#0369a1" : "#ffffff";
+            btn.style.color = isActive ? "#ffffff" : "#475569";
+            btn.style.border = isActive ? "1px solid #0369a1" : "1px solid #cbd5e1";
+
+            btn.addEventListener("click", () => {
+              window._sciGradeFilter = g.id;
+              renderEduToolsOptions();
+            });
+            gradeRow.appendChild(btn);
+          });
+          sciBox.appendChild(gradeRow);
+
+          // Grid Container for Diagrams
+          const grid = document.createElement("div");
+          grid.style.display = "flex";
+          grid.style.flexDirection = "column";
+          grid.style.gap = "6px";
+          grid.style.maxHeight = "260px";
+          grid.style.overflowY = "auto";
+          grid.style.marginTop = "4px";
+          grid.style.paddingRight = "2px";
+
+          function renderScienceGrid() {
+            grid.innerHTML = "";
+            const catalog = window.SCIENCE_DIAGRAMS_CATALOG || {};
+            const query = (window._sciDiagramSearch || "").toLowerCase().trim();
+            const subFilter = window._sciSubjectFilter || "all";
+            const grFilter = window._sciGradeFilter || "all";
+
+            const items = Object.values(catalog).filter((d) => {
+              if (subFilter !== "all" && d.subject !== subFilter) return false;
+              if (grFilter === "middle" && !["Class 6", "Class 7", "Class 8"].some((c) => d.grade.includes(c))) return false;
+              if (grFilter === "secondary" && !["Class 9", "Class 10"].some((c) => d.grade.includes(c))) return false;
+              if (query) {
+                const matchTitle = (d.title || "").toLowerCase().includes(query);
+                const matchChapter = (d.chapter || "").toLowerCase().includes(query);
+                const matchSubject = (d.subject || "").toLowerCase().includes(query);
+                const matchLabels = (d.labels || []).some((l) => (l.text || "").toLowerCase().includes(query));
+                if (!matchTitle && !matchChapter && !matchSubject && !matchLabels) return false;
+              }
+              return true;
+            });
+
+            if (items.length === 0) {
+              const empty = document.createElement("p");
+              empty.style.fontSize = "0.74rem";
+              empty.style.color = "#94a3b8";
+              empty.style.margin = "8px 0";
+              empty.textContent = "No diagrams found. Try a different search.";
+              grid.appendChild(empty);
+              return;
+            }
+
+            items.forEach((item) => {
+              const card = document.createElement("div");
+              card.style.display = "flex";
+              card.style.flexDirection = "column";
+              card.style.gap = "4px";
+              card.style.padding = "6px 8px";
+              card.style.background = "#ffffff";
+              card.style.border = "1px solid #cbd5e1";
+              card.style.borderRadius = "6px";
+
+              const topRow = document.createElement("div");
+              topRow.style.display = "flex";
+              topRow.style.justifyContent = "space-between";
+              topRow.style.alignItems = "center";
+
+              const name = document.createElement("span");
+              name.style.fontWeight = "700";
+              name.style.fontSize = "0.78rem";
+              name.style.color = "#0f172a";
+              name.textContent = (item.icon ? item.icon + " " : "") + item.title;
+              topRow.appendChild(name);
+
+              const badge = document.createElement("span");
+              badge.style.fontSize = "0.66rem";
+              badge.style.fontWeight = "600";
+              badge.style.padding = "1px 5px";
+              badge.style.borderRadius = "4px";
+              badge.style.background = item.subject === "biology" ? "#fce7f3" : item.subject === "chemistry" ? "#fef3c7" : "#e0f2fe";
+              badge.style.color = item.subject === "biology" ? "#9d174d" : item.subject === "chemistry" ? "#92400e" : "#0369a1";
+              badge.textContent = item.grade;
+              topRow.appendChild(badge);
+              card.appendChild(topRow);
+
+              const desc = document.createElement("span");
+              desc.style.fontSize = "0.68rem";
+              desc.style.color = "#64748b";
+              desc.textContent = item.chapter + " · " + (item.labels ? item.labels.length : 0) + " labels";
+              card.appendChild(desc);
+
+              const btnRow = document.createElement("div");
+              btnRow.style.display = "flex";
+              btnRow.style.gap = "4px";
+              btnRow.style.marginTop = "2px";
+
+              function addDiagramToBoard(mode) {
+                const scale = window.devicePixelRatio || 1;
+                const logicalW = boardCanvas.width / (scale * zoom);
+                const cx = logicalW / 2;
+                const container = boardCanvas.closest ? boardCanvas.closest(".canvas-container") : null;
+                const scrollTop = container ? container.scrollTop : 0;
+                const visibleTop = scrollTop / zoom;
+                const topY = Math.max(40, visibleTop + 60);
+
+                const shapeW = 440;
+                const shapeH = Math.round(shapeW / (item.aspectRatio || 1.25));
+
+                const newShape = {
+                  type: "scienceDiagram",
+                  diagramId: item.id,
+                  title: item.title,
+                  labelMode: mode,
+                  revealedLabels: {},
+                  rotation: 0,
+                  start: { x: cx - shapeW / 2, y: topY },
+                  end: { x: cx + shapeW / 2, y: topY + shapeH }
+                };
+
+                insertDiagramHelper(newShape);
+              }
+
+              const studyBtn = document.createElement("button");
+              studyBtn.type = "button";
+              studyBtn.textContent = "📖 Study Mode";
+              studyBtn.style.flex = "1";
+              studyBtn.style.padding = "3px 6px";
+              studyBtn.style.fontSize = "0.70rem";
+              studyBtn.style.fontWeight = "600";
+              studyBtn.style.background = "#e0f2fe";
+              studyBtn.style.color = "#0284c7";
+              studyBtn.style.border = "1px solid #bae6fd";
+              studyBtn.style.borderRadius = "4px";
+              studyBtn.style.cursor = "pointer";
+              studyBtn.addEventListener("click", () => addDiagramToBoard("study"));
+              btnRow.appendChild(studyBtn);
+
+              const quizBtn = document.createElement("button");
+              quizBtn.type = "button";
+              quizBtn.textContent = "❓ Quiz Mode";
+              quizBtn.style.flex = "1";
+              quizBtn.style.padding = "3px 6px";
+              quizBtn.style.fontSize = "0.70rem";
+              quizBtn.style.fontWeight = "600";
+              quizBtn.style.background = "#f0fdf4";
+              quizBtn.style.color = "#15803d";
+              quizBtn.style.border = "1px solid #bbf7d0";
+              quizBtn.style.borderRadius = "4px";
+              quizBtn.style.cursor = "pointer";
+              quizBtn.addEventListener("click", () => addDiagramToBoard("quiz"));
+              btnRow.appendChild(quizBtn);
+
+              card.appendChild(btnRow);
+              grid.appendChild(card);
+            });
+          }
+
+          renderScienceGrid();
+          sciBox.appendChild(grid);
+          wrap.appendChild(sciBox);
+        }
 
         // ==========================================
         // Educational Diagrams Library (Hierarchical)
