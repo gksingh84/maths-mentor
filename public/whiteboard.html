@@ -1739,6 +1739,73 @@
     }
 
     /* ==========================================================================
+       Save Image Modal
+       ========================================================================== */
+    .save-image-modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.55);
+      backdrop-filter: blur(3px);
+      z-index: 1000005;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    .save-image-modal-card {
+      background: #ffffff;
+      border-radius: 14px;
+      box-shadow: 0 20px 45px rgba(0, 0, 0, 0.28);
+      width: 450px;
+      max-width: 95vw;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      border: 1px solid #cbd5e1;
+      font-family: inherit;
+      animation: simPopIn 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    @keyframes simPopIn {
+      from { transform: scale(0.94); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+    }
+    .save-image-modal-header {
+      padding: 12px 18px;
+      background: #f8fafc;
+      border-bottom: 1px solid #e2e8f0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .save-image-modal-close {
+      background: none;
+      border: none;
+      font-size: 1.25rem;
+      line-height: 1;
+      color: #64748b;
+      cursor: pointer;
+      padding: 4px 8px;
+      border-radius: 6px;
+      transition: background 0.15s;
+    }
+    .save-image-modal-close:hover {
+      background: #fee2e2;
+      color: #dc2626;
+    }
+    .save-image-modal-body {
+      padding: 18px;
+    }
+    .save-image-modal-footer {
+      padding: 12px 18px;
+      background: #f8fafc;
+      border-top: 1px solid #e2e8f0;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+
+    /* ==========================================================================
        Maths Equation Studio Modal
        ========================================================================== */
     .equation-modal-overlay {
@@ -3015,6 +3082,39 @@
     <!-- Floating Live Reactions Container -->
     <div id="wbFloatingReactions" style="position:fixed;bottom:70px;right:30px;pointer-events:none;z-index:999999;display:flex;flex-direction:column-reverse;gap:8px;"></div>
 
+    <!-- Save Image Modal -->
+    <div id="saveImageModal" class="save-image-modal-overlay" style="display: none;">
+      <div class="save-image-modal-card" id="saveImageModalCard">
+        <div class="save-image-modal-header">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 1.25rem;">🖼️</span>
+            <h3 id="saveImageModalTitle" style="margin: 0; font-size: 1.05rem; font-weight: 700; color: #0f172a;">Save Image</h3>
+          </div>
+          <button type="button" class="save-image-modal-close" id="saveImageModalCloseBtn" title="Close">✕</button>
+        </div>
+        <div class="save-image-modal-body">
+          <div style="display: flex; gap: 14px; align-items: flex-start; margin-bottom: 16px;">
+            <div id="saveImageModalPreviewWrap" style="width: 86px; height: 86px; border-radius: 8px; border: 1.5px solid #cbd5e1; overflow: hidden; background: #f8fafc; display: flex; align-items: center; justify-content: center; flex-shrink: 0; box-shadow: 0 1px 3px rgba(0,0,0,0.06);">
+              <img id="saveImageModalPreview" src="" alt="Preview" style="max-width: 100%; max-height: 100%; object-fit: contain;" />
+            </div>
+            <div style="flex: 1; min-width: 0;">
+              <label for="saveImageModalNameInput" style="display: block; font-size: 0.82rem; font-weight: 600; color: #334155; margin-bottom: 5px;">Image Name / Title <span style="color:#ef4444;">*</span></label>
+              <input type="text" id="saveImageModalNameInput" placeholder="e.g. India Physical Map" style="width: 100%; box-sizing: border-box; padding: 0.5rem 0.75rem; font-size: 0.88rem; border: 1.5px solid #0284c7; border-radius: 7px; outline: none; background: #ffffff; color: #0f172a; box-shadow: 0 0 0 2px rgba(2,132,199,0.15);" />
+              <p style="margin: 5px 0 0; font-size: 0.72rem; color: #64748b; line-height: 1.35;">Saved in your library and searchable by name anytime.</p>
+            </div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 9px; padding: 9px 12px; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px;">
+            <input type="checkbox" id="saveImageModalShowName" checked style="cursor: pointer; width: 17px; height: 17px; accent-color: #0284c7; margin: 0;" />
+            <label for="saveImageModalShowName" style="font-size: 0.82rem; font-weight: 500; color: #0369a1; cursor: pointer; user-select: none; margin: 0;">Show name label on whiteboard canvas</label>
+          </div>
+        </div>
+        <div class="save-image-modal-footer">
+          <button type="button" id="saveImageModalCancelBtn" style="padding: 0.45rem 1rem; font-size: 0.84rem; font-weight: 600; border-radius: 7px; border: 1px solid #cbd5e1; background: #ffffff; color: #475569; cursor: pointer;">Cancel</button>
+          <button type="button" id="saveImageModalSaveBtn" style="padding: 0.45rem 1.15rem; font-size: 0.84rem; font-weight: 600; border-radius: 7px; border: none; background: #0284c7; color: #ffffff; cursor: pointer; box-shadow: 0 1px 2px rgba(0,0,0,0.1);">Save Image</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Maths Equation Studio Modal -->
     <div id="equationStudioModal" class="equation-modal-overlay" style="display: none;">
       <div class="equation-modal-card" id="equationModalCard">
@@ -3419,7 +3519,11 @@
           if (!raw) return [];
           const parsed = JSON.parse(raw);
           if (!Array.isArray(parsed)) return [];
-          return parsed;
+          return parsed.map((s) => ({
+            ...s,
+            label: s.label || s.name || "Saved Image",
+            showNameOnBoard: s.showNameOnBoard !== false,
+          }));
         } catch {
           return [];
         }
@@ -3430,6 +3534,102 @@
           localStorage.setItem(USER_STAMPS_KEY, JSON.stringify(userStamps));
         } catch {
           // ignore quota or storage errors
+        }
+      }
+
+      let pendingSaveImageCallback = null;
+
+      function openSaveImageModal(options) {
+        const {
+          dataUrl = "",
+          defaultName = "",
+          showName = true,
+          title = "Save Image",
+          saveBtnText = "Save Image",
+          onSave,
+        } = options || {};
+
+        const modal = document.getElementById("saveImageModal");
+        const preview = document.getElementById("saveImageModalPreview");
+        const previewWrap = document.getElementById("saveImageModalPreviewWrap");
+        const nameInput = document.getElementById("saveImageModalNameInput");
+        const showNameCheck = document.getElementById("saveImageModalShowName");
+        const titleEl = document.getElementById("saveImageModalTitle");
+        const saveBtn = document.getElementById("saveImageModalSaveBtn");
+
+        if (!modal || !nameInput) {
+          if (typeof onSave === "function") onSave(defaultName || "Image", showName);
+          return;
+        }
+
+        if (preview && previewWrap) {
+          if (dataUrl) {
+            preview.src = dataUrl;
+            previewWrap.style.display = "flex";
+          } else {
+            previewWrap.style.display = "none";
+          }
+        }
+
+        if (titleEl) titleEl.textContent = title;
+        if (saveBtn) saveBtn.textContent = saveBtnText;
+        nameInput.value = defaultName || "";
+        if (showNameCheck) showNameCheck.checked = showName !== false;
+
+        pendingSaveImageCallback = onSave;
+        modal.style.display = "flex";
+
+        setTimeout(() => {
+          nameInput.focus();
+          nameInput.select();
+        }, 50);
+      }
+
+      function closeSaveImageModal() {
+        const modal = document.getElementById("saveImageModal");
+        if (modal) modal.style.display = "none";
+        pendingSaveImageCallback = null;
+      }
+
+      function commitSaveImageModal() {
+        const nameInput = document.getElementById("saveImageModalNameInput");
+        const showNameCheck = document.getElementById("saveImageModalShowName");
+        const name = (nameInput?.value || "").trim();
+        const showName = showNameCheck ? showNameCheck.checked : true;
+        const cb = pendingSaveImageCallback;
+        closeSaveImageModal();
+        if (typeof cb === "function") {
+          cb(name, showName);
+        }
+      }
+
+      function initSaveImageModalEvents() {
+        const modal = document.getElementById("saveImageModal");
+        const closeBtn = document.getElementById("saveImageModalCloseBtn");
+        const cancelBtn = document.getElementById("saveImageModalCancelBtn");
+        const saveBtn = document.getElementById("saveImageModalSaveBtn");
+        const nameInput = document.getElementById("saveImageModalNameInput");
+
+        if (closeBtn) closeBtn.onclick = closeSaveImageModal;
+        if (cancelBtn) cancelBtn.onclick = closeSaveImageModal;
+        if (saveBtn) saveBtn.onclick = commitSaveImageModal;
+
+        if (nameInput) {
+          nameInput.addEventListener("keydown", (e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              commitSaveImageModal();
+            } else if (e.key === "Escape") {
+              e.preventDefault();
+              closeSaveImageModal();
+            }
+          });
+        }
+
+        if (modal) {
+          modal.addEventListener("click", (e) => {
+            if (e.target === modal) closeSaveImageModal();
+          });
         }
       }
 
@@ -3447,16 +3647,28 @@
           reader.onload = (e) => {
             const dataUrl = e.target?.result;
             if (typeof dataUrl !== "string") return;
-            const label = file.name.replace(/\.[^.]+$/, "") || "Stamp";
-            userStamps.push({
-              id: "stamp-" + Date.now(),
-              label,
+            const rawName = file.name.replace(/\.[^.]+$/, "");
+            const cleanName = rawName.replace(/[-_]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()).trim() || "Image";
+            openSaveImageModal({
               dataUrl,
+              defaultName: cleanName,
+              showName: true,
+              title: "Save Image to Library",
+              saveBtnText: "Save to Library",
+              onSave: (enteredName, showNameOnBoard) => {
+                const finalLabel = enteredName || cleanName || "Image";
+                userStamps.push({
+                  id: "stamp-" + Date.now(),
+                  label: finalLabel,
+                  dataUrl,
+                  showNameOnBoard: showNameOnBoard !== false,
+                });
+                saveUserStamps();
+                if (currentTool === "stamps" && propertiesContent) {
+                  renderStampOptions();
+                }
+              },
             });
-            saveUserStamps();
-            if (currentTool === "stamps" && propertiesContent) {
-              handleToolSelection("stamps");
-            }
           };
           reader.readAsDataURL(file);
           userStampFileInput.value = "";
@@ -3464,6 +3676,7 @@
       }
 
       userStamps = loadUserStamps();
+      initSaveImageModalEvents();
 
       function getRandomChartData(chartType) {
         function rnd(min, max) {
@@ -7197,6 +7410,50 @@
             }
             ctx.restore();
           }
+          if (type === "image" && (shape.name || shape.label) && shape.showName !== false) {
+            const labelText = String(shape.name || shape.label || "").trim();
+            if (labelText) {
+              ctx.save();
+              const fontSize = Math.max(11, Math.min(18, Math.round(Math.min(w, h) * 0.08)));
+              ctx.font = `600 ${fontSize}px "Plus Jakarta Sans", "Segoe UI", sans-serif`;
+              const textMetrics = ctx.measureText(labelText);
+              const textW = textMetrics.width;
+              const padX = Math.round(fontSize * 0.75);
+              const pillH = Math.round(fontSize * 1.75);
+              const pillW = Math.min(w - 10, textW + padX * 2);
+              const pillX = x1 + (w - pillW) / 2;
+              const pillY = (shape.labelPosition === "below") ? (y1 + h + 6) : (y1 + h - pillH - 6);
+              const pillRadius = Math.round(pillH / 2);
+
+              if (pillW > 20 && pillH > 10) {
+                // Background pill
+                ctx.fillStyle = "rgba(15, 23, 42, 0.82)";
+                ctx.beginPath();
+                if (typeof ctx.roundRect === "function") {
+                  ctx.roundRect(pillX, pillY, pillW, pillH, pillRadius);
+                } else {
+                  ctx.rect(pillX, pillY, pillW, pillH);
+                }
+                ctx.fill();
+
+                ctx.strokeStyle = "rgba(255, 255, 255, 0.35)";
+                ctx.lineWidth = 1;
+                ctx.stroke();
+
+                // Text
+                ctx.fillStyle = "#ffffff";
+                ctx.textAlign = "center";
+                ctx.textBaseline = "middle";
+                ctx.save();
+                ctx.beginPath();
+                ctx.rect(pillX + 4, pillY, pillW - 8, pillH);
+                ctx.clip();
+                ctx.fillText(labelText, x1 + w / 2, pillY + pillH / 2);
+                ctx.restore();
+              }
+              ctx.restore();
+            }
+          }
         }
 
         if (!isPreview && selectedShapes && selectedShapes.includes(shape)) {
@@ -7954,6 +8211,110 @@
             });
             card.appendChild(reopenBtn);
             wrap.appendChild(card);
+          }
+          if (selectedShapes.length === 1 && selectedShapes[0].type === "image") {
+            const imgShape = selectedShapes[0];
+            const imgCard = document.createElement("div");
+            imgCard.style.background = "#f8fafc";
+            imgCard.style.border = "1.5px solid #0284c7";
+            imgCard.style.borderRadius = "8px";
+            imgCard.style.padding = "10px";
+            imgCard.style.marginTop = "0.75rem";
+            imgCard.style.marginBottom = "0.5rem";
+
+            const head = document.createElement("div");
+            head.style.fontWeight = "700";
+            head.style.fontSize = "0.84rem";
+            head.style.color = "#0369a1";
+            head.style.marginBottom = "6px";
+            head.textContent = "🖼️ Image: " + (imgShape.name || imgShape.label || "Untitled");
+            imgCard.appendChild(head);
+
+            const nameLbl = document.createElement("label");
+            nameLbl.style.fontSize = "0.72rem";
+            nameLbl.style.color = "#64748b";
+            nameLbl.style.display = "block";
+            nameLbl.style.marginBottom = "3px";
+            nameLbl.textContent = "Image Name / Label:";
+            imgCard.appendChild(nameLbl);
+
+            const nameInput = document.createElement("input");
+            nameInput.type = "text";
+            nameInput.value = imgShape.name || imgShape.label || "";
+            nameInput.placeholder = "Enter image name...";
+            nameInput.style.width = "100%";
+            nameInput.style.boxSizing = "border-box";
+            nameInput.style.padding = "4px 8px";
+            nameInput.style.fontSize = "0.8rem";
+            nameInput.style.borderRadius = "5px";
+            nameInput.style.border = "1px solid #cbd5e1";
+            nameInput.style.marginBottom = "8px";
+            nameInput.addEventListener("input", (e) => {
+              imgShape.name = e.target.value;
+              head.textContent = "🖼️ Image: " + (imgShape.name || "Untitled");
+              updateBoardAppearance();
+              pushUndo();
+            });
+            imgCard.appendChild(nameInput);
+
+            const checkRow = document.createElement("div");
+            checkRow.style.display = "flex";
+            checkRow.style.alignItems = "center";
+            checkRow.style.gap = "6px";
+            checkRow.style.marginBottom = "8px";
+
+            const check = document.createElement("input");
+            check.type = "checkbox";
+            check.id = "showImageNameCheckbox";
+            check.checked = imgShape.showName !== false;
+            check.addEventListener("change", (e) => {
+              imgShape.showName = e.target.checked;
+              updateBoardAppearance();
+              pushUndo();
+            });
+            const checkLbl = document.createElement("label");
+            checkLbl.htmlFor = "showImageNameCheckbox";
+            checkLbl.style.fontSize = "0.75rem";
+            checkLbl.style.color = "#334155";
+            checkLbl.style.cursor = "pointer";
+            checkLbl.textContent = "Show name label on whiteboard";
+            checkRow.appendChild(check);
+            checkRow.appendChild(checkLbl);
+            imgCard.appendChild(checkRow);
+
+            const saveLibBtn = document.createElement("button");
+            saveLibBtn.type = "button";
+            saveLibBtn.innerHTML = "💾 Save to Image Library";
+            saveLibBtn.style.width = "100%";
+            saveLibBtn.style.padding = "6px";
+            saveLibBtn.style.fontSize = "0.76rem";
+            saveLibBtn.style.fontWeight = "600";
+            saveLibBtn.style.background = "#e0f2fe";
+            saveLibBtn.style.color = "#0369a1";
+            saveLibBtn.style.border = "1px solid #bae6fd";
+            saveLibBtn.style.borderRadius = "5px";
+            saveLibBtn.style.cursor = "pointer";
+            saveLibBtn.addEventListener("click", () => {
+              const label = imgShape.name || imgShape.label || "Image";
+              const existingIdx = userStamps.findIndex((s) => s.dataUrl === imgShape.dataUrl);
+              if (existingIdx >= 0) {
+                userStamps[existingIdx].label = label;
+                userStamps[existingIdx].showNameOnBoard = imgShape.showName !== false;
+              } else {
+                userStamps.push({
+                  id: "stamp-" + Date.now(),
+                  label,
+                  dataUrl: imgShape.dataUrl,
+                  showNameOnBoard: imgShape.showName !== false,
+                });
+              }
+              saveUserStamps();
+              saveLibBtn.innerHTML = "✅ Saved to Image Library!";
+              saveLibBtn.disabled = true;
+            });
+            imgCard.appendChild(saveLibBtn);
+
+            wrap.appendChild(imgCard);
           }
           const delBtn = document.createElement("button");
           delBtn.type = "button";
@@ -10018,66 +10379,231 @@
         propertiesContent.appendChild(group);
       }
 
+      let stampSearchQuery = "";
+
       function renderStampOptions() {
         const stampsGroup = document.createElement("div");
         stampsGroup.className = "tool-options-group";
+
         const addBtn = document.createElement("button");
         addBtn.type = "button";
-        addBtn.textContent = "Add image to library...";
-        addBtn.style.fontSize = "0.8rem";
+        addBtn.innerHTML = "<span style='font-size:0.95rem;margin-right:5px;'>➕</span> Add image to library...";
+        addBtn.style.fontSize = "0.82rem";
         addBtn.style.fontWeight = "600";
-        addBtn.style.padding = "0.35rem 0.8rem";
-        addBtn.style.borderRadius = "999px";
-        addBtn.style.border = "1px solid #bae6fd";
+        addBtn.style.padding = "0.45rem 0.9rem";
+        addBtn.style.borderRadius = "8px";
+        addBtn.style.border = "1px solid #0284c7";
         addBtn.style.cursor = "pointer";
         addBtn.style.backgroundColor = "#0284c7";
         addBtn.style.color = "#ffffff";
+        addBtn.style.width = "100%";
+        addBtn.style.display = "flex";
+        addBtn.style.alignItems = "center";
+        addBtn.style.justifyContent = "center";
+        addBtn.style.boxShadow = "0 1px 2px rgba(2, 132, 199, 0.25)";
         addBtn.addEventListener("click", () => {
           ensureUserStampFileInput();
           userStampFileInput?.click();
         });
         stampsGroup.appendChild(addBtn);
 
-        const list = document.createElement("div");
-        list.className = "color-swatch-row";
-        list.style.marginTop = "0.4rem";
-        list.style.flexWrap = "wrap";
+        // Search Section for Added/Saved Images
+        const searchWrap = document.createElement("div");
+        searchWrap.style.margin = "0.6rem 0 0.4rem 0";
+        searchWrap.style.position = "relative";
+        searchWrap.style.display = "flex";
+        searchWrap.style.alignItems = "center";
 
-        if (!userStamps.length) {
-          const empty = document.createElement("p");
-          empty.style.fontSize = "0.75rem";
-          empty.style.color = "#6b7280";
-          empty.style.margin = "0.3rem 0 0 0";
-          empty.textContent = "No saved images yet.";
-          stampsGroup.appendChild(empty);
-        } else {
-          userStamps.forEach((stamp) => {
-            const item = document.createElement("div");
-            item.style.display = "flex";
-            item.style.alignItems = "center";
-            item.style.gap = "0.2rem";
+        const searchInput = document.createElement("input");
+        searchInput.type = "text";
+        searchInput.id = "stampSearchInput";
+        searchInput.placeholder = "🔍 Search images by name...";
+        searchInput.value = stampSearchQuery;
+        searchInput.style.width = "100%";
+        searchInput.style.boxSizing = "border-box";
+        searchInput.style.padding = "0.42rem 1.8rem 0.42rem 0.65rem";
+        searchInput.style.fontSize = "0.8rem";
+        searchInput.style.borderRadius = "7px";
+        searchInput.style.border = "1.5px solid #cbd5e1";
+        searchInput.style.outline = "none";
+        searchInput.style.background = "#ffffff";
+        searchInput.style.color = "#0f172a";
+        searchInput.addEventListener("focus", () => {
+          searchInput.style.borderColor = "#0284c7";
+          searchInput.style.boxShadow = "0 0 0 2px rgba(2, 132, 199, 0.15)";
+        });
+        searchInput.addEventListener("blur", () => {
+          searchInput.style.borderColor = "#cbd5e1";
+          searchInput.style.boxShadow = "none";
+        });
 
-            const placeBtn = document.createElement("button");
-            placeBtn.type = "button";
-            placeBtn.title = stamp.label || "Place on board";
-            placeBtn.style.display = "inline-flex";
-            placeBtn.style.alignItems = "center";
-            placeBtn.style.justifyContent = "center";
-            placeBtn.style.padding = "0.25rem";
-            placeBtn.style.borderRadius = "0.75rem";
-            placeBtn.style.border = "1.5px solid #cbd5e1";
-            placeBtn.style.cursor = "pointer";
-            placeBtn.style.backgroundColor = "#ffffff";
-            placeBtn.style.boxShadow = "0 1px 2px rgba(0, 0, 0, 0.05)";
+        // Clear search button
+        const clearBtn = document.createElement("button");
+        clearBtn.type = "button";
+        clearBtn.textContent = "✕";
+        clearBtn.title = "Clear search";
+        clearBtn.style.position = "absolute";
+        clearBtn.style.right = "6px";
+        clearBtn.style.border = "none";
+        clearBtn.style.background = "transparent";
+        clearBtn.style.color = "#94a3b8";
+        clearBtn.style.fontSize = "0.75rem";
+        clearBtn.style.cursor = "pointer";
+        clearBtn.style.padding = "2px 4px";
+        clearBtn.style.display = stampSearchQuery ? "block" : "none";
+        clearBtn.addEventListener("click", () => {
+          stampSearchQuery = "";
+          searchInput.value = "";
+          clearBtn.style.display = "none";
+          renderStampList();
+          searchInput.focus();
+        });
+
+        searchWrap.appendChild(searchInput);
+        searchWrap.appendChild(clearBtn);
+        stampsGroup.appendChild(searchWrap);
+
+        // Container for list & count summary
+        const listContainer = document.createElement("div");
+        listContainer.id = "savedImagesListContainer";
+        stampsGroup.appendChild(listContainer);
+
+        function renderStampList() {
+          listContainer.innerHTML = "";
+          const query = stampSearchQuery.trim().toLowerCase();
+
+          if (!userStamps.length) {
+            const empty = document.createElement("div");
+            empty.style.padding = "0.9rem 0.5rem";
+            empty.style.textAlign = "center";
+            empty.style.color = "#64748b";
+            empty.style.fontSize = "0.76rem";
+            empty.style.lineHeight = "1.4";
+            empty.innerHTML = "🖼️<br/>No saved images yet.<br/>Click <b>Add image to library...</b> to save diagrams, maps or figures.";
+            listContainer.appendChild(empty);
+            return;
+          }
+
+          const filtered = query
+            ? userStamps.filter((s) => (s.label || "Image").toLowerCase().includes(query))
+            : userStamps;
+
+          // Status / count
+          const countRow = document.createElement("div");
+          countRow.style.display = "flex";
+          countRow.style.alignItems = "center";
+          countRow.style.justifyContent = "space-between";
+          countRow.style.fontSize = "0.72rem";
+          countRow.style.color = "#64748b";
+          countRow.style.marginBottom = "0.4rem";
+          countRow.style.padding = "0 2px";
+
+          if (query) {
+            countRow.textContent = `Showing ${filtered.length} of ${userStamps.length} images`;
+          } else {
+            countRow.textContent = `${userStamps.length} saved image${userStamps.length === 1 ? "" : "s"}`;
+          }
+          listContainer.appendChild(countRow);
+
+          if (filtered.length === 0) {
+            const noMatch = document.createElement("div");
+            noMatch.style.padding = "0.8rem 0.4rem";
+            noMatch.style.textAlign = "center";
+            noMatch.style.color = "#64748b";
+            noMatch.style.fontSize = "0.76rem";
+            noMatch.innerHTML = `No images matching <b>"${query}"</b>.<br/>`;
+            const rstBtn = document.createElement("button");
+            rstBtn.type = "button";
+            rstBtn.textContent = "Clear search";
+            rstBtn.style.marginTop = "0.4rem";
+            rstBtn.style.fontSize = "0.72rem";
+            rstBtn.style.padding = "0.2rem 0.6rem";
+            rstBtn.style.border = "1px solid #cbd5e1";
+            rstBtn.style.borderRadius = "6px";
+            rstBtn.style.background = "#f1f5f9";
+            rstBtn.style.cursor = "pointer";
+            rstBtn.addEventListener("click", () => {
+              stampSearchQuery = "";
+              searchInput.value = "";
+              clearBtn.style.display = "none";
+              renderStampList();
+            });
+            noMatch.appendChild(rstBtn);
+            listContainer.appendChild(noMatch);
+            return;
+          }
+
+          const list = document.createElement("div");
+          list.style.display = "flex";
+          list.style.flexDirection = "column";
+          list.style.gap = "0.4rem";
+          list.style.maxHeight = "280px";
+          list.style.overflowY = "auto";
+          list.style.paddingRight = "2px";
+
+          filtered.forEach((stamp) => {
+            const card = document.createElement("div");
+            card.style.display = "flex";
+            card.style.alignItems = "center";
+            card.style.gap = "0.5rem";
+            card.style.padding = "0.35rem 0.45rem";
+            card.style.borderRadius = "8px";
+            card.style.border = "1px solid #e2e8f0";
+            card.style.backgroundColor = "#ffffff";
+            card.style.boxShadow = "0 1px 2px rgba(0, 0, 0, 0.04)";
+
+            // Clickable thumbnail
+            const thumbBtn = document.createElement("button");
+            thumbBtn.type = "button";
+            thumbBtn.title = "Click to place on board: " + (stamp.label || "Image");
+            thumbBtn.style.padding = "0";
+            thumbBtn.style.border = "1.5px solid #cbd5e1";
+            thumbBtn.style.borderRadius = "6px";
+            thumbBtn.style.background = "#f8fafc";
+            thumbBtn.style.cursor = "pointer";
+            thumbBtn.style.overflow = "hidden";
+            thumbBtn.style.flexShrink = "0";
+            thumbBtn.style.display = "flex";
+            thumbBtn.style.alignItems = "center";
+            thumbBtn.style.justifyContent = "center";
+
             const thumb = document.createElement("img");
             thumb.src = stamp.dataUrl;
             thumb.alt = stamp.label || "Image";
-            thumb.style.width = "48px";
-            thumb.style.height = "48px";
+            thumb.style.width = "44px";
+            thumb.style.height = "44px";
             thumb.style.objectFit = "cover";
-            thumb.style.borderRadius = "0.75rem";
-            placeBtn.appendChild(thumb);
-            placeBtn.addEventListener("click", () => {
+            thumb.style.display = "block";
+            thumbBtn.appendChild(thumb);
+
+            // Middle: Name and subtitle
+            const infoCol = document.createElement("div");
+            infoCol.style.flex = "1";
+            infoCol.style.minWidth = "0";
+            infoCol.style.cursor = "pointer";
+
+            const nameEl = document.createElement("div");
+            nameEl.style.fontSize = "0.8rem";
+            nameEl.style.fontWeight = "600";
+            nameEl.style.color = "#0f172a";
+            nameEl.style.whiteSpace = "nowrap";
+            nameEl.style.overflow = "hidden";
+            nameEl.style.textOverflow = "ellipsis";
+            nameEl.textContent = stamp.label || "Image";
+            nameEl.title = stamp.label || "Image";
+
+            const subEl = document.createElement("div");
+            subEl.style.fontSize = "0.68rem";
+            subEl.style.color = "#64748b";
+            subEl.style.whiteSpace = "nowrap";
+            subEl.style.overflow = "hidden";
+            subEl.style.textOverflow = "ellipsis";
+            subEl.textContent = "Click to place on board";
+
+            infoCol.appendChild(nameEl);
+            infoCol.appendChild(subEl);
+
+            function placeOnBoard() {
               const page = pages[currentPageIndex];
               if (!page) return;
               if (!page.shapes) page.shapes = [];
@@ -10112,6 +10638,8 @@
                 width: 1,
                 fillMode: "solid",
                 dataUrl: stamp.dataUrl,
+                name: stamp.label || "Image",
+                showName: stamp.showNameOnBoard !== false,
                 start: { x: cx - halfW, y: topY },
                 end: { x: cx + halfW, y: topY + halfH * 2 },
               };
@@ -10126,32 +10654,100 @@
               });
               updateBoardAppearance();
               if (propertiesContent) handleToolSelection("select");
+            }
+
+            thumbBtn.addEventListener("click", placeOnBoard);
+            infoCol.addEventListener("click", placeOnBoard);
+
+            // Action Buttons
+            const actionsDiv = document.createElement("div");
+            actionsDiv.style.display = "flex";
+            actionsDiv.style.alignItems = "center";
+            actionsDiv.style.gap = "3px";
+            actionsDiv.style.flexShrink = "0";
+
+            // Add button
+            const addActionBtn = document.createElement("button");
+            addActionBtn.type = "button";
+            addActionBtn.textContent = "+ Add";
+            addActionBtn.title = "Place on board";
+            addActionBtn.style.padding = "0.22rem 0.45rem";
+            addActionBtn.style.fontSize = "0.72rem";
+            addActionBtn.style.fontWeight = "600";
+            addActionBtn.style.borderRadius = "5px";
+            addActionBtn.style.border = "1px solid #bae6fd";
+            addActionBtn.style.background = "#e0f2fe";
+            addActionBtn.style.color = "#0284c7";
+            addActionBtn.style.cursor = "pointer";
+            addActionBtn.addEventListener("click", placeOnBoard);
+
+            // Rename button
+            const editBtn = document.createElement("button");
+            editBtn.type = "button";
+            editBtn.innerHTML = "✏️";
+            editBtn.title = "Rename image";
+            editBtn.style.padding = "0.22rem 0.35rem";
+            editBtn.style.fontSize = "0.72rem";
+            editBtn.style.borderRadius = "5px";
+            editBtn.style.border = "1px solid #e2e8f0";
+            editBtn.style.background = "#f8fafc";
+            editBtn.style.cursor = "pointer";
+            editBtn.addEventListener("click", (e) => {
+              e.stopPropagation();
+              openSaveImageModal({
+                dataUrl: stamp.dataUrl,
+                defaultName: stamp.label || "Image",
+                showName: stamp.showNameOnBoard !== false,
+                title: "Rename Image",
+                saveBtnText: "Update Name",
+                onSave: (newName, showNameOnBoard) => {
+                  stamp.label = newName || stamp.label || "Image";
+                  stamp.showNameOnBoard = showNameOnBoard !== false;
+                  saveUserStamps();
+                  renderStampList();
+                },
+              });
             });
 
+            // Delete button
             const delBtn = document.createElement("button");
             delBtn.type = "button";
             delBtn.textContent = "✕";
-            delBtn.style.fontSize = "0.75rem";
-            delBtn.style.padding = "0.15rem 0.5rem";
-            delBtn.style.borderRadius = "999px";
+            delBtn.title = "Delete from saved images";
+            delBtn.style.fontSize = "0.72rem";
+            delBtn.style.padding = "0.22rem 0.4rem";
+            delBtn.style.borderRadius = "5px";
             delBtn.style.border = "1px solid #fecaca";
             delBtn.style.cursor = "pointer";
             delBtn.style.backgroundColor = "#fee2e2";
             delBtn.style.color = "#dc2626";
-            delBtn.addEventListener("click", () => {
+            delBtn.addEventListener("click", (e) => {
+              e.stopPropagation();
               userStamps = userStamps.filter((s) => s.id !== stamp.id);
               saveUserStamps();
-              if (currentTool === "stamps" && propertiesContent) {
-                handleToolSelection("stamps");
-              }
+              renderStampList();
             });
 
-            item.appendChild(placeBtn);
-            item.appendChild(delBtn);
-            list.appendChild(item);
+            actionsDiv.appendChild(addActionBtn);
+            actionsDiv.appendChild(editBtn);
+            actionsDiv.appendChild(delBtn);
+
+            card.appendChild(thumbBtn);
+            card.appendChild(infoCol);
+            card.appendChild(actionsDiv);
+            list.appendChild(card);
           });
-          stampsGroup.appendChild(list);
+
+          listContainer.appendChild(list);
         }
+
+        searchInput.addEventListener("input", (e) => {
+          stampSearchQuery = e.target.value;
+          clearBtn.style.display = stampSearchQuery ? "block" : "none";
+          renderStampList();
+        });
+
+        renderStampList();
 
         const googleSection = document.createElement("div");
         googleSection.style.marginTop = "0.85rem";
@@ -14267,38 +14863,61 @@
           reader.onload = (e) => {
             const dataUrl = e.target?.result;
             if (typeof dataUrl !== "string") return;
-            const page = pages[currentPageIndex];
-            if (!page) return;
-            if (!page.shapes) page.shapes = [];
-            const scale = window.devicePixelRatio || 1;
-            const logicalW = boardCanvas.width / (scale * zoom);
-            const cx = logicalW / 2;
-            const container = boardCanvas.closest ? boardCanvas.closest(".canvas-container") : null;
-            const scrollTop = container ? container.scrollTop : 0;
-            const visibleTop = scrollTop / zoom;
-            const halfW = 150;
-            const halfH = 150;
-            const topY = Math.max(20, visibleTop + 40);
-            const newShape = {
-              type: "image",
-              color: "#ffffff",
-              width: 1,
-              fillMode: "solid",
+            const rawName = file.name.replace(/\.[^.]+$/, "");
+            const cleanName = rawName.replace(/[-_]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()).trim() || "Image";
+            openSaveImageModal({
               dataUrl,
-              start: { x: cx - halfW, y: topY },
-              end: { x: cx + halfW, y: topY + halfH * 2 },
-            };
-            page.shapes.push(newShape);
-            copyImageShapeToOtherPages(newShape);
-            currentTool = "select";
-            selectedShapes = [newShape];
-            selectedTexts = [];
-            toolButtons.forEach((btn) => {
-              const isActive = btn.getAttribute("data-tool") === "select";
-              btn.classList.toggle("tool-button--active", isActive);
+              defaultName: cleanName,
+              showName: true,
+              title: "Add Image on Whiteboard",
+              saveBtnText: "Add to Whiteboard",
+              onSave: (enteredName, showNameOnBoard) => {
+                const finalLabel = enteredName || cleanName || "Image";
+                const page = pages[currentPageIndex];
+                if (!page) return;
+                if (!page.shapes) page.shapes = [];
+                const scale = window.devicePixelRatio || 1;
+                const logicalW = boardCanvas.width / (scale * zoom);
+                const cx = logicalW / 2;
+                const container = boardCanvas.closest ? boardCanvas.closest(".canvas-container") : null;
+                const scrollTop = container ? container.scrollTop : 0;
+                const visibleTop = scrollTop / zoom;
+                const halfW = 150;
+                const halfH = 150;
+                const topY = Math.max(20, visibleTop + 40);
+                const newShape = {
+                  type: "image",
+                  color: "#ffffff",
+                  width: 1,
+                  fillMode: "solid",
+                  dataUrl,
+                  name: finalLabel,
+                  showName: showNameOnBoard !== false,
+                  start: { x: cx - halfW, y: topY },
+                  end: { x: cx + halfW, y: topY + halfH * 2 },
+                };
+                page.shapes.push(newShape);
+                copyImageShapeToOtherPages(newShape);
+                if (!userStamps.some((s) => s.dataUrl === dataUrl)) {
+                  userStamps.push({
+                    id: "stamp-" + Date.now(),
+                    label: finalLabel,
+                    dataUrl,
+                    showNameOnBoard: showNameOnBoard !== false,
+                  });
+                  saveUserStamps();
+                }
+                currentTool = "select";
+                selectedShapes = [newShape];
+                selectedTexts = [];
+                toolButtons.forEach((btn) => {
+                  const isActive = btn.getAttribute("data-tool") === "select";
+                  btn.classList.toggle("tool-button--active", isActive);
+                });
+                updateBoardAppearance();
+                if (propertiesContent) handleToolSelection("select");
+              },
             });
-            updateBoardAppearance();
-            if (propertiesContent) handleToolSelection("select");
           };
           reader.readAsDataURL(file);
           shapeImageFileInput.value = "";
