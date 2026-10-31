@@ -311,11 +311,19 @@
     const borderCol = isActuallyDark ? "#334155" : "#cbd5e1";
     const cardBg  = isActuallyDark ? "rgba(30, 41, 59, 0.70)" : "rgba(255, 255, 255, 0.85)";
 
-    const sFactor = Math.min(Math.max(Math.min(w / 340, h / 200), 0.85), 2.0);
-    const fontTitle = `bold ${Math.max(11, Math.round(12.5 * sFactor))}px "Plus Jakarta Sans", sans-serif`;
-    const fontHeader = `bold ${Math.max(10, Math.round(11 * sFactor))}px "Plus Jakarta Sans", sans-serif`;
-    const fontBody  = `${Math.max(9, Math.round(10 * sFactor))}px "Plus Jakarta Sans", sans-serif`;
-    const fontSmall = `${Math.max(8.5, Math.round(9 * sFactor))}px "Plus Jakarta Sans", sans-serif`;
+    const preset = ADVANCED_PRESETS.find((p) => p.type === geo);
+    const baseW = preset && preset.w ? preset.w * 2 : 860;
+    const baseH = preset && preset.h ? preset.h * 2 : 360;
+
+    const scaleX = w / baseW;
+    const scaleY = h / baseH;
+    // Proportional scale factor using geometric mean, clamped to safe operational bounds (0.65 to 4.5)
+    const sFactor = Math.max(0.65, Math.min(4.5, Math.sqrt(scaleX * scaleY)));
+
+    const fontTitle = `bold ${Math.max(12, Math.round(14 * sFactor))}px "Plus Jakarta Sans", sans-serif`;
+    const fontHeader = `bold ${Math.max(10.5, Math.round(12 * sFactor))}px "Plus Jakarta Sans", sans-serif`;
+    const fontBody  = `${Math.max(9.5, Math.round(11 * sFactor))}px "Plus Jakarta Sans", sans-serif`;
+    const fontSmall = `${Math.max(8.5, Math.round(10 * sFactor))}px "Plus Jakarta Sans", sans-serif`;
 
     function drawLabel(text, tx, ty, font, txtColor, align, baseline, withStroke = true) {
       if (text === undefined || text === null || text === "") return;
@@ -329,7 +337,7 @@
 
       if (withStroke) {
         ctx.strokeStyle = isActuallyDark ? "rgba(15, 23, 42, 0.95)" : "rgba(255, 255, 255, 0.96)";
-        ctx.lineWidth = Math.max(2, Math.min(3.2, Math.round(2.2 * Math.sqrt(sFactor))));
+        ctx.lineWidth = Math.max(2, Math.round(2.5 * Math.sqrt(sFactor)));
         ctx.strokeText(str, tx, ty);
       }
 
@@ -360,7 +368,7 @@
         const cardY = y1 + 4;
         const cardW = contentW;
         const cardH = h - 8;
-        const cardR = 12;
+        const cardR = Math.max(10, Math.round(12 * Math.min(scaleX, scaleY)));
 
         // Outer Card
         ctx.fillStyle = cardBg;
@@ -371,7 +379,9 @@
         ctx.stroke();
 
         // Top Header Banner
-        const headerH = Math.max(38, Math.min(48, Math.round(cardH * 0.18)));
+        const headerH = subtitle
+          ? Math.max(46, Math.round(cardH * 0.18))
+          : Math.max(38, Math.round(cardH * 0.14));
         const headerBottomY = cardY + headerH;
 
         ctx.save();
@@ -391,8 +401,8 @@
 
         const titleY = cardY + Math.round(headerH * 0.38);
         const subY = cardY + Math.round(headerH * 0.74);
-        const cardTitleFont = `bold ${Math.max(13, Math.min(18, Math.round(14 * sFactor)))}px "Plus Jakarta Sans", sans-serif`;
-        const cardSubFont = `600 ${Math.max(9.5, Math.min(12, Math.round(10 * sFactor)))}px "Plus Jakarta Sans", sans-serif`;
+        const cardTitleFont = `bold ${Math.max(13.5, Math.round(15 * sFactor))}px "Plus Jakarta Sans", sans-serif`;
+        const cardSubFont = `600 ${Math.max(9.5, Math.round(10.5 * sFactor))}px "Plus Jakarta Sans", sans-serif`;
 
         drawLabel(title, cx, titleY, cardTitleFont, color, "center", "middle", false);
         if (subtitle) {
@@ -401,7 +411,7 @@
         }
 
         // Bottom Footer Pill Strip
-        const footerH = footerNote ? Math.max(24, Math.min(30, Math.round(cardH * 0.12))) : 0;
+        const footerH = footerNote ? Math.max(24, Math.round(cardH * 0.10)) : 0;
         const footerY = cardY + cardH - footerH - 6;
 
         if (footerNote) {
@@ -415,7 +425,7 @@
           ctx.fill();
           ctx.stroke();
 
-          const noteFont = `600 ${Math.max(9, Math.min(11.5, Math.round(9.5 * sFactor)))}px "Plus Jakarta Sans", sans-serif`;
+          const noteFont = `600 ${Math.max(9, Math.round(10 * sFactor))}px "Plus Jakarta Sans", sans-serif`;
           drawLabel("💡 " + footerNote, cx, footerY + footerH / 2, noteFont, primary, "center", "middle", false);
         }
 
@@ -446,10 +456,14 @@
             ];
 
             const totalRows = 5;
-            const rowH = Math.max(22, Math.min(36, Math.floor(tblH / totalRows)));
+            const rowH = Math.max(22, Math.floor(tblH / totalRows));
             const totalTblH = totalRows * rowH;
             const startY = tblY + Math.max(0, Math.floor((tblH - totalTblH) / 2));
             const colW = tblW / cols.length;
+
+            const pvHeadFont = `bold ${Math.max(10.5, Math.round(Math.min(rowH * 0.36, 12 * sFactor)))}px "Plus Jakarta Sans", sans-serif`;
+            const digitFont = `bold ${Math.max(13, Math.round(Math.min(rowH * 0.52, 18 * sFactor)))}px "Plus Jakarta Sans", sans-serif`;
+            const pvValFont = `600 ${Math.max(9, Math.round(Math.min(rowH * 0.32, 10.5 * sFactor)))}px "Plus Jakarta Sans", sans-serif`;
 
             // Row 0: Top Super-Header Grouping (Whole Number, Point, Fractional)
             const wW = colW * 3;
@@ -457,14 +471,14 @@
             ctx.strokeStyle = primary;
             ctx.fillRect(tblX, startY, wW, rowH);
             ctx.strokeRect(tblX, startY, wW, rowH);
-            drawLabel("Whole Number (Integral) Part", tblX + wW / 2, startY + rowH / 2, fontHeader, primary, "center", "middle", false);
+            drawLabel("Whole Number (Integral) Part", tblX + wW / 2, startY + rowH / 2, pvHeadFont, primary, "center", "middle", false);
 
             const pX = tblX + wW;
             ctx.fillStyle = isActuallyDark ? "rgba(244, 63, 94, 0.25)" : "rgba(225, 29, 72, 0.15)";
             ctx.strokeStyle = danger;
             ctx.fillRect(pX, startY, colW, rowH);
             ctx.strokeRect(pX, startY, colW, rowH);
-            drawLabel("Decimal", pX + colW / 2, startY + rowH / 2, fontHeader, danger, "center", "middle", false);
+            drawLabel("Decimal", pX + colW / 2, startY + rowH / 2, pvHeadFont, danger, "center", "middle", false);
 
             const fX = pX + colW;
             const fW = colW * 3;
@@ -472,7 +486,7 @@
             ctx.strokeStyle = accent;
             ctx.fillRect(fX, startY, fW, rowH);
             ctx.strokeRect(fX, startY, fW, rowH);
-            drawLabel("Fractional (Decimal) Part", fX + fW / 2, startY + rowH / 2, fontHeader, accent, "center", "middle", false);
+            drawLabel("Fractional (Decimal) Part", fX + fW / 2, startY + rowH / 2, pvHeadFont, accent, "center", "middle", false);
 
             // Rows 1-4: Place Names, Values, Digits, Digit Values
             cols.forEach((col, idx) => {
@@ -483,24 +497,23 @@
               ctx.fillStyle = isActuallyDark ? "rgba(255,255,255,0.03)" : "rgba(248, 250, 252, 0.8)";
               ctx.fillRect(cx_, startY + rowH, colW, rowH);
               ctx.strokeRect(cx_, startY + rowH, colW, rowH);
-              drawLabel(col.name, cx_ + colW / 2, startY + rowH + rowH / 2, fontHeader, col.c, "center", "middle", false);
+              drawLabel(col.name, cx_ + colW / 2, startY + rowH + rowH / 2, pvHeadFont, col.c, "center", "middle", false);
 
               // Row 2: Symbol & Value (e.g. H / 100, 1/10 / 0.1)
               const valTxt = col.group === "point" ? "·" : (col.sym + " (" + col.val + ")");
               ctx.strokeRect(cx_, startY + rowH * 2, colW, rowH);
-              drawLabel(valTxt, cx_ + colW / 2, startY + rowH * 2 + rowH / 2, fontSmall, color, "center", "middle", false);
+              drawLabel(valTxt, cx_ + colW / 2, startY + rowH * 2 + rowH / 2, pvValFont, color, "center", "middle", false);
 
               // Row 3: Sample Digit (large bold)
               ctx.fillStyle = isActuallyDark ? "rgba(255,255,255,0.05)" : "#ffffff";
               ctx.fillRect(cx_, startY + rowH * 3, colW, rowH);
               ctx.strokeRect(cx_, startY + rowH * 3, colW, rowH);
-              const digitFont = `bold ${Math.max(13, Math.min(18, Math.round(15 * sFactor)))}px "Plus Jakarta Sans", sans-serif`;
               drawLabel(col.d, cx_ + colW / 2, startY + rowH * 3 + rowH / 2, digitFont, col.c, "center", "middle", false);
 
               // Row 4: Value in Number
               ctx.strokeRect(cx_, startY + rowH * 4, colW, rowH);
               const valNumTxt = col.group === "point" ? "·" : col.dVal;
-              drawLabel(valNumTxt, cx_ + colW / 2, startY + rowH * 4 + rowH / 2, fontSmall, col.c, "center", "middle", false);
+              drawLabel(valNumTxt, cx_ + colW / 2, startY + rowH * 4 + rowH / 2, pvValFont, col.c, "center", "middle", false);
             });
           }
         });
@@ -520,9 +533,13 @@
             const totalCols = 9;
             const colW = tblW / totalCols;
             const totalRows = 5;
-            const rowH = Math.max(22, Math.min(36, Math.floor(tblH / totalRows)));
+            const rowH = Math.max(22, Math.floor(tblH / totalRows));
             const totalTblH = totalRows * rowH;
             const startY = tblY + Math.max(0, Math.floor((tblH - totalTblH) / 2));
+
+            const pvHeadFont = `bold ${Math.max(10.5, Math.round(Math.min(rowH * 0.36, 12 * sFactor)))}px "Plus Jakarta Sans", sans-serif`;
+            const digitFont = `bold ${Math.max(13, Math.round(Math.min(rowH * 0.52, 18 * sFactor)))}px "Plus Jakarta Sans", sans-serif`;
+            const pvValFont = `600 ${Math.max(9, Math.round(Math.min(rowH * 0.32, 10.5 * sFactor)))}px "Plus Jakarta Sans", sans-serif`;
 
             // Row 0: Period Headers
             let curX = tblX;
@@ -534,22 +551,21 @@
               ctx.globalAlpha = 1.0;
               ctx.strokeStyle = p.c;
               ctx.strokeRect(curX, startY, pW, rowH);
-              drawLabel(p.name, curX + pW / 2, startY + rowH / 2, fontHeader, p.c, "center", "middle", false);
+              drawLabel(p.name, curX + pW / 2, startY + rowH / 2, pvHeadFont, p.c, "center", "middle", false);
               curX += pW;
             });
 
             // Rows 1-4: Place Names, Powers of 10, Sample Digits, Value
             curX = tblX;
-            const digitFont = `bold ${Math.max(13, Math.min(18, Math.round(15 * sFactor)))}px "Plus Jakarta Sans", sans-serif`;
             periods.forEach((p) => {
               p.cols.forEach((col) => {
                 const rx = curX;
                 ctx.strokeStyle = borderCol;
                 ctx.strokeRect(rx, startY + rowH, colW, rowH);
-                drawLabel(col.s, rx + colW / 2, startY + rowH + rowH / 2, fontHeader, color, "center", "middle", false);
+                drawLabel(col.s, rx + colW / 2, startY + rowH + rowH / 2, pvHeadFont, color, "center", "middle", false);
 
                 ctx.strokeRect(rx, startY + rowH * 2, colW, rowH);
-                drawLabel(col.v, rx + colW / 2, startY + rowH * 2 + rowH / 2, fontSmall, primary, "center", "middle", false);
+                drawLabel(col.v, rx + colW / 2, startY + rowH * 2 + rowH / 2, pvValFont, primary, "center", "middle", false);
 
                 ctx.fillStyle = isActuallyDark ? "rgba(255,255,255,0.05)" : "#ffffff";
                 ctx.fillRect(rx, startY + rowH * 3, colW, rowH);
@@ -557,7 +573,7 @@
                 drawLabel(col.d, rx + colW / 2, startY + rowH * 3 + rowH / 2, digitFont, p.c, "center", "middle", false);
 
                 ctx.strokeRect(rx, startY + rowH * 4, colW, rowH);
-                drawLabel(col.val, rx + colW / 2, startY + rowH * 4 + rowH / 2, fontSmall, p.c, "center", "middle", false);
+                drawLabel(col.val, rx + colW / 2, startY + rowH * 4 + rowH / 2, pvValFont, p.c, "center", "middle", false);
 
                 curX += colW;
               });
@@ -579,9 +595,13 @@
             const totalCols = 9;
             const colW = tblW / totalCols;
             const totalRows = 5;
-            const rowH = Math.max(22, Math.min(36, Math.floor(tblH / totalRows)));
+            const rowH = Math.max(22, Math.floor(tblH / totalRows));
             const totalTblH = totalRows * rowH;
             const startY = tblY + Math.max(0, Math.floor((tblH - totalTblH) / 2));
+
+            const pvHeadFont = `bold ${Math.max(10.5, Math.round(Math.min(rowH * 0.36, 12 * sFactor)))}px "Plus Jakarta Sans", sans-serif`;
+            const digitFont = `bold ${Math.max(13, Math.round(Math.min(rowH * 0.52, 18 * sFactor)))}px "Plus Jakarta Sans", sans-serif`;
+            const pvValFont = `600 ${Math.max(9, Math.round(Math.min(rowH * 0.32, 10.5 * sFactor)))}px "Plus Jakarta Sans", sans-serif`;
 
             // Row 0: Period Headers
             let curX = tblX;
@@ -593,22 +613,21 @@
               ctx.globalAlpha = 1.0;
               ctx.strokeStyle = p.c;
               ctx.strokeRect(curX, startY, pW, rowH);
-              drawLabel(p.name, curX + pW / 2, startY + rowH / 2, fontHeader, p.c, "center", "middle", false);
+              drawLabel(p.name, curX + pW / 2, startY + rowH / 2, pvHeadFont, p.c, "center", "middle", false);
               curX += pW;
             });
 
             // Rows 1-4
             curX = tblX;
-            const digitFont = `bold ${Math.max(13, Math.min(18, Math.round(15 * sFactor)))}px "Plus Jakarta Sans", sans-serif`;
             periods.forEach((p) => {
               p.cols.forEach((col) => {
                 const rx = curX;
                 ctx.strokeStyle = borderCol;
                 ctx.strokeRect(rx, startY + rowH, colW, rowH);
-                drawLabel(col.s, rx + colW / 2, startY + rowH + rowH / 2, fontHeader, color, "center", "middle", false);
+                drawLabel(col.s, rx + colW / 2, startY + rowH + rowH / 2, pvHeadFont, color, "center", "middle", false);
 
                 ctx.strokeRect(rx, startY + rowH * 2, colW, rowH);
-                drawLabel(col.v, rx + colW / 2, startY + rowH * 2 + rowH / 2, fontSmall, primary, "center", "middle", false);
+                drawLabel(col.v, rx + colW / 2, startY + rowH * 2 + rowH / 2, pvValFont, primary, "center", "middle", false);
 
                 ctx.fillStyle = isActuallyDark ? "rgba(255,255,255,0.05)" : "#ffffff";
                 ctx.fillRect(rx, startY + rowH * 3, colW, rowH);
@@ -616,7 +635,7 @@
                 drawLabel(col.d, rx + colW / 2, startY + rowH * 3 + rowH / 2, digitFont, p.c, "center", "middle", false);
 
                 ctx.strokeRect(rx, startY + rowH * 4, colW, rowH);
-                drawLabel(col.val, rx + colW / 2, startY + rowH * 4 + rowH / 2, fontSmall, p.c, "center", "middle", false);
+                drawLabel(col.val, rx + colW / 2, startY + rowH * 4 + rowH / 2, pvValFont, p.c, "center", "middle", false);
 
                 curX += colW;
               });
@@ -638,13 +657,17 @@
             ];
 
             const totalRows = rows.length + 1; // 1 header + 5 rows
-            const rowH = Math.max(22, Math.min(34, Math.floor(tblH / totalRows)));
+            const rowH = Math.max(22, Math.floor(tblH / totalRows));
             const totalTblH = totalRows * rowH;
             const startY = tblY + Math.max(0, Math.floor((tblH - totalTblH) / 2));
 
             const col1W = tblW * 0.42;
             const col2W = tblW * 0.42;
             const col3W = tblW * 0.16;
+
+            const cmpHeadFont = `bold ${Math.max(11, Math.round(Math.min(rowH * 0.38, 12.5 * sFactor)))}px "Plus Jakarta Sans", sans-serif`;
+            const cmpBodyFont = `600 ${Math.max(10, Math.round(Math.min(rowH * 0.34, 11 * sFactor)))}px "Plus Jakarta Sans", sans-serif`;
+            const cmpValFont = `bold ${Math.max(10, Math.round(Math.min(rowH * 0.34, 11 * sFactor)))}px "Plus Jakarta Sans", sans-serif`;
 
             // Header
             ctx.fillStyle = primary;
@@ -653,9 +676,9 @@
             ctx.globalAlpha = 1.0;
             ctx.strokeStyle = primary;
             ctx.strokeRect(tblX, startY, tblW, rowH);
-            drawLabel("Indian System", tblX + col1W / 2, startY + rowH / 2, fontHeader, primary, "center", "middle", false);
-            drawLabel("International System", tblX + col1W + col2W / 2, startY + rowH / 2, fontHeader, purple, "center", "middle", false);
-            drawLabel("Value", tblX + col1W + col2W + col3W / 2, startY + rowH / 2, fontHeader, accent, "center", "middle", false);
+            drawLabel("Indian System", tblX + col1W / 2, startY + rowH / 2, cmpHeadFont, primary, "center", "middle", false);
+            drawLabel("International System", tblX + col1W + col2W / 2, startY + rowH / 2, cmpHeadFont, purple, "center", "middle", false);
+            drawLabel("Value", tblX + col1W + col2W + col3W / 2, startY + rowH / 2, cmpHeadFont, accent, "center", "middle", false);
 
             rows.forEach((r, idx) => {
               const ry = startY + rowH * (idx + 1);
@@ -663,9 +686,9 @@
               ctx.strokeRect(tblX, ry, col1W, rowH);
               ctx.strokeRect(tblX + col1W, ry, col2W, rowH);
               ctx.strokeRect(tblX + col1W + col2W, ry, col3W, rowH);
-              drawLabel(r.ind, tblX + col1W / 2, ry + rowH / 2, fontBody, color, "center", "middle", false);
-              drawLabel(r.intl, tblX + col1W + col2W / 2, ry + rowH / 2, fontBody, color, "center", "middle", false);
-              drawLabel(r.pwr, tblX + col1W + col2W + col3W / 2, ry + rowH / 2, fontSmall, accent, "center", "middle", false);
+              drawLabel(r.ind, tblX + col1W / 2, ry + rowH / 2, cmpBodyFont, color, "center", "middle", false);
+              drawLabel(r.intl, tblX + col1W + col2W / 2, ry + rowH / 2, cmpBodyFont, color, "center", "middle", false);
+              drawLabel(r.pwr, tblX + col1W + col2W + col3W / 2, ry + rowH / 2, cmpValFont, accent, "center", "middle", false);
             });
           }
         });
@@ -682,7 +705,7 @@
         const cardY = y1 + 4;
         const cardW = contentW;
         const cardH = h - 8;
-        const cardR = 14;
+        const cardR = Math.max(10, Math.round(14 * Math.min(scaleX, scaleY)));
 
         // 1. Outer Card Background & Smooth Border
         ctx.fillStyle = cardBg;
@@ -694,8 +717,8 @@
 
         // 2. Dedicated Top Header Section
         const headerH = subtitle
-          ? Math.max(50, Math.min(62, Math.round(cardH * 0.15)))
-          : Math.max(38, Math.min(48, Math.round(cardH * 0.12)));
+          ? Math.max(48, Math.round(cardH * 0.15))
+          : Math.max(38, Math.round(cardH * 0.12));
         const headerBottomY = cardY + headerH;
 
         // Subtle Header Banner
@@ -716,11 +739,11 @@
         ctx.stroke();
 
         // Main Title (bold, comfortable margin from top or vertically centered if no subtitle)
-        const cardTitleFont = `bold ${Math.max(14, Math.min(19, Math.round(15 * sFactor)))}px "Plus Jakarta Sans", sans-serif`;
+        const cardTitleFont = `bold ${Math.max(14, Math.round(15.5 * sFactor))}px "Plus Jakarta Sans", sans-serif`;
         if (subtitle) {
           const titleY = cardY + Math.round(headerH * 0.38);
           const subY = cardY + Math.round(headerH * 0.74);
-          const cardSubFont = `600 ${Math.max(10, Math.min(12.5, Math.round(10.5 * sFactor)))}px "Plus Jakarta Sans", sans-serif`;
+          const cardSubFont = `600 ${Math.max(10, Math.round(11 * sFactor))}px "Plus Jakarta Sans", sans-serif`;
           const subColor = isActuallyDark ? "#94a3b8" : "#64748b";
           drawLabel(title, cx, titleY, cardTitleFont, color, "center", "middle", false);
           drawLabel(subtitle, cx, subY, cardSubFont, subColor, "center", "middle", false);
@@ -729,7 +752,7 @@
         }
 
         // 3. Footer Strip (Notes & key properties at bottom)
-        const footerH = notes ? Math.max(28, Math.min(36, Math.round(cardH * 0.09))) : 0;
+        const footerH = notes ? Math.max(28, Math.round(cardH * 0.09)) : 0;
         const footerTopY = cardY + cardH - footerH - 8;
 
         if (notes) {
@@ -745,7 +768,7 @@
           ctx.fill();
           ctx.stroke();
 
-          const noteFont = `600 ${Math.max(9.5, Math.min(12, Math.round(10 * sFactor)))}px "Plus Jakarta Sans", sans-serif`;
+          const noteFont = `600 ${Math.max(9.5, Math.round(10.5 * sFactor))}px "Plus Jakarta Sans", sans-serif`;
           drawLabel("💡 " + notes, cx, footPillY + footPillH / 2, noteFont, primary, "center", "middle", false);
         }
 
@@ -785,14 +808,15 @@
 
         if (formulaRows && Array.isArray(formulaRows) && formulaRows.length > 0) {
           const rowCount = formulaRows.length;
-          const rowGap = Math.max(6, Math.min(10, Math.round(formDeckH * 0.03)));
+          const rowGap = Math.max(6, Math.round(formDeckH * 0.025));
           const totalGaps = (rowCount - 1) * rowGap;
-          const rowH = Math.max(34, Math.min(52, Math.floor((formDeckH - totalGaps) / rowCount)));
+          const rowH = Math.max(34, Math.floor((formDeckH - totalGaps) / rowCount));
           const totalDeckH = rowCount * rowH + totalGaps;
           const startY = formDeckY + Math.max(0, (formDeckH - totalDeckH) / 2);
 
           // Compute uniform badge width for perfect vertical alignment across all rows
-          const tagFont = `bold ${Math.max(10, Math.min(12.5, Math.round(11 * sFactor)))}px "Plus Jakarta Sans", sans-serif`;
+          const tagFontSize = Math.max(11, Math.round(Math.min(rowH * 0.32, 12.5 * sFactor)));
+          const tagFont = `bold ${tagFontSize}px "Plus Jakarta Sans", sans-serif`;
           ctx.save();
           ctx.font = tagFont;
           let maxTagW = 80;
@@ -801,7 +825,7 @@
             if (m.width > maxTagW) maxTagW = m.width;
           });
           ctx.restore();
-          const badgeW = Math.max(95, Math.min(Math.round(formDeckW * 0.40), Math.round(maxTagW + 22)));
+          const badgeW = Math.max(95, Math.min(Math.round(formDeckW * 0.40), Math.round(maxTagW + 24)));
 
           formulaRows.forEach((row, idx) => {
             const ry = startY + idx * (rowH + rowGap);
@@ -832,12 +856,12 @@
             const formulaStartX = formDeckX + badgeW + 12;
             const maxFormulaW = (formDeckX + formDeckW - 8) - formulaStartX;
 
-            let fSize = Math.max(11, Math.min(15, Math.round(13 * sFactor)));
+            let fSize = Math.max(12, Math.round(Math.min(rowH * 0.38, 15 * sFactor)));
             let formFont = `700 ${fSize}px "Plus Jakarta Sans", "Courier New", monospace, sans-serif`;
             ctx.font = formFont;
             let textMetrics = ctx.measureText(row.formula);
             if (textMetrics.width > maxFormulaW && maxFormulaW > 30) {
-              fSize = Math.max(9.5, Math.floor(fSize * (maxFormulaW / textMetrics.width)));
+              fSize = Math.max(10, Math.floor(fSize * (maxFormulaW / textMetrics.width)));
               formFont = `700 ${fSize}px "Plus Jakarta Sans", "Courier New", monospace, sans-serif`;
             }
 
@@ -851,8 +875,8 @@
         drawFormulaLayout({
           title: "Triangle: Perimeter & Area Formulas",
           drawFigure: (fcx, fcy, fw, fh) => {
-            const triW = Math.min(fw * 0.72, 195);
-            const triH = Math.min(fh * 0.60, 135);
+            const triW = Math.min(fw * 0.72, 195 * sFactor);
+            const triH = Math.min(fh * 0.60, 135 * sFactor);
             const aX = fcx, aY = fcy - triH / 2 - 10;
             const bX = fcx - triW / 2, bY = aY + triH;
             const cX = fcx + triW / 2, cY = bY;
@@ -901,8 +925,8 @@
         drawFormulaLayout({
           title: "Right Triangle: Area & Pythagoras Theorem",
           drawFigure: (fcx, fcy, fw, fh) => {
-            const rtW = Math.min(fw * 0.68, 175);
-            const rtH = Math.min(fh * 0.62, 140);
+            const rtW = Math.min(fw * 0.68, 175 * sFactor);
+            const rtH = Math.min(fh * 0.62, 140 * sFactor);
             const bX = fcx - rtW / 2 + 10, bY = fcy + rtH / 2 - 8;
             const aX = bX, aY = bY - rtH;
             const cX = bX + rtW, cY = bY;
@@ -945,8 +969,8 @@
         drawFormulaLayout({
           title: "Rectangle: Perimeter, Area & Diagonal",
           drawFigure: (fcx, fcy, fw, fh) => {
-            const rw = Math.min(fw * 0.72, 195);
-            const rh = Math.min(fh * 0.54, 115);
+            const rw = Math.min(fw * 0.72, 195 * sFactor);
+            const rh = Math.min(fh * 0.54, 115 * sFactor);
             const rx = fcx - rw / 2, ry = fcy - rh / 2 - 6;
 
             ctx.fillStyle = isActuallyDark ? "rgba(56, 189, 248, 0.18)" : "rgba(2, 132, 199, 0.10)";
@@ -990,7 +1014,7 @@
         drawFormulaLayout({
           title: "Square: Perimeter, Area & Diagonal",
           drawFigure: (fcx, fcy, fw, fh) => {
-            const s = Math.min(fw * 0.58, fh * 0.58, 125);
+            const s = Math.min(fw * 0.58, fh * 0.58, 125 * sFactor);
             const sx = fcx - s / 2, sy = fcy - s / 2 - 6;
 
             ctx.fillStyle = isActuallyDark ? "rgba(16, 185, 129, 0.18)" : "rgba(16, 185, 129, 0.10)";
@@ -1035,7 +1059,7 @@
         drawFormulaLayout({
           title: "Circle & Sector: Circumference & Area",
           drawFigure: (fcx, fcy, fw, fh) => {
-            const r = Math.min(fw * 0.34, fh * 0.34, 70);
+            const r = Math.min(fw * 0.34, fh * 0.34, 70 * sFactor);
 
             ctx.fillStyle = isActuallyDark ? "rgba(245, 158, 11, 0.25)" : "rgba(245, 158, 11, 0.18)";
             ctx.beginPath();
@@ -1079,8 +1103,8 @@
         drawFormulaLayout({
           title: "Parallelogram & Rhombus Formulas",
           drawFigure: (fcx, fcy, fw, fh) => {
-            const bw = Math.min(fw * 0.60, 160);
-            const bh = Math.min(fh * 0.50, 95);
+            const bw = Math.min(fw * 0.60, 160 * sFactor);
+            const bh = Math.min(fh * 0.50, 95 * sFactor);
             const slant = Math.round(bw * 0.28);
             const x1 = fcx - bw / 2 - slant / 2, y1_ = fcy + bh / 2 - 4;
             const x2 = x1 + bw, y2_ = y1_;
@@ -1126,9 +1150,9 @@
         drawFormulaLayout({
           title: "Trapezium: Perimeter & Area Formulas",
           drawFigure: (fcx, fcy, fw, fh) => {
-            const topW = Math.min(fw * 0.40, 95);
-            const botW = Math.min(fw * 0.72, 175);
-            const th = Math.min(fh * 0.52, 110);
+            const topW = Math.min(fw * 0.40, 95 * sFactor);
+            const botW = Math.min(fw * 0.72, 175 * sFactor);
+            const th = Math.min(fh * 0.52, 110 * sFactor);
             const topY_ = fcy - th / 2 - 6, botY_ = fcy + th / 2 - 6;
             const p1x = fcx - topW / 2, p1y = topY_;
             const p2x = fcx + topW / 2, p2y = topY_;
@@ -1174,7 +1198,7 @@
         drawFormulaLayout({
           title: "3D Cube: Surface Area & Volume",
           drawFigure: (fcx, fcy, fw, fh) => {
-            const s = Math.min(fw * 0.40, fh * 0.45, 88);
+            const s = Math.min(fw * 0.40, fh * 0.45, 88 * sFactor);
             const isoX = Math.round(s * 0.42), isoY = Math.round(s * 0.28);
             const x0 = fcx - s / 2 - isoX / 2, y0 = fcy - s / 2 + isoY / 2 - 6;
 
@@ -1220,8 +1244,8 @@
         drawFormulaLayout({
           title: "3D Cuboid: Surface Area & Volume",
           drawFigure: (fcx, fcy, fw, fh) => {
-            const l = Math.min(fw * 0.54, 130);
-            const h_ = Math.min(fh * 0.44, 82);
+            const l = Math.min(fw * 0.54, 130 * sFactor);
+            const h_ = Math.min(fh * 0.44, 82 * sFactor);
             const isoX = Math.round(l * 0.28), isoY = Math.round(h_ * 0.28);
             const x0 = fcx - l / 2 - isoX / 2, y0 = fcy - h_ / 2 + isoY / 2 - 6;
 
@@ -1261,8 +1285,8 @@
         drawFormulaLayout({
           title: "3D Cylinder: Surface Area & Volume",
           drawFigure: (fcx, fcy, fw, fh) => {
-            const rx = Math.min(fw * 0.28, 55), ry = Math.round(rx * 0.32);
-            const ch = Math.min(fh * 0.58, 120);
+            const rx = Math.min(fw * 0.28, 55 * sFactor), ry = Math.round(rx * 0.32);
+            const ch = Math.min(fh * 0.58, 120 * sFactor);
             const topY_ = fcy - ch / 2 - 4, botY_ = fcy + ch / 2 - 4;
 
             ctx.fillStyle = isActuallyDark ? "rgba(16, 185, 129, 0.18)" : "rgba(16, 185, 129, 0.12)";
@@ -1316,8 +1340,8 @@
         drawFormulaLayout({
           title: "3D Cone: Surface Area & Volume",
           drawFigure: (fcx, fcy, fw, fh) => {
-            const rx = Math.min(fw * 0.30, 58), ry = Math.round(rx * 0.30);
-            const ch = Math.min(fh * 0.60, 125);
+            const rx = Math.min(fw * 0.30, 58 * sFactor), ry = Math.round(rx * 0.30);
+            const ch = Math.min(fh * 0.60, 125 * sFactor);
             const topY_ = fcy - ch / 2 - 6, botY_ = fcy + ch / 2 - 6;
 
             ctx.fillStyle = isActuallyDark ? "rgba(245, 158, 11, 0.18)" : "rgba(245, 158, 11, 0.12)";
@@ -1373,7 +1397,7 @@
         drawFormulaLayout({
           title: "Sphere & Hemisphere Formulas",
           drawFigure: (fcx, fcy, fw, fh) => {
-            const r = Math.min(fw * 0.26, fh * 0.28, 56);
+            const r = Math.min(fw * 0.26, fh * 0.28, 56 * sFactor);
             const sCX = fcx - Math.round(fw * 0.14);
 
             ctx.fillStyle = isActuallyDark ? "rgba(56, 189, 248, 0.18)" : "rgba(2, 132, 199, 0.12)";
@@ -1419,8 +1443,8 @@
         drawFormulaLayout({
           title: "Frustum of Cone: Area & Volume",
           drawFigure: (fcx, fcy, fw, fh) => {
-            const r1 = Math.min(fw * 0.18, 35), r2 = Math.min(fw * 0.30, 60);
-            const fh_ = Math.min(fh * 0.54, 115);
+            const r1 = Math.min(fw * 0.18, 35 * sFactor), r2 = Math.min(fw * 0.30, 60 * sFactor);
+            const fh_ = Math.min(fh * 0.54, 115 * sFactor);
             const topY_ = fcy - fh_ / 2 - 4, botY_ = fcy + fh_ / 2 - 4;
 
             ctx.fillStyle = isActuallyDark ? "rgba(192, 132, 252, 0.18)" : "rgba(126, 34, 206, 0.12)";
@@ -1474,7 +1498,7 @@
         ctx.font = fontStr;
         const metrics = ctx.measureText(txt);
         if (metrics.width > maxW && maxW > 20) {
-          const scale = Math.max(0.68, (maxW - 4) / metrics.width);
+          const scale = Math.max(0.50, (maxW - 4) / metrics.width);
           const m = fontStr.match(/(\d+(?:\.\d+)?)px/);
           if (m) {
             const origSize = parseFloat(m[1]);
@@ -1632,7 +1656,7 @@
         const cardY = y1 + 4;
         const cardW = contentW;
         const cardH = h - 8;
-        const cardR = 14;
+        const cardR = Math.max(10, Math.round(14 * Math.min(scaleX, scaleY)));
 
         // 1. Outer Card Container
         ctx.fillStyle = cardBg;
@@ -1644,8 +1668,8 @@
 
         // 2. Top Header Banner
         const headerH = subtitle
-          ? Math.max(48, Math.min(58, Math.round(cardH * 0.15)))
-          : Math.max(38, Math.min(46, Math.round(cardH * 0.12)));
+          ? Math.max(48, Math.round(cardH * 0.15))
+          : Math.max(38, Math.round(cardH * 0.12));
         const headerBottomY = cardY + headerH;
 
         ctx.save();
@@ -1663,11 +1687,11 @@
         ctx.lineTo(cardX + cardW, headerBottomY);
         ctx.stroke();
 
-        const cardTitleFont = `bold ${Math.max(13, Math.min(18, Math.round(14.5 * sFactor)))}px "Plus Jakarta Sans", sans-serif`;
+        const cardTitleFont = `bold ${Math.max(13.5, Math.round(15.5 * sFactor))}px "Plus Jakarta Sans", sans-serif`;
         if (subtitle) {
           const titleY = cardY + Math.round(headerH * 0.38);
           const subY = cardY + Math.round(headerH * 0.74);
-          const cardSubFont = `600 ${Math.max(9.5, Math.min(12, Math.round(10 * sFactor)))}px "Plus Jakarta Sans", sans-serif`;
+          const cardSubFont = `600 ${Math.max(10, Math.round(11 * sFactor))}px "Plus Jakarta Sans", sans-serif`;
           const subColor = isActuallyDark ? "#94a3b8" : "#64748b";
           drawLabel(title, cx, titleY, cardTitleFont, color, "center", "middle", false);
           drawLabel(subtitle, cx, subY, cardSubFont, subColor, "center", "middle", false);
@@ -1676,7 +1700,7 @@
         }
 
         // 3. Footer Strip (Notes / Conversions)
-        const footerH = footerNote ? Math.max(26, Math.min(32, Math.round(cardH * 0.10))) : 0;
+        const footerH = footerNote ? Math.max(26, Math.round(cardH * 0.09)) : 0;
         const footerY = cardY + cardH - footerH - 6;
 
         if (footerNote) {
@@ -1690,7 +1714,7 @@
           ctx.fill();
           ctx.stroke();
 
-          const noteFont = `600 ${Math.max(9, Math.min(11.5, Math.round(9.5 * sFactor)))}px "Plus Jakarta Sans", sans-serif`;
+          const noteFont = `600 ${Math.max(9.5, Math.round(10.5 * sFactor))}px "Plus Jakarta Sans", sans-serif`;
           drawLabel(footerNote, cx, footerY + footerH / 2, noteFont, primary, "center", "middle", false);
         }
 
@@ -1720,7 +1744,7 @@
             ];
 
             const totalRows = items.length + 1;
-            const rowH = Math.max(22, Math.min(36, Math.floor(tblH / totalRows)));
+            const rowH = Math.max(22, Math.floor(tblH / totalRows));
             const actualH = totalRows * rowH;
             const startY = tblY + Math.max(0, Math.floor((tblH - actualH) / 2));
 
@@ -1741,7 +1765,8 @@
             ctx.lineWidth = 1.2;
             ctx.strokeRect(tblX, startY, tblW, rowH);
 
-            const thFont = `bold ${Math.max(10, Math.min(13, Math.round(11 * sFactor)))}px "Plus Jakarta Sans", sans-serif`;
+            const thFontSize = Math.max(11, Math.round(Math.min(rowH * 0.38, 13 * sFactor)));
+            const thFont = `bold ${thFontSize}px "Plus Jakarta Sans", sans-serif`;
             drawLabel("2D Plane Figure", c1X + c1W / 2, startY + rowH / 2, thFont, primary, "center", "middle", false);
             drawLabel("Perimeter (P)", c2X + c2W / 2, startY + rowH / 2, thFont, primary, "center", "middle", false);
             drawLabel("Area (A)", c3X + c3W / 2, startY + rowH / 2, thFont, accent, "center", "middle", false);
@@ -1754,9 +1779,10 @@
             ctx.stroke();
 
             // 2. Data Rows
-            const nameFont = `bold ${Math.max(10, Math.min(13, Math.round(11 * sFactor)))}px "Plus Jakarta Sans", sans-serif`;
-            const formFont = `700 ${Math.max(9.5, Math.min(12.5, Math.round(11 * sFactor)))}px "Plus Jakarta Sans", monospace, sans-serif`;
-            const relFont = `600 ${Math.max(9, Math.min(11.5, Math.round(10 * sFactor)))}px "Plus Jakarta Sans", sans-serif`;
+            const rowFontSize = Math.max(11, Math.round(Math.min(rowH * 0.38, 12.5 * sFactor)));
+            const nameFont = `bold ${rowFontSize}px "Plus Jakarta Sans", sans-serif`;
+            const formFont = `700 ${rowFontSize}px "Plus Jakarta Sans", monospace, sans-serif`;
+            const relFont = `600 ${Math.max(10, Math.round(rowFontSize * 0.92))}px "Plus Jakarta Sans", sans-serif`;
 
             items.forEach((item, idx) => {
               const ry = startY + rowH * (idx + 1);
@@ -1775,7 +1801,7 @@
               ctx.strokeRect(c4X, ry, c4W, rowH);
 
               // Col 1: Icon Badge + Name
-              const badgeSize = Math.max(16, Math.min(22, rowH - 6));
+              const badgeSize = Math.max(18, Math.round(rowH * 0.64));
               const badgeX = c1X + 6;
               const badgeY = ry + (rowH - badgeSize) / 2;
 
@@ -1785,8 +1811,8 @@
 
               drawMini2DIcon(item.icon, badgeX + badgeSize / 2, badgeY + badgeSize / 2, badgeSize * 0.75);
 
-              const textStartX = badgeX + badgeSize + 6;
-              const maxNameW = c1W - (badgeSize + 14);
+              const textStartX = badgeX + badgeSize + 8;
+              const maxNameW = c1W - (badgeSize + 16);
               drawCellText(item.name, textStartX, ry + rowH / 2, maxNameW, nameFont, color, "left");
 
               // Col 2: Perimeter
@@ -1816,7 +1842,7 @@
             ];
 
             const totalRows = items.length + 1;
-            const rowH = Math.max(22, Math.min(36, Math.floor(tblH / totalRows)));
+            const rowH = Math.max(22, Math.floor(tblH / totalRows));
             const actualH = totalRows * rowH;
             const startY = tblY + Math.max(0, Math.floor((tblH - actualH) / 2));
 
@@ -1839,7 +1865,8 @@
             ctx.lineWidth = 1.2;
             ctx.strokeRect(tblX, startY, tblW, rowH);
 
-            const thFont = `bold ${Math.max(10, Math.min(13, Math.round(11 * sFactor)))}px "Plus Jakarta Sans", sans-serif`;
+            const thFontSize = Math.max(11, Math.round(Math.min(rowH * 0.38, 13 * sFactor)));
+            const thFont = `bold ${thFontSize}px "Plus Jakarta Sans", sans-serif`;
             drawLabel("3D Solid", c1X + c1W / 2, startY + rowH / 2, thFont, primary, "center", "middle", false);
             drawLabel("CSA / LSA", c2X + c2W / 2, startY + rowH / 2, thFont, primary, "center", "middle", false);
             drawLabel("Total Surface Area", c3X + c3W / 2, startY + rowH / 2, thFont, accent, "center", "middle", false);
@@ -1854,9 +1881,10 @@
             ctx.stroke();
 
             // 2. Data Rows
-            const nameFont = `bold ${Math.max(10, Math.min(13, Math.round(11 * sFactor)))}px "Plus Jakarta Sans", sans-serif`;
-            const formFont = `700 ${Math.max(9.5, Math.min(12.5, Math.round(11 * sFactor)))}px "Plus Jakarta Sans", monospace, sans-serif`;
-            const relFont = `600 ${Math.max(9, Math.min(11.5, Math.round(10 * sFactor)))}px "Plus Jakarta Sans", sans-serif`;
+            const rowFontSize = Math.max(11, Math.round(Math.min(rowH * 0.38, 12.5 * sFactor)));
+            const nameFont = `bold ${rowFontSize}px "Plus Jakarta Sans", sans-serif`;
+            const formFont = `700 ${rowFontSize}px "Plus Jakarta Sans", monospace, sans-serif`;
+            const relFont = `600 ${Math.max(10, Math.round(rowFontSize * 0.92))}px "Plus Jakarta Sans", sans-serif`;
 
             items.forEach((item, idx) => {
               const ry = startY + rowH * (idx + 1);
@@ -1876,7 +1904,7 @@
               ctx.strokeRect(c5X, ry, c5W, rowH);
 
               // Col 1: Icon Badge + Name
-              const badgeSize = Math.max(16, Math.min(22, rowH - 6));
+              const badgeSize = Math.max(18, Math.round(rowH * 0.64));
               const badgeX = c1X + 6;
               const badgeY = ry + (rowH - badgeSize) / 2;
 
@@ -1886,8 +1914,8 @@
 
               drawMini3DIcon(item.icon, badgeX + badgeSize / 2, badgeY + badgeSize / 2, badgeSize * 0.75);
 
-              const textStartX = badgeX + badgeSize + 6;
-              const maxNameW = c1W - (badgeSize + 14);
+              const textStartX = badgeX + badgeSize + 8;
+              const maxNameW = c1W - (badgeSize + 16);
               drawCellText(item.name, textStartX, ry + rowH / 2, maxNameW, nameFont, color, "left");
 
               // Col 2: CSA / LSA
@@ -1935,8 +1963,8 @@
             ];
 
             const cardH_ = tblH;
-            const headH = Math.max(26, Math.min(32, Math.round(cardH_ * 0.14)));
-            const rowH = Math.max(22, Math.min(30, Math.floor((cardH_ - headH - 8) / 7)));
+            const headH = Math.max(28, Math.round(cardH_ * 0.13));
+            const rowH = Math.max(22, Math.floor((cardH_ - headH - 8) / 7));
 
             // Left Panel: 2D Figures
             ctx.fillStyle = isActuallyDark ? "rgba(56, 189, 248, 0.05)" : "rgba(2, 132, 199, 0.03)";
@@ -1956,11 +1984,12 @@
             ctx.beginPath(); ctx.moveTo(leftPanelX, tblY + headH); ctx.lineTo(leftPanelX + colW, tblY + headH); ctx.stroke();
             ctx.restore();
 
-            const pHeadFont = `bold ${Math.max(10.5, Math.min(13, Math.round(11.5 * sFactor)))}px "Plus Jakarta Sans", sans-serif`;
+            const pHeadFont = `bold ${Math.max(11, Math.round(Math.min(headH * 0.44, 13 * sFactor)))}px "Plus Jakarta Sans", sans-serif`;
             drawLabel("📐 2D Plane Figures", leftPanelX + colW / 2, tblY + headH / 2, pHeadFont, primary, "center", "middle", false);
 
-            const fNameFont = `bold ${Math.max(9.5, Math.min(12, Math.round(10.5 * sFactor)))}px "Plus Jakarta Sans", sans-serif`;
-            const fFormFont = `700 ${Math.max(9, Math.min(11.5, Math.round(10 * sFactor)))}px "Plus Jakarta Sans", monospace, sans-serif`;
+            const fRowSize = Math.max(10, Math.round(Math.min(rowH * 0.40, 12 * sFactor)));
+            const fNameFont = `bold ${fRowSize}px "Plus Jakarta Sans", sans-serif`;
+            const fFormFont = `700 ${fRowSize}px "Plus Jakarta Sans", monospace, sans-serif`;
 
             f2d.forEach((item, idx) => {
               const ry = tblY + headH + 4 + idx * rowH;
