@@ -7333,12 +7333,22 @@
               { corner: "tr", x: boxX + boxW, y: boxY },
               { corner: "br", x: boxX + boxW, y: boxY + boxH },
               { corner: "bl", x: boxX, y: boxY + boxH },
+              { corner: "tm", x: boxX + boxW / 2, y: boxY },
+              { corner: "bm", x: boxX + boxW / 2, y: boxY + boxH },
+              { corner: "lm", x: boxX, y: boxY + boxH / 2 },
+              { corner: "rm", x: boxX + boxW, y: boxY + boxH / 2 },
             ];
             ctx.setLineDash([]);
-            ctx.fillStyle = "#eab308";
             const s = 8;
             handles.forEach((h) => {
-              ctx.fillRect(h.x - s / 2, h.y - s / 2, s, s);
+              ctx.fillStyle = "#ffffff";
+              ctx.strokeStyle = "#0284c7";
+              ctx.lineWidth = 1.8;
+              ctx.beginPath();
+              if (ctx.roundRect) ctx.roundRect(h.x - s / 2, h.y - s / 2, s, s, 2);
+              else ctx.rect(h.x - s / 2, h.y - s / 2, s, s);
+              ctx.fill();
+              ctx.stroke();
             });
             shape._resizeHandles = handles;
 
@@ -13629,7 +13639,38 @@
           }
           return;
         }
-        if (!isDrawing) return;
+        if (!isDrawing) {
+          if (currentTool === "select" && selectedShapes && selectedShapes.length === 1 && boardCanvas) {
+            const sh = selectedShapes[0];
+            if (sh && !sh.locked && sh._resizeHandles && Array.isArray(sh._resizeHandles)) {
+              const pt = getCanvasPoint(evt);
+              const localPt = boardPointToShapeLocal(pt.x, pt.y, sh);
+              const hitRad = 12;
+              let matchedCursor = "";
+              for (const h of sh._resizeHandles) {
+                const dx = localPt.x - h.x;
+                const dy = localPt.y - h.y;
+                if (Math.sqrt(dx * dx + dy * dy) <= hitRad) {
+                  if (h.corner === "tl" || h.corner === "br") matchedCursor = "nwse-resize";
+                  else if (h.corner === "tr" || h.corner === "bl") matchedCursor = "nesw-resize";
+                  else if (h.corner === "tm" || h.corner === "bm") matchedCursor = "ns-resize";
+                  else if (h.corner === "lm" || h.corner === "rm") matchedCursor = "ew-resize";
+                  break;
+                }
+              }
+              if (!matchedCursor && sh._rotateHandle) {
+                const rh = sh._rotateHandle;
+                const dx = localPt.x - rh.x;
+                const dy = localPt.y - rh.y;
+                if (Math.sqrt(dx * dx + dy * dy) <= hitRad) {
+                  matchedCursor = "grab";
+                }
+              }
+              boardCanvas.style.cursor = matchedCursor || "default";
+            }
+          }
+          return;
+        }
         if (typeof evt.preventDefault === "function") evt.preventDefault();
         if (isRotatingShape && rotateShapeState && currentTool === "select") {
           const point = getCanvasPoint(evt);
@@ -13739,19 +13780,39 @@
                 finalH = Math.abs(newEnd.y - newStart.y);
               }
             } else {
+              const startXIsLeft = origStart.x <= origEnd.x;
+              const startYIsTop = origStart.y <= origEnd.y;
+              let curLeft = Math.min(origStart.x, origEnd.x);
+              let curRight = Math.max(origStart.x, origEnd.x);
+              let curTop = Math.min(origStart.y, origEnd.y);
+              let curBottom = Math.max(origStart.y, origEnd.y);
+
               if (corner === "tl") {
-                newStart.x = point.x;
-                newStart.y = point.y;
+                curLeft = point.x;
+                curTop = point.y;
               } else if (corner === "tr") {
-                newEnd.x = point.x;
-                newStart.y = point.y;
+                curRight = point.x;
+                curTop = point.y;
               } else if (corner === "br") {
-                newEnd.x = point.x;
-                newEnd.y = point.y;
+                curRight = point.x;
+                curBottom = point.y;
               } else if (corner === "bl") {
-                newStart.x = point.x;
-                newEnd.y = point.y;
+                curLeft = point.x;
+                curBottom = point.y;
+              } else if (corner === "tm") {
+                curTop = point.y;
+              } else if (corner === "bm") {
+                curBottom = point.y;
+              } else if (corner === "lm") {
+                curLeft = point.x;
+              } else if (corner === "rm") {
+                curRight = point.x;
               }
+
+              newStart.x = startXIsLeft ? curLeft : curRight;
+              newEnd.x = startXIsLeft ? curRight : curLeft;
+              newStart.y = startYIsTop ? curTop : curBottom;
+              newEnd.y = startYIsTop ? curBottom : curTop;
             }
 
             const minSize = 5;
@@ -17485,13 +17546,13 @@
             card.style.display = "flex";
             card.style.alignItems = "center";
             card.style.justifyContent = "space-between";
-            card.style.gap = "8px";
+            card.style.gap = "10px";
             card.style.width = "100%";
-            card.style.padding = "8px 10px";
-            card.style.marginBottom = "6px";
+            card.style.padding = "9px 12px";
+            card.style.marginBottom = "8px";
             card.style.background = "#ffffff";
             card.style.border = "1.5px solid #e2e8f0";
-            card.style.borderRadius = "8px";
+            card.style.borderRadius = "9px";
             card.style.cursor = "pointer";
             card.style.transition = "all 0.16s cubic-bezier(0.4, 0, 0.2, 1)";
             card.style.boxShadow = "0 1px 2px rgba(0,0,0,0.03)";
@@ -17499,20 +17560,20 @@
             const leftStack = document.createElement("div");
             leftStack.style.display = "flex";
             leftStack.style.flexDirection = "column";
-            leftStack.style.gap = "2px";
+            leftStack.style.gap = "3px";
             leftStack.style.minWidth = "0";
             leftStack.style.flex = "1";
 
             const topRow = document.createElement("div");
             topRow.style.display = "flex";
             topRow.style.alignItems = "center";
-            topRow.style.gap = "6px";
+            topRow.style.gap = "8px";
 
             const chipEl = document.createElement("span");
-            chipEl.style.fontSize = "0.68rem";
+            chipEl.style.fontSize = "0.78rem";
             chipEl.style.fontWeight = "800";
-            chipEl.style.padding = "2px 6px";
-            chipEl.style.borderRadius = "4px";
+            chipEl.style.padding = "3px 8px";
+            chipEl.style.borderRadius = "5px";
             chipEl.style.background = chipTheme?.bg || "#f1f5f9";
             chipEl.style.color = chipTheme?.color || "#0369a1";
             chipEl.style.border = "1px solid " + (chipTheme?.border || "#cbd5e1");
@@ -17522,7 +17583,7 @@
             topRow.appendChild(chipEl);
 
             const titleEl = document.createElement("span");
-            titleEl.style.fontSize = "0.78rem";
+            titleEl.style.fontSize = "0.88rem";
             titleEl.style.fontWeight = "700";
             titleEl.style.color = "#0f172a";
             titleEl.style.whiteSpace = "nowrap";
@@ -17534,9 +17595,9 @@
 
             if (subtitle) {
               const subEl = document.createElement("span");
-              subEl.style.fontSize = "0.68rem";
-              subEl.style.color = "#64748b";
-              subEl.style.lineHeight = "1.25";
+              subEl.style.fontSize = "0.78rem";
+              subEl.style.color = "#475569";
+              subEl.style.lineHeight = "1.35";
               subEl.textContent = subtitle;
               leftStack.appendChild(subEl);
             }
@@ -17545,13 +17606,13 @@
             const actionBtn = document.createElement("button");
             actionBtn.type = "button";
             actionBtn.innerHTML = "+ Add";
-            actionBtn.style.padding = "4px 8px";
-            actionBtn.style.fontSize = "0.70rem";
+            actionBtn.style.padding = "5px 12px";
+            actionBtn.style.fontSize = "0.78rem";
             actionBtn.style.fontWeight = "700";
             actionBtn.style.color = "#0284c7";
             actionBtn.style.background = "#e0f2fe";
             actionBtn.style.border = "1px solid #bae6fd";
-            actionBtn.style.borderRadius = "5px";
+            actionBtn.style.borderRadius = "6px";
             actionBtn.style.cursor = "pointer";
             actionBtn.style.flexShrink = "0";
             actionBtn.style.transition = "all 0.15s ease";
@@ -18376,9 +18437,10 @@
               });
             } else if (selectedCatId === "geometry") {
               const desc = document.createElement("p");
-              desc.style.margin = "0 0 8px 0";
-              desc.style.fontSize = "0.72rem";
-              desc.style.color = "#64748b";
+              desc.style.margin = "0 0 10px 0";
+              desc.style.fontSize = "0.84rem";
+              desc.style.fontWeight = "600";
+              desc.style.color = "#334155";
               desc.textContent = "Select geometric theorem or figure (NCERT Class 6-10):";
               diagBox.appendChild(desc);
 
@@ -18399,19 +18461,19 @@
 
               const pillContainer = document.createElement("div");
               pillContainer.style.display = "flex";
-              pillContainer.style.gap = "6px";
+              pillContainer.style.gap = "8px";
               pillContainer.style.overflowX = "auto";
-              pillContainer.style.paddingBottom = "8px";
-              pillContainer.style.marginBottom = "8px";
+              pillContainer.style.paddingBottom = "10px";
+              pillContainer.style.marginBottom = "10px";
               pillContainer.style.scrollbarWidth = "thin";
 
               const cardsContainer = document.createElement("div");
-              cardsContainer.style.maxHeight = "360px";
+              cardsContainer.style.maxHeight = "440px";
               cardsContainer.style.overflowY = "auto";
               cardsContainer.style.display = "flex";
               cardsContainer.style.flexDirection = "column";
-              cardsContainer.style.gap = "2px";
-              cardsContainer.style.paddingRight = "4px";
+              cardsContainer.style.gap = "8px";
+              cardsContainer.style.padding = "2px 4px 6px 2px";
 
               function renderGeoCards() {
                 cardsContainer.innerHTML = "";
@@ -18466,16 +18528,17 @@
                 const btn = document.createElement("button");
                 btn.type = "button";
                 btn.textContent = fg.label;
-                btn.style.padding = "4px 10px";
+                btn.style.padding = "6px 12px";
                 btn.style.borderRadius = "20px";
-                btn.style.fontSize = "0.72rem";
-                btn.style.fontWeight = window._selectedGeoFilter === fg.id ? "700" : "500";
+                btn.style.fontSize = "0.80rem";
+                btn.style.fontWeight = window._selectedGeoFilter === fg.id ? "700" : "600";
                 btn.style.whiteSpace = "nowrap";
                 btn.style.cursor = "pointer";
                 btn.style.transition = "all 0.15s ease";
                 btn.style.border = window._selectedGeoFilter === fg.id ? "1.5px solid #0284c7" : "1px solid #cbd5e1";
                 btn.style.background = window._selectedGeoFilter === fg.id ? "#0284c7" : "#ffffff";
                 btn.style.color = window._selectedGeoFilter === fg.id ? "#ffffff" : "#475569";
+                btn.style.boxShadow = window._selectedGeoFilter === fg.id ? "0 1px 3px rgba(2, 132, 199, 0.25)" : "none";
 
                 btn.onclick = () => {
                   window._selectedGeoFilter = fg.id;
@@ -18485,7 +18548,8 @@
                     child.style.border = active ? "1.5px solid #0284c7" : "1px solid #cbd5e1";
                     child.style.background = active ? "#0284c7" : "#ffffff";
                     child.style.color = active ? "#ffffff" : "#475569";
-                    child.style.fontWeight = active ? "700" : "500";
+                    child.style.fontWeight = active ? "700" : "600";
+                    child.style.boxShadow = active ? "0 1px 3px rgba(2, 132, 199, 0.25)" : "none";
                   });
                   renderGeoCards();
                 };
