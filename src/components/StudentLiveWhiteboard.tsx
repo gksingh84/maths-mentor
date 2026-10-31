@@ -3127,10 +3127,18 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
         const hasYLabel = Boolean(yAxisLabel && showAxisLabels);
         const hasKey = Boolean(keyText);
 
-        const padL = Math.max(hasYLabel ? 56 : 42, Math.min(75, w * 0.16));
-        const padR = 20;
-        const padT = hasTitle ? Math.max(34, Math.min(50, h * 0.15)) : 22;
-        const padB = Math.max(hasXLabel ? (hasKey ? 64 : 48) : (hasKey ? 48 : 34), Math.min(80, h * 0.22));
+        const dim = Math.min(w, h);
+        const titleFontSize = Math.max(16, Math.min(26, Math.round(dim * 0.048)));
+        const axisTitleFontSize = Math.max(13, Math.min(18, Math.round(dim * 0.034)));
+        const catFontSize = Math.max(12, Math.min(16, Math.round(dim * 0.030)));
+        const valFontSize = Math.max(12, Math.min(16, Math.round(dim * 0.030)));
+        const tickFontSize = Math.max(10, Math.min(13, Math.round(dim * 0.024)));
+        const keyFontSize = Math.max(11, Math.min(15, Math.round(dim * 0.026)));
+
+        const padL = Math.max(hasYLabel ? (axisTitleFontSize + 48) : 44, Math.min(95, w * 0.18));
+        const padR = 24;
+        const padT = hasTitle ? Math.max(titleFontSize + 22, Math.min(65, h * 0.16)) : 24;
+        const padB = Math.max(hasXLabel ? (catFontSize + axisTitleFontSize + (hasKey ? keyFontSize + 32 : 22)) : (hasKey ? catFontSize + keyFontSize + 24 : catFontSize + 18), Math.min(100, h * 0.24));
         const chartW = w - padL - padR;
         const chartH = h - padT - padB;
 
@@ -3161,15 +3169,15 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
           ctx.strokeRect(x1 + padL, y1 + padT, chartW, chartH);
 
           if (hasTitle) {
-            ctx.font = 'bold 13px "Segoe UI", sans-serif';
+            ctx.font = 'bold ' + titleFontSize + 'px "Segoe UI", sans-serif';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'top';
             ctx.fillStyle = '#111827';
-            ctx.fillText(title, x1 + w / 2, y1 + 8);
+            ctx.fillText(title, x1 + w / 2, y1 + Math.max(6, (padT - titleFontSize) / 2));
           }
 
           const numTicks = 4;
-          ctx.font = '10px "Segoe UI", sans-serif';
+          ctx.font = tickFontSize + 'px "Segoe UI", sans-serif';
           ctx.textAlign = 'right';
           ctx.textBaseline = 'middle';
           for (let t = 0; t <= numTicks; t++) {
@@ -3184,6 +3192,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
             ctx.stroke();
 
             if (showAxisLabels) {
+              ctx.font = tickFontSize + 'px "Segoe UI", sans-serif';
               ctx.fillStyle = '#4b5563';
               ctx.fillText(String(valNum), x1 + padL - 6, gy);
             }
@@ -3191,9 +3200,9 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
 
           if (hasYLabel) {
             ctx.save();
-            ctx.translate(x1 + 14, y1 + padT + chartH / 2);
+            ctx.translate(x1 + Math.max(14, (padL - 32) / 2), y1 + padT + chartH / 2);
             ctx.rotate(-Math.PI / 2);
-            ctx.font = 'bold 11px "Segoe UI", sans-serif';
+            ctx.font = 'bold ' + axisTitleFontSize + 'px "Segoe UI", sans-serif';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             ctx.fillStyle = '#374151';
@@ -3214,35 +3223,36 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
             ctx.strokeRect(bx, by, barW, barH);
 
             if (showValues) {
-              ctx.font = 'bold 11px "Segoe UI", sans-serif';
+              ctx.font = 'bold ' + valFontSize + 'px "Segoe UI", sans-serif';
               ctx.textAlign = 'center';
               ctx.textBaseline = 'bottom';
               ctx.fillStyle = '#1e293b';
-              ctx.fillText(String(data[i]), bx + barW / 2, by - 3);
+              ctx.fillText(String(data[i]), bx + barW / 2, by - 4);
             }
 
             const cat = (labels[i] !== undefined && labels[i] !== '') ? String(labels[i]) : String(i + 1);
-            ctx.font = '11px "Segoe UI", sans-serif';
+            ctx.font = '600 ' + catFontSize + 'px "Segoe UI", sans-serif';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'top';
             ctx.fillStyle = '#374151';
-            ctx.fillText(cat, bx + barW / 2, y1 + padT + chartH + 5);
+            ctx.fillText(cat, bx + barW / 2, y1 + padT + chartH + 6);
           }
 
           if (hasXLabel) {
-            ctx.font = 'bold 11px "Segoe UI", sans-serif';
+            ctx.font = 'bold ' + axisTitleFontSize + 'px "Segoe UI", sans-serif';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'top';
             ctx.fillStyle = '#374151';
-            ctx.fillText(xAxisLabel, x1 + padL + chartW / 2, y1 + padT + chartH + 22);
+            const xLabelY = y1 + padT + chartH + catFontSize + 10;
+            ctx.fillText(xAxisLabel, x1 + padL + chartW / 2, xLabelY);
           }
 
           if (hasKey) {
-            ctx.font = 'italic 10.5px "Segoe UI", sans-serif';
+            ctx.font = 'italic ' + keyFontSize + 'px "Segoe UI", sans-serif';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'top';
             ctx.fillStyle = '#6b7280';
-            const keyY = hasXLabel ? (y1 + padT + chartH + 38) : (y1 + padT + chartH + 20);
+            const keyY = hasXLabel ? (y1 + padT + chartH + catFontSize + axisTitleFontSize + 16) : (y1 + padT + chartH + catFontSize + 12);
             ctx.fillText(keyText, x1 + padL + chartW / 2, keyY);
           }
 
@@ -3259,8 +3269,14 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
         const keyText = (sh.keyText || '').trim();
         const hasTitle = Boolean(title);
         const hasKey = Boolean(keyText);
-        const topOffset = hasTitle ? 28 : 10;
-        const bottomOffset = hasKey ? 24 : 10;
+
+        const dim = Math.min(w, h);
+        const titleFontSize = Math.max(16, Math.min(26, Math.round(dim * 0.048)));
+        const sliceFontSize = Math.max(12, Math.min(16, Math.round(dim * 0.032)));
+        const keyFontSize = Math.max(11, Math.min(15, Math.round(dim * 0.026)));
+
+        const topOffset = hasTitle ? Math.max(titleFontSize + 16, 32) : 14;
+        const bottomOffset = hasKey ? (keyFontSize + 16) : 12;
         const availableH = h - topOffset - bottomOffset;
         const rad = Math.min(w - 24, availableH) / 2 - 8;
 
@@ -3270,7 +3286,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
 
           ctx.save();
           if (hasTitle) {
-            ctx.font = 'bold 13px "Segoe UI", sans-serif';
+            ctx.font = 'bold ' + titleFontSize + 'px "Segoe UI", sans-serif';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'top';
             ctx.fillStyle = '#111827';
@@ -3312,7 +3328,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
               const ty = pieCy + Math.sin(midA) * textR;
 
               ctx.save();
-              ctx.font = 'bold 11px "Segoe UI", sans-serif';
+              ctx.font = 'bold ' + sliceFontSize + 'px "Segoe UI", sans-serif';
               ctx.textAlign = 'center';
               ctx.textBaseline = 'middle';
               ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
@@ -3334,7 +3350,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
               ctx.lineTo(lx2, ly2);
               ctx.stroke();
 
-              ctx.font = '10px "Segoe UI", sans-serif';
+              ctx.font = '11px "Segoe UI", sans-serif';
               ctx.textAlign = Math.cos(midA) >= 0 ? 'left' : 'right';
               ctx.textBaseline = 'middle';
               ctx.fillStyle = '#1e293b';
@@ -3345,7 +3361,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
           }
 
           if (hasKey) {
-            ctx.font = 'italic 10.5px "Segoe UI", sans-serif';
+            ctx.font = 'italic ' + keyFontSize + 'px "Segoe UI", sans-serif';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'bottom';
             ctx.fillStyle = '#6b7280';
@@ -3370,10 +3386,18 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
         const hasYLabel = Boolean(yAxisLabel && showAxisLabels);
         const hasKey = Boolean(keyText);
 
-        const padL = Math.max(hasYLabel ? 65 : 48, Math.min(85, w * 0.22));
-        const padR = showValues ? 38 : 20;
-        const padT = hasTitle ? Math.max(34, Math.min(50, h * 0.15)) : 22;
-        const padB = Math.max(hasXLabel ? (hasKey ? 58 : 45) : (hasKey ? 42 : 30), Math.min(75, h * 0.20));
+        const dim = Math.min(w, h);
+        const titleFontSize = Math.max(16, Math.min(26, Math.round(dim * 0.048)));
+        const axisTitleFontSize = Math.max(13, Math.min(18, Math.round(dim * 0.034)));
+        const catFontSize = Math.max(12, Math.min(16, Math.round(dim * 0.030)));
+        const valFontSize = Math.max(12, Math.min(16, Math.round(dim * 0.030)));
+        const tickFontSize = Math.max(10, Math.min(13, Math.round(dim * 0.024)));
+        const keyFontSize = Math.max(11, Math.min(15, Math.round(dim * 0.026)));
+
+        const padL = Math.max(hasYLabel ? (axisTitleFontSize + 65) : 55, Math.min(105, w * 0.22));
+        const padR = showValues ? (valFontSize * 3 + 12) : 24;
+        const padT = hasTitle ? Math.max(titleFontSize + 22, Math.min(65, h * 0.16)) : 24;
+        const padB = Math.max(hasXLabel ? (tickFontSize + axisTitleFontSize + (hasKey ? keyFontSize + 26 : 18)) : (hasKey ? tickFontSize + keyFontSize + 20 : tickFontSize + 14), Math.min(90, h * 0.20));
         const chartW = w - padL - padR;
         const chartH = h - padT - padB;
 
@@ -3404,15 +3428,15 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
           ctx.strokeRect(x1 + padL, y1 + padT, chartW, chartH);
 
           if (hasTitle) {
-            ctx.font = 'bold 13px "Segoe UI", sans-serif';
+            ctx.font = 'bold ' + titleFontSize + 'px "Segoe UI", sans-serif';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'top';
             ctx.fillStyle = '#111827';
-            ctx.fillText(title, x1 + w / 2, y1 + 8);
+            ctx.fillText(title, x1 + w / 2, y1 + Math.max(6, (padT - titleFontSize) / 2));
           }
 
           const numTicks = 4;
-          ctx.font = '10px "Segoe UI", sans-serif';
+          ctx.font = tickFontSize + 'px "Segoe UI", sans-serif';
           ctx.textAlign = 'center';
           ctx.textBaseline = 'top';
           for (let t = 0; t <= numTicks; t++) {
@@ -3428,6 +3452,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
             ctx.stroke();
 
             if (showAxisLabels) {
+              ctx.font = tickFontSize + 'px "Segoe UI", sans-serif';
               ctx.fillStyle = '#4b5563';
               ctx.fillText(String(valNum), gx, y1 + padT + chartH + 4);
             }
@@ -3435,9 +3460,9 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
 
           if (hasYLabel) {
             ctx.save();
-            ctx.translate(x1 + 14, y1 + padT + chartH / 2);
+            ctx.translate(x1 + Math.max(14, (padL - 45) / 2), y1 + padT + chartH / 2);
             ctx.rotate(-Math.PI / 2);
-            ctx.font = 'bold 11px "Segoe UI", sans-serif';
+            ctx.font = 'bold ' + axisTitleFontSize + 'px "Segoe UI", sans-serif';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             ctx.fillStyle = '#374151';
@@ -3458,35 +3483,36 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
             ctx.strokeRect(bx, by, barW, barH);
 
             const cat = (labels[i] !== undefined && labels[i] !== '') ? String(labels[i]) : String(i + 1);
-            ctx.font = '11px "Segoe UI", sans-serif';
+            ctx.font = '600 ' + catFontSize + 'px "Segoe UI", sans-serif';
             ctx.textAlign = 'right';
             ctx.textBaseline = 'middle';
             ctx.fillStyle = '#374151';
-            ctx.fillText(cat, bx - 6, by + barH / 2);
+            ctx.fillText(cat, bx - 8, by + barH / 2);
 
             if (showValues) {
-              ctx.font = 'bold 11px "Segoe UI", sans-serif';
+              ctx.font = 'bold ' + valFontSize + 'px "Segoe UI", sans-serif';
               ctx.textAlign = 'left';
               ctx.textBaseline = 'middle';
               ctx.fillStyle = '#1e293b';
-              ctx.fillText(String(data[i]), bx + barW + 5, by + barH / 2);
+              ctx.fillText(String(data[i]), bx + barW + 6, by + barH / 2);
             }
           }
 
           if (hasXLabel) {
-            ctx.font = 'bold 11px "Segoe UI", sans-serif';
+            ctx.font = 'bold ' + axisTitleFontSize + 'px "Segoe UI", sans-serif';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'top';
             ctx.fillStyle = '#374151';
-            ctx.fillText(xAxisLabel, x1 + padL + chartW / 2, y1 + padT + chartH + 18);
+            const xLabelY = y1 + padT + chartH + tickFontSize + 8;
+            ctx.fillText(xAxisLabel, x1 + padL + chartW / 2, xLabelY);
           }
 
           if (hasKey) {
-            ctx.font = 'italic 10.5px "Segoe UI", sans-serif';
+            ctx.font = 'italic ' + keyFontSize + 'px "Segoe UI", sans-serif';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'top';
             ctx.fillStyle = '#6b7280';
-            const keyY = hasXLabel ? (y1 + padT + chartH + 34) : (y1 + padT + chartH + 18);
+            const keyY = hasXLabel ? (y1 + padT + chartH + tickFontSize + axisTitleFontSize + 14) : (y1 + padT + chartH + tickFontSize + 10);
             ctx.fillText(keyText, x1 + padL + chartW / 2, keyY);
           }
 
@@ -3502,10 +3528,17 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
         const keyText = sh.keyText !== undefined ? (sh.keyText || '').trim() : 'Key: 1 symbol = 1 item';
         const hasTitle = Boolean(title);
         const hasKey = Boolean(keyText);
-        const padL = 60;
-        const padR = showValues ? 34 : 16;
-        const padT = hasTitle ? 32 : 18;
-        const padB = hasKey ? 26 : 14;
+
+        const dim = Math.min(w, h);
+        const titleFontSize = Math.max(16, Math.min(26, Math.round(dim * 0.048)));
+        const catFontSize = Math.max(12, Math.min(17, Math.round(dim * 0.032)));
+        const valFontSize = Math.max(12, Math.min(17, Math.round(dim * 0.032)));
+        const keyFontSize = Math.max(11, Math.min(15, Math.round(dim * 0.026)));
+
+        const padL = Math.max(70, Math.min(100, w * 0.20));
+        const padR = showValues ? 42 : 18;
+        const padT = hasTitle ? Math.max(titleFontSize + 22, Math.min(60, h * 0.16)) : 22;
+        const padB = hasKey ? (keyFontSize + 18) : 14;
         const chartW = w - padL - padR;
         const chartH = h - padT - padB;
 
@@ -3522,11 +3555,11 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
           ctx.strokeRect(x1 + padL, y1 + padT, chartW, chartH);
 
           if (hasTitle) {
-            ctx.font = 'bold 13px "Segoe UI", sans-serif';
+            ctx.font = 'bold ' + titleFontSize + 'px "Segoe UI", sans-serif';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'top';
             ctx.fillStyle = '#111827';
-            ctx.fillText(title, x1 + w / 2, y1 + 8);
+            ctx.fillText(title, x1 + w / 2, y1 + Math.max(6, (padT - titleFontSize) / 2));
           }
 
           for (let i = 0; i < n; i++) {
@@ -3543,7 +3576,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
             }
 
             const cat = (labels[i] !== undefined && labels[i] !== '') ? String(labels[i]) : ('Item ' + (i + 1));
-            ctx.font = '11px "Segoe UI", sans-serif';
+            ctx.font = '600 ' + catFontSize + 'px "Segoe UI", sans-serif';
             ctx.textAlign = 'right';
             ctx.textBaseline = 'middle';
             ctx.fillStyle = '#374151';
@@ -3598,7 +3631,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
             }
 
             if (showValues) {
-              ctx.font = 'bold 11px "Segoe UI", sans-serif';
+              ctx.font = 'bold ' + valFontSize + 'px "Segoe UI", sans-serif';
               ctx.textAlign = 'left';
               ctx.textBaseline = 'middle';
               ctx.fillStyle = '#1e293b';
@@ -3607,7 +3640,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
           }
 
           if (hasKey) {
-            ctx.font = 'italic 10.5px "Segoe UI", sans-serif';
+            ctx.font = 'italic ' + keyFontSize + 'px "Segoe UI", sans-serif';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'top';
             ctx.fillStyle = '#6b7280';
