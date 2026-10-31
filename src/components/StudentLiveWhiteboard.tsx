@@ -643,6 +643,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
 
   const [followTeacher, setFollowTeacher] = useState(true);
   const [videoSyncEvents, setVideoSyncEvents] = useState<Record<string, any>>({});
+  const [teacherPeriodicTableOpen, setTeacherPeriodicTableOpen] = useState(false);
 
   // Doubt Queue / Raise Hand state
   const [isHandRaised, setIsHandRaised] = useState(false);
@@ -770,10 +771,28 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
             }
           }, 150);
         }
+        if (data.isPeriodicTableOpen) {
+          setTeacherPeriodicTableOpen(true);
+          const engine = (window as any).EduAshramPeriodicTable;
+          if (engine && typeof engine.openPeriodicTableModal === 'function') {
+            engine.openPeriodicTableModal(null, null, { isStudent: true, initialZ: data.periodicTableElementZ || 11 });
+          }
+        } else {
+          setTeacherPeriodicTableOpen(false);
+          const engine = (window as any).EduAshramPeriodicTable;
+          if (engine && typeof engine.closePeriodicTableModal === 'function') {
+            engine.closePeriodicTableModal();
+          }
+        }
       } else {
         setIsLive(false);
         setPages([]);
         setVideoSyncEvents({});
+        setTeacherPeriodicTableOpen(false);
+        const engine = (window as any).EduAshramPeriodicTable;
+        if (engine && typeof engine.closePeriodicTableModal === 'function') {
+          engine.closePeriodicTableModal();
+        }
       }
     });
 
@@ -788,6 +807,11 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
         setIsLive(false);
         setPages([]);
         setVideoSyncEvents({});
+        setTeacherPeriodicTableOpen(false);
+        const engine = (window as any).EduAshramPeriodicTable;
+        if (engine && typeof engine.closePeriodicTableModal === 'function') {
+          engine.closePeriodicTableModal();
+        }
       }
     });
 
@@ -795,6 +819,11 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
       setIsLive(false);
       setPages([]);
       setVideoSyncEvents({});
+      setTeacherPeriodicTableOpen(false);
+      const engine = (window as any).EduAshramPeriodicTable;
+      if (engine && typeof engine.closePeriodicTableModal === 'function') {
+        engine.closePeriodicTableModal();
+      }
       if (setNotice) setNotice('Teacher concluded the live whiteboard session.');
     });
 
@@ -979,11 +1008,13 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
 
     socket.on('whiteboard:periodic_table_action', (data: any) => {
       if (data?.action === 'open') {
+        setTeacherPeriodicTableOpen(true);
         const engine = (window as any).EduAshramPeriodicTable;
         if (engine && typeof engine.openPeriodicTableModal === 'function') {
           engine.openPeriodicTableModal(null, null, { isStudent: true, initialZ: data.elementZ });
         }
       } else if (data?.action === 'close') {
+        setTeacherPeriodicTableOpen(false);
         const engine = (window as any).EduAshramPeriodicTable;
         if (engine && typeof engine.closePeriodicTableModal === 'function') {
           engine.closePeriodicTableModal();
@@ -4150,9 +4181,11 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
             const y1 = Math.min(start.y, end.y);
             const y2 = Math.max(start.y, end.y);
             if (x >= x1 && x <= x2 && y >= y1 && y <= y2) {
-              const engine = (window as any).EduAshramPeriodicTable;
-              if (engine && typeof engine.openPeriodicTableModal === 'function') {
-                engine.openPeriodicTableModal(null, null, { isStudent: true, initialZ: sh.atomicNumber || 11 });
+              if (!isLive || teacherPeriodicTableOpen) {
+                const engine = (window as any).EduAshramPeriodicTable;
+                if (engine && typeof engine.openPeriodicTableModal === 'function') {
+                  engine.openPeriodicTableModal(null, null, { isStudent: true, initialZ: sh.atomicNumber || 11 });
+                }
               }
               return;
             }
@@ -4697,38 +4730,40 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
 
         {/* Action Tools: Raise Hand, Reactions, PDF Notes & Fullscreen */}
         <div className="student-actions-group">
+          {/* Interactive Periodic Table Button: Permanently available on student whiteboard; in live mode, visible only when teacher has opened periodic table */}
+          {(!isLive || teacherPeriodicTableOpen) && (
+            <button
+              type="button"
+              className="student-periodic-table-btn"
+              onClick={() => {
+                const engine = (window as any).EduAshramPeriodicTable;
+                if (engine && typeof engine.openPeriodicTableModal === 'function') {
+                  engine.openPeriodicTableModal(null, null, { isStudent: true });
+                }
+              }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '5px 12px',
+                background: '#f0fdf4',
+                color: '#15803d',
+                border: '1.5px solid #86efac',
+                borderRadius: '7px',
+                fontWeight: 700,
+                fontSize: '0.80rem',
+                cursor: 'pointer',
+                boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+              }}
+              title="Open Interactive Periodic Table of Elements"
+            >
+              <span style={{ fontSize: '1rem' }}>🔬</span>
+              <span>Periodic Table</span>
+            </button>
+          )}
+
           {isLive && (
             <>
-              {/* Interactive Periodic Table Button */}
-              <button
-                type="button"
-                className="student-periodic-table-btn"
-                onClick={() => {
-                  const engine = (window as any).EduAshramPeriodicTable;
-                  if (engine && typeof engine.openPeriodicTableModal === 'function') {
-                    engine.openPeriodicTableModal(null, null, { isStudent: true });
-                  }
-                }}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  padding: '5px 12px',
-                  background: '#f0fdf4',
-                  color: '#15803d',
-                  border: '1.5px solid #86efac',
-                  borderRadius: '7px',
-                  fontWeight: 700,
-                  fontSize: '0.80rem',
-                  cursor: 'pointer',
-                  boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
-                }}
-                title="Open Interactive Periodic Table of Elements"
-              >
-                <span style={{ fontSize: '1rem' }}>🔬</span>
-                <span>Periodic Table</span>
-              </button>
-
               {/* Raise Hand & Doubt Button */}
               <button
                 type="button"

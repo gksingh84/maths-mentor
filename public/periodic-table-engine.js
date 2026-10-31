@@ -656,11 +656,13 @@
   // =========================================================================
 
   let activeModalOverlay = null;
+  let activeModalCloseHandler = null;
 
   function openPeriodicTableModal(onStampElement, onStampTable, options) {
     if (activeModalOverlay) {
       activeModalOverlay.remove();
       activeModalOverlay = null;
+      activeModalCloseHandler = null;
     }
 
     let isFullscreen = false;
@@ -669,6 +671,32 @@
     let currentFilter = "all"; // all | first20 | metal | nonmetal | metalloid | solid | liquid | gas
     let currentTrend = "none"; // none | radius | valency | metallic | electronegativity
     let searchQuery = "";
+
+    function notifyHostState(action, z) {
+      if (isStudent) return;
+      try {
+        const payload = {
+          type: "WHITEBOARD_PERIODIC_TABLE_STATE",
+          action: action,
+          elementZ: typeof z === "number" ? z : selectedZ
+        };
+        if (typeof postMessageToHost === "function") {
+          postMessageToHost(payload);
+        } else if (window.parent && window.parent !== window) {
+          window.parent.postMessage(payload, "*");
+        }
+        if (typeof BroadcastChannel !== "undefined") {
+          try {
+            const bc = new BroadcastChannel("eduashram_whiteboard_sync");
+            bc.postMessage(payload);
+            bc.close();
+          } catch (_) {}
+        }
+      } catch (_) {}
+    }
+
+    // Automatically notify host/students that teacher opened the Periodic Table
+    notifyHostState("open", selectedZ);
 
     // 1. Create Overlay
     const overlay = document.createElement("div");
@@ -732,6 +760,19 @@
     headRight.style.alignItems = "center";
     headRight.style.gap = "8px";
 
+    // Centralized closeModal function that informs students when closed
+    function closeModal() {
+      if (activeModalOverlay) {
+        activeModalOverlay.remove();
+        activeModalOverlay = null;
+      }
+      activeModalCloseHandler = null;
+      window.removeEventListener("keydown", onKeyDown);
+      notifyHostState("close");
+    }
+
+    activeModalCloseHandler = closeModal;
+
     if (!isStudent) {
       const shareBtn = document.createElement("button");
       shareBtn.type = "button";
@@ -746,23 +787,17 @@
       shareBtn.style.borderRadius = "6px";
       shareBtn.style.cursor = "pointer";
       shareBtn.addEventListener("click", () => {
-        try {
-          if (typeof postMessageToHost === "function") {
-            postMessageToHost({ type: "WHITEBOARD_BROADCAST_PERIODIC_TABLE", action: "open", elementZ: selectedZ });
-          } else if (window.parent && window.parent !== window) {
-            window.parent.postMessage({ type: "WHITEBOARD_BROADCAST_PERIODIC_TABLE", action: "open", elementZ: selectedZ }, "*");
-          }
-          shareBtn.innerHTML = "✓ Shared with Students!";
-          shareBtn.style.background = "#ecfdf5";
-          shareBtn.style.color = "#047857";
-          shareBtn.style.borderColor = "#a7f3d0";
-          setTimeout(() => {
-            shareBtn.innerHTML = "📡 Share with Students";
-            shareBtn.style.background = "#eff6ff";
-            shareBtn.style.color = "#1d4ed8";
-            shareBtn.style.borderColor = "#bfdbfe";
-          }, 2500);
-        } catch (_) {}
+        notifyHostState("open", selectedZ);
+        shareBtn.innerHTML = "✓ Shared with Students!";
+        shareBtn.style.background = "#ecfdf5";
+        shareBtn.style.color = "#047857";
+        shareBtn.style.borderColor = "#a7f3d0";
+        setTimeout(() => {
+          shareBtn.innerHTML = "📡 Share with Students";
+          shareBtn.style.background = "#eff6ff";
+          shareBtn.style.color = "#1d4ed8";
+          shareBtn.style.borderColor = "#bfdbfe";
+        }, 2500);
       });
       headRight.appendChild(shareBtn);
     }
@@ -811,8 +846,13 @@
     closeBtn.style.borderRadius = "6px";
     closeBtn.style.cursor = "pointer";
     closeBtn.addEventListener("click", () => {
-      overlay.remove();
-      activeModalOverlay = null;
+      closeModal();
+    });
+
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay) {
+        closeModal();
+      }
     });
     headRight.appendChild(closeBtn);
     header.appendChild(headRight);
@@ -1353,8 +1393,7 @@
       stampCardBtn.addEventListener("click", () => {
         if (typeof onStampElement === "function") {
           onStampElement(el);
-          overlay.remove();
-          activeModalOverlay = null;
+          closeModal();
         }
       });
       btnCol.appendChild(stampCardBtn);
@@ -1374,8 +1413,7 @@
       stampTableBtn.addEventListener("click", () => {
         if (typeof onStampTable === "function") {
           onStampTable();
-          overlay.remove();
-          activeModalOverlay = null;
+          closeModal();
         }
       });
       btnCol.appendChild(stampTableBtn);
@@ -1390,9 +1428,7 @@
     // Escape key to close
     function onKeyDown(e) {
       if (e.key === "Escape") {
-        overlay.remove();
-        activeModalOverlay = null;
-        window.removeEventListener("keydown", onKeyDown);
+        closeModal();
       }
     }
     window.addEventListener("keydown", onKeyDown);
@@ -1406,10 +1442,16 @@
   // =========================================================================
 
   function closePeriodicTableModal() {
-    if (activeModalOverlay) {
+    if (activeModalCloseHandler) {
+      activeModalCloseHandler();
+    } else if (activeModalOverlay) {
       activeModalOverlay.remove();
       activeModalOverlay = null;
     }
+  }
+
+  function isModalOpen() {
+    return Boolean(activeModalOverlay);
   }
 
   window.EduAshramPeriodicTable = {
@@ -1419,7 +1461,8 @@
     drawElementCardShape,
     drawPeriodicTableShape,
     openPeriodicTableModal,
-    closePeriodicTableModal
+    closePeriodicTableModal,
+    isModalOpen
   };
 
   console.log("EduAshram Periodic Table Engine loaded successfully (118 elements ready).");

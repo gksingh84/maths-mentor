@@ -3697,6 +3697,8 @@ export interface LiveWhiteboardSession {
   reactions: Array<{ studentName: string; type: 'understood' | 'confused' | 'slower' | 'faster'; emoji?: string; label?: string; timestamp: number }>;
   scrollTop?: number;
   scrollRatio?: number;
+  isPeriodicTableOpen?: boolean;
+  periodicTableElementZ?: number;
 }
 const activeWhiteboardSessions = new Map<string, LiveWhiteboardSession>();
 const whiteboardDisconnectTimers = new Map<string, NodeJS.Timeout>();
@@ -4204,6 +4206,12 @@ io.on('connection', (socket) => {
     if (session.role !== 'teacher' && session.role !== 'admin' && session.role !== 'superadmin') return;
     const grade = (data.grade || 'ALL').trim();
     const active = findTeacherSession(grade);
+    if (active) {
+      active.isPeriodicTableOpen = data.action === 'open';
+      if (typeof data.elementZ === 'number') {
+        active.periodicTableElementZ = data.elementZ;
+      }
+    }
     const targetGrade = active?.grade || grade;
     socket.to(getTeacherBroadcastRooms(targetGrade)).emit('whiteboard:periodic_table_action', data);
   });
@@ -4330,6 +4338,8 @@ io.on('connection', (socket) => {
         scrollRatio: active.scrollRatio || 0,
         delegatedStudent: active.delegatedStudent,
         isHandRaised: active.raisedHands.has(socket.id),
+        isPeriodicTableOpen: Boolean(active.isPeriodicTableOpen),
+        periodicTableElementZ: active.periodicTableElementZ,
       });
       broadcastViewersUpdate(active);
       broadcastDoubtsUpdate(active);

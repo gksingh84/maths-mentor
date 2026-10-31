@@ -15567,6 +15567,11 @@
 
         if (data.type === "REQUEST_ALL_PAGES") {
           notifyParentFullPages();
+          try {
+            if (window.EduAshramPeriodicTable && typeof window.EduAshramPeriodicTable.isModalOpen === "function" && window.EduAshramPeriodicTable.isModalOpen()) {
+              postMessageToHost({ type: "WHITEBOARD_PERIODIC_TABLE_STATE", action: "open" });
+            }
+          } catch (_) {}
         } else if (data.type === "SWITCH_PAGE") {
           if (typeof data.pageIndex === "number") {
             selectPage(data.pageIndex);

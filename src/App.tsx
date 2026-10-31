@@ -2636,7 +2636,7 @@ function TeacherWhiteboard({
           height: data.height
         });
       }
-    } else if (data.type === 'WHITEBOARD_BROADCAST_PERIODIC_TABLE') {
+    } else if (data.type === 'WHITEBOARD_BROADCAST_PERIODIC_TABLE' || data.type === 'WHITEBOARD_PERIODIC_TABLE_STATE') {
       if (isBroadcastingRef.current && socketRef.current) {
         socketRef.current.emit('whiteboard:periodic_table_action', {
           grade: selectedGradeRef.current,
