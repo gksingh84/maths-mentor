@@ -18504,7 +18504,12 @@
                       const { x: cx, y: cy } = getVisibleBoardCenter();
                       const isBoardDark = (typeof currentBoardType === "string" && (currentBoardType === "black" || currentBoardType === "green")) ||
                                           (pages[currentPageIndex]?.boardType === "black" || pages[currentPageIndex]?.boardType === "green");
-                      const strokeColor = (isBoardDark && (!penSettings.color || penSettings.color === "#0f172a")) ? "#f8fafc" : (penSettings.color || "#0f172a");
+                      let strokeColor = penSettings.color;
+                      if (isBoardDark) {
+                        if (!strokeColor || strokeColor === "#0f172a" || strokeColor === "#000000") strokeColor = "#f8fafc";
+                      } else {
+                        if (!strokeColor || strokeColor === "#ffffff" || strokeColor === "#f8fafc" || strokeColor === "#f1f5f9") strokeColor = "#0f172a";
+                      }
                       insertDiagramHelper({
                         id: generateId(),
                         type: "geometricDiagram",
