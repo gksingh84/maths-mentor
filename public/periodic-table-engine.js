@@ -680,10 +680,16 @@
           action: action,
           elementZ: typeof z === "number" ? z : selectedZ
         };
-        if (typeof postMessageToHost === "function") {
+        if (typeof window.postMessageToHost === "function") {
+          window.postMessageToHost(payload);
+        } else if (typeof postMessageToHost === "function") {
           postMessageToHost(payload);
-        } else if (window.parent && window.parent !== window) {
+        }
+        if (window.parent && window.parent !== window) {
           window.parent.postMessage(payload, "*");
+        }
+        if (window.opener && window.opener !== window && !window.opener.closed) {
+          window.opener.postMessage(payload, "*");
         }
         if (typeof BroadcastChannel !== "undefined") {
           try {

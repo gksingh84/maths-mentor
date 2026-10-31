@@ -4181,7 +4181,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
             const y1 = Math.min(start.y, end.y);
             const y2 = Math.max(start.y, end.y);
             if (x >= x1 && x <= x2 && y >= y1 && y <= y2) {
-              if (!isLive || teacherPeriodicTableOpen) {
+              if (isLive && teacherPeriodicTableOpen) {
                 const engine = (window as any).EduAshramPeriodicTable;
                 if (engine && typeof engine.openPeriodicTableModal === 'function') {
                   engine.openPeriodicTableModal(null, null, { isStudent: true, initialZ: sh.atomicNumber || 11 });
@@ -4730,8 +4730,8 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
 
         {/* Action Tools: Raise Hand, Reactions, PDF Notes & Fullscreen */}
         <div className="student-actions-group">
-          {/* Interactive Periodic Table Button: Permanently available on student whiteboard; in live mode, visible only when teacher has opened periodic table */}
-          {(!isLive || teacherPeriodicTableOpen) && (
+          {/* Interactive Periodic Table Button: Visible in live mode ONLY when teacher has selected periodic table to open */}
+          {isLive && teacherPeriodicTableOpen && (
             <button
               type="button"
               className="student-periodic-table-btn"

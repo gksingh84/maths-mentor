@@ -4213,7 +4213,19 @@ io.on('connection', (socket) => {
       }
     }
     const targetGrade = active?.grade || grade;
-    socket.to(getTeacherBroadcastRooms(targetGrade)).emit('whiteboard:periodic_table_action', data);
+    const broadcastRooms = getTeacherBroadcastRooms(targetGrade);
+    for (const r of broadcastRooms) {
+      io.to(r).emit('whiteboard:periodic_table_action', data);
+    }
+    if (active && active.viewers) {
+      for (const vId of active.viewers) {
+        io.to(vId).emit('whiteboard:periodic_table_action', data);
+      }
+    }
+    io.to('whiteboard:ALL').emit('whiteboard:periodic_table_action', data);
+    if (grade && grade !== 'ALL') {
+      io.to(`whiteboard:${grade}`).emit('whiteboard:periodic_table_action', data);
+    }
   });
 
   socket.on('whiteboard:video_action', (data: { grade: string; pageIndex: number; action: string; widgetId?: string; currentTime?: number; playing?: boolean; [key: string]: any }) => {
