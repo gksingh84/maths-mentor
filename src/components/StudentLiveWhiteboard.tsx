@@ -1315,10 +1315,14 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
     const y = typeof p.y === 'number' ? p.y : 200;
     const angle = typeof p.angle === 'number' ? p.angle : 45;
     const baseRotation = typeof p.baseRotation === 'number' ? p.baseRotation : 0;
+    const scale = typeof p.scale === 'number' && p.scale > 0.1 ? p.scale : 1.0;
 
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate((baseRotation * Math.PI) / 180);
+    if (scale !== 1.0) {
+      ctx.scale(scale, scale);
+    }
 
     // Frosted acrylic background
     ctx.shadowColor = 'rgba(15, 23, 42, 0.2)';
@@ -1628,7 +1632,8 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
     const angle = typeof sq.angle === 'number' ? sq.angle : 0;
     const is3060 = sq.type === '30-60-90';
     const pxPerCm = typeof sq.pxPerCm === 'number' ? sq.pxPerCm : 36;
-    const wPx = is3060 ? (6 * pxPerCm) : (7 * pxPerCm);
+    const sizeCm = typeof sq.sizeCm === 'number' && sq.sizeCm >= 3 ? sq.sizeCm : (is3060 ? 6 : 7);
+    const wPx = sizeCm * pxPerCm;
     const hPx = is3060 ? Math.round(wPx * Math.sqrt(3)) : wPx;
     const pad = 24;
 
@@ -2803,7 +2808,20 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
 
     // Helper to render any whiteboard shape or chart
     const renderShape = (sh: any) => {
-      const { start, end } = sh;
+      let { start, end } = sh;
+      if ((!start || !end) && Array.isArray(sh.points) && sh.points.length >= 2) {
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        sh.points.forEach((p: any) => {
+          minX = Math.min(minX, p.x);
+          minY = Math.min(minY, p.y);
+          maxX = Math.max(maxX, p.x);
+          maxY = Math.max(maxY, p.y);
+        });
+        start = { x: minX, y: minY };
+        end = { x: maxX, y: maxY };
+        sh.start = start;
+        sh.end = end;
+      }
       if (!start || !end) return;
 
       const x1 = Math.min(start.x, end.x);
@@ -2959,6 +2977,21 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
         ctx.lineTo(x2, y2);
         ctx.closePath();
         if (isSolid) { ctx.save(); ctx.fillStyle = strokeColor; ctx.globalAlpha = fillOpacity; ctx.fill(); ctx.restore(); }
+        ctx.stroke();
+      } else if (type === 'polygon' && Array.isArray(sh.points) && sh.points.length >= 3) {
+        ctx.beginPath();
+        sh.points.forEach((pt: any, idx: number) => {
+          if (idx === 0) ctx.moveTo(pt.x, pt.y);
+          else ctx.lineTo(pt.x, pt.y);
+        });
+        ctx.closePath();
+        if (isSolid) {
+          ctx.save();
+          ctx.fillStyle = strokeColor;
+          ctx.globalAlpha = fillOpacity;
+          ctx.fill();
+          ctx.restore();
+        }
         ctx.stroke();
       } else if (type === 'rhombus' || type === 'diamond') {
         ctx.beginPath();
@@ -3427,13 +3460,16 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
       if (page.eduInstruments.ruler.y + 120 > computedHeight) computedHeight = Math.ceil(page.eduInstruments.ruler.y + 120);
     }
     if (page?.eduInstruments?.protractor?.visible && typeof page.eduInstruments.protractor.y === 'number') {
-      if (page.eduInstruments.protractor.y + 260 > computedHeight) computedHeight = Math.ceil(page.eduInstruments.protractor.y + 260);
+      const pScale = typeof page.eduInstruments.protractor.scale === 'number' && page.eduInstruments.protractor.scale > 0.1 ? page.eduInstruments.protractor.scale : 1.0;
+      if (page.eduInstruments.protractor.y + 260 * pScale > computedHeight) computedHeight = Math.ceil(page.eduInstruments.protractor.y + 260 * pScale);
     }
     if (page?.eduInstruments?.compass?.visible && typeof page.eduInstruments.compass.y === 'number') {
       if (page.eduInstruments.compass.y + 200 > computedHeight) computedHeight = Math.ceil(page.eduInstruments.compass.y + 200);
     }
     if (page?.eduInstruments?.setSquare?.visible && typeof page.eduInstruments.setSquare.y === 'number') {
-      if (page.eduInstruments.setSquare.y + 300 > computedHeight) computedHeight = Math.ceil(page.eduInstruments.setSquare.y + 300);
+      const sqSizeCm = typeof page.eduInstruments.setSquare.sizeCm === 'number' && page.eduInstruments.setSquare.sizeCm >= 3 ? page.eduInstruments.setSquare.sizeCm : 7;
+      const sqHeight = sqSizeCm * 36 * 1.8;
+      if (page.eduInstruments.setSquare.y + sqHeight > computedHeight) computedHeight = Math.ceil(page.eduInstruments.setSquare.y + sqHeight);
     }
 
     const displayHeight = Math.max(computedHeight, container ? container.clientHeight : 720);

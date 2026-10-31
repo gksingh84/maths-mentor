@@ -2199,6 +2199,35 @@
       z-index: 25;
       white-space: nowrap;
     }
+    .edu-protractor-stretch-handle {
+      position: absolute;
+      right: 8px;
+      bottom: 8px;
+      width: 26px;
+      height: 26px;
+      background: #ffffff;
+      color: #ea580c;
+      border: 2px solid #ea580c;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: nwse-resize;
+      font-size: 0.85rem;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+      z-index: 15;
+      pointer-events: auto;
+      transition: transform 0.1s ease;
+      user-select: none;
+    }
+    .edu-protractor-stretch-handle:hover {
+      background: #ffedd5;
+      transform: scale(1.12);
+    }
+    .edu-protractor-stretch-handle:active {
+      cursor: nwse-resize;
+      transform: scale(1.2);
+    }
     .edu-protractor-btn {
       appearance: none;
       border: 1px solid #cbd5e1;
@@ -2501,6 +2530,33 @@
       cursor: grabbing;
       transform: scale(1.15);
     }
+    .edu-setsquare-stretch-handle {
+      position: absolute;
+      width: 26px;
+      height: 26px;
+      background: #ffffff;
+      color: #059669;
+      border: 2px solid #059669;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: nwse-resize;
+      font-size: 0.85rem;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+      z-index: 15;
+      pointer-events: auto;
+      transition: transform 0.1s ease;
+      user-select: none;
+    }
+    .edu-setsquare-stretch-handle:hover {
+      background: #ecfdf5;
+      transform: scale(1.12);
+    }
+    .edu-setsquare-stretch-handle:active {
+      cursor: nwse-resize;
+      transform: scale(1.2);
+    }
   </style>
 </head>
 
@@ -2701,6 +2757,7 @@
               <button type="button" class="edu-protractor-btn" id="eduProtractorResetBtn" title="Reset angle to 0°">🔄 0°</button>
               <button type="button" class="edu-protractor-close-btn" id="eduProtractorCloseBtn" title="Close Protractor">✕</button>
             </div>
+            <div class="edu-protractor-stretch-handle" id="eduProtractorStretchHandle" title="Drag to stretch / scale protractor">⤡</div>
           </div>
                     <!-- Educational Tools: Interactive Compass Overlay -->
           <div id="eduCompassOverlay" class="edu-compass-overlay" style="display: none; left: 260px; top: 180px;">
@@ -2740,6 +2797,7 @@
               <button type="button" class="edu-setsquare-close-btn" id="eduSetSquareCloseBtn" title="Close Set Square">✕</button>
             </div>
             <div class="edu-setsquare-rotate-handle" id="eduSetSquareRotateHandle" title="Drag to rotate set square">↻</div>
+            <div class="edu-setsquare-stretch-handle" id="eduSetSquareStretchHandle" title="Drag to stretch / resize set square">⤢</div>
           </div>
 
           <div class="board-overlay">
@@ -6078,7 +6136,20 @@
       }
 
       function drawShape(ctx, shape, isPreview) {
-        const { start, end } = shape;
+        let { start, end } = shape;
+        if ((!start || !end) && Array.isArray(shape.points) && shape.points.length >= 2) {
+          let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+          shape.points.forEach((p) => {
+            minX = Math.min(minX, p.x);
+            minY = Math.min(minY, p.y);
+            maxX = Math.max(maxX, p.x);
+            maxY = Math.max(maxY, p.y);
+          });
+          start = { x: minX, y: minY };
+          end = { x: maxX, y: maxY };
+          shape.start = start;
+          shape.end = end;
+        }
         if (!start || !end) return;
 
         const type = shape.type;
@@ -6214,6 +6285,20 @@
           ctx.lineTo(x2, y2);
           ctx.closePath();
           if (shape.fillMode === "solid") { ctx.save(); ctx.globalAlpha = fillOpacity; ctx.fill(); ctx.restore(); }
+          ctx.stroke();
+        } else if (type === "polygon" && Array.isArray(shape.points) && shape.points.length >= 3) {
+          ctx.beginPath();
+          shape.points.forEach((pt, idx) => {
+            if (idx === 0) ctx.moveTo(pt.x, pt.y);
+            else ctx.lineTo(pt.x, pt.y);
+          });
+          ctx.closePath();
+          if (shape.fillMode === "solid") {
+            ctx.save();
+            ctx.globalAlpha = fillOpacity;
+            ctx.fill();
+            ctx.restore();
+          }
           ctx.stroke();
         } else if (type === "rhombus" || type === "diamond") {
           ctx.moveTo(cx, y1);
@@ -11474,6 +11559,9 @@
               clone.start = { x: clone.start.x + OFFSET, y: clone.start.y + OFFSET };
               clone.end = { x: clone.end.x + OFFSET, y: clone.end.y + OFFSET };
             }
+            if (clone.points && Array.isArray(clone.points)) {
+              clone.points = clone.points.map((p) => ({ x: p.x + OFFSET, y: p.y + OFFSET }));
+            }
             if (clone.type === "group" && clone.children) {
               (clone.children.shapes || []).forEach((s) => {
                 s.id = generateId();
@@ -12114,6 +12202,7 @@
                 dragShapeOriginals = selectedShapes.map((s) => ({
                   start: { x: s.start.x, y: s.start.y },
                   end: { x: s.end.x, y: s.end.y },
+                  points: s.points ? s.points.map((p) => ({ x: p.x, y: p.y })) : null,
                 }));
                 dragTextOriginals = selectedTexts.map((t) => ({ x: t.x, y: t.y }));
                 dragGroupChildrenOriginals = null;
@@ -12460,6 +12549,9 @@
               if (!orig) return;
               shape.start = { x: orig.start.x + dx, y: orig.start.y + dy };
               shape.end = { x: orig.end.x + dx, y: orig.end.y + dy };
+              if (orig.points && shape.points) {
+                shape.points = orig.points.map((p) => ({ x: p.x + dx, y: p.y + dy }));
+              }
               if (shape.type === "group" && shape.children && dragGroupChildrenOriginals) {
                 const origShapes = dragGroupChildrenOriginals.shapes || [];
                 (shape.children.shapes || []).forEach((s, j) => {
@@ -15574,7 +15666,8 @@
         baseRotation: 0,
         isFullCircle: false,
         scaleMode: "outer", // "outer" (0° on Right) or "inner" (0° on Left)
-        radius: 200
+        radius: 200,
+        scale: 1.0
       };
 
       const compassState = {
@@ -15594,7 +15687,8 @@
         y: 160,
         angle: 0,
         type: "30-60-90", // "30-60-90" or "45-45-90"
-        pxPerCm: 36
+        pxPerCm: 36,
+        sizeCm: 6
       };
       window.setSquareState = setSquareState;
 
@@ -15653,7 +15747,8 @@
             baseRotation: protractorState.baseRotation,
             isFullCircle: protractorState.isFullCircle,
             scaleMode: protractorState.scaleMode || "outer",
-            radius: 210
+            radius: 210,
+            scale: protractorState.scale || 1.0
           };
         } else {
           protractorData = { visible: false };
@@ -15687,7 +15782,8 @@
             y: originPt.y,
             angle: setSquareState.angle,
             type: setSquareState.type,
-            pxPerCm: setSquareState.pxPerCm / (zoom || 1)
+            pxPerCm: setSquareState.pxPerCm / (zoom || 1),
+            sizeCm: setSquareState.sizeCm || (setSquareState.type === "30-60-90" ? 6 : 7)
           };
         } else {
           setSquareData = { visible: false };
@@ -17136,6 +17232,63 @@
           });
           protractorSub.appendChild(modeBtn);
 
+          const protractorSizeRow = document.createElement("div");
+          protractorSizeRow.style.marginTop = "6px";
+          protractorSizeRow.style.marginBottom = "6px";
+          const curProtractorScale = protractorState.scale || 1.0;
+          protractorSizeRow.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;font-size:0.72rem;font-weight:700;color:#c2410c;margin-bottom:3px;">
+            <span>Stretch / Scale:</span>
+            <span>${Math.round(curProtractorScale * 100)}%</span>
+          </div>`;
+          const protractorScaleSlider = document.createElement("input");
+          protractorScaleSlider.type = "range";
+          protractorScaleSlider.min = "60";
+          protractorScaleSlider.max = "200";
+          protractorScaleSlider.step = "5";
+          protractorScaleSlider.value = String(Math.round(curProtractorScale * 100));
+          protractorScaleSlider.style.width = "100%";
+          protractorScaleSlider.style.accentColor = "#ea580c";
+          protractorScaleSlider.style.marginBottom = "4px";
+          protractorScaleSlider.addEventListener("input", (e) => {
+            protractorState.scale = parseFloat(e.target.value) / 100;
+            updateProtractorPosition();
+            syncEduInstrumentsToPage(false);
+          });
+          protractorScaleSlider.addEventListener("change", () => {
+            renderEduToolsOptions();
+            syncEduInstrumentsToPage(true);
+          });
+          protractorSizeRow.appendChild(protractorScaleSlider);
+
+          const protractorScalePresets = document.createElement("div");
+          protractorScalePresets.style.display = "flex";
+          protractorScalePresets.style.gap = "3px";
+          protractorScalePresets.style.marginBottom = "6px";
+          [75, 100, 125, 150, 180].forEach((sc) => {
+            const b = document.createElement("button");
+            b.type = "button";
+            b.textContent = sc + "%";
+            b.style.flex = "1";
+            b.style.padding = "2px 0";
+            b.style.fontSize = "0.68rem";
+            b.style.fontWeight = "600";
+            b.style.borderRadius = "4px";
+            const isActive = Math.round(curProtractorScale * 100) === sc;
+            b.style.border = "1px solid " + (isActive ? "#ea580c" : "#fed7aa");
+            b.style.background = isActive ? "#ea580c" : "#ffffff";
+            b.style.color = isActive ? "#ffffff" : "#9a3412";
+            b.style.cursor = "pointer";
+            b.addEventListener("click", () => {
+              protractorState.scale = sc / 100;
+              updateProtractorPosition();
+              renderEduToolsOptions();
+              syncEduInstrumentsToPage(true);
+            });
+            protractorScalePresets.appendChild(b);
+          });
+          protractorSizeRow.appendChild(protractorScalePresets);
+          protractorSub.appendChild(protractorSizeRow);
+
           const drawAngleBtn = document.createElement("button");
           drawAngleBtn.type = "button";
           drawAngleBtn.innerHTML = "✏️ Draw Angle (" + protractorState.angle.toFixed(1) + "°) on Board";
@@ -17349,6 +17502,63 @@
             stampSetSquareTriangle();
           });
           sqSub.appendChild(stampBtn);
+
+          const sqSizeRow = document.createElement("div");
+          sqSizeRow.style.marginTop = "6px";
+          sqSizeRow.style.marginBottom = "6px";
+          const curSizeCm = setSquareState.sizeCm || (is3060 ? 6 : 7);
+          sqSizeRow.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;font-size:0.72rem;font-weight:700;color:#047857;margin-bottom:3px;">
+            <span>Stretch / Size:</span>
+            <span>${curSizeCm.toFixed(1)} cm</span>
+          </div>`;
+          const sqSizeSlider = document.createElement("input");
+          sqSizeSlider.type = "range";
+          sqSizeSlider.min = "4";
+          sqSizeSlider.max = "14";
+          sqSizeSlider.step = "0.5";
+          sqSizeSlider.value = String(curSizeCm);
+          sqSizeSlider.style.width = "100%";
+          sqSizeSlider.style.accentColor = "#059669";
+          sqSizeSlider.style.marginBottom = "4px";
+          sqSizeSlider.addEventListener("input", (e) => {
+            setSquareState.sizeCm = parseFloat(e.target.value);
+            renderSetSquareSvg();
+            syncEduInstrumentsToPage(false);
+          });
+          sqSizeSlider.addEventListener("change", () => {
+            renderEduToolsOptions();
+            syncEduInstrumentsToPage(true);
+          });
+          sqSizeRow.appendChild(sqSizeSlider);
+
+          const sqSizePresets = document.createElement("div");
+          sqSizePresets.style.display = "flex";
+          sqSizePresets.style.gap = "3px";
+          sqSizePresets.style.marginBottom = "8px";
+          [4, 6, 8, 10, 12].forEach((sz) => {
+            const b = document.createElement("button");
+            b.type = "button";
+            b.textContent = sz + "cm";
+            b.style.flex = "1";
+            b.style.padding = "2px 0";
+            b.style.fontSize = "0.68rem";
+            b.style.fontWeight = "600";
+            b.style.borderRadius = "4px";
+            const isActive = Math.round(curSizeCm) === sz;
+            b.style.border = "1px solid " + (isActive ? "#059669" : "#a7f3d0");
+            b.style.background = isActive ? "#059669" : "#ffffff";
+            b.style.color = isActive ? "#ffffff" : "#047857";
+            b.style.cursor = "pointer";
+            b.addEventListener("click", () => {
+              setSquareState.sizeCm = sz;
+              renderSetSquareSvg();
+              renderEduToolsOptions();
+              syncEduInstrumentsToPage(true);
+            });
+            sqSizePresets.appendChild(b);
+          });
+          sqSizeRow.appendChild(sqSizePresets);
+          sqSub.appendChild(sqSizeRow);
 
           const traceHypBtn = document.createElement("button");
           traceHypBtn.type = "button";
@@ -17572,7 +17782,9 @@
         if (!el) return;
         el.style.left = protractorState.x + "px";
         el.style.top = protractorState.y + "px";
-        el.style.transform = "rotate(" + protractorState.baseRotation + "deg)";
+        const scale = protractorState.scale || 1.0;
+        el.style.transformOrigin = "230px 230px";
+        el.style.transform = "rotate(" + protractorState.baseRotation + "deg) scale(" + scale + ")";
       }
 
       function renderProtractorSvg() {
@@ -17699,23 +17911,21 @@
 
         pushUndo();
 
-        const rect = overlay.getBoundingClientRect();
+        const scale = protractorState.scale || 1.0;
         const isFull = protractorState.isFullCircle;
-        const localCx = 230;
-        const localCy = isFull ? 230 : 230;
 
         // Base rotation angle of protractor in canvas space
         const baseRad = (protractorState.baseRotation * Math.PI) / 180;
         const isInner = protractorState.scaleMode === "inner";
 
-        // Client coordinates of origin crosshair
-        const centerClientX = rect.left + localCx;
-        const centerClientY = rect.top + localCy;
+        // Center origin crosshair in client space (invariant under scale/rotation around (230, 230))
+        const centerClientX = protractorState.x + 230;
+        const centerClientY = protractorState.y + 230;
 
         // Vertex in canvas space
         const vPt = getCanvasPointFromClient(centerClientX, centerClientY);
 
-        const rayLen = 170;
+        const rayLen = 170 * scale;
         const strokeColor = penSettings.color || "#0f172a";
         const strokeWidth = penSettings.width || 3;
 
@@ -17773,7 +17983,7 @@
         });
 
         // 3. Curve Symbol in Angle (Angle Arc between Ray 1 and Ray 2)
-        const arcRadius = 40;
+        const arcRadius = 40 * scale;
         page.shapes.push({
           id: generateId(),
           type: "angleArc",
@@ -17795,7 +18005,7 @@
         if (Math.abs(ray1Angle - ray2Angle) > Math.PI) {
           midAngle += Math.PI;
         }
-        const labelDist = 62;
+        const labelDist = 62 * scale;
         const labelX = vPt.x + labelDist * Math.cos(midAngle);
         const labelY = vPt.y + labelDist * Math.sin(midAngle);
 
@@ -17805,7 +18015,7 @@
           text: protractorState.angle.toFixed(0) + "°",
           x: labelX,
           y: labelY,
-          fontSize: 18,
+          fontSize: Math.max(14, Math.round(18 * Math.min(1.5, scale))),
           fontFamily: "Arial",
           color: isInner ? "#ea580c" : "#0284c7",
           bold: true
@@ -18069,18 +18279,23 @@
         let wPx, hPx, hypPx;
         let pA, pB, pC;
 
+        const baseCm = (typeof setSquareState.sizeCm === "number" && setSquareState.sizeCm >= 3.5)
+          ? setSquareState.sizeCm
+          : (is3060 ? 6 : 7);
+        setSquareState.sizeCm = baseCm;
+
         if (is3060) {
-          wPx = 6 * pxPerCm;
+          wPx = baseCm * pxPerCm;
           hPx = Math.round(wPx * Math.sqrt(3));
           hypPx = wPx * 2;
         } else {
-          wPx = 7 * pxPerCm;
+          wPx = baseCm * pxPerCm;
           hPx = wPx;
           hypPx = Math.round(wPx * Math.SQRT2);
         }
 
-        const totalW = pad + wPx + 36;
-        const totalH = pad + hPx + 36;
+        const totalW = pad + wPx + 48;
+        const totalH = pad + hPx + 48;
         overlay.style.width = totalW + "px";
         overlay.style.height = totalH + "px";
         svg.setAttribute("viewBox", "0 0 " + totalW + " " + totalH);
@@ -18094,6 +18309,12 @@
           const midHypY = (pB.y + pC.y) / 2 + 18;
           rotateHandle.style.left = midHypX + "px";
           rotateHandle.style.top = midHypY + "px";
+        }
+
+        const stretchHandle = document.getElementById("eduSetSquareStretchHandle");
+        if (stretchHandle) {
+          stretchHandle.style.left = (pB.x + 8) + "px";
+          stretchHandle.style.top = (pB.y - 12) + "px";
         }
 
         const innerInset = 36;
@@ -18161,26 +18382,32 @@
         if (!page.shapes) page.shapes = [];
         pushUndo();
 
-        const rect = overlay.getBoundingClientRect();
         const rad = (setSquareState.angle * Math.PI) / 180;
-        const pad = 24;
         const pxPerCm = setSquareState.pxPerCm;
         const is3060 = setSquareState.type === "30-60-90";
-        const wPx = is3060 ? (6 * pxPerCm) : (7 * pxPerCm);
+        const baseCm = setSquareState.sizeCm || (is3060 ? 6 : 7);
+        const wPx = baseCm * pxPerCm;
         const hPx = is3060 ? Math.round(wPx * Math.sqrt(3)) : wPx;
 
-        function getRotatedPoint(lx, ly) {
-          const rx = lx * Math.cos(rad) - ly * Math.sin(rad);
-          const ry = lx * Math.sin(rad) + ly * Math.cos(rad);
-          return getCanvasPointFromClient(rect.left + rx, rect.top + ry);
-        }
+        // Overlay transform-origin is at (24px, 24px) corner A
+        const ax = setSquareState.x + 24;
+        const ay = setSquareState.y + 24;
+        const bx = ax + wPx * Math.cos(rad);
+        const by = ay + wPx * Math.sin(rad);
+        const cx = ax - hPx * Math.sin(rad);
+        const cy = ay + hPx * Math.cos(rad);
 
-        const ptA = getRotatedPoint(pad, pad);
-        const ptB = getRotatedPoint(pad + wPx, pad);
-        const ptC = getRotatedPoint(pad, pad + hPx);
+        const ptA = getCanvasPointFromClient(ax, ay);
+        const ptB = getCanvasPointFromClient(bx, by);
+        const ptC = getCanvasPointFromClient(cx, cy);
 
         const strokeColor = penSettings.color || "#047857";
         const strokeWidth = penSettings.width || 2;
+
+        const minX = Math.min(ptA.x, ptB.x, ptC.x);
+        const minY = Math.min(ptA.y, ptB.y, ptC.y);
+        const maxX = Math.max(ptA.x, ptB.x, ptC.x);
+        const maxY = Math.max(ptA.y, ptB.y, ptC.y);
 
         const triangleShape = {
           id: generateId(),
@@ -18188,12 +18415,15 @@
           color: strokeColor,
           width: strokeWidth,
           fillMode: "solid",
-          fillOpacity: 0.1,
+          fillOpacity: 0.15,
+          start: { x: minX, y: minY },
+          end: { x: maxX, y: maxY },
           points: [
             { x: ptA.x, y: ptA.y },
             { x: ptB.x, y: ptB.y },
             { x: ptC.x, y: ptC.y }
           ],
+          rotation: 0,
           createdAt: Date.now()
         };
 
@@ -18214,22 +18444,23 @@
         if (!page.shapes) page.shapes = [];
         pushUndo();
 
-        const rect = overlay.getBoundingClientRect();
         const rad = (setSquareState.angle * Math.PI) / 180;
-        const pad = 24;
         const pxPerCm = setSquareState.pxPerCm;
         const is3060 = setSquareState.type === "30-60-90";
-        const wPx = is3060 ? (6 * pxPerCm) : (7 * pxPerCm);
+        const baseCm = setSquareState.sizeCm || (is3060 ? 6 : 7);
+        const wPx = baseCm * pxPerCm;
         const hPx = is3060 ? Math.round(wPx * Math.sqrt(3)) : wPx;
 
-        function getRotatedPoint(lx, ly) {
-          const rx = lx * Math.cos(rad) - ly * Math.sin(rad);
-          const ry = lx * Math.sin(rad) + ly * Math.cos(rad);
-          return getCanvasPointFromClient(rect.left + rx, rect.top + ry);
-        }
+        // Overlay transform-origin is at (24px, 24px) corner A
+        const ax = setSquareState.x + 24;
+        const ay = setSquareState.y + 24;
+        const bx = ax + wPx * Math.cos(rad);
+        const by = ay + wPx * Math.sin(rad);
+        const cx = ax - hPx * Math.sin(rad);
+        const cy = ay + hPx * Math.cos(rad);
 
-        const ptB = getRotatedPoint(pad + wPx, pad);
-        const ptC = getRotatedPoint(pad, pad + hPx);
+        const ptB = getCanvasPointFromClient(bx, by);
+        const ptC = getCanvasPointFromClient(cx, cy);
 
         const strokeColor = penSettings.color || "#047857";
         const strokeWidth = penSettings.width || 2;
@@ -18439,7 +18670,7 @@
           let initialY = 0;
 
           protractorOverlay.addEventListener("pointerdown", (e) => {
-            if (e.target.closest("button") || e.target === protractorNeedleKnob || e.target.closest(".edu-protractor-needle-knob")) return;
+            if (e.target.closest("button") || e.target === protractorNeedleKnob || e.target.closest(".edu-protractor-needle-knob") || e.target === protractorStretchHandle || e.target.closest(".edu-protractor-stretch-handle")) return;
             isDragging = true;
             startClientX = e.clientX;
             startClientY = e.clientY;
@@ -18472,6 +18703,49 @@
           };
           protractorOverlay.addEventListener("pointerup", onEndDrag);
           protractorOverlay.addEventListener("pointercancel", onEndDrag);
+        }
+
+        // --- Protractor Stretch Handle Dragging ---
+        const protractorStretchHandle = document.getElementById("eduProtractorStretchHandle");
+        if (protractorStretchHandle && protractorOverlay) {
+          let isStretchingProtractor = false;
+          let startDist = 0;
+          let startScale = 1.0;
+
+          protractorStretchHandle.addEventListener("pointerdown", (e) => {
+            isStretchingProtractor = true;
+            const centerClientX = protractorState.x + 230;
+            const centerClientY = protractorState.y + 230;
+            startDist = Math.hypot(e.clientX - centerClientX, e.clientY - centerClientY) || 1;
+            startScale = protractorState.scale || 1.0;
+            try { protractorStretchHandle.setPointerCapture(e.pointerId); } catch (_) {}
+            e.stopPropagation();
+            e.preventDefault();
+          });
+
+          protractorStretchHandle.addEventListener("pointermove", (e) => {
+            if (!isStretchingProtractor) return;
+            const centerClientX = protractorState.x + 230;
+            const centerClientY = protractorState.y + 230;
+            const curDist = Math.hypot(e.clientX - centerClientX, e.clientY - centerClientY);
+            let newScale = startScale * (curDist / startDist);
+            newScale = Math.max(0.6, Math.min(2.2, Math.round(newScale * 20) / 20));
+            protractorState.scale = newScale;
+            updateProtractorPosition();
+            renderEduToolsOptions();
+            syncEduInstrumentsToPage(false);
+            e.stopPropagation();
+            e.preventDefault();
+          });
+
+          const onEndProtractorStretch = (e) => {
+            if (!isStretchingProtractor) return;
+            isStretchingProtractor = false;
+            try { protractorStretchHandle.releasePointerCapture(e.pointerId); } catch (_) {}
+            syncEduInstrumentsToPage(true);
+          };
+          protractorStretchHandle.addEventListener("pointerup", onEndProtractorStretch);
+          protractorStretchHandle.addEventListener("pointercancel", onEndProtractorStretch);
         }
 
         // --- Protractor Needle Knob Dragging ---
@@ -18723,7 +18997,7 @@
           let initX = 0, initY = 0;
 
           setSquareOverlay.addEventListener("pointerdown", (e) => {
-            if (e.target.closest("button") || e.target === setSquareRotateHandle || e.target.closest(".edu-setsquare-rotate-handle")) return;
+            if (e.target.closest("button") || e.target === setSquareRotateHandle || e.target.closest(".edu-setsquare-rotate-handle") || e.target === setSquareStretchHandle || e.target.closest(".edu-setsquare-stretch-handle")) return;
             isDraggingSq = true;
             startCX = e.clientX;
             startCY = e.clientY;
@@ -18752,6 +19026,48 @@
           };
           setSquareOverlay.addEventListener("pointerup", onEndSqDrag);
           setSquareOverlay.addEventListener("pointercancel", onEndSqDrag);
+        }
+
+        // Set Square Stretch Handle
+        const setSquareStretchHandle = document.getElementById("eduSetSquareStretchHandle");
+        if (setSquareStretchHandle && setSquareOverlay) {
+          let isStretchingSq = false;
+
+          setSquareStretchHandle.addEventListener("pointerdown", (e) => {
+            isStretchingSq = true;
+            try { setSquareStretchHandle.setPointerCapture(e.pointerId); } catch (_) {}
+            e.stopPropagation();
+            e.preventDefault();
+          });
+
+          setSquareStretchHandle.addEventListener("pointermove", (e) => {
+            if (!isStretchingSq) return;
+            const ax = setSquareState.x + 24;
+            const ay = setSquareState.y + 24;
+            const theta = (setSquareState.angle * Math.PI) / 180;
+            const ux = Math.cos(theta);
+            const uy = Math.sin(theta);
+            const vx = e.clientX - ax;
+            const vy = e.clientY - ay;
+            const distPx = vx * ux + vy * uy;
+            let newSizeCm = distPx / setSquareState.pxPerCm;
+            newSizeCm = Math.max(4.0, Math.min(14.0, Math.round(newSizeCm * 2) / 2));
+            setSquareState.sizeCm = newSizeCm;
+            renderSetSquareSvg();
+            renderEduToolsOptions();
+            syncEduInstrumentsToPage(false);
+            e.stopPropagation();
+            e.preventDefault();
+          });
+
+          const onEndSqStretch = (e) => {
+            if (!isStretchingSq) return;
+            isStretchingSq = false;
+            try { setSquareStretchHandle.releasePointerCapture(e.pointerId); } catch (_) {}
+            syncEduInstrumentsToPage(true);
+          };
+          setSquareStretchHandle.addEventListener("pointerup", onEndSqStretch);
+          setSquareStretchHandle.addEventListener("pointercancel", onEndSqStretch);
         }
 
         // Set Square Rotation Handle
