@@ -2947,6 +2947,21 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
         drawStudentGeometricDiagram(ctx, sh, strokeColor, lineWidth);
       } else if (type === '3dSolid') {
         drawStudent3dSolid(ctx, sh, strokeColor, lineWidth);
+      } else if (type === 'graphPlotter') {
+        const engine = (window as any).EduAshramGraphPlotter;
+        if (engine && typeof engine.drawGraphPlotterShape === 'function') {
+          engine.drawGraphPlotterShape(ctx, sh, false);
+        }
+      } else if (type === 'elementCard') {
+        const engine = (window as any).EduAshramPeriodicTable;
+        if (engine && typeof engine.drawElementCardShape === 'function') {
+          engine.drawElementCardShape(ctx, sh, false);
+        }
+      } else if (type === 'periodicTable') {
+        const engine = (window as any).EduAshramPeriodicTable;
+        if (engine && typeof engine.drawPeriodicTableShape === 'function') {
+          engine.drawPeriodicTableShape(ctx, sh, false);
+        }
       } else if (type === 'rectangle' || type === 'rect') {
         if (isSolid) {
           ctx.save();
@@ -3897,7 +3912,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
     }
     if (page?.shapes) {
       for (const sh of page.shapes) {
-        const bottom = Math.max(sh.startY || 0, sh.endY || 0, (sh.y || 0) + (sh.height || 0));
+        const bottom = Math.max(sh.startY || 0, sh.endY || 0, sh.start?.y || 0, sh.end?.y || 0, (sh.y || 0) + (sh.height || 0));
         if (bottom + 120 > computedHeight) computedHeight = Math.ceil(bottom + 120);
       }
     }

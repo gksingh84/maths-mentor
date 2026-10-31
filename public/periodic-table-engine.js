@@ -181,78 +181,106 @@
 
     const cx = w / 2;
     const cy = h / 2;
-    const maxR = Math.min(w, h) * 0.44;
+    const maxR = Math.min(w, h) * 0.43;
     const numShells = Math.max(1, shells ? shells.length : 1);
     const shellStep = (maxR - 22) / Math.max(1, numShells);
 
-    const orbitColor = isDark ? "rgba(148, 163, 184, 0.35)" : "rgba(100, 116, 139, 0.35)";
-    const nucleusBg = isDark ? "#1e293b" : "#e0f2fe";
-    const nucleusBorder = isDark ? "#38bdf8" : "#0284c7";
-    const electronColor = "#0284c7";
-    const electronGlow = "#38bdf8";
+    const orbitColor = isDark ? "rgba(148, 163, 184, 0.45)" : "rgba(148, 163, 184, 0.55)";
+    const orbitFill = isDark ? "rgba(30, 41, 59, 0.2)" : "rgba(241, 245, 249, 0.35)";
 
-    // Draw concentric electron shells
+    // Concentric electron shells
     (shells || [1]).forEach((count, sIdx) => {
       const r = 24 + (sIdx + 1) * shellStep;
 
-      // Orbit ring
+      // Subtle track glow
       ctx.beginPath();
       ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.fillStyle = orbitFill;
+      ctx.fill();
       ctx.strokeStyle = orbitColor;
-      ctx.lineWidth = 1.2;
-      ctx.setLineDash([3, 3]);
+      ctx.lineWidth = 1.4;
+      ctx.setLineDash([4, 4]);
       ctx.stroke();
       ctx.setLineDash([]);
 
-      // Shell letter indicator (e.g. K, L, M)
+      // Shell label badge (K, L, M, N)
+      const sName = SHELL_NAMES[sIdx] || ("S" + (sIdx + 1));
+      ctx.save();
       ctx.font = "bold 9px system-ui, -apple-system, sans-serif";
-      ctx.fillStyle = isDark ? "#94a3b8" : "#64748b";
+      const lblW = ctx.measureText(sName).width + 8;
+      ctx.fillStyle = isDark ? "#1e293b" : "#ffffff";
+      ctx.strokeStyle = isDark ? "#475569" : "#cbd5e1";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.roundRect ? ctx.roundRect(cx - lblW / 2, cy - r - 6, lblW, 12, 3) : ctx.rect(cx - lblW / 2, cy - r - 6, lblW, 12);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = isDark ? "#38bdf8" : "#0284c7";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      const sName = SHELL_NAMES[sIdx] || ("S" + (sIdx + 1));
       ctx.fillText(sName, cx, cy - r);
+      ctx.restore();
 
-      // Draw electron dots around orbit
+      // Electron dots around orbit
       for (let i = 0; i < count; i++) {
         const angle = (2 * Math.PI * i) / count - Math.PI / 2;
         const ex = cx + r * Math.cos(angle);
         const ey = cy + r * Math.sin(angle);
 
-        // Electron dot with glow
+        // Radial outer glow
         ctx.beginPath();
-        ctx.arc(ex, ey, 4.5, 0, Math.PI * 2);
-        ctx.fillStyle = electronGlow;
+        ctx.arc(ex, ey, 6, 0, Math.PI * 2);
+        ctx.fillStyle = "rgba(56, 189, 248, 0.35)";
         ctx.fill();
 
+        // Main particle
         ctx.beginPath();
-        ctx.arc(ex, ey, 3, 0, Math.PI * 2);
-        ctx.fillStyle = electronColor;
+        ctx.arc(ex, ey, 3.8, 0, Math.PI * 2);
+        ctx.fillStyle = "#0284c7";
         ctx.fill();
-        ctx.strokeStyle = "#ffffff";
-        ctx.lineWidth = 1;
-        ctx.stroke();
+
+        // Inner specular highlight
+        ctx.beginPath();
+        ctx.arc(ex - 1, ey - 1, 1.2, 0, Math.PI * 2);
+        ctx.fillStyle = "#ffffff";
+        ctx.fill();
       }
     });
 
-    // Nucleus in Center
+    // Nucleus with depth & glow
+    ctx.save();
+    // Nucleus aura
+    ctx.beginPath();
+    ctx.arc(cx, cy, 22, 0, Math.PI * 2);
+    ctx.fillStyle = isDark ? "rgba(56, 189, 248, 0.15)" : "rgba(2, 132, 199, 0.12)";
+    ctx.fill();
+
+    // Nucleus sphere gradient
+    const nucGrad = ctx.createRadialGradient(cx - 4, cy - 4, 2, cx, cy, 18);
+    nucGrad.addColorStop(0, "#38bdf8");
+    nucGrad.addColorStop(0.7, "#0284c7");
+    nucGrad.addColorStop(1, "#0369a1");
+
     ctx.beginPath();
     ctx.arc(cx, cy, 18, 0, Math.PI * 2);
-    ctx.fillStyle = nucleusBg;
+    ctx.fillStyle = nucGrad;
     ctx.fill();
-    ctx.strokeStyle = nucleusBorder;
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = 1.8;
     ctx.stroke();
 
     // Nucleus Symbol & Charge
-    ctx.font = "bold 11px system-ui, -apple-system, sans-serif";
-    ctx.fillStyle = isDark ? "#f8fafc" : "#0f172a";
+    ctx.font = "bold 12px system-ui, -apple-system, sans-serif";
+    ctx.fillStyle = "#ffffff";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText(symbol || "H", cx, cy - 3);
 
     ctx.font = "bold 8px system-ui, -apple-system, sans-serif";
-    ctx.fillStyle = nucleusBorder;
+    ctx.fillStyle = "#fef08a";
     ctx.fillText("+" + (z || 1), cx, cy + 8);
+    ctx.restore();
   }
 
   // =========================================================================
@@ -364,7 +392,7 @@
     }
 
     drawPropLine("Valency", el.valency.toString(), "#16a34a");
-    drawPropLine("Configuration", el.config);
+    
     drawPropLine("Shells (e⁻)", (el.shells || []).join(", "));
     drawPropLine("State at STP", el.phase.toUpperCase());
 
@@ -414,65 +442,115 @@
 
     // Card background
     ctx.beginPath();
-    ctx.roundRect ? ctx.roundRect(x1, y1, w, h, 8) : ctx.rect(x1, y1, w, h);
+    ctx.roundRect ? ctx.roundRect(x1, y1, w, h, 10) : ctx.rect(x1, y1, w, h);
     ctx.fillStyle = isDark ? "rgba(15, 23, 42, 0.96)" : "#ffffff";
     ctx.fill();
-    ctx.strokeStyle = isDark ? "#38bdf8" : "#cbd5e1";
-    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = isDark ? "#38bdf8" : "#94a3b8";
+    ctx.lineWidth = 1.8;
     ctx.stroke();
 
-    // Title
-    ctx.font = "bold 13px system-ui, -apple-system, sans-serif";
+    // Top Header Banner
+    ctx.beginPath();
+    ctx.roundRect ? ctx.roundRect(x1, y1, w, 28, [10, 10, 0, 0]) : ctx.rect(x1, y1, w, 28);
+    ctx.fillStyle = isDark ? "rgba(30, 41, 59, 0.95)" : "#f8fafc";
+    ctx.fill();
+    ctx.strokeStyle = isDark ? "#475569" : "#e2e8f0";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    ctx.font = "bold 12px system-ui, -apple-system, sans-serif";
     ctx.fillStyle = isDark ? "#38bdf8" : "#0369a1";
     ctx.textAlign = "left";
     ctx.textBaseline = "middle";
-    ctx.fillText("Modern Periodic Table of Elements (NCERT)", x1 + 14, y1 + 18);
+    ctx.fillText("🔬 MODERN PERIODIC TABLE OF ELEMENTS", x1 + 14, y1 + 14);
+
+    ctx.font = "bold 10px system-ui, -apple-system, sans-serif";
+    ctx.fillStyle = isDark ? "#94a3b8" : "#64748b";
+    ctx.textAlign = "right";
+    ctx.fillText("18 Groups · 7 Periods · 118 Elements", x2 - 14, y1 + 14);
 
     // Mini grid calculation
     const cols = 18;
-    const rows = 9; // 7 periods + 2 rows for lanthanides/actinides
-    const gridPadX = 14;
-    const gridPadTop = 32;
-    const gridPadBottom = 12;
+    const rows = 10; // row 0: groups 1..18, rows 1..7: periods 1..7, row 8: spacer, rows 9..10: Lanthanides & Actinides
+    const padL = 26; // for period numbers on left
+    const padR = 14;
+    const padTop = 32;
+    const padBottom = 22; // for legend along bottom
 
-    const cellW = (w - gridPadX * 2) / cols;
-    const cellH = (h - gridPadTop - gridPadBottom) / rows;
+    const cellW = (w - padL - padR) / cols;
+    const cellH = (h - padTop - padBottom) / 10.2;
 
+    // Draw Group Numbers along the top
+    ctx.font = "bold 9px system-ui, -apple-system, sans-serif";
+    ctx.fillStyle = isDark ? "#94a3b8" : "#64748b";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "bottom";
+    for (let g = 1; g <= 18; g++) {
+      const gx = x1 + padL + (g - 1) * cellW + cellW / 2;
+      ctx.fillText(g.toString(), gx, y1 + padTop + 9);
+    }
+
+    // Draw Period Numbers along the left
+    ctx.textAlign = "right";
+    ctx.textBaseline = "middle";
+    for (let p = 1; p <= 7; p++) {
+      const py = y1 + padTop + 10 + (p - 1) * cellH + cellH / 2;
+      ctx.fillText(p.toString(), x1 + padL - 5, py);
+    }
+
+    // Draw Elements
     elements.forEach((el) => {
       let r = el.period - 1;
       let c = el.group ? el.group - 1 : null;
 
-      // Handle Lanthanides & Actinides positioning in rows 8 and 9
       if (el.category === "lanthanide") {
-        r = 7;
-        c = (el.z - 57) + 2; // place in cols 3 to 17
+        r = 7.8;
+        c = (el.z - 57) + 2; // cols 3 to 17
       } else if (el.category === "actinide") {
-        r = 8;
+        r = 8.8;
         c = (el.z - 89) + 2;
       }
 
-      if (c === null || c < 0 || c >= 18 || r < 0 || r >= rows) return;
+      if (c === null || c < 0 || c >= 18) return;
 
-      const cx = x1 + gridPadX + c * cellW;
-      const cy = y1 + gridPadTop + r * cellH;
+      const cx = x1 + padL + c * cellW;
+      const cy = y1 + padTop + 10 + r * cellH;
       const cat = CATEGORIES[el.category] || CATEGORIES.transition;
 
       ctx.fillStyle = isDark ? "rgba(30, 41, 59, 0.9)" : cat.bg;
       ctx.strokeStyle = cat.border;
-      ctx.lineWidth = 0.5;
+      ctx.lineWidth = 0.6;
       ctx.beginPath();
-      ctx.rect(cx + 0.5, cy + 0.5, cellW - 1, cellH - 1);
+      ctx.roundRect ? ctx.roundRect(cx + 0.5, cy + 0.5, cellW - 1, cellH - 1, 2) : ctx.rect(cx + 0.5, cy + 0.5, cellW - 1, cellH - 1);
       ctx.fill();
       ctx.stroke();
 
-      if (cellW > 14 && cellH > 14) {
-        ctx.font = "bold " + Math.max(8, Math.min(11, Math.round(cellH * 0.45))) + "px system-ui, -apple-system, sans-serif";
+      if (cellW > 12 && cellH > 12) {
+        // Atomic number
+        if (cellW > 20 && cellH > 20) {
+          ctx.font = "bold " + Math.max(6, Math.min(8, Math.round(cellH * 0.28))) + "px system-ui, -apple-system, sans-serif";
+          ctx.fillStyle = isDark ? "#94a3b8" : "#64748b";
+          ctx.textAlign = "left";
+          ctx.textBaseline = "top";
+          ctx.fillText(el.z.toString(), cx + 2, cy + 2);
+        }
+
+        // Symbol
+        ctx.font = "bold " + Math.max(8, Math.min(13, Math.round(cellH * 0.48))) + "px system-ui, -apple-system, sans-serif";
         ctx.fillStyle = isDark ? "#f8fafc" : cat.text;
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
-        ctx.fillText(el.symbol, cx + cellW / 2, cy + cellH / 2);
+        ctx.fillText(el.symbol, cx + cellW / 2, cy + cellH * 0.55);
       }
     });
+
+    // Draw Lanthanide / Actinide Indicator tags on Main Table
+    ctx.font = "bold 8px system-ui, -apple-system, sans-serif";
+    ctx.fillStyle = isDark ? "#cbd5e1" : "#64748b";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "middle";
+    ctx.fillText("* 57–71 Lanthanides", x1 + padL + 2 * cellW, y1 + padTop + 10 + 7.8 * cellH - 4);
+    ctx.fillText("** 89–103 Actinides", x1 + padL + 2 * cellW, y1 + padTop + 10 + 8.8 * cellH - 4);
 
     ctx.restore();
   }
@@ -547,15 +625,7 @@
     titleH.innerHTML = "🔬 Modern Periodic Table of Elements";
     headLeft.appendChild(titleH);
 
-    const badge = document.createElement("span");
-    badge.style.fontSize = "0.72rem";
-    badge.style.fontWeight = "600";
-    badge.style.padding = "3px 8px";
-    badge.style.borderRadius = "4px";
-    badge.style.background = "#e0f2fe";
-    badge.style.color = "#0369a1";
-    badge.textContent = "NCERT Class 9 & 10 Aligned";
-    headLeft.appendChild(badge);
+
 
     header.appendChild(headLeft);
 
@@ -992,30 +1062,78 @@
       catPill.textContent = cat.label + " · Period " + el.period + (el.group ? " · Group " + el.group : "");
       inspector.appendChild(catPill);
 
-      // Bohr Atom Model Canvas
+      // Bohr Atom Model Card (Second Card in Inspector)
       const bohrWrap = document.createElement("div");
       bohrWrap.style.display = "flex";
       bohrWrap.style.flexDirection = "column";
       bohrWrap.style.alignItems = "center";
-      bohrWrap.style.padding = "6px";
-      bohrWrap.style.background = "#f8fafc";
-      bohrWrap.style.border = "1px solid #e2e8f0";
-      bohrWrap.style.borderRadius = "8px";
-      bohrWrap.style.marginBottom = "10px";
+      bohrWrap.style.padding = "8px 10px";
+      bohrWrap.style.background = "linear-gradient(145deg, #f8fafc 0%, #f1f5f9 100%)";
+      bohrWrap.style.border = "1.5px solid #cbd5e1";
+      bohrWrap.style.borderRadius = "10px";
+      bohrWrap.style.boxShadow = "0 2px 6px rgba(0, 0, 0, 0.04)";
+      bohrWrap.style.marginBottom = "12px";
+
+      // Header inside Bohr Card
+      const bohrHeader = document.createElement("div");
+      bohrHeader.style.display = "flex";
+      bohrHeader.style.justifyContent = "space-between";
+      bohrHeader.style.alignItems = "center";
+      bohrHeader.style.width = "100%";
+      bohrHeader.style.marginBottom = "4px";
+
+      const bohrTitle = document.createElement("span");
+      bohrTitle.style.fontWeight = "700";
+      bohrTitle.style.fontSize = "0.78rem";
+      bohrTitle.style.color = "#0369a1";
+      bohrTitle.style.display = "flex";
+      bohrTitle.style.alignItems = "center";
+      bohrTitle.style.gap = "5px";
+      bohrTitle.innerHTML = "⚛️ Bohr Electron Shells";
+      bohrHeader.appendChild(bohrTitle);
+
+      const totalE = (el.shells || []).reduce((a, b) => a + b, 0);
+      const eBadge = document.createElement("span");
+      eBadge.style.fontSize = "0.68rem";
+      eBadge.style.fontWeight = "700";
+      eBadge.style.color = "#0284c7";
+      eBadge.style.background = "#e0f2fe";
+      eBadge.style.padding = "2px 7px";
+      eBadge.style.borderRadius = "4px";
+      eBadge.style.border = "1px solid #bae6fd";
+      eBadge.textContent = totalE + " e⁻ Total";
+      bohrHeader.appendChild(eBadge);
+      bohrWrap.appendChild(bohrHeader);
 
       const bohrCanvas = document.createElement("canvas");
-      bohrCanvas.width = 180;
-      bohrCanvas.height = 180;
+      bohrCanvas.width = 186;
+      bohrCanvas.height = 186;
       renderBohrAtom(bohrCanvas, el.shells, el.symbol, el.z, false);
       bohrWrap.appendChild(bohrCanvas);
 
-      const shellText = document.createElement("div");
-      shellText.style.fontSize = "0.72rem";
-      shellText.style.fontWeight = "600";
-      shellText.style.color = "#0369a1";
-      shellText.style.marginTop = "4px";
-      shellText.textContent = "Shells: " + (el.shells || []).map((c, i) => SHELL_NAMES[i] + "=" + c).join(", ");
-      bohrWrap.appendChild(shellText);
+      // Shells Pills Row
+      const pillsRow = document.createElement("div");
+      pillsRow.style.display = "flex";
+      pillsRow.style.flexWrap = "wrap";
+      pillsRow.style.justifyContent = "center";
+      pillsRow.style.gap = "5px";
+      pillsRow.style.marginTop = "6px";
+      pillsRow.style.width = "100%";
+
+      (el.shells || []).forEach((c, i) => {
+        const sPill = document.createElement("span");
+        sPill.style.fontSize = "0.72rem";
+        sPill.style.fontWeight = "700";
+        sPill.style.color = "#0369a1";
+        sPill.style.background = "#ffffff";
+        sPill.style.border = "1.5px solid #bae6fd";
+        sPill.style.padding = "2px 7px";
+        sPill.style.borderRadius = "5px";
+        sPill.style.boxShadow = "0 1px 2px rgba(0,0,0,0.03)";
+        sPill.textContent = SHELL_NAMES[i] + " = " + c;
+        pillsRow.appendChild(sPill);
+      });
+      bohrWrap.appendChild(pillsRow);
 
       inspector.appendChild(bohrWrap);
 
@@ -1049,7 +1167,7 @@
 
       addRow("Valency", el.valency.toString(), "#16a34a");
       addRow("Valence Electrons", el.shells ? el.shells[el.shells.length - 1].toString() : "1");
-      addRow("Configuration", el.config);
+      
       addRow("State at STP", el.phase.toUpperCase());
       if (el.radius) addRow("Atomic Radius", el.radius + " pm");
       if (el.electronegativity) addRow("Electronegativity", el.electronegativity.toString());
@@ -1099,14 +1217,15 @@
       const stampTableBtn = document.createElement("button");
       stampTableBtn.type = "button";
       stampTableBtn.innerHTML = "📊 Stamp Periodic Table on Board";
-      stampTableBtn.style.padding = "6px";
-      stampTableBtn.style.background = "#ffffff";
-      stampTableBtn.style.color = "#475569";
-      stampTableBtn.style.fontWeight = "600";
-      stampTableBtn.style.fontSize = "0.76rem";
-      stampTableBtn.style.border = "1px solid #cbd5e1";
+      stampTableBtn.style.padding = "8px";
+      stampTableBtn.style.background = "linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)";
+      stampTableBtn.style.color = "#1e293b";
+      stampTableBtn.style.fontWeight = "700";
+      stampTableBtn.style.fontSize = "0.80rem";
+      stampTableBtn.style.border = "1.5px solid #cbd5e1";
       stampTableBtn.style.borderRadius = "6px";
       stampTableBtn.style.cursor = "pointer";
+      stampTableBtn.style.boxShadow = "0 1px 3px rgba(0,0,0,0.05)";
       stampTableBtn.addEventListener("click", () => {
         if (typeof onStampTable === "function") {
           onStampTable();
