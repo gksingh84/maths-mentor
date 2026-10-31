@@ -15730,18 +15730,21 @@
 
         let protractorData = null;
         if (protractorState.visible) {
-          const pSvg = document.getElementById("eduProtractorSvg");
-          let originPt = null;
-          if (pSvg && typeof pSvg.getScreenCTM === "function" && typeof pSvg.createSVGPoint === "function") {
-            try {
-              const ctm = pSvg.getScreenCTM();
-              if (ctm) {
-                const pt = pSvg.createSVGPoint();
-                pt.x = 230; pt.y = 230;
-                const screenPt = pt.matrixTransform(ctm);
-                originPt = getCanvasPointFromClient(screenPt.x, screenPt.y);
-              }
-            } catch (_) {}
+          const pts = (typeof getProtractorCanvasPoints === "function") ? getProtractorCanvasPoints() : null;
+          let originPt = pts ? pts.vPt : null;
+          if (!originPt) {
+            const pSvg = document.getElementById("eduProtractorSvg");
+            if (pSvg && typeof pSvg.getScreenCTM === "function" && typeof pSvg.createSVGPoint === "function") {
+              try {
+                const ctm = pSvg.getScreenCTM();
+                if (ctm) {
+                  const pt = pSvg.createSVGPoint();
+                  pt.x = 230; pt.y = 230;
+                  const screenPt = pt.matrixTransform(ctm);
+                  originPt = getCanvasPointFromClient(screenPt.x, screenPt.y);
+                }
+              } catch (_) {}
+            }
           }
           if (!originPt) {
             const originHandle = document.getElementById("eduProtractorOriginHandle");
@@ -17750,9 +17753,9 @@
       }
       window.traceRulerLine = traceRulerLine;
 
-      function getCanvasPointFromClient(clientX, clientY) {
-        if (!cachedCanvasRect) updateCanvasRect();
-        const rect = cachedCanvasRect || (boardCanvas ? boardCanvas.getBoundingClientRect() : { left: 0, top: 0, width: 800, height: 600 });
+      function getCanvasPointFromClient(clientX, clientY, forceFreshRect) {
+        if (!cachedCanvasRect || forceFreshRect) updateCanvasRect();
+        const rect = (forceFreshRect && boardCanvas) ? boardCanvas.getBoundingClientRect() : (cachedCanvasRect || (boardCanvas ? boardCanvas.getBoundingClientRect() : { left: 0, top: 0, width: 800, height: 600 }));
         const scale = window.devicePixelRatio || 1;
         const logicalWidth = boardCanvas.width / scale;
         const logicalHeight = boardCanvas.height / scale;
@@ -17924,6 +17927,88 @@
         updateProtractorScaleButton();
       }
 
+      function getProtractorCanvasPoints() {
+        const overlay = document.getElementById("eduProtractorOverlay");
+        const svg = document.getElementById("eduProtractorSvg");
+        if (!overlay || !svg || !boardCanvas) return null;
+
+        if (typeof updateCanvasRect === "function") updateCanvasRect();
+
+        const isFull = !!protractorState.isFullCircle;
+        const isInner = protractorState.scaleMode === "inner";
+        const scale = protractorState.scale || 1.0;
+
+        const cx = 230;
+        const cy = 230;
+        // Reach to outer tick marks (r = 210 in SVG viewBox)
+        const armLen = 200;
+
+        // Local points in SVG user space
+        const localVertex = { x: cx, y: cy };
+        const localRay1 = { x: isInner ? (cx - armLen) : (cx + armLen), y: cy };
+
+        const cartesianDeg = isInner ? (180 - protractorState.angle) : protractorState.angle;
+        const angleRad = (cartesianDeg * Math.PI) / 180;
+        const localRay2 = {
+          x: cx + armLen * Math.cos(angleRad),
+          y: cy - armLen * Math.sin(angleRad)
+        };
+
+        let screenV = null, screenR1 = null, screenR2 = null;
+        if (typeof svg.getScreenCTM === "function" && typeof svg.createSVGPoint === "function") {
+          try {
+            const ctm = svg.getScreenCTM();
+            if (ctm) {
+              const pt = svg.createSVGPoint();
+              pt.x = localVertex.x; pt.y = localVertex.y;
+              screenV = pt.matrixTransform(ctm);
+
+              pt.x = localRay1.x; pt.y = localRay1.y;
+              screenR1 = pt.matrixTransform(ctm);
+
+              pt.x = localRay2.x; pt.y = localRay2.y;
+              screenR2 = pt.matrixTransform(ctm);
+            }
+          } catch (_) {}
+        }
+
+        if (!screenV || !screenR1 || !screenR2) {
+          const originHandle = document.getElementById("eduProtractorOriginHandle");
+          let centerScreenX = 0, centerScreenY = 0;
+          if (originHandle) {
+            const hRect = originHandle.getBoundingClientRect();
+            centerScreenX = hRect.left + hRect.width / 2;
+            centerScreenY = hRect.top + hRect.height / 2;
+          } else {
+            const canvasRect = boardCanvas.getBoundingClientRect();
+            centerScreenX = canvasRect.left + protractorState.x + cx;
+            centerScreenY = canvasRect.top + protractorState.y + cy;
+          }
+          screenV = { x: centerScreenX, y: centerScreenY };
+
+          const baseRad = (protractorState.baseRotation * Math.PI) / 180;
+          const r1Angle = isInner ? (baseRad + Math.PI) : baseRad;
+          const r2Angle = baseRad - (cartesianDeg * Math.PI) / 180;
+          const scaledLen = armLen * scale;
+
+          screenR1 = {
+            x: centerScreenX + scaledLen * Math.cos(r1Angle),
+            y: centerScreenY + scaledLen * Math.sin(r1Angle)
+          };
+          screenR2 = {
+            x: centerScreenX + scaledLen * Math.cos(r2Angle),
+            y: centerScreenY + scaledLen * Math.sin(r2Angle)
+          };
+        }
+
+        const vPt = getCanvasPointFromClient(screenV.x, screenV.y, true);
+        const ray1Pt = getCanvasPointFromClient(screenR1.x, screenR1.y, true);
+        const ray2Pt = getCanvasPointFromClient(screenR2.x, screenR2.y, true);
+
+        return { vPt, ray1Pt, ray2Pt };
+      }
+      window.getProtractorCanvasPoints = getProtractorCanvasPoints;
+
       function drawProtractorAngle() {
         const overlay = document.getElementById("eduProtractorOverlay");
         if (!overlay || !boardCanvas) return;
@@ -17933,80 +18018,16 @@
 
         pushUndo();
 
+        const pts = getProtractorCanvasPoints();
+        if (!pts) return;
+        const { vPt, ray1Pt, ray2Pt } = pts;
+
         const scale = protractorState.scale || 1.0;
-        const isFull = protractorState.isFullCircle;
-
-        // Base rotation angle of protractor in canvas space
-        const baseRad = (protractorState.baseRotation * Math.PI) / 180;
         const isInner = protractorState.scaleMode === "inner";
-
-        // Center origin crosshair in screen space via SVG matrix
-        const pSvg = document.getElementById("eduProtractorSvg");
-        let centerClientX = null, centerClientY = null;
-        if (pSvg && typeof pSvg.getScreenCTM === "function" && typeof pSvg.createSVGPoint === "function") {
-          try {
-            const ctm = pSvg.getScreenCTM();
-            if (ctm) {
-              const pt = pSvg.createSVGPoint();
-              pt.x = 230; pt.y = 230;
-              const sPt = pt.matrixTransform(ctm);
-              centerClientX = sPt.x;
-              centerClientY = sPt.y;
-            }
-          } catch (_) {}
-        }
-        if (centerClientX == null) {
-          const originHandle = document.getElementById("eduProtractorOriginHandle");
-          if (originHandle) {
-            const hRect = originHandle.getBoundingClientRect();
-            centerClientX = hRect.left + hRect.width / 2;
-            centerClientY = hRect.top + hRect.height / 2;
-          } else {
-            const canvasRect = boardCanvas.getBoundingClientRect();
-            centerClientX = canvasRect.left + protractorState.x + 230;
-            centerClientY = canvasRect.top + protractorState.y + 230;
-          }
-        }
-
-        // Vertex in canvas space
-        const vPt = getCanvasPointFromClient(centerClientX, centerClientY);
-
-        const rayLen = 170 * scale;
         const strokeColor = penSettings.color || "#0f172a";
         const strokeWidth = penSettings.width || 3;
 
-        let ray1Angle = baseRad;
-        let ray2Angle = baseRad;
-        let arcStartAngle = 0;
-        let arcEndAngle = 0;
-        let arcAnticlockwise = true;
-
-        if (isInner) {
-          // Inner Scale: Baseline extends to the LEFT (angle baseRad + PI)
-          ray1Angle = baseRad + Math.PI;
-          const cartesianDeg = 180 - protractorState.angle;
-          ray2Angle = baseRad - (cartesianDeg * Math.PI) / 180;
-          arcStartAngle = ray1Angle;
-          arcEndAngle = ray2Angle;
-          arcAnticlockwise = false; // Clockwise in screen coordinates from left baseline
-        } else {
-          // Outer Scale: Baseline extends to the RIGHT (angle baseRad)
-          ray1Angle = baseRad;
-          ray2Angle = baseRad - (protractorState.angle * Math.PI) / 180;
-          arcStartAngle = ray1Angle;
-          arcEndAngle = ray2Angle;
-          arcAnticlockwise = true; // Counter-clockwise in screen coordinates from right baseline
-        }
-
-        const ray1ClientX = centerClientX + rayLen * Math.cos(ray1Angle);
-        const ray1ClientY = centerClientY + rayLen * Math.sin(ray1Angle);
-        const ray1Pt = getCanvasPointFromClient(ray1ClientX, ray1ClientY);
-
-        const ray2ClientX = centerClientX + rayLen * Math.cos(ray2Angle);
-        const ray2ClientY = centerClientY + rayLen * Math.sin(ray2Angle);
-        const ray2Pt = getCanvasPointFromClient(ray2ClientX, ray2ClientY);
-
-        // 1. Ray 1 shape (Baseline Arm)
+        // 1. Ray 1 shape (Baseline Arm along 0° graduation edge)
         page.shapes.push({
           id: generateId(),
           type: "ray",
@@ -18017,7 +18038,7 @@
           createdAt: Date.now()
         });
 
-        // 2. Ray 2 shape (Measured Angle Arm)
+        // 2. Ray 2 shape (Measured Angle Arm along orange dashed needle)
         page.shapes.push({
           id: generateId(),
           type: "ray",
@@ -18028,8 +18049,12 @@
           createdAt: Date.now() + 1
         });
 
+        // Compute exact angular headings directly from rays in canvas coordinates
+        const startAngle = Math.atan2(ray1Pt.y - vPt.y, ray1Pt.x - vPt.x);
+        const endAngle = Math.atan2(ray2Pt.y - vPt.y, ray2Pt.x - vPt.x);
+
         // 3. Curve Symbol in Angle (Angle Arc between Ray 1 and Ray 2)
-        const arcRadius = 40 * scale;
+        const arcRadius = Math.max(28, 48 * Math.min(1.8, scale));
         page.shapes.push({
           id: generateId(),
           type: "angleArc",
@@ -18039,21 +18064,40 @@
           start: { x: vPt.x - arcRadius, y: vPt.y - arcRadius },
           end: { x: vPt.x + arcRadius, y: vPt.y + arcRadius },
           radius: arcRadius,
-          startAngle: arcStartAngle,
-          endAngle: arcEndAngle,
-          anticlockwise: arcAnticlockwise,
+          startAngle: startAngle,
+          endAngle: endAngle,
+          anticlockwise: isInner ? false : true,
           fill: isInner ? "rgba(234, 88, 12, 0.15)" : "rgba(2, 132, 199, 0.15)",
           createdAt: Date.now() + 2
         });
 
-        // 4. Text label with angle
-        let midAngle = (ray1Angle + ray2Angle) / 2;
-        if (Math.abs(ray1Angle - ray2Angle) > Math.PI) {
-          midAngle += Math.PI;
+        // 4. Text label with angle along angle bisector
+        const d1x = ray1Pt.x - vPt.x;
+        const d1y = ray1Pt.y - vPt.y;
+        const len1 = Math.hypot(d1x, d1y) || 1;
+        const u1x = d1x / len1;
+        const u1y = d1y / len1;
+
+        const d2x = ray2Pt.x - vPt.x;
+        const d2y = ray2Pt.y - vPt.y;
+        const len2 = Math.hypot(d2x, d2y) || 1;
+        const u2x = d2x / len2;
+        const u2y = d2y / len2;
+
+        let bisectorX = u1x + u2x;
+        let bisectorY = u1y + u2y;
+        let bisectorLen = Math.hypot(bisectorX, bisectorY);
+        if (bisectorLen < 0.001) {
+          bisectorX = -u1y;
+          bisectorY = u1x;
+          bisectorLen = 1;
         }
-        const labelDist = 62 * scale;
-        const labelX = vPt.x + labelDist * Math.cos(midAngle);
-        const labelY = vPt.y + labelDist * Math.sin(midAngle);
+        const dirX = bisectorX / bisectorLen;
+        const dirY = bisectorY / bisectorLen;
+
+        const labelDist = Math.max(50, 72 * Math.min(1.6, scale));
+        const labelX = vPt.x + dirX * labelDist;
+        const labelY = vPt.y + dirY * labelDist;
 
         if (!page.texts) page.texts = [];
         page.texts.push({
@@ -18780,14 +18824,32 @@
         const protractorStretchHandle = document.getElementById("eduProtractorStretchHandle");
         if (protractorStretchHandle && protractorOverlay) {
           let isStretchingProtractor = false;
+          let stretchCenterScreen = null;
           let startDist = 0;
           let startScale = 1.0;
 
           protractorStretchHandle.addEventListener("pointerdown", (e) => {
             isStretchingProtractor = true;
-            const centerClientX = protractorState.x + 230;
-            const centerClientY = protractorState.y + 230;
-            startDist = Math.hypot(e.clientX - centerClientX, e.clientY - centerClientY) || 1;
+            const pSvg = document.getElementById("eduProtractorSvg");
+            let cX = null, cY = null;
+            if (pSvg && typeof pSvg.getScreenCTM === "function" && typeof pSvg.createSVGPoint === "function") {
+              try {
+                const ctm = pSvg.getScreenCTM();
+                if (ctm) {
+                  const pt = pSvg.createSVGPoint();
+                  pt.x = 230; pt.y = 230;
+                  const sPt = pt.matrixTransform(ctm);
+                  cX = sPt.x; cY = sPt.y;
+                }
+              } catch (_) {}
+            }
+            if (cX == null) {
+              const oRect = protractorOverlay.getBoundingClientRect();
+              cX = oRect.left + oRect.width / 2;
+              cY = oRect.top + (protractorState.isFullCircle ? oRect.height / 2 : oRect.height * 0.92);
+            }
+            stretchCenterScreen = { x: cX, y: cY };
+            startDist = Math.hypot(e.clientX - cX, e.clientY - cY) || 1;
             startScale = protractorState.scale || 1.0;
             try { protractorStretchHandle.setPointerCapture(e.pointerId); } catch (_) {}
             e.stopPropagation();
@@ -18795,10 +18857,8 @@
           });
 
           protractorStretchHandle.addEventListener("pointermove", (e) => {
-            if (!isStretchingProtractor) return;
-            const centerClientX = protractorState.x + 230;
-            const centerClientY = protractorState.y + 230;
-            const curDist = Math.hypot(e.clientX - centerClientX, e.clientY - centerClientY);
+            if (!isStretchingProtractor || !stretchCenterScreen) return;
+            const curDist = Math.hypot(e.clientX - stretchCenterScreen.x, e.clientY - stretchCenterScreen.y);
             let newScale = startScale * (curDist / startDist);
             newScale = Math.max(0.6, Math.min(2.2, Math.round(newScale * 20) / 20));
             protractorState.scale = newScale;
@@ -18834,14 +18894,35 @@
 
           protractorNeedleKnob.addEventListener("pointermove", (e) => {
             if (!isMeasuring) return;
-            const rect = protractorOverlay.getBoundingClientRect();
             const isFull = protractorState.isFullCircle;
             const isInner = protractorState.scaleMode === "inner";
-            const cx = rect.left + 230;
-            const cy = rect.top + 230;
 
-            const dx = e.clientX - cx;
-            const dy = cy - e.clientY;
+            let dx = 0;
+            let dy = 0;
+            const pSvg = document.getElementById("eduProtractorSvg");
+            let localPt = null;
+            if (pSvg && typeof pSvg.getScreenCTM === "function" && typeof pSvg.createSVGPoint === "function") {
+              try {
+                const ctm = pSvg.getScreenCTM();
+                if (ctm) {
+                  const pt = pSvg.createSVGPoint();
+                  pt.x = e.clientX;
+                  pt.y = e.clientY;
+                  localPt = pt.matrixTransform(ctm.inverse());
+                }
+              } catch (_) {}
+            }
+
+            if (localPt) {
+              dx = localPt.x - 230;
+              dy = 230 - localPt.y;
+            } else {
+              const rect = protractorOverlay.getBoundingClientRect();
+              const cx = rect.left + rect.width / 2;
+              const cy = rect.top + (isFull ? rect.height / 2 : rect.height * 0.92);
+              dx = e.clientX - cx;
+              dy = cy - e.clientY;
+            }
 
             let rawDeg = Math.atan2(dy, dx) * (180 / Math.PI);
             if (rawDeg < 0) {
