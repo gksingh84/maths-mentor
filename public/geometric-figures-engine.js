@@ -502,14 +502,14 @@
     // Geometry layout zone:
     // Heading is placed at y1 + 12
     // Generous, breathable gap between heading and figure geometry:
-    // topY begins at y1 + 46 (leaving 34px of clear vertical clearance below heading center)
+    // topY begins at y1 + 50 (leaving 38px of clear vertical clearance below heading center)
     // bottomY is at y2 - 14
     const padX = Math.max(14, Math.min(w * 0.07, 32));
     const gx1 = x1 + padX;
     const gx2 = x2 - padX;
     const gw = Math.max(20, gx2 - gx1);
 
-    const topY = y1 + 46;
+    const topY = y1 + 50;
     const bottomY = y2 - 14;
     const gh = Math.max(20, bottomY - topY);
 
@@ -699,7 +699,7 @@
     else if (geo === "triangleEquilateral" || geo === "equilateralTriangle") {
       drawLabel("Equilateral Triangle", cx, y1 + 12, fontTitle, color);
 
-      const topX = cx, apexY = topY + 4;
+      const topX = cx, apexY = topY + 6;
       const bLeftX = gx1, bLeftY = bottomY - 14;
       const bRightX = gx2, bRightY = bottomY - 14;
 
@@ -724,7 +724,7 @@
       drawLabel("60°", bLeftX + arcR + 8, bLeftY - 6, fontMath, primary);
       drawLabel("60°", bRightX - arcR - 8, bRightY - 6, fontMath, primary);
 
-      drawLabel("A", topX, apexY - 8, fontLabel, color);
+      drawLabel("A", topX, apexY - 9, fontLabel, color);
       drawLabel("B", bLeftX - 8, bLeftY + 4, fontLabel, color, "right");
       drawLabel("C", bRightX + 8, bLeftY + 4, fontLabel, color, "left");
 
@@ -732,7 +732,7 @@
     } else if (geo === "triangleIsosceles") {
       drawLabel("Isosceles Triangle", cx, y1 + 12, fontTitle, color);
 
-      const topX = cx, apexY = topY + 4;
+      const topX = cx, apexY = topY + 6;
       const bLeftX = gx1 + gw * 0.08, bLeftY = bottomY - 14;
       const bRightX = gx2 - gw * 0.08, bRightY = bottomY - 14;
 
@@ -761,7 +761,7 @@
       drawLabel("θ", bLeftX + arcR + 6, bLeftY - 6, fontMath, accent);
       drawLabel("θ", bRightX - arcR - 6, bRightY - 6, fontMath, accent);
 
-      drawLabel("A", topX, apexY - 8, fontLabel, color);
+      drawLabel("A", topX, apexY - 9, fontLabel, color);
       drawLabel("B", bLeftX - 8, bLeftY + 4, fontLabel, color, "right");
       drawLabel("C", bRightX + 8, bLeftY + 4, fontLabel, color, "left");
 
@@ -769,7 +769,7 @@
     } else if (geo === "triangleScalene") {
       drawLabel("Scalene Triangle", cx, y1 + 12, fontTitle, color);
 
-      const topX = gx1 + gw * 0.35, apexY = topY + 4;
+      const topX = gx1 + gw * 0.35, apexY = topY + 6;
       const bLeftX = gx1, bLeftY = bottomY - 14;
       const bRightX = gx2, bRightY = bottomY - 14;
 
@@ -787,7 +787,7 @@
       drawTickMark(ctx, cx, bLeftY, Math.PI / 2, 6);
       drawTickMark(ctx, cx + 5, bLeftY, Math.PI / 2, 6);
 
-      drawLabel("A", topX, apexY - 8, fontLabel, color);
+      drawLabel("A", topX, apexY - 9, fontLabel, color);
       drawLabel("B", bLeftX - 8, bLeftY + 4, fontLabel, color, "right");
       drawLabel("C", bRightX + 8, bLeftY + 4, fontLabel, color, "left");
 
@@ -834,7 +834,7 @@
     else if (geo === "triangleAcuteAngled") {
       drawLabel("Acute-Angled Triangle", cx, y1 + 12, fontTitle, color);
 
-      const topX = gx1 + gw * 0.42, apexY = topY + 4;
+      const topX = gx1 + gw * 0.42, apexY = topY + 6;
       const bLeftX = gx1, bLeftY = bottomY - 14;
       const bRightX = gx2, bRightY = bottomY - 14;
 
@@ -849,7 +849,7 @@
       ctx.beginPath(); ctx.arc(bLeftX, bLeftY, arcR, -Math.PI / 3, 0); ctx.stroke();
       ctx.beginPath(); ctx.arc(bRightX, bRightY, arcR, Math.PI, 4 * Math.PI / 3); ctx.stroke();
 
-      drawLabel("A", topX, apexY - 8, fontLabel, color);
+      drawLabel("A", topX, apexY - 9, fontLabel, color);
       drawLabel("B", bLeftX - 8, bLeftY + 4, fontLabel, color, "right");
       drawLabel("C", bRightX + 8, bLeftY + 4, fontLabel, color, "left");
 
@@ -857,7 +857,7 @@
     } else if (geo === "rightTriangle") {
       drawLabel("Right-Angled Triangle", cx, y1 + 12, fontTitle, color);
 
-      const apexX = gx1 + 10, apexY = topY + 4;
+      const apexX = gx1 + 10, apexY = topY + 6;
       const cornerX = gx1 + 10, cornerY = bottomY - 14;
       const rightX = gx2 - 6, rightY = bottomY - 14;
 
@@ -875,7 +875,7 @@
       drawLabel("b", (cornerX + rightX) / 2, cornerY + 10, fontMath, color, "center");
       drawLabel("c", (apexX + rightX) / 2 + 10, (apexY + rightY) / 2 - 8, fontMath, primary, "left");
 
-      drawLabel("A", apexX - 6, apexY - 8, fontLabel, color);
+      drawLabel("A", apexX - 6, apexY - 9, fontLabel, color);
       drawLabel("B", cornerX - 8, cornerY + 4, fontLabel, color, "right");
       drawLabel("C", rightX + 8, rightY + 4, fontLabel, color, "left");
 
@@ -883,7 +883,7 @@
     } else if (geo === "triangleObtuseAngled") {
       drawLabel("Obtuse-Angled Triangle", cx, y1 + 12, fontTitle, color);
 
-      const apexX = gx1 + gw * 0.20, apexY = topY + 4;
+      const apexX = gx1 + gw * 0.20, apexY = topY + 6;
       const obtX = gx1 + gw * 0.44, obtY = bottomY - 14;
       const rightX = gx2, rightY = bottomY - 14;
 
@@ -897,7 +897,7 @@
       ctx.beginPath(); ctx.arc(obtX, obtY, arcR, -Math.PI * 0.8, 0); ctx.stroke();
 
       drawLabel("> 90°", obtX - arcR * 0.4, obtY - arcR - 6, fontMath, warn);
-      drawLabel("A", apexX, apexY - 8, fontLabel, color);
+      drawLabel("A", apexX, apexY - 9, fontLabel, color);
       drawLabel("B", obtX - 8, obtY + 4, fontLabel, color, "right");
       drawLabel("C", rightX + 8, rightY + 4, fontLabel, color, "left");
 

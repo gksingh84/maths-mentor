@@ -2639,19 +2639,8 @@ function TeacherWhiteboard({
     } else if (data.type === 'WHITEBOARD_BROADCAST_PERIODIC_TABLE' || data.type === 'WHITEBOARD_PERIODIC_TABLE_STATE') {
       const action = data.action || 'open';
       const targetGrade = selectedGradeRef.current || 'ALL';
-      if (!isBroadcastingRef.current && action === 'open') {
-        // Teacher opened or shared Periodic Table while not yet live -> start live broadcast immediately!
-        startBroadcast();
-        setTimeout(() => {
-          if (socketRef.current) {
-            socketRef.current.emit('whiteboard:periodic_table_action', {
-              grade: targetGrade,
-              action: 'open',
-              elementZ: data.elementZ
-            });
-          }
-        }, 250);
-      } else if (socketRef.current) {
+      // Teacher controls live broadcast manually. Never auto-start live broadcast when opening or viewing the Periodic Table.
+      if (isBroadcastingRef.current && socketRef.current) {
         socketRef.current.emit('whiteboard:periodic_table_action', {
           grade: targetGrade,
           action: action,
