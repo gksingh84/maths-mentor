@@ -22,8 +22,8 @@
       title: "Indian Place Value Chart",
       subtitle: "Crores, Lakhs, Thousands, Ones (3,2,2 rule with powers of 10)",
       type: "placeValueIndian",
-      w: 360,
-      h: 175
+      w: 380,
+      h: 115
     },
     {
       group: "place_value",
@@ -33,8 +33,8 @@
       title: "International Place Value Chart",
       subtitle: "Millions, Thousands, Ones in groups of 3 with period headers",
       type: "placeValueInternational",
-      w: 360,
-      h: 175
+      w: 380,
+      h: 115
     },
     {
       group: "place_value",
@@ -44,8 +44,8 @@
       title: "Decimal Place Value Chart",
       subtitle: "Whole number & fractional parts (Tenths, Hundredths, Thousandths)",
       type: "placeValueDecimal",
-      w: 350,
-      h: 165
+      w: 380,
+      h: 115
     },
     {
       group: "place_value",
@@ -55,8 +55,8 @@
       title: "Indian vs International Chart",
       subtitle: "Equivalence: 1 Lakh = 100K, 10 Lakh = 1M, 1 Crore = 10M",
       type: "placeValueComparison",
-      w: 340,
-      h: 160
+      w: 360,
+      h: 120
     },
 
     // =========================================================================
@@ -513,191 +513,320 @@
     // 1. PLACE VALUE CHARTS
     // =========================================================================
     if (geo === "placeValueIndian" || geo === "placeValueInternational" || geo === "placeValueDecimal" || geo === "placeValueComparison") {
-      // Background card
-      ctx.fillStyle = cardBg;
-      ctx.strokeStyle = borderCol;
-      ctx.lineWidth = 1.5;
-      roundRect(ctx, leftX, y1 + 8, contentW, h - 16, 10);
-      ctx.fill();
-      ctx.stroke();
+      function drawPlaceValueCard({ title, subtitle, renderTable, footerNote }) {
+        const cardX = leftX;
+        const cardY = y1 + 4;
+        const cardW = contentW;
+        const cardH = h - 8;
+        const cardR = 12;
 
-      if (geo === "placeValueIndian") {
-        drawLabel("Indian Place Value Chart", cx, y1 + 22, fontTitle, color);
+        // Outer Card
+        ctx.fillStyle = cardBg;
+        ctx.strokeStyle = borderCol;
+        ctx.lineWidth = 1.5;
+        roundRect(ctx, cardX, cardY, cardW, cardH, cardR);
+        ctx.fill();
+        ctx.stroke();
 
-        const periods = [
-          { name: "Crores", cols: ["TC", "C"], vals: ["10⁸", "10⁷"], c: rose },
-          { name: "Lakhs", cols: ["TL", "L"], vals: ["10⁶", "10⁵"], c: warn },
-          { name: "Thousands", cols: ["T-Th", "Th"], vals: ["10⁴", "10³"], c: primary },
-          { name: "Ones", cols: ["H", "T", "O"], vals: ["10²", "10¹", "10⁰"], c: accent }
-        ];
+        // Top Header Banner
+        const headerH = Math.max(38, Math.min(48, Math.round(cardH * 0.18)));
+        const headerBottomY = cardY + headerH;
 
-        const totalCols = 9;
-        const colW = contentW / totalCols;
-        const tY = topY + 8;
-        const rowH = Math.min(26, contentH * 0.22);
+        ctx.save();
+        ctx.beginPath();
+        roundRect(ctx, cardX, cardY, cardW, headerH, cardR);
+        ctx.clip();
+        ctx.fillStyle = isActuallyDark ? "rgba(30, 41, 59, 0.95)" : "rgba(241, 245, 249, 0.88)";
+        ctx.fillRect(cardX, cardY, cardW, headerH);
+        ctx.restore();
 
-        // Header Row: Periods
-        let curX = leftX;
-        periods.forEach((p) => {
-          const pW = colW * p.cols.length;
-          ctx.fillStyle = p.c;
-          ctx.globalAlpha = isActuallyDark ? 0.25 : 0.15;
-          ctx.fillRect(curX, tY, pW, rowH);
-          ctx.globalAlpha = 1.0;
-          ctx.strokeStyle = p.c;
-          ctx.strokeRect(curX, tY, pW, rowH);
-          drawLabel(p.name, curX + pW / 2, tY + rowH / 2, fontHeader, p.c);
-          curX += pW;
+        ctx.strokeStyle = borderCol;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(cardX, headerBottomY);
+        ctx.lineTo(cardX + cardW, headerBottomY);
+        ctx.stroke();
+
+        const titleY = cardY + Math.round(headerH * 0.38);
+        const subY = cardY + Math.round(headerH * 0.74);
+        const cardTitleFont = `bold ${Math.max(13, Math.min(18, Math.round(14 * sFactor)))}px "Plus Jakarta Sans", sans-serif`;
+        const cardSubFont = `600 ${Math.max(9.5, Math.min(12, Math.round(10 * sFactor)))}px "Plus Jakarta Sans", sans-serif`;
+
+        drawLabel(title, cx, titleY, cardTitleFont, color, "center", "middle", false);
+        if (subtitle) {
+          const subColor = isActuallyDark ? "#94a3b8" : "#64748b";
+          drawLabel(subtitle, cx, subY, cardSubFont, subColor, "center", "middle", false);
+        }
+
+        // Bottom Footer Pill Strip
+        const footerH = footerNote ? Math.max(24, Math.min(30, Math.round(cardH * 0.12))) : 0;
+        const footerY = cardY + cardH - footerH - 6;
+
+        if (footerNote) {
+          const footPillX = cardX + 12;
+          const footPillW = cardW - 24;
+
+          ctx.fillStyle = isActuallyDark ? "rgba(56, 189, 248, 0.08)" : "rgba(2, 132, 199, 0.05)";
+          ctx.strokeStyle = isActuallyDark ? "rgba(56, 189, 248, 0.25)" : "rgba(2, 132, 199, 0.18)";
+          ctx.lineWidth = 1;
+          roundRect(ctx, footPillX, footerY, footPillW, footerH, 6);
+          ctx.fill();
+          ctx.stroke();
+
+          const noteFont = `600 ${Math.max(9, Math.min(11.5, Math.round(9.5 * sFactor)))}px "Plus Jakarta Sans", sans-serif`;
+          drawLabel("💡 " + footerNote, cx, footerY + footerH / 2, noteFont, primary, "center", "middle", false);
+        }
+
+        // Table Area (strictly between header and footer)
+        const tableAreaTop = headerBottomY + 8;
+        const tableAreaBottom = footerNote ? (footerY - 8) : (cardY + cardH - 8);
+        const tableAreaH = Math.max(60, tableAreaBottom - tableAreaTop);
+
+        if (typeof renderTable === "function") {
+          renderTable(cardX + 10, tableAreaTop, cardW - 20, tableAreaH);
+        }
+      }
+
+      if (geo === "placeValueDecimal") {
+        drawPlaceValueCard({
+          title: "Decimal Place Value Chart",
+          subtitle: "Whole Number (Integral) Part  •  Decimal Point  •  Fractional (Decimal) Part",
+          footerNote: "Expanded Form: 345.678 = 300 + 40 + 5 + 6/10 + 7/100 + 8/1000  (300 + 40 + 5 + 0.6 + 0.07 + 0.008)",
+          renderTable: (tblX, tblY, tblW, tblH) => {
+            const cols = [
+              { name: "Hundreds", sym: "H", val: "100", d: "3", dVal: "300", group: "whole", c: primary },
+              { name: "Tens", sym: "T", val: "10", d: "4", dVal: "40", group: "whole", c: primary },
+              { name: "Ones", sym: "O", val: "1", d: "5", dVal: "5", group: "whole", c: primary },
+              { name: "Point", sym: "·", val: "·", d: "·", dVal: "·", group: "point", c: danger },
+              { name: "Tenths", sym: "1/10", val: "0.1", d: "6", dVal: "0.6", group: "frac", c: accent },
+              { name: "Hundredths", sym: "1/100", val: "0.01", d: "7", dVal: "0.07", group: "frac", c: accent },
+              { name: "Thousandths", sym: "1/1000", val: "0.001", d: "8", dVal: "0.008", group: "frac", c: accent }
+            ];
+
+            const totalRows = 5;
+            const rowH = Math.max(22, Math.min(36, Math.floor(tblH / totalRows)));
+            const totalTblH = totalRows * rowH;
+            const startY = tblY + Math.max(0, Math.floor((tblH - totalTblH) / 2));
+            const colW = tblW / cols.length;
+
+            // Row 0: Top Super-Header Grouping (Whole Number, Point, Fractional)
+            const wW = colW * 3;
+            ctx.fillStyle = isActuallyDark ? "rgba(56, 189, 248, 0.22)" : "rgba(2, 132, 199, 0.12)";
+            ctx.strokeStyle = primary;
+            ctx.fillRect(tblX, startY, wW, rowH);
+            ctx.strokeRect(tblX, startY, wW, rowH);
+            drawLabel("Whole Number (Integral) Part", tblX + wW / 2, startY + rowH / 2, fontHeader, primary, "center", "middle", false);
+
+            const pX = tblX + wW;
+            ctx.fillStyle = isActuallyDark ? "rgba(244, 63, 94, 0.25)" : "rgba(225, 29, 72, 0.15)";
+            ctx.strokeStyle = danger;
+            ctx.fillRect(pX, startY, colW, rowH);
+            ctx.strokeRect(pX, startY, colW, rowH);
+            drawLabel("Decimal", pX + colW / 2, startY + rowH / 2, fontHeader, danger, "center", "middle", false);
+
+            const fX = pX + colW;
+            const fW = colW * 3;
+            ctx.fillStyle = isActuallyDark ? "rgba(16, 185, 129, 0.22)" : "rgba(16, 185, 129, 0.12)";
+            ctx.strokeStyle = accent;
+            ctx.fillRect(fX, startY, fW, rowH);
+            ctx.strokeRect(fX, startY, fW, rowH);
+            drawLabel("Fractional (Decimal) Part", fX + fW / 2, startY + rowH / 2, fontHeader, accent, "center", "middle", false);
+
+            // Rows 1-4: Place Names, Values, Digits, Digit Values
+            cols.forEach((col, idx) => {
+              const cx_ = tblX + idx * colW;
+
+              // Row 1: Place Name
+              ctx.strokeStyle = borderCol;
+              ctx.fillStyle = isActuallyDark ? "rgba(255,255,255,0.03)" : "rgba(248, 250, 252, 0.8)";
+              ctx.fillRect(cx_, startY + rowH, colW, rowH);
+              ctx.strokeRect(cx_, startY + rowH, colW, rowH);
+              drawLabel(col.name, cx_ + colW / 2, startY + rowH + rowH / 2, fontHeader, col.c, "center", "middle", false);
+
+              // Row 2: Symbol & Value (e.g. H / 100, 1/10 / 0.1)
+              const valTxt = col.group === "point" ? "·" : (col.sym + " (" + col.val + ")");
+              ctx.strokeRect(cx_, startY + rowH * 2, colW, rowH);
+              drawLabel(valTxt, cx_ + colW / 2, startY + rowH * 2 + rowH / 2, fontSmall, color, "center", "middle", false);
+
+              // Row 3: Sample Digit (large bold)
+              ctx.fillStyle = isActuallyDark ? "rgba(255,255,255,0.05)" : "#ffffff";
+              ctx.fillRect(cx_, startY + rowH * 3, colW, rowH);
+              ctx.strokeRect(cx_, startY + rowH * 3, colW, rowH);
+              const digitFont = `bold ${Math.max(13, Math.min(18, Math.round(15 * sFactor)))}px "Plus Jakarta Sans", sans-serif`;
+              drawLabel(col.d, cx_ + colW / 2, startY + rowH * 3 + rowH / 2, digitFont, col.c, "center", "middle", false);
+
+              // Row 4: Value in Number
+              ctx.strokeRect(cx_, startY + rowH * 4, colW, rowH);
+              const valNumTxt = col.group === "point" ? "·" : col.dVal;
+              drawLabel(valNumTxt, cx_ + colW / 2, startY + rowH * 4 + rowH / 2, fontSmall, col.c, "center", "middle", false);
+            });
+          }
         });
+      } else if (geo === "placeValueIndian") {
+        drawPlaceValueCard({
+          title: "Indian Place Value Chart",
+          subtitle: "Crores, Lakhs, Thousands, Ones Periods (NCERT Standard: 3, 2, 2 Rule)",
+          footerNote: "Example: 78,43,29,651 = 78 Crore 43 Lakh 29 Thousand 651  (Rule: 3 digits from right, then groups of 2)",
+          renderTable: (tblX, tblY, tblW, tblH) => {
+            const periods = [
+              { name: "Crores", cols: [{ s: "TC", v: "10⁸", d: "7", val: "70 Cr" }, { s: "C", v: "10⁷", d: "8", val: "8 Cr" }], c: rose },
+              { name: "Lakhs", cols: [{ s: "TL", v: "10⁶", d: "4", val: "40 L" }, { s: "L", v: "10⁵", d: "3", val: "3 L" }], c: warn },
+              { name: "Thousands", cols: [{ s: "T-Th", v: "10⁴", d: "2", val: "20 K" }, { s: "Th", v: "10³", d: "9", val: "9 K" }], c: primary },
+              { name: "Ones", cols: [{ s: "H", v: "10²", d: "6", val: "600" }, { s: "T", v: "10¹", d: "5", val: "50" }, { s: "O", v: "10⁰", d: "1", val: "1" }], c: accent }
+            ];
 
-        // Row 2: Place Names & Row 3: Place Values
-        curX = leftX;
-        let sampleDigits = ["7", "8", "4", "3", "2", "9", "6", "5", "1"];
-        periods.forEach((p) => {
-          p.cols.forEach((colName, idx) => {
-            const rx = curX;
-            ctx.strokeStyle = borderCol;
-            ctx.strokeRect(rx, tY + rowH, colW, rowH);
-            drawLabel(colName, rx + colW / 2, tY + rowH + rowH / 2, fontHeader, color);
+            const totalCols = 9;
+            const colW = tblW / totalCols;
+            const totalRows = 5;
+            const rowH = Math.max(22, Math.min(36, Math.floor(tblH / totalRows)));
+            const totalTblH = totalRows * rowH;
+            const startY = tblY + Math.max(0, Math.floor((tblH - totalTblH) / 2));
 
-            ctx.strokeRect(rx, tY + rowH * 2, colW, rowH);
-            drawLabel(p.vals[idx], rx + colW / 2, tY + rowH * 2 + rowH / 2, fontSmall, primary);
+            // Row 0: Period Headers
+            let curX = tblX;
+            periods.forEach((p) => {
+              const pW = colW * p.cols.length;
+              ctx.fillStyle = p.c;
+              ctx.globalAlpha = isActuallyDark ? 0.25 : 0.15;
+              ctx.fillRect(curX, startY, pW, rowH);
+              ctx.globalAlpha = 1.0;
+              ctx.strokeStyle = p.c;
+              ctx.strokeRect(curX, startY, pW, rowH);
+              drawLabel(p.name, curX + pW / 2, startY + rowH / 2, fontHeader, p.c, "center", "middle", false);
+              curX += pW;
+            });
 
-            // Sample digit row
-            ctx.strokeRect(rx, tY + rowH * 3, colW, rowH);
-            const dIdx = Math.round((rx - leftX) / colW);
-            drawLabel(sampleDigits[dIdx] || "·", rx + colW / 2, tY + rowH * 3 + rowH / 2, fontHeader, p.c);
+            // Rows 1-4: Place Names, Powers of 10, Sample Digits, Value
+            curX = tblX;
+            const digitFont = `bold ${Math.max(13, Math.min(18, Math.round(15 * sFactor)))}px "Plus Jakarta Sans", sans-serif`;
+            periods.forEach((p) => {
+              p.cols.forEach((col) => {
+                const rx = curX;
+                ctx.strokeStyle = borderCol;
+                ctx.strokeRect(rx, startY + rowH, colW, rowH);
+                drawLabel(col.s, rx + colW / 2, startY + rowH + rowH / 2, fontHeader, color, "center", "middle", false);
 
-            curX += colW;
-          });
+                ctx.strokeRect(rx, startY + rowH * 2, colW, rowH);
+                drawLabel(col.v, rx + colW / 2, startY + rowH * 2 + rowH / 2, fontSmall, primary, "center", "middle", false);
+
+                ctx.fillStyle = isActuallyDark ? "rgba(255,255,255,0.05)" : "#ffffff";
+                ctx.fillRect(rx, startY + rowH * 3, colW, rowH);
+                ctx.strokeRect(rx, startY + rowH * 3, colW, rowH);
+                drawLabel(col.d, rx + colW / 2, startY + rowH * 3 + rowH / 2, digitFont, p.c, "center", "middle", false);
+
+                ctx.strokeRect(rx, startY + rowH * 4, colW, rowH);
+                drawLabel(col.val, rx + colW / 2, startY + rowH * 4 + rowH / 2, fontSmall, p.c, "center", "middle", false);
+
+                curX += colW;
+              });
+            });
+          }
         });
-
-        drawLabel("Example: 78,43,29,651  (Comma Rule: 3 digits from right, then groups of 2)", cx, bottomY - 6, fontSmall, primary);
       } else if (geo === "placeValueInternational") {
-        drawLabel("International Place Value Chart", cx, y1 + 22, fontTitle, color);
+        drawPlaceValueCard({
+          title: "International Place Value Chart",
+          subtitle: "Millions, Thousands, Ones Periods (International Standard: Groups of 3)",
+          footerNote: "Example: 784,329,651 = 784 Million 329 Thousand 651  (Comma Rule: Groups of 3 digits from right)",
+          renderTable: (tblX, tblY, tblW, tblH) => {
+            const periods = [
+              { name: "Millions", cols: [{ s: "HM", v: "10⁸", d: "7", val: "700M" }, { s: "TM", v: "10⁷", d: "8", val: "80M" }, { s: "M", v: "10⁶", d: "4", val: "4M" }], c: purple },
+              { name: "Thousands", cols: [{ s: "H-Th", v: "10⁵", d: "3", val: "300K" }, { s: "T-Th", v: "10⁴", d: "2", val: "20K" }, { s: "Th", v: "10³", d: "9", val: "9K" }], c: primary },
+              { name: "Ones", cols: [{ s: "H", v: "10²", d: "6", val: "600" }, { s: "T", v: "10¹", d: "5", val: "50" }, { s: "O", v: "10⁰", d: "1", val: "1" }], c: accent }
+            ];
 
-        const periods = [
-          { name: "Millions", cols: ["HM", "TM", "M"], vals: ["10⁸", "10⁷", "10⁶"], c: purple },
-          { name: "Thousands", cols: ["H-Th", "T-Th", "Th"], vals: ["10⁵", "10⁴", "10³"], c: primary },
-          { name: "Ones", cols: ["H", "T", "O"], vals: ["10²", "10¹", "10⁰"], c: accent }
-        ];
+            const totalCols = 9;
+            const colW = tblW / totalCols;
+            const totalRows = 5;
+            const rowH = Math.max(22, Math.min(36, Math.floor(tblH / totalRows)));
+            const totalTblH = totalRows * rowH;
+            const startY = tblY + Math.max(0, Math.floor((tblH - totalTblH) / 2));
 
-        const totalCols = 9;
-        const colW = contentW / totalCols;
-        const tY = topY + 8;
-        const rowH = Math.min(26, contentH * 0.22);
+            // Row 0: Period Headers
+            let curX = tblX;
+            periods.forEach((p) => {
+              const pW = colW * p.cols.length;
+              ctx.fillStyle = p.c;
+              ctx.globalAlpha = isActuallyDark ? 0.25 : 0.15;
+              ctx.fillRect(curX, startY, pW, rowH);
+              ctx.globalAlpha = 1.0;
+              ctx.strokeStyle = p.c;
+              ctx.strokeRect(curX, startY, pW, rowH);
+              drawLabel(p.name, curX + pW / 2, startY + rowH / 2, fontHeader, p.c, "center", "middle", false);
+              curX += pW;
+            });
 
-        let curX = leftX;
-        periods.forEach((p) => {
-          const pW = colW * p.cols.length;
-          ctx.fillStyle = p.c;
-          ctx.globalAlpha = isActuallyDark ? 0.25 : 0.15;
-          ctx.fillRect(curX, tY, pW, rowH);
-          ctx.globalAlpha = 1.0;
-          ctx.strokeStyle = p.c;
-          ctx.strokeRect(curX, tY, pW, rowH);
-          drawLabel(p.name, curX + pW / 2, tY + rowH / 2, fontHeader, p.c);
-          curX += pW;
+            // Rows 1-4
+            curX = tblX;
+            const digitFont = `bold ${Math.max(13, Math.min(18, Math.round(15 * sFactor)))}px "Plus Jakarta Sans", sans-serif`;
+            periods.forEach((p) => {
+              p.cols.forEach((col) => {
+                const rx = curX;
+                ctx.strokeStyle = borderCol;
+                ctx.strokeRect(rx, startY + rowH, colW, rowH);
+                drawLabel(col.s, rx + colW / 2, startY + rowH + rowH / 2, fontHeader, color, "center", "middle", false);
+
+                ctx.strokeRect(rx, startY + rowH * 2, colW, rowH);
+                drawLabel(col.v, rx + colW / 2, startY + rowH * 2 + rowH / 2, fontSmall, primary, "center", "middle", false);
+
+                ctx.fillStyle = isActuallyDark ? "rgba(255,255,255,0.05)" : "#ffffff";
+                ctx.fillRect(rx, startY + rowH * 3, colW, rowH);
+                ctx.strokeRect(rx, startY + rowH * 3, colW, rowH);
+                drawLabel(col.d, rx + colW / 2, startY + rowH * 3 + rowH / 2, digitFont, p.c, "center", "middle", false);
+
+                ctx.strokeRect(rx, startY + rowH * 4, colW, rowH);
+                drawLabel(col.val, rx + colW / 2, startY + rowH * 4 + rowH / 2, fontSmall, p.c, "center", "middle", false);
+
+                curX += colW;
+              });
+            });
+          }
         });
-
-        curX = leftX;
-        const sampleDigits = ["7", "8", "4", "3", "2", "9", "6", "5", "1"];
-        periods.forEach((p) => {
-          p.cols.forEach((colName, idx) => {
-            const rx = curX;
-            ctx.strokeStyle = borderCol;
-            ctx.strokeRect(rx, tY + rowH, colW, rowH);
-            drawLabel(colName, rx + colW / 2, tY + rowH + rowH / 2, fontHeader, color);
-
-            ctx.strokeRect(rx, tY + rowH * 2, colW, rowH);
-            drawLabel(p.vals[idx], rx + colW / 2, tY + rowH * 2 + rowH / 2, fontSmall, primary);
-
-            ctx.strokeRect(rx, tY + rowH * 3, colW, rowH);
-            const dIdx = Math.round((rx - leftX) / colW);
-            drawLabel(sampleDigits[dIdx] || "·", rx + colW / 2, tY + rowH * 3 + rowH / 2, fontHeader, p.c);
-
-            curX += colW;
-          });
-        });
-
-        drawLabel("Example: 784,329,651  (Comma Rule: Groups of 3 digits from right)", cx, bottomY - 6, fontSmall, primary);
-      } else if (geo === "placeValueDecimal") {
-        drawLabel("Decimal Place Value Chart", cx, y1 + 22, fontTitle, color);
-
-        const sections = [
-          { name: "Hundreds (100)", col: "H", val: "100", d: "3", c: primary },
-          { name: "Tens (10)", col: "T", val: "10", d: "4", c: primary },
-          { name: "Ones (1)", col: "O", val: "1", d: "5", c: primary },
-          { name: "Decimal", col: "·", val: "Point", d: "·", c: danger },
-          { name: "Tenths (1/10)", col: "1/10", val: "0.1", d: "6", c: accent },
-          { name: "Hundredths (1/100)", col: "1/100", val: "0.01", d: "7", c: accent },
-          { name: "Thousandths (1/1000)", col: "1/1000", val: "0.001", d: "8", c: accent }
-        ];
-
-        const totalCols = sections.length;
-        const colW = contentW / totalCols;
-        const tY = topY + 8;
-        const rowH = Math.min(26, contentH * 0.22);
-
-        sections.forEach((sec, idx) => {
-          const rx = leftX + idx * colW;
-          ctx.fillStyle = sec.c;
-          ctx.globalAlpha = isActuallyDark ? 0.22 : 0.12;
-          ctx.fillRect(rx, tY, colW, rowH);
-          ctx.globalAlpha = 1.0;
-          ctx.strokeStyle = sec.c;
-          ctx.strokeRect(rx, tY, colW, rowH);
-          drawLabel(sec.col, rx + colW / 2, tY + rowH / 2, fontHeader, sec.c);
-
-          ctx.strokeStyle = borderCol;
-          ctx.strokeRect(rx, tY + rowH, colW, rowH);
-          drawLabel(sec.val, rx + colW / 2, tY + rowH + rowH / 2, fontSmall, color);
-
-          ctx.strokeRect(rx, tY + rowH * 2, colW, rowH);
-          drawLabel(sec.d, rx + colW / 2, tY + rowH * 2 + rowH / 2, fontHeader, sec.c);
-        });
-
-        drawLabel("345.678 = 300 + 40 + 5 + 6/10 + 7/100 + 8/1000", cx, bottomY - 6, fontSmall, primary);
       } else if (geo === "placeValueComparison") {
-        drawLabel("Indian vs International System Comparison", cx, y1 + 22, fontTitle, color);
+        drawPlaceValueCard({
+          title: "Indian vs International System Comparison",
+          subtitle: "Equivalences: Lakhs & Crores vs Thousands, Millions & Billions",
+          footerNote: "Key Rule: 1 Million = 10 Lakhs  |  1 Billion = 100 Crores (1 Arab)  |  1 Trillion = 1 Lakh Crores",
+          renderTable: (tblX, tblY, tblW, tblH) => {
+            const rows = [
+              { ind: "1 Lakh (1,00,000)", intl: "100 Thousand (100,000)", pwr: "10⁵" },
+              { ind: "10 Lakh (10,00,000)", intl: "1 Million (1,000,000)", pwr: "10⁶" },
+              { ind: "1 Crore (1,00,00,000)", intl: "10 Million (10,000,000)", pwr: "10⁷" },
+              { ind: "10 Crore (10,00,00,000)", intl: "100 Million (100,000,000)", pwr: "10⁸" },
+              { ind: "100 Crore (1 Arab)", intl: "1 Billion (1,000,000,000)", pwr: "10⁹" }
+            ];
 
-        const rows = [
-          { ind: "1 Lakh (1,00,000)", intl: "100 Thousand (100,000)", pwr: "10⁵" },
-          { ind: "10 Lakh (10,00,000)", intl: "1 Million (1,000,000)", pwr: "10⁶" },
-          { ind: "1 Crore (1,00,00,000)", intl: "10 Million (10,000,000)", pwr: "10⁷" },
-          { ind: "10 Crore (10,00,00,000)", intl: "100 Million (100,000,000)", pwr: "10⁸" },
-          { ind: "100 Crore (1 Arab)", intl: "1 Billion (1,000,000,000)", pwr: "10⁹" }
-        ];
+            const totalRows = rows.length + 1; // 1 header + 5 rows
+            const rowH = Math.max(22, Math.min(34, Math.floor(tblH / totalRows)));
+            const totalTblH = totalRows * rowH;
+            const startY = tblY + Math.max(0, Math.floor((tblH - totalTblH) / 2));
 
-        const tY = topY + 8;
-        const rowH = Math.min(22, (contentH - 24) / 6);
-        const col1W = contentW * 0.42;
-        const col2W = contentW * 0.42;
-        const col3W = contentW * 0.16;
+            const col1W = tblW * 0.42;
+            const col2W = tblW * 0.42;
+            const col3W = tblW * 0.16;
 
-        // Header
-        ctx.fillStyle = primary;
-        ctx.globalAlpha = isActuallyDark ? 0.25 : 0.15;
-        ctx.fillRect(leftX, tY, contentW, rowH);
-        ctx.globalAlpha = 1.0;
-        ctx.strokeStyle = primary;
-        ctx.strokeRect(leftX, tY, contentW, rowH);
-        drawLabel("Indian System", leftX + col1W / 2, tY + rowH / 2, fontHeader, primary);
-        drawLabel("International System", leftX + col1W + col2W / 2, tY + rowH / 2, fontHeader, purple);
-        drawLabel("Value", rightX - col3W / 2, tY + rowH / 2, fontHeader, accent);
+            // Header
+            ctx.fillStyle = primary;
+            ctx.globalAlpha = isActuallyDark ? 0.25 : 0.15;
+            ctx.fillRect(tblX, startY, tblW, rowH);
+            ctx.globalAlpha = 1.0;
+            ctx.strokeStyle = primary;
+            ctx.strokeRect(tblX, startY, tblW, rowH);
+            drawLabel("Indian System", tblX + col1W / 2, startY + rowH / 2, fontHeader, primary, "center", "middle", false);
+            drawLabel("International System", tblX + col1W + col2W / 2, startY + rowH / 2, fontHeader, purple, "center", "middle", false);
+            drawLabel("Value", tblX + col1W + col2W + col3W / 2, startY + rowH / 2, fontHeader, accent, "center", "middle", false);
 
-        rows.forEach((r, idx) => {
-          const ry = tY + rowH * (idx + 1);
-          ctx.strokeStyle = borderCol;
-          ctx.strokeRect(leftX, ry, col1W, rowH);
-          ctx.strokeRect(leftX + col1W, ry, col2W, rowH);
-          ctx.strokeRect(leftX + col1W + col2W, ry, col3W, rowH);
-          drawLabel(r.ind, leftX + col1W / 2, ry + rowH / 2, fontBody, color);
-          drawLabel(r.intl, leftX + col1W + col2W / 2, ry + rowH / 2, fontBody, color);
-          drawLabel(r.pwr, rightX - col3W / 2, ry + rowH / 2, fontSmall, accent);
+            rows.forEach((r, idx) => {
+              const ry = startY + rowH * (idx + 1);
+              ctx.strokeStyle = borderCol;
+              ctx.strokeRect(tblX, ry, col1W, rowH);
+              ctx.strokeRect(tblX + col1W, ry, col2W, rowH);
+              ctx.strokeRect(tblX + col1W + col2W, ry, col3W, rowH);
+              drawLabel(r.ind, tblX + col1W / 2, ry + rowH / 2, fontBody, color, "center", "middle", false);
+              drawLabel(r.intl, tblX + col1W + col2W / 2, ry + rowH / 2, fontBody, color, "center", "middle", false);
+              drawLabel(r.pwr, tblX + col1W + col2W + col3W / 2, ry + rowH / 2, fontSmall, accent, "center", "middle", false);
+            });
+          }
         });
-
-        drawLabel("Rule: 1 Million = 10 Lakhs  |  1 Billion = 100 Crores (1 Arab)", cx, bottomY - 4, fontSmall, primary);
       }
     }
 
@@ -1141,16 +1270,18 @@
 
             drawDoubleArrow(ctx, x1, y1_ + 14, x2, y2_ + 14, 6);
             drawLabel("Base (b)", (x1 + x2) / 2, y1_ + 26, fontSmall, purple, "center", "middle", true);
+            drawLabel("b", (x4 + x3) / 2, y3_ - 10, fontSmall, purple, "center", "middle", true);
             drawLabel("h", x4 - 12, fcy, fontHeader, danger, "center", "middle", true);
             drawLabel("a", (x1 + x4) / 2 - 14, (y1_ + y4_) / 2, fontSmall, color, "center", "middle", true);
+            drawLabel("a", (x2 + x3) / 2 + 14, (y2_ + y3_) / 2, fontSmall, color, "center", "middle", true);
           },
           formulaRows: [
-            { tag: "Parallelogram", formula: "Area = b × h,  P = 2(a + b)", tagColor: purple },
-            { tag: "Rhombus Area", formula: "Area = ½ × d₁ × d₂", tagColor: accent },
-            { tag: "Rhombus Side", formula: "a = ½ √(d₁² + d₂²),  P = 4a", tagColor: warn },
-            { tag: "Diagonals", formula: "Bisect each other at right angles (90°)", tagColor: primary }
+            { tag: "Perimeter (P)", formula: "P = 2(a + b)  [Sum of all 4 sides]", tagColor: primary },
+            { tag: "Area (A)", formula: "Area = base × height = b × h", tagColor: accent },
+            { tag: "Volume (V)", formula: "Volume = N/A  (2D Flat Figure — Vol = 0)", tagColor: warn },
+            { tag: "Rhombus Area", formula: "Area = ½ × d₁ × d₂  (diagonals ⊥ bisect)", tagColor: purple }
           ],
-          notes: "Rhombus is an equilateral parallelogram with perpendicular diagonals"
+          notes: "Opposite sides & angles equal (a ∥ a, b ∥ b). Area = b × h. Rhombus = ½ d₁ d₂"
         });
       } else if (geo === "formulaTrapezium") {
         drawFormulaLayout({

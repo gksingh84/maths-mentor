@@ -1076,13 +1076,15 @@
 
       drawLabel("h", ax - 6, (ay + dy) / 2, fontMath, primary, "right");
       drawLabel("b", (dx + cxP) / 2, dy + 8, fontMath, color);
+      drawLabel("a", (ax + dx) / 2 - 10, (ay + dy) / 2, fontMath, color, "right");
+      drawLabel("a", (bx + cxP) / 2 + 10, (by + cyP) / 2, fontMath, color, "left");
 
       drawLabel("A", ax - 6, ay - 6, fontLabel, color);
       drawLabel("B", bx + 6, by - 6, fontLabel, color);
       drawLabel("C", cxP + 6, cyP + 4, fontLabel, color, "left");
       drawLabel("D", dx - 6, dy + 4, fontLabel, color, "right");
 
-      drawLabel("Opposite sides equal & parallel", cx, y2 - 6, fontSmall, primary);
+      drawLabel("Perimeter = 2(a + b)  |  Area = b × h  |  Volume = N/A (2D Shape)", cx, y2 - 6, fontSmall, primary);
     } else if (geo === "quadTrapezium") {
       drawLabel("Trapezium", cx, y1 + 12, fontTitle, color);
 
