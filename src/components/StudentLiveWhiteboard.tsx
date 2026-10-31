@@ -1635,7 +1635,6 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
     const sizeCm = typeof sq.sizeCm === 'number' && sq.sizeCm >= 3 ? sq.sizeCm : (is3060 ? 6 : 7);
     const wPx = sizeCm * pxPerCm;
     const hPx = is3060 ? Math.round(wPx * Math.sqrt(3)) : wPx;
-    const pad = 24;
 
     ctx.save();
     ctx.translate(x, y);
@@ -1645,14 +1644,15 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
     ctx.shadowBlur = 14;
     ctx.shadowOffsetY = 4;
 
-    const pA = { x: pad, y: pad };
-    const pB = { x: pad + wPx, y: pad };
-    const pC = { x: pad, y: pad + hPx };
+    // Corner A is at origin (0, 0), vertex B along x-axis, vertex C along y-axis
+    const pA = { x: 0, y: 0 };
+    const pB = { x: wPx, y: 0 };
+    const pC = { x: 0, y: hPx };
 
-    const innerInset = 36;
-    const ipA = { x: pad + innerInset, y: pad + innerInset };
-    const ipB = { x: pad + Math.max(30, wPx - innerInset * 2.2), y: pad + innerInset };
-    const ipC = { x: pad + innerInset, y: pad + Math.max(30, hPx - innerInset * 2.2) };
+    const innerInset = 28;
+    const ipA = { x: innerInset, y: innerInset };
+    const ipB = { x: Math.max(20, wPx - innerInset * 2.2), y: innerInset };
+    const ipC = { x: innerInset, y: Math.max(20, hPx - innerInset * 2.2) };
 
     ctx.beginPath();
     ctx.moveTo(pA.x, pA.y);
@@ -1674,58 +1674,59 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
 
     ctx.strokeStyle = '#0f172a';
     ctx.lineWidth = 1.2;
-    ctx.strokeRect(pad, pad, 14, 14);
+    ctx.strokeRect(0, 0, 14, 14);
 
     const totalMmH = Math.round((wPx / pxPerCm) * 10);
     for (let i = 0; i <= totalMmH; i++) {
-      const tx = pad + i * (pxPerCm / 10);
+      const tx = i * (pxPerCm / 10);
       if (i % 10 === 0) {
         ctx.strokeStyle = '#0f172a';
         ctx.lineWidth = 1.4;
-        ctx.beginPath(); ctx.moveTo(tx, pad); ctx.lineTo(tx, pad + 12); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(tx, 0); ctx.lineTo(tx, 12); ctx.stroke();
         ctx.font = 'bold 8px sans-serif';
         ctx.fillStyle = '#0f172a';
         ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-        ctx.fillText(String(i / 10), tx, pad + 14);
+        ctx.fillText(String(i / 10), tx, 14);
       } else if (i % 5 === 0) {
         ctx.strokeStyle = '#334155'; ctx.lineWidth = 1;
-        ctx.beginPath(); ctx.moveTo(tx, pad); ctx.lineTo(tx, pad + 8); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(tx, 0); ctx.lineTo(tx, 8); ctx.stroke();
       } else {
         ctx.strokeStyle = '#64748b'; ctx.lineWidth = 0.7;
-        ctx.beginPath(); ctx.moveTo(tx, pad); ctx.lineTo(tx, pad + 5); ctx.stroke();
-      }
+        ctx.beginPath(); ctx.moveTo(tx, 0); ctx.lineTo(tx, 5); ctx.stroke();
+      } 
     }
 
     const totalMmV = Math.round((hPx / pxPerCm) * 10);
     for (let j = 0; j <= totalMmV; j++) {
-      const ty = pad + j * (pxPerCm / 10);
+      const ty = j * (pxPerCm / 10);
       if (j % 10 === 0) {
         ctx.strokeStyle = '#0f172a';
         ctx.lineWidth = 1.4;
-        ctx.beginPath(); ctx.moveTo(pad, ty); ctx.lineTo(pad + 12, ty); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(0, ty); ctx.lineTo(12, ty); ctx.stroke();
         ctx.font = 'bold 8px sans-serif';
         ctx.fillStyle = '#0f172a';
         ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-        ctx.fillText(String(j / 10), pad + 14, ty);
+        ctx.fillText(String(j / 10), 14, ty);
       } else if (j % 5 === 0) {
         ctx.strokeStyle = '#334155'; ctx.lineWidth = 1;
-        ctx.beginPath(); ctx.moveTo(pad, ty); ctx.lineTo(pad + 8, ty); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(0, ty); ctx.lineTo(8, ty); ctx.stroke();
       } else {
         ctx.strokeStyle = '#64748b'; ctx.lineWidth = 0.7;
-        ctx.beginPath(); ctx.moveTo(pad, ty); ctx.lineTo(pad + 5, ty); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(0, ty); ctx.lineTo(5, ty); ctx.stroke();
       }
     }
 
     ctx.font = 'bold 10px sans-serif';
     ctx.fillStyle = '#047857';
-    ctx.fillText('90°', pad + 16, pad + 26);
+    ctx.fillText('90°', 16, 26);
     if (is3060) {
-      ctx.fillText('60°', pB.x - 24, pad + 16);
-      ctx.fillText('30°', pad + 6, pC.y - 12);
+      ctx.fillText('60°', pB.x - 24, 16);
+      ctx.fillText('30°', 6, pC.y - 12);
     } else {
-      ctx.fillText('45°', pB.x - 24, pad + 16);
-      ctx.fillText('45°', pad + 6, pC.y - 12);
+      ctx.fillText('45°', pB.x - 24, 16);
+      ctx.fillText('45°', 6, pC.y - 12);
     }
+
 
     const badgeText = `📐 ${is3060 ? '30°-60°-90°' : '45°-45°-90°'} • ${angle.toFixed(1)}°`;
     ctx.font = 'bold 9px monospace';

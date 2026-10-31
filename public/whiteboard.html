@@ -15730,14 +15730,30 @@
 
         let protractorData = null;
         if (protractorState.visible) {
-          const overlay = document.getElementById("eduProtractorOverlay");
-          let originPt = { x: protractorState.x + 230, y: protractorState.y + 230 };
-          if (overlay && boardCanvas) {
-            const rect = overlay.getBoundingClientRect();
-            const isFull = protractorState.isFullCircle;
-            const cx = rect.left + 230;
-            const cy = rect.top + (isFull ? 230 : 230);
-            originPt = getCanvasPointFromClient(cx, cy);
+          const pSvg = document.getElementById("eduProtractorSvg");
+          let originPt = null;
+          if (pSvg && typeof pSvg.getScreenCTM === "function" && typeof pSvg.createSVGPoint === "function") {
+            try {
+              const ctm = pSvg.getScreenCTM();
+              if (ctm) {
+                const pt = pSvg.createSVGPoint();
+                pt.x = 230; pt.y = 230;
+                const screenPt = pt.matrixTransform(ctm);
+                originPt = getCanvasPointFromClient(screenPt.x, screenPt.y);
+              }
+            } catch (_) {}
+          }
+          if (!originPt) {
+            const originHandle = document.getElementById("eduProtractorOriginHandle");
+            if (originHandle && boardCanvas) {
+              const hRect = originHandle.getBoundingClientRect();
+              originPt = getCanvasPointFromClient(hRect.left + hRect.width / 2, hRect.top + hRect.height / 2);
+            } else if (boardCanvas) {
+              const canvasRect = boardCanvas.getBoundingClientRect();
+              originPt = getCanvasPointFromClient(canvasRect.left + protractorState.x + 230, canvasRect.top + protractorState.y + 230);
+            } else {
+              originPt = { x: protractorState.x + 230, y: protractorState.y + 230 };
+            }
           }
           protractorData = {
             visible: true,
@@ -15772,9 +15788,15 @@
 
         let setSquareData = null;
         if (setSquareState.visible) {
-          let originPt = { x: setSquareState.x, y: setSquareState.y };
-          if (boardCanvas) {
-            originPt = getCanvasPointFromClient(setSquareState.x, setSquareState.y);
+          const vertices = (typeof getSetSquareCanvasVertices === "function") ? getSetSquareCanvasVertices() : null;
+          let originPt = null;
+          if (vertices) {
+            originPt = vertices.ptA;
+          } else if (boardCanvas) {
+            const canvasRect = boardCanvas.getBoundingClientRect();
+            originPt = getCanvasPointFromClient(canvasRect.left + setSquareState.x + 24, canvasRect.top + setSquareState.y + 24);
+          } else {
+            originPt = { x: setSquareState.x, y: setSquareState.y };
           }
           setSquareData = {
             visible: true,
@@ -17918,9 +17940,33 @@
         const baseRad = (protractorState.baseRotation * Math.PI) / 180;
         const isInner = protractorState.scaleMode === "inner";
 
-        // Center origin crosshair in client space (invariant under scale/rotation around (230, 230))
-        const centerClientX = protractorState.x + 230;
-        const centerClientY = protractorState.y + 230;
+        // Center origin crosshair in screen space via SVG matrix
+        const pSvg = document.getElementById("eduProtractorSvg");
+        let centerClientX = null, centerClientY = null;
+        if (pSvg && typeof pSvg.getScreenCTM === "function" && typeof pSvg.createSVGPoint === "function") {
+          try {
+            const ctm = pSvg.getScreenCTM();
+            if (ctm) {
+              const pt = pSvg.createSVGPoint();
+              pt.x = 230; pt.y = 230;
+              const sPt = pt.matrixTransform(ctm);
+              centerClientX = sPt.x;
+              centerClientY = sPt.y;
+            }
+          } catch (_) {}
+        }
+        if (centerClientX == null) {
+          const originHandle = document.getElementById("eduProtractorOriginHandle");
+          if (originHandle) {
+            const hRect = originHandle.getBoundingClientRect();
+            centerClientX = hRect.left + hRect.width / 2;
+            centerClientY = hRect.top + hRect.height / 2;
+          } else {
+            const canvasRect = boardCanvas.getBoundingClientRect();
+            centerClientX = canvasRect.left + protractorState.x + 230;
+            centerClientY = canvasRect.top + protractorState.y + 230;
+          }
+        }
 
         // Vertex in canvas space
         const vPt = getCanvasPointFromClient(centerClientX, centerClientY);
@@ -18374,6 +18420,60 @@
         svg.innerHTML = svgMarkup;
       }
 
+      function getSetSquareCanvasVertices() {
+        const overlay = document.getElementById("eduSetSquareOverlay");
+        const svg = document.getElementById("eduSetSquareSvg");
+        if (!overlay || !svg || !boardCanvas) return null;
+
+        const pad = 24;
+        const is3060 = setSquareState.type === "30-60-90";
+        const pxPerCm = setSquareState.pxPerCm;
+        const baseCm = setSquareState.sizeCm || (is3060 ? 6 : 7);
+        const wPx = baseCm * pxPerCm;
+        const hPx = is3060 ? Math.round(wPx * Math.sqrt(3)) : wPx;
+
+        const localA = { x: pad, y: pad };
+        const localB = { x: pad + wPx, y: pad };
+        const localC = { x: pad, y: pad + hPx };
+
+        let screenA = null, screenB = null, screenC = null;
+
+        if (typeof svg.getScreenCTM === "function" && typeof svg.createSVGPoint === "function") {
+          try {
+            const ctm = svg.getScreenCTM();
+            if (ctm) {
+              const ptA = svg.createSVGPoint();
+              ptA.x = localA.x; ptA.y = localA.y;
+              screenA = ptA.matrixTransform(ctm);
+
+              const ptB = svg.createSVGPoint();
+              ptB.x = localB.x; ptB.y = localB.y;
+              screenB = ptB.matrixTransform(ctm);
+
+              const ptC = svg.createSVGPoint();
+              ptC.x = localC.x; ptC.y = localC.y;
+              screenC = ptC.matrixTransform(ctm);
+            }
+          } catch (_) {}
+        }
+
+        if (!screenA) {
+          const canvasRect = boardCanvas.getBoundingClientRect();
+          const rad = (setSquareState.angle * Math.PI) / 180;
+          const ax = canvasRect.left + setSquareState.x + pad;
+          const ay = canvasRect.top + setSquareState.y + pad;
+          screenA = { x: ax, y: ay };
+          screenB = { x: ax + wPx * Math.cos(rad), y: ay + wPx * Math.sin(rad) };
+          screenC = { x: ax - hPx * Math.sin(rad), y: ay + hPx * Math.cos(rad) };
+        }
+
+        const ptA = getCanvasPointFromClient(screenA.x, screenA.y);
+        const ptB = getCanvasPointFromClient(screenB.x, screenB.y);
+        const ptC = getCanvasPointFromClient(screenC.x, screenC.y);
+
+        return { ptA, ptB, ptC };
+      }
+
       function stampSetSquareTriangle() {
         const overlay = document.getElementById("eduSetSquareOverlay");
         if (!overlay || !boardCanvas) return;
@@ -18382,24 +18482,9 @@
         if (!page.shapes) page.shapes = [];
         pushUndo();
 
-        const rad = (setSquareState.angle * Math.PI) / 180;
-        const pxPerCm = setSquareState.pxPerCm;
-        const is3060 = setSquareState.type === "30-60-90";
-        const baseCm = setSquareState.sizeCm || (is3060 ? 6 : 7);
-        const wPx = baseCm * pxPerCm;
-        const hPx = is3060 ? Math.round(wPx * Math.sqrt(3)) : wPx;
-
-        // Overlay transform-origin is at (24px, 24px) corner A
-        const ax = setSquareState.x + 24;
-        const ay = setSquareState.y + 24;
-        const bx = ax + wPx * Math.cos(rad);
-        const by = ay + wPx * Math.sin(rad);
-        const cx = ax - hPx * Math.sin(rad);
-        const cy = ay + hPx * Math.cos(rad);
-
-        const ptA = getCanvasPointFromClient(ax, ay);
-        const ptB = getCanvasPointFromClient(bx, by);
-        const ptC = getCanvasPointFromClient(cx, cy);
+        const vertices = getSetSquareCanvasVertices();
+        if (!vertices) return;
+        const { ptA, ptB, ptC } = vertices;
 
         const strokeColor = penSettings.color || "#047857";
         const strokeWidth = penSettings.width || 2;
@@ -18444,23 +18529,9 @@
         if (!page.shapes) page.shapes = [];
         pushUndo();
 
-        const rad = (setSquareState.angle * Math.PI) / 180;
-        const pxPerCm = setSquareState.pxPerCm;
-        const is3060 = setSquareState.type === "30-60-90";
-        const baseCm = setSquareState.sizeCm || (is3060 ? 6 : 7);
-        const wPx = baseCm * pxPerCm;
-        const hPx = is3060 ? Math.round(wPx * Math.sqrt(3)) : wPx;
-
-        // Overlay transform-origin is at (24px, 24px) corner A
-        const ax = setSquareState.x + 24;
-        const ay = setSquareState.y + 24;
-        const bx = ax + wPx * Math.cos(rad);
-        const by = ay + wPx * Math.sin(rad);
-        const cx = ax - hPx * Math.sin(rad);
-        const cy = ay + hPx * Math.cos(rad);
-
-        const ptB = getCanvasPointFromClient(bx, by);
-        const ptC = getCanvasPointFromClient(cx, cy);
+        const vertices = getSetSquareCanvasVertices();
+        if (!vertices) return;
+        const { ptB, ptC } = vertices;
 
         const strokeColor = penSettings.color || "#047857";
         const strokeWidth = penSettings.width || 2;
