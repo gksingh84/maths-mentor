@@ -3665,7 +3665,7 @@
                 });
                 saveUserStamps();
                 if (currentTool === "stamps" && propertiesContent) {
-                  renderStampOptions();
+                  handleToolSelection("stamps");
                 }
               },
             });
@@ -10382,6 +10382,10 @@
       let stampSearchQuery = "";
 
       function renderStampOptions() {
+        if (!propertiesContent) return;
+        const existing = propertiesContent.querySelectorAll(".tool-options-group");
+        existing.forEach((el) => el.remove());
+
         const stampsGroup = document.createElement("div");
         stampsGroup.className = "tool-options-group";
 
