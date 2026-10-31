@@ -1473,16 +1473,30 @@
       const int1X = tx1 + (tx2 - tx1) * ((line1Y - ty1) / (ty2 - ty1));
       const int2X = tx1 + (tx2 - tx1) * ((line2Y - ty1) / (ty2 - ty1));
 
-      // 8 Angles
-      drawLabel("1", int1X - 12, line1Y - 8, fontMath, primary);
-      drawLabel("2", int1X + 12, line1Y - 8, fontMath, primary);
-      drawLabel("3", int1X - 12, line1Y + 8, fontMath, primary);
-      drawLabel("4", int1X + 12, line1Y + 8, fontMath, primary);
+      // 8 Angles - spacious quadrant placement avoiding lines and transversal
+      const offX_wide = Math.max(26, Math.round(30 * sFactor));
+      const offX_mid  = Math.max(16, Math.round(18 * sFactor));
+      const offY      = Math.max(12, Math.round(14 * sFactor));
 
-      drawLabel("5", int2X - 12, line2Y - 8, fontMath, accent);
-      drawLabel("6", int2X + 12, line2Y - 8, fontMath, accent);
-      drawLabel("7", int2X - 12, line2Y + 8, fontMath, accent);
-      drawLabel("8", int2X + 12, line2Y + 8, fontMath, accent);
+      // Intersection 1 (Line l):
+      // Angle 1: Exterior top-left (left of transversal, above line l)
+      drawLabel("1", int1X - offX_wide, line1Y - offY, fontMath, primary);
+      // Angle 2: Interior top-right (right of transversal, above line l)
+      drawLabel("2", int1X + offX_mid, line1Y - offY, fontMath, primary);
+      // Angle 3: Interior bottom-left (left of transversal, below line l)
+      drawLabel("3", int1X - offX_mid, line1Y + offY, fontMath, primary);
+      // Angle 4: Exterior bottom-right (right of transversal, below line l)
+      drawLabel("4", int1X + offX_wide, line1Y + offY, fontMath, primary);
+
+      // Intersection 2 (Line m):
+      // Angle 5: Exterior top-left (left of transversal, above line m)
+      drawLabel("5", int2X - offX_wide, line2Y - offY, fontMath, accent);
+      // Angle 6: Interior top-right (right of transversal, above line m)
+      drawLabel("6", int2X + offX_mid, line2Y - offY, fontMath, accent);
+      // Angle 7: Interior bottom-left (left of transversal, below line m)
+      drawLabel("7", int2X - offX_mid, line2Y + offY, fontMath, accent);
+      // Angle 8: Exterior bottom-right (right of transversal, below line m)
+      drawLabel("8", int2X + offX_wide, line2Y + offY, fontMath, accent);
 
       drawLabel("∠3=∠6 (alt int), ∠1=∠5 (corr)", cx, y2 - 6, fontSmall, primary);
     }
@@ -1490,13 +1504,71 @@
     // =========================================================================
     // 8. CONGRUENT TRIANGLES
     // =========================================================================
-    else if (geo === "congruentSSS" || geo === "congruentSAS" || geo === "congruentASA" || geo === "congruentRHS" || geo === "congruentTrianglesOverview") {
+    else if (geo === "congruentRHS") {
+      drawLabel("RHS Congruence Criterion", cx, y1 + 12, fontTitle, color);
+
+      const halfW = gw / 2 - 20;
+      const t1x = gx1 + halfW / 2, t2x = gx2 - halfW / 2;
+      const baseY = bottomY - 14;
+      const tTopY = topY + 8;
+      const legW = halfW * 0.72;
+
+      // Triangle 1: Right-angled at B (AB ⊥ BC)
+      const bX = t1x - legW * 0.46, bY = baseY;
+      const aX = bX, aY = tTopY; // AB is vertical
+      const cX = bX + legW, cY = baseY; // BC is horizontal
+
+      // Triangle 2: Right-angled at E (DE ⊥ EF)
+      const eX = t2x - legW * 0.46, eY = baseY;
+      const dX = eX, dY = tTopY; // DE is vertical
+      const fX = eX + legW, fY = baseY; // EF is horizontal
+
+      ctx.beginPath();
+      ctx.moveTo(aX, aY); ctx.lineTo(bX, bY); ctx.lineTo(cX, cY); ctx.closePath();
+      ctx.moveTo(dX, dY); ctx.lineTo(eX, eY); ctx.lineTo(fX, fY); ctx.closePath();
+      ctx.stroke();
+
+      // Right-angle square markers at B and E
+      const sq = Math.min(14, Math.min(legW, baseY - tTopY) * 0.20);
+      ctx.strokeStyle = primary;
+      ctx.strokeRect(bX, bY - sq, sq, sq);
+      ctx.strokeRect(eX, eY - sq, sq, sq);
+
+      // Hypotenuse AC = DF (indicated with double tick marks)
+      const angH1 = Math.atan2(cY - aY, cX - aX) + Math.PI / 2;
+      const m1x = (aX + cX) / 2, m1y = (aY + cY) / 2;
+      drawTickMark(ctx, m1x - 2.5 * Math.cos(angH1), m1y - 2.5 * Math.sin(angH1), angH1, 6);
+      drawTickMark(ctx, m1x + 2.5 * Math.cos(angH1), m1y + 2.5 * Math.sin(angH1), angH1, 6);
+
+      const angH2 = Math.atan2(fY - dY, fX - dX) + Math.PI / 2;
+      const m2x = (dX + fX) / 2, m2y = (dY + fY) / 2;
+      drawTickMark(ctx, m2x - 2.5 * Math.cos(angH2), m2y - 2.5 * Math.sin(angH2), angH2, 6);
+      drawTickMark(ctx, m2x + 2.5 * Math.cos(angH2), m2y + 2.5 * Math.sin(angH2), angH2, 6);
+
+      // Equal side (leg) AB = DE (indicated with single tick mark)
+      drawTickMark(ctx, bX, (aY + bY) / 2, 0, 6);
+      drawTickMark(ctx, eX, (dY + eY) / 2, 0, 6);
+
+      // Labels
+      drawLabel("A", aX - 4, aY - 9, fontLabel, color, "right");
+      drawLabel("B", bX - 8, bY + 4, fontLabel, color, "right");
+      drawLabel("C", cX + 8, cY + 4, fontLabel, color, "left");
+
+      drawLabel("D", dX - 4, dY - 9, fontLabel, color, "right");
+      drawLabel("E", eX - 8, eY + 4, fontLabel, color, "right");
+      drawLabel("F", fX + 8, fY + 4, fontLabel, color, "left");
+
+      // Congruence symbol in center
+      drawLabel("≅", cx, (tTopY + baseY) / 2, `bold ${Math.round(22 * sFactor)}px sans-serif`, primary);
+
+      drawLabel("RHS: Right angle (∠B=∠E=90°), Hypotenuse (AC=DF) & Side (AB=DE) equal", cx, y2 - 6, fontSmall, primary);
+    }
+    else if (geo === "congruentSSS" || geo === "congruentSAS" || geo === "congruentASA" || geo === "congruentTrianglesOverview") {
       let critTitle = "Congruent Triangles";
       let critRule = "△ABC ≅ △DEF";
       if (geo === "congruentSSS") { critTitle = "SSS Congruence Criterion"; critRule = "All 3 pairs of corresponding sides equal"; }
       else if (geo === "congruentSAS") { critTitle = "SAS Congruence Criterion"; critRule = "2 sides and included angle equal"; }
       else if (geo === "congruentASA") { critTitle = "ASA Congruence Criterion"; critRule = "2 angles and included side equal"; }
-      else if (geo === "congruentRHS") { critTitle = "RHS Congruence Criterion"; critRule = "Right angle, hypotenuse & side equal"; }
 
       drawLabel(critTitle, cx, y1 + 12, fontTitle, color);
 
@@ -1557,14 +1629,6 @@
         ctx.beginPath(); ctx.arc(fX, fY, 12, Math.PI, 4 * Math.PI / 3); ctx.stroke();
         drawTickMark(ctx, t1x, baseY, Math.PI / 2, 5);
         drawTickMark(ctx, t2x, baseY, Math.PI / 2, 5);
-      } else if (geo === "congruentRHS") {
-        ctx.strokeStyle = primary;
-        ctx.strokeRect(bX, bY - 10, 10, 10);
-        ctx.strokeRect(eX, eY - 10, 10, 10);
-        drawTickMark(ctx, (aX + cX) / 2, (aY + cY) / 2, -0.6, 5);
-        drawTickMark(ctx, (dX + fX) / 2, (dY + fY) / 2, -0.6, 5);
-        drawTickMark(ctx, (aX + bX) / 2, (aY + bY) / 2, 0.6, 5);
-        drawTickMark(ctx, (dX + eX) / 2, (dY + eY) / 2, 0.6, 5);
       }
 
       drawLabel(critRule, cx, y2 - 6, fontSmall, primary);

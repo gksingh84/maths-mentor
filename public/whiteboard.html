@@ -17358,15 +17358,24 @@
         periodicBtn.innerHTML = "<span style='font-size:1.1rem;'>🔬</span> Open Periodic Table (118 Elements)";
         periodicBtn.style.padding = "0.6rem 0.8rem";
         periodicBtn.style.borderRadius = "8px";
-        periodicBtn.style.border = "1.5px solid #0284c7";
-        periodicBtn.style.background = "#e0f2fe";
-        periodicBtn.style.color = "#0369a1";
+        periodicBtn.style.border = "1px solid #cbd5e1";
+        periodicBtn.style.background = "#ffffff";
+        periodicBtn.style.color = "#1e293b";
         periodicBtn.style.fontWeight = "700";
         periodicBtn.style.fontSize = "0.85rem";
         periodicBtn.style.cursor = "pointer";
         periodicBtn.style.display = "flex";
         periodicBtn.style.alignItems = "center";
         periodicBtn.style.gap = "8px";
+        periodicBtn.style.transition = "all 0.15s ease";
+        periodicBtn.addEventListener("mouseenter", () => {
+          periodicBtn.style.background = "#f8fafc";
+          periodicBtn.style.borderColor = "#94a3b8";
+        });
+        periodicBtn.addEventListener("mouseleave", () => {
+          periodicBtn.style.background = "#ffffff";
+          periodicBtn.style.borderColor = "#cbd5e1";
+        });
         periodicBtn.addEventListener("click", () => {
           if (window.EduAshramPeriodicTable && typeof window.EduAshramPeriodicTable.openPeriodicTableModal === "function") {
             window.EduAshramPeriodicTable.openPeriodicTableModal(
