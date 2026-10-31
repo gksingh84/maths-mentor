@@ -3163,6 +3163,7 @@
         yAxisLabel: "Frequency",
         labelsStr: "A, B, C, D, E",
         valuesStr: "40, 65, 50, 80, 55",
+        keyText: "",
         showValues: true,
         showAxisLabels: true,
       };
@@ -6503,14 +6504,16 @@
           const showValues = shape.showValues !== false;
           const showAxisLabels = shape.showAxisLabels !== false;
 
+          const keyText = (shape.keyText || "").trim();
           const hasTitle = Boolean(title);
           const hasXLabel = Boolean(xAxisLabel && showAxisLabels);
           const hasYLabel = Boolean(yAxisLabel && showAxisLabels);
+          const hasKey = Boolean(keyText);
 
           const padL = Math.max(hasYLabel ? 56 : 42, Math.min(75, w * 0.16));
           const padR = 20;
           const padT = hasTitle ? Math.max(34, Math.min(50, h * 0.15)) : 22;
-          const padB = Math.max(hasXLabel ? 48 : 34, Math.min(65, h * 0.18));
+          const padB = Math.max(hasXLabel ? (hasKey ? 64 : 48) : (hasKey ? 48 : 34), Math.min(80, h * 0.22));
           const chartW = w - padL - padR;
           const chartH = h - padT - padB;
           if (chartW <= 0 || chartH <= 0) { ctx.restore(); return; }
@@ -6626,6 +6629,16 @@
             ctx.fillText(xAxisLabel, x1 + padL + chartW / 2, y1 + padT + chartH + 22);
           }
 
+          // Key / Legend below chart
+          if (hasKey) {
+            ctx.font = 'italic 10.5px "Segoe UI", sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'top';
+            ctx.fillStyle = '#6b7280';
+            const keyY = hasXLabel ? (y1 + padT + chartH + 38) : (y1 + padT + chartH + 20);
+            ctx.fillText(keyText, x1 + padL + chartW / 2, keyY);
+          }
+
           ctx.restore();
         } else if (type === "pieChart") {
           const rawData = Array.isArray(shape.data) && shape.data.length ? shape.data : [30, 25, 20, 15, 10];
@@ -6635,9 +6648,12 @@
           const showValues = shape.showValues !== false;
           const total = data.reduce((s, v) => s + v, 0) || 1;
 
+          const keyText = (shape.keyText || "").trim();
           const hasTitle = Boolean(title);
+          const hasKey = Boolean(keyText);
           const topOffset = hasTitle ? 28 : 10;
-          const availableH = h - topOffset - 10;
+          const bottomOffset = hasKey ? 24 : 10;
+          const availableH = h - topOffset - bottomOffset;
           const rad = Math.min(w - 24, availableH) / 2 - 8;
           if (rad <= 0) { ctx.restore(); return; }
 
@@ -6721,6 +6737,15 @@
             startA = endA;
           }
 
+          // Key / Legend below chart
+          if (hasKey) {
+            ctx.font = 'italic 10.5px "Segoe UI", sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'bottom';
+            ctx.fillStyle = '#6b7280';
+            ctx.fillText(keyText, cx, y1 + h - 4);
+          }
+
           ctx.restore();
         } else if (type === "horizontalBarChart") {
           const rawData = Array.isArray(shape.data) && shape.data.length ? shape.data : [40, 65, 50, 80, 55];
@@ -6732,14 +6757,16 @@
           const showValues = shape.showValues !== false;
           const showAxisLabels = shape.showAxisLabels !== false;
 
+          const keyText = (shape.keyText || "").trim();
           const hasTitle = Boolean(title);
           const hasXLabel = Boolean(xAxisLabel && showAxisLabels);
           const hasYLabel = Boolean(yAxisLabel && showAxisLabels);
+          const hasKey = Boolean(keyText);
 
           const padL = Math.max(hasYLabel ? 65 : 48, Math.min(85, w * 0.22));
           const padR = showValues ? 38 : 20;
           const padT = hasTitle ? Math.max(34, Math.min(50, h * 0.15)) : 22;
-          const padB = Math.max(hasXLabel ? 45 : 30, Math.min(60, h * 0.16));
+          const padB = Math.max(hasXLabel ? (hasKey ? 58 : 45) : (hasKey ? 42 : 30), Math.min(75, h * 0.20));
           const chartW = w - padL - padR;
           const chartH = h - padT - padB;
           if (chartW <= 0 || chartH <= 0) { ctx.restore(); return; }
@@ -6856,6 +6883,16 @@
             ctx.fillText(xAxisLabel, x1 + padL + chartW / 2, y1 + padT + chartH + 18);
           }
 
+          // Key / Legend below chart
+          if (hasKey) {
+            ctx.font = 'italic 10.5px "Segoe UI", sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'top';
+            ctx.fillStyle = '#6b7280';
+            const keyY = hasXLabel ? (y1 + padT + chartH + 34) : (y1 + padT + chartH + 18);
+            ctx.fillText(keyText, x1 + padL + chartW / 2, keyY);
+          }
+
           ctx.restore();
         } else if (type === "pictograph") {
           const rawData = Array.isArray(shape.data) && shape.data.length ? shape.data : [3, 5, 2, 4, 3];
@@ -6864,11 +6901,13 @@
           const title = (shape.title || "").trim();
           const showValues = shape.showValues !== false;
 
+          const keyText = shape.keyText !== undefined ? (shape.keyText || "").trim() : "Key: 1 symbol = 1 item";
           const hasTitle = Boolean(title);
+          const hasKey = Boolean(keyText);
           const padL = 60;
           const padR = showValues ? 34 : 16;
           const padT = hasTitle ? 32 : 18;
-          const padB = 26;
+          const padB = hasKey ? 26 : 14;
           const chartW = w - padL - padR;
           const chartH = h - padT - padB;
           if (chartW <= 0 || chartH <= 0) { ctx.restore(); return; }
@@ -6978,11 +7017,13 @@
           }
 
           // Key legend at bottom
-          ctx.font = 'italic 10px "Segoe UI", sans-serif';
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'top';
-          ctx.fillStyle = '#6b7280';
-          ctx.fillText(shape.keyText || "Key: 1 symbol = 1 item", x1 + padL + chartW / 2, y1 + padT + chartH + 7);
+          if (hasKey) {
+            ctx.font = 'italic 10.5px "Segoe UI", sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'top';
+            ctx.fillStyle = '#6b7280';
+            ctx.fillText(keyText, x1 + padL + chartW / 2, y1 + padT + chartH + 7);
+          }
 
           ctx.restore();
         } else if ((type === "image" || type === "equation") && shape.dataUrl) {
@@ -8652,7 +8693,7 @@
           { id: "pieChart", title: "Pie chart" },
         ];
 
-        let titleInput, xInput, yInput, catInput, valInput, axisRowContainer;
+        let titleInput, xInput, yInput, catInput, valInput, keyInput, axisRowContainer;
 
         function updateFormForType(type) {
           if (axisRowContainer) {
@@ -8666,6 +8707,7 @@
             if (!chartSettings.title) chartSettings.title = "Fruit Count";
             if (!chartSettings.labelsStr || chartSettings.labelsStr === "A, B, C, D, E") chartSettings.labelsStr = "Apples, Bananas, Oranges, Pears, Grapes";
             if (!chartSettings.valuesStr || chartSettings.valuesStr === "40, 65, 50, 80, 55") chartSettings.valuesStr = "8, 6, 2, 5, 7";
+            if (!chartSettings.keyText) chartSettings.keyText = "Key: 1 symbol = 1 item";
           } else if (type === "horizontalBarChart") {
             if (!chartSettings.xAxisLabel) chartSettings.xAxisLabel = "Amount";
             if (!chartSettings.yAxisLabel) chartSettings.yAxisLabel = "Items";
@@ -8679,6 +8721,7 @@
           if (yInput) yInput.value = chartSettings.yAxisLabel || "";
           if (catInput) catInput.value = chartSettings.labelsStr || "";
           if (valInput) valInput.value = chartSettings.valuesStr || "";
+          if (keyInput) keyInput.value = chartSettings.keyText || "";
         }
 
         chartTypes.forEach((opt) => {
@@ -8730,10 +8773,10 @@
         presetsRow.style.marginBottom = "8px";
 
         const presets = [
-          { name: "📊 Grades", title: "Math Quiz Grades", x: "Grade", y: "Students", cat: "A, B, C, D, E", val: "12, 20, 28, 15, 6" },
-          { name: "🍎 Fruits", title: "Favorite Fruits", x: "Fruit", y: "Votes", cat: "Apple, Banana, Orange, Mango, Grape", val: "14, 22, 18, 25, 9" },
-          { name: "🥧 Budget", title: "Monthly Budget", x: "Category", y: "Amount ($)", cat: "Rent, Food, Utilities, Savings, Misc", val: "35, 25, 15, 15, 10" },
-          { name: "📅 Sales", title: "Weekly Sales", x: "Day", y: "Units", cat: "Mon, Tue, Wed, Thu, Fri", val: "35, 48, 62, 55, 78" }
+          { name: "📊 Grades", title: "Math Quiz Grades", x: "Grade", y: "Students", cat: "A, B, C, D, E", val: "12, 20, 28, 15, 6", key: "Key: 1 unit = 1 student" },
+          { name: "🍎 Fruits", title: "Favorite Fruits", x: "Fruit", y: "Votes", cat: "Apple, Banana, Orange, Mango, Grape", val: "14, 22, 18, 25, 9", key: "Key: 1 unit = 1 vote" },
+          { name: "🥧 Budget", title: "Monthly Budget", x: "Category", y: "Amount ($)", cat: "Rent, Food, Utilities, Savings, Misc", val: "35, 25, 15, 15, 10", key: "Key: Total Budget = 100%" },
+          { name: "📅 Sales", title: "Weekly Sales", x: "Day", y: "Units", cat: "Mon, Tue, Wed, Thu, Fri", val: "35, 48, 62, 55, 78", key: "Key: 1 unit = 1 item sold" }
         ];
 
         presets.forEach((p) => {
@@ -8754,11 +8797,13 @@
             chartSettings.yAxisLabel = p.y || "";
             chartSettings.labelsStr = p.cat || "";
             chartSettings.valuesStr = p.val || "";
+            chartSettings.keyText = p.key || "";
             if (titleInput) titleInput.value = chartSettings.title;
             if (xInput) xInput.value = chartSettings.xAxisLabel;
             if (yInput) yInput.value = chartSettings.yAxisLabel;
             if (catInput) catInput.value = chartSettings.labelsStr;
             if (valInput) valInput.value = chartSettings.valuesStr;
+            if (keyInput) keyInput.value = chartSettings.keyText;
           });
           presetsRow.appendChild(pb);
         });
@@ -8881,6 +8926,28 @@
         });
         group.appendChild(valInput);
 
+        // Key / Legend Input (below chart)
+        const keyLbl = document.createElement("label");
+        keyLbl.className = "tool-options-label";
+        keyLbl.textContent = "Chart Key / Legend (optional)";
+        group.appendChild(keyLbl);
+
+        keyInput = document.createElement("input");
+        keyInput.type = "text";
+        keyInput.value = chartSettings.keyText || "";
+        keyInput.placeholder = "e.g. Key: 1 symbol = 1 item or Key: 1 unit = 5";
+        keyInput.style.width = "100%";
+        keyInput.style.padding = "4px 6px";
+        keyInput.style.fontSize = "0.78rem";
+        keyInput.style.borderRadius = "4px";
+        keyInput.style.border = "1px solid #cbd5e1";
+        keyInput.style.marginBottom = "6px";
+        keyInput.style.boxSizing = "border-box";
+        keyInput.addEventListener("input", (e) => {
+          chartSettings.keyText = e.target.value;
+        });
+        group.appendChild(keyInput);
+
         // Checkboxes Row
         const checkRow = document.createElement("div");
         checkRow.style.display = "flex";
@@ -8942,7 +9009,7 @@
         const isPie = shape.type === "pieChart";
         const isPic = shape.type === "pictograph";
 
-        let titleInput, xInput, yInput, catInput, valInput;
+        let titleInput, xInput, yInput, catInput, valInput, keyInput;
 
         const card = document.createElement("div");
         card.style.background = "#f8fafc";
@@ -8995,10 +9062,10 @@
         editPresetsRow.style.marginBottom = "8px";
 
         [
-          { name: "📊 Grades", title: "Math Quiz Grades", x: "Grade", y: "Students", cat: ["A", "B", "C", "D", "E"], val: [12, 20, 28, 15, 6] },
-          { name: "🍎 Fruits", title: "Favorite Fruits", x: "Fruit", y: "Votes", cat: ["Apple", "Banana", "Orange", "Mango", "Grape"], val: [14, 22, 18, 25, 9] },
-          { name: "🥧 Budget", title: "Monthly Budget", x: "Category", y: "Amount ($)", cat: ["Rent", "Food", "Utilities", "Savings", "Misc"], val: [35, 25, 15, 15, 10] },
-          { name: "📅 Sales", title: "Weekly Sales", x: "Day", y: "Units", cat: ["Mon", "Tue", "Wed", "Thu", "Fri"], val: [35, 48, 62, 55, 78] }
+          { name: "📊 Grades", title: "Math Quiz Grades", x: "Grade", y: "Students", cat: ["A", "B", "C", "D", "E"], val: [12, 20, 28, 15, 6], key: "Key: 1 unit = 1 student" },
+          { name: "🍎 Fruits", title: "Favorite Fruits", x: "Fruit", y: "Votes", cat: ["Apple", "Banana", "Orange", "Mango", "Grape"], val: [14, 22, 18, 25, 9], key: "Key: 1 unit = 1 vote" },
+          { name: "🥧 Budget", title: "Monthly Budget", x: "Category", y: "Amount ($)", cat: ["Rent", "Food", "Utilities", "Savings", "Misc"], val: [35, 25, 15, 15, 10], key: "Key: Total Budget = 100%" },
+          { name: "📅 Sales", title: "Weekly Sales", x: "Day", y: "Units", cat: ["Mon", "Tue", "Wed", "Thu", "Fri"], val: [35, 48, 62, 55, 78], key: "Key: 1 unit = 1 item sold" }
         ].forEach((p) => {
           const pb = document.createElement("button");
           pb.type = "button";
@@ -9018,11 +9085,13 @@
             shape.yAxisLabel = p.y;
             shape.labels = [...p.cat];
             shape.data = [...p.val];
+            shape.keyText = p.key || "";
             if (titleInput) titleInput.value = p.title;
             if (xInput) xInput.value = p.x;
             if (yInput) yInput.value = p.y;
             if (catInput) catInput.value = p.cat.join(", ");
             if (valInput) valInput.value = p.val.join(", ");
+            if (keyInput) keyInput.value = shape.keyText;
             updateBoardAppearance();
             notifyParentPageUpdate(currentPageIndex, true);
             scheduleNotifyParentPages(100);
@@ -9190,6 +9259,35 @@
           }
         });
         card.appendChild(valInput);
+
+        // Key / Legend Input (below chart)
+        const keyLbl = document.createElement("label");
+        keyLbl.style.fontSize = "0.72rem";
+        keyLbl.style.fontWeight = "600";
+        keyLbl.style.color = "#475569";
+        keyLbl.style.display = "block";
+        keyLbl.style.marginBottom = "2px";
+        keyLbl.textContent = "Chart Key / Legend (below chart)";
+        card.appendChild(keyLbl);
+
+        keyInput = document.createElement("input");
+        keyInput.type = "text";
+        keyInput.value = shape.keyText || "";
+        keyInput.placeholder = "e.g. Key: 1 symbol = 1 item or Key: 1 unit = 5";
+        keyInput.style.width = "100%";
+        keyInput.style.padding = "4px 6px";
+        keyInput.style.fontSize = "0.78rem";
+        keyInput.style.borderRadius = "4px";
+        keyInput.style.border = "1px solid #cbd5e1";
+        keyInput.style.marginBottom = "6px";
+        keyInput.style.boxSizing = "border-box";
+        keyInput.addEventListener("input", (e) => {
+          shape.keyText = e.target.value;
+          updateBoardAppearance();
+          notifyParentPageUpdate(currentPageIndex, true);
+          scheduleNotifyParentPages(150);
+        });
+        card.appendChild(keyInput);
 
         // Checkboxes Row: Show Values & Show Axes
         const checkRow = document.createElement("div");
@@ -12874,6 +12972,7 @@
             showValues: chartSettings.showValues !== false,
             showAxisLabels: chartSettings.showAxisLabels !== false,
             symbolShape: chartType === "pictograph" ? (chartSettings.symbolShape || pictographSymbols[Math.floor(Math.random() * pictographSymbols.length)]) : undefined,
+            keyText: chartSettings.keyText !== undefined ? chartSettings.keyText : (chartType === "pictograph" ? "Key: 1 symbol = 1 item" : ""),
           };
           updateBoardAppearance();
         } else if (currentTool === "select") {

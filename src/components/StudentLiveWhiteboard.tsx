@@ -3121,14 +3121,16 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
         const showValues = sh.showValues !== false;
         const showAxisLabels = sh.showAxisLabels !== false;
 
+        const keyText = (sh.keyText || '').trim();
         const hasTitle = Boolean(title);
         const hasXLabel = Boolean(xAxisLabel && showAxisLabels);
         const hasYLabel = Boolean(yAxisLabel && showAxisLabels);
+        const hasKey = Boolean(keyText);
 
         const padL = Math.max(hasYLabel ? 56 : 42, Math.min(75, w * 0.16));
         const padR = 20;
         const padT = hasTitle ? Math.max(34, Math.min(50, h * 0.15)) : 22;
-        const padB = Math.max(hasXLabel ? 48 : 34, Math.min(65, h * 0.18));
+        const padB = Math.max(hasXLabel ? (hasKey ? 64 : 48) : (hasKey ? 48 : 34), Math.min(80, h * 0.22));
         const chartW = w - padL - padR;
         const chartH = h - padT - padB;
 
@@ -3235,6 +3237,15 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
             ctx.fillText(xAxisLabel, x1 + padL + chartW / 2, y1 + padT + chartH + 22);
           }
 
+          if (hasKey) {
+            ctx.font = 'italic 10.5px "Segoe UI", sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'top';
+            ctx.fillStyle = '#6b7280';
+            const keyY = hasXLabel ? (y1 + padT + chartH + 38) : (y1 + padT + chartH + 20);
+            ctx.fillText(keyText, x1 + padL + chartW / 2, keyY);
+          }
+
           ctx.restore();
         }
       } else if (type === 'pieChart') {
@@ -3245,9 +3256,12 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
         const showValues = sh.showValues !== false;
         const total = data.reduce((s: number, v: number) => s + v, 0) || 1;
 
+        const keyText = (sh.keyText || '').trim();
         const hasTitle = Boolean(title);
+        const hasKey = Boolean(keyText);
         const topOffset = hasTitle ? 28 : 10;
-        const availableH = h - topOffset - 10;
+        const bottomOffset = hasKey ? 24 : 10;
+        const availableH = h - topOffset - bottomOffset;
         const rad = Math.min(w - 24, availableH) / 2 - 8;
 
         if (rad > 0) {
@@ -3330,6 +3344,14 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
             startA = endA;
           }
 
+          if (hasKey) {
+            ctx.font = 'italic 10.5px "Segoe UI", sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'bottom';
+            ctx.fillStyle = '#6b7280';
+            ctx.fillText(keyText, cx, y1 + h - 4);
+          }
+
           ctx.restore();
         }
       } else if (type === 'horizontalBarChart') {
@@ -3342,14 +3364,16 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
         const showValues = sh.showValues !== false;
         const showAxisLabels = sh.showAxisLabels !== false;
 
+        const keyText = (sh.keyText || '').trim();
         const hasTitle = Boolean(title);
         const hasXLabel = Boolean(xAxisLabel && showAxisLabels);
         const hasYLabel = Boolean(yAxisLabel && showAxisLabels);
+        const hasKey = Boolean(keyText);
 
         const padL = Math.max(hasYLabel ? 65 : 48, Math.min(85, w * 0.22));
         const padR = showValues ? 38 : 20;
         const padT = hasTitle ? Math.max(34, Math.min(50, h * 0.15)) : 22;
-        const padB = Math.max(hasXLabel ? 45 : 30, Math.min(60, h * 0.16));
+        const padB = Math.max(hasXLabel ? (hasKey ? 58 : 45) : (hasKey ? 42 : 30), Math.min(75, h * 0.20));
         const chartW = w - padL - padR;
         const chartH = h - padT - padB;
 
@@ -3457,6 +3481,15 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
             ctx.fillText(xAxisLabel, x1 + padL + chartW / 2, y1 + padT + chartH + 18);
           }
 
+          if (hasKey) {
+            ctx.font = 'italic 10.5px "Segoe UI", sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'top';
+            ctx.fillStyle = '#6b7280';
+            const keyY = hasXLabel ? (y1 + padT + chartH + 34) : (y1 + padT + chartH + 18);
+            ctx.fillText(keyText, x1 + padL + chartW / 2, keyY);
+          }
+
           ctx.restore();
         }
       } else if (type === 'pictograph') {
@@ -3466,11 +3499,13 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
         const title = (sh.title || '').trim();
         const showValues = sh.showValues !== false;
 
+        const keyText = sh.keyText !== undefined ? (sh.keyText || '').trim() : 'Key: 1 symbol = 1 item';
         const hasTitle = Boolean(title);
+        const hasKey = Boolean(keyText);
         const padL = 60;
         const padR = showValues ? 34 : 16;
         const padT = hasTitle ? 32 : 18;
-        const padB = 26;
+        const padB = hasKey ? 26 : 14;
         const chartW = w - padL - padR;
         const chartH = h - padT - padB;
 
@@ -3571,11 +3606,13 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
             }
           }
 
-          ctx.font = 'italic 10px "Segoe UI", sans-serif';
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'top';
-          ctx.fillStyle = '#6b7280';
-          ctx.fillText(sh.keyText || 'Key: 1 symbol = 1 item', x1 + padL + chartW / 2, y1 + padT + chartH + 7);
+          if (hasKey) {
+            ctx.font = 'italic 10.5px "Segoe UI", sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'top';
+            ctx.fillStyle = '#6b7280';
+            ctx.fillText(keyText, x1 + padL + chartW / 2, y1 + padT + chartH + 7);
+          }
 
           ctx.restore();
         }
