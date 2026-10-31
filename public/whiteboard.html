@@ -17387,81 +17387,6 @@
           return card;
         }
 
-        // Shared Helper: Create Expandable Accordion Sub-Panel for Edu Tools
-        function createAccordionDrawer(groupId, theme) {
-          const drawer = document.createElement("div");
-          drawer.style.background = theme.drawerBg;
-          drawer.style.border = "1.5px solid " + theme.drawerBorder;
-          drawer.style.borderRadius = "10px";
-          drawer.style.padding = "10px";
-          drawer.style.margin = "2px 0 8px 0";
-          drawer.style.boxShadow = "0 2px 6px rgba(0,0,0,0.04)";
-
-          const dHeader = document.createElement("div");
-          dHeader.style.display = "flex";
-          dHeader.style.alignItems = "center";
-          dHeader.style.justifyContent = "space-between";
-          dHeader.style.marginBottom = "6px";
-
-          const dTitle = document.createElement("span");
-          dTitle.style.fontSize = "0.75rem";
-          dTitle.style.fontWeight = "800";
-          dTitle.style.color = theme.accentColor;
-          dTitle.style.textTransform = "uppercase";
-          dTitle.style.letterSpacing = "0.4px";
-          dTitle.textContent = theme.title;
-          dHeader.appendChild(dTitle);
-
-          const closeBtn = document.createElement("button");
-          closeBtn.type = "button";
-          closeBtn.innerHTML = "✕ Close";
-          closeBtn.style.padding = "2px 8px";
-          closeBtn.style.fontSize = "0.70rem";
-          closeBtn.style.fontWeight = "700";
-          closeBtn.style.color = "#64748b";
-          closeBtn.style.background = "#ffffff";
-          closeBtn.style.border = "1px solid #cbd5e1";
-          closeBtn.style.borderRadius = "5px";
-          closeBtn.style.cursor = "pointer";
-          closeBtn.addEventListener("click", () => {
-            window._activeEduDrawer = null;
-            renderEduToolsOptions();
-          });
-          dHeader.appendChild(closeBtn);
-          drawer.appendChild(dHeader);
-
-          if (theme.desc) {
-            const dDesc = document.createElement("p");
-            dDesc.style.margin = "0 0 8px 0";
-            dDesc.style.fontSize = "0.73rem";
-            dDesc.style.color = "#64748b";
-            dDesc.style.lineHeight = "1.35";
-            dDesc.textContent = theme.desc;
-            drawer.appendChild(dDesc);
-          }
-
-          const advPresets = (window.EduAshramAdvancedTools && Array.isArray(window.EduAshramAdvancedTools.ADVANCED_PRESETS))
-            ? window.EduAshramAdvancedTools.ADVANCED_PRESETS.filter(p => p.group === groupId)
-            : [];
-
-          advPresets.forEach((ap) => {
-            const card = createPresetCard({
-              chip: ap.chip,
-              chipTheme: ap.chipTheme,
-              title: ap.title,
-              subtitle: ap.subtitle,
-              onClick: () => insertAdvancedEduPreset(ap)
-            });
-            drawer.appendChild(card);
-          });
-
-          setTimeout(() => {
-            drawer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-          }, 30);
-
-          return drawer;
-        }
-
         // Section: Instruments Toggles
         const instrumentsBox = document.createElement("div");
         instrumentsBox.style.display = "flex";
@@ -17670,154 +17595,16 @@
         });
         instrumentsBox.appendChild(diagBtn);
 
-        // 4. Timeline Builder Button (with Direct Accordion Drawer)
-        const isTimelineOpen = window._activeEduDrawer === "timelines";
-        const timelineBtn = document.createElement("button");
-        timelineBtn.type = "button";
-        timelineBtn.innerHTML = `<span style='font-size:1.1rem;'>⏳</span> Timeline Builder (History & Sequences) <span style='margin-left:auto;font-size:0.75rem;color:#ea580c;font-weight:800;'>${isTimelineOpen ? "▲" : "▼"}</span>`;
-        timelineBtn.style.padding = "0.6rem 0.8rem";
-        timelineBtn.style.borderRadius = "8px";
-        timelineBtn.style.border = isTimelineOpen ? "1.5px solid #ea580c" : "1px solid #cbd5e1";
-        timelineBtn.style.background = isTimelineOpen ? "#fff7ed" : "#ffffff";
-        timelineBtn.style.color = isTimelineOpen ? "#c2410c" : "#1e293b";
-        timelineBtn.style.fontWeight = "700";
-        timelineBtn.style.fontSize = "0.85rem";
-        timelineBtn.style.cursor = "pointer";
-        timelineBtn.style.display = "flex";
-        timelineBtn.style.alignItems = "center";
-        timelineBtn.style.gap = "8px";
-        timelineBtn.style.transition = "all 0.15s ease";
-        timelineBtn.addEventListener("mouseenter", () => {
-          if (!isTimelineOpen) {
-            timelineBtn.style.background = "#f8fafc";
-            timelineBtn.style.borderColor = "#94a3b8";
-          }
-        });
-        timelineBtn.addEventListener("mouseleave", () => {
-          if (!isTimelineOpen) {
-            timelineBtn.style.background = "#ffffff";
-            timelineBtn.style.borderColor = "#cbd5e1";
-          }
-        });
-        timelineBtn.addEventListener("click", () => {
-          window._activeEduDrawer = isTimelineOpen ? null : "timelines";
-          renderEduToolsOptions();
-        });
-        instrumentsBox.appendChild(timelineBtn);
-
-        if (isTimelineOpen) {
-          const drawer = createAccordionDrawer("timelines", {
-            title: "Timeline Presets (5 Timelines)",
-            accentColor: "#c2410c",
-            drawerBg: "#fffaf5",
-            drawerBorder: "#fed7aa",
-            desc: "Chronological timelines for history, science milestones & custom sequences. Click any preset to stamp on canvas:"
-          });
-          instrumentsBox.appendChild(drawer);
-        }
-
-        // 5. Map Tools Button (with Direct Accordion Drawer)
-        const isMapsOpen = window._activeEduDrawer === "maps";
-        const mapsBtn = document.createElement("button");
-        mapsBtn.type = "button";
-        mapsBtn.innerHTML = `<span style='font-size:1.1rem;'>🗺️</span> Map Tools (Political, Physical & Labelling) <span style='margin-left:auto;font-size:0.75rem;color:#0284c7;font-weight:800;'>${isMapsOpen ? "▲" : "▼"}</span>`;
-        mapsBtn.style.padding = "0.6rem 0.8rem";
-        mapsBtn.style.borderRadius = "8px";
-        mapsBtn.style.border = isMapsOpen ? "1.5px solid #0284c7" : "1px solid #cbd5e1";
-        mapsBtn.style.background = isMapsOpen ? "#eff6ff" : "#ffffff";
-        mapsBtn.style.color = isMapsOpen ? "#1d4ed8" : "#1e293b";
-        mapsBtn.style.fontWeight = "700";
-        mapsBtn.style.fontSize = "0.85rem";
-        mapsBtn.style.cursor = "pointer";
-        mapsBtn.style.display = "flex";
-        mapsBtn.style.alignItems = "center";
-        mapsBtn.style.gap = "8px";
-        mapsBtn.style.transition = "all 0.15s ease";
-        mapsBtn.addEventListener("mouseenter", () => {
-          if (!isMapsOpen) {
-            mapsBtn.style.background = "#f8fafc";
-            mapsBtn.style.borderColor = "#94a3b8";
-          }
-        });
-        mapsBtn.addEventListener("mouseleave", () => {
-          if (!isMapsOpen) {
-            mapsBtn.style.background = "#ffffff";
-            mapsBtn.style.borderColor = "#cbd5e1";
-          }
-        });
-        mapsBtn.addEventListener("click", () => {
-          window._activeEduDrawer = isMapsOpen ? null : "maps";
-          renderEduToolsOptions();
-        });
-        instrumentsBox.appendChild(mapsBtn);
-
-        if (isMapsOpen) {
-          const drawer = createAccordionDrawer("maps", {
-            title: "Map Tools & Cartography (7 Tools)",
-            accentColor: "#1d4ed8",
-            drawerBg: "#f0f9ff",
-            drawerBorder: "#bae6fd",
-            desc: "India political & physical maps, world continents, compass rose, metric scale bar, legend box & location pin:"
-          });
-          instrumentsBox.appendChild(drawer);
-        }
-
-        // 6. Place Value Charts Button (with Direct Accordion Drawer)
-        const isPvcOpen = window._activeEduDrawer === "place_value";
-        const pvcBtn = document.createElement("button");
-        pvcBtn.type = "button";
-        pvcBtn.innerHTML = `<span style='font-size:1.1rem;'>🧮</span> Place Value Charts (Indian, Intl, Decimal) <span style='margin-left:auto;font-size:0.75rem;color:#059669;font-weight:800;'>${isPvcOpen ? "▲" : "▼"}</span>`;
-        pvcBtn.style.padding = "0.6rem 0.8rem";
-        pvcBtn.style.borderRadius = "8px";
-        pvcBtn.style.border = isPvcOpen ? "1.5px solid #059669" : "1px solid #cbd5e1";
-        pvcBtn.style.background = isPvcOpen ? "#ecfdf5" : "#ffffff";
-        pvcBtn.style.color = isPvcOpen ? "#047857" : "#1e293b";
-        pvcBtn.style.fontWeight = "700";
-        pvcBtn.style.fontSize = "0.85rem";
-        pvcBtn.style.cursor = "pointer";
-        pvcBtn.style.display = "flex";
-        pvcBtn.style.alignItems = "center";
-        pvcBtn.style.gap = "8px";
-        pvcBtn.style.transition = "all 0.15s ease";
-        pvcBtn.addEventListener("mouseenter", () => {
-          if (!isPvcOpen) {
-            pvcBtn.style.background = "#f8fafc";
-            pvcBtn.style.borderColor = "#94a3b8";
-          }
-        });
-        pvcBtn.addEventListener("mouseleave", () => {
-          if (!isPvcOpen) {
-            pvcBtn.style.background = "#ffffff";
-            pvcBtn.style.borderColor = "#cbd5e1";
-          }
-        });
-        pvcBtn.addEventListener("click", () => {
-          window._activeEduDrawer = isPvcOpen ? null : "place_value";
-          renderEduToolsOptions();
-        });
-        instrumentsBox.appendChild(pvcBtn);
-
-        if (isPvcOpen) {
-          const drawer = createAccordionDrawer("place_value", {
-            title: "Place Value Charts (4 Charts)",
-            accentColor: "#047857",
-            drawerBg: "#f0fdf4",
-            drawerBorder: "#bbf7d0",
-            desc: "Indian (Crores/Lakhs) and International (Millions/Thousands) place value grids, decimal charts & conversions:"
-          });
-          instrumentsBox.appendChild(drawer);
-        }
-
-        // 7. Formulas Reference Button (with Direct Accordion Drawer)
-        const isFormulasOpen = window._activeEduDrawer === "formulas";
+        // 4. Perimeter, Area & Volume Formulas Button
+        const isFormulasActive = isDiagOpen && window._selectedEduDiagCategory === "formulas";
         const formulasBtn = document.createElement("button");
         formulasBtn.type = "button";
-        formulasBtn.innerHTML = `<span style='font-size:1.1rem;'>📐</span> Perimeter, Area & Volume Formulas <span style='margin-left:auto;font-size:0.75rem;color:#7e22ce;font-weight:800;'>${isFormulasOpen ? "▲" : "▼"}</span>`;
+        formulasBtn.innerHTML = "<span style='font-size:1.1rem;'>📐</span> " + (isFormulasActive ? "Hide Formulas & Dimensions" : "Formulas & Dimensions (2D & 3D)");
         formulasBtn.style.padding = "0.6rem 0.8rem";
         formulasBtn.style.borderRadius = "8px";
-        formulasBtn.style.border = isFormulasOpen ? "1.5px solid #9333ea" : "1px solid #cbd5e1";
-        formulasBtn.style.background = isFormulasOpen ? "#faf5ff" : "#ffffff";
-        formulasBtn.style.color = isFormulasOpen ? "#7e22ce" : "#1e293b";
+        formulasBtn.style.border = isFormulasActive ? "1.5px solid #7c3aed" : "1px solid #cbd5e1";
+        formulasBtn.style.background = isFormulasActive ? "#faf5ff" : "#ffffff";
+        formulasBtn.style.color = isFormulasActive ? "#7e22ce" : "#1e293b";
         formulasBtn.style.fontWeight = "700";
         formulasBtn.style.fontSize = "0.85rem";
         formulasBtn.style.cursor = "pointer";
@@ -17826,33 +17613,171 @@
         formulasBtn.style.gap = "8px";
         formulasBtn.style.transition = "all 0.15s ease";
         formulasBtn.addEventListener("mouseenter", () => {
-          if (!isFormulasOpen) {
+          if (!isFormulasActive) {
             formulasBtn.style.background = "#f8fafc";
             formulasBtn.style.borderColor = "#94a3b8";
           }
         });
         formulasBtn.addEventListener("mouseleave", () => {
-          if (!isFormulasOpen) {
+          if (!isFormulasActive) {
             formulasBtn.style.background = "#ffffff";
             formulasBtn.style.borderColor = "#cbd5e1";
           }
         });
         formulasBtn.addEventListener("click", () => {
-          window._activeEduDrawer = isFormulasOpen ? null : "formulas";
+          if (isFormulasActive) {
+            window._isEduDiagramsOpen = false;
+            window._selectedEduDiagCategory = null;
+          } else {
+            window._isEduDiagramsOpen = true;
+            window._selectedEduDiagCategory = "formulas";
+            window._selectedFormulaFilter = "all";
+          }
           renderEduToolsOptions();
+          setTimeout(() => {
+            const el = document.getElementById("eduDiagramsBox");
+            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          }, 40);
         });
         instrumentsBox.appendChild(formulasBtn);
 
-        if (isFormulasOpen) {
-          const drawer = createAccordionDrawer("formulas", {
-            title: "Perimeter, Area & Volume Formulas (3 Sheets)",
-            accentColor: "#7e22ce",
-            drawerBg: "#faf5ff",
-            drawerBorder: "#e9d5ff",
-            desc: "2D perimeter/area tables, 3D surface area/volume formulas & master geometry reference cheat sheet:"
-          });
-          instrumentsBox.appendChild(drawer);
-        }
+        // 5. Place Value Charts Button
+        const isPvcActive = isDiagOpen && window._selectedEduDiagCategory === "place_value";
+        const pvcBtn = document.createElement("button");
+        pvcBtn.type = "button";
+        pvcBtn.innerHTML = "<span style='font-size:1.1rem;'>🧮</span> " + (isPvcActive ? "Hide Place Value Charts" : "Place Value Charts (Indian, Intl, Decimal)");
+        pvcBtn.style.padding = "0.6rem 0.8rem";
+        pvcBtn.style.borderRadius = "8px";
+        pvcBtn.style.border = isPvcActive ? "1.5px solid #059669" : "1px solid #cbd5e1";
+        pvcBtn.style.background = isPvcActive ? "#ecfdf5" : "#ffffff";
+        pvcBtn.style.color = isPvcActive ? "#047857" : "#1e293b";
+        pvcBtn.style.fontWeight = "700";
+        pvcBtn.style.fontSize = "0.85rem";
+        pvcBtn.style.cursor = "pointer";
+        pvcBtn.style.display = "flex";
+        pvcBtn.style.alignItems = "center";
+        pvcBtn.style.gap = "8px";
+        pvcBtn.style.transition = "all 0.15s ease";
+        pvcBtn.addEventListener("mouseenter", () => {
+          if (!isPvcActive) {
+            pvcBtn.style.background = "#f8fafc";
+            pvcBtn.style.borderColor = "#94a3b8";
+          }
+        });
+        pvcBtn.addEventListener("mouseleave", () => {
+          if (!isPvcActive) {
+            pvcBtn.style.background = "#ffffff";
+            pvcBtn.style.borderColor = "#cbd5e1";
+          }
+        });
+        pvcBtn.addEventListener("click", () => {
+          if (isPvcActive) {
+            window._isEduDiagramsOpen = false;
+            window._selectedEduDiagCategory = null;
+          } else {
+            window._isEduDiagramsOpen = true;
+            window._selectedEduDiagCategory = "place_value";
+            window._selectedPvcFilter = "all";
+          }
+          renderEduToolsOptions();
+          setTimeout(() => {
+            const el = document.getElementById("eduDiagramsBox");
+            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          }, 40);
+        });
+        instrumentsBox.appendChild(pvcBtn);
+
+        // 6. Timeline Builder Button
+        const isTimelineActive = isDiagOpen && window._selectedEduDiagCategory === "timelines";
+        const timelineBtn = document.createElement("button");
+        timelineBtn.type = "button";
+        timelineBtn.innerHTML = "<span style='font-size:1.1rem;'>⏳</span> " + (isTimelineActive ? "Hide Timeline Builder" : "Timeline Builder (History & Sequences)");
+        timelineBtn.style.padding = "0.6rem 0.8rem";
+        timelineBtn.style.borderRadius = "8px";
+        timelineBtn.style.border = isTimelineActive ? "1.5px solid #ea580c" : "1px solid #cbd5e1";
+        timelineBtn.style.background = isTimelineActive ? "#fff7ed" : "#ffffff";
+        timelineBtn.style.color = isTimelineActive ? "#c2410c" : "#1e293b";
+        timelineBtn.style.fontWeight = "700";
+        timelineBtn.style.fontSize = "0.85rem";
+        timelineBtn.style.cursor = "pointer";
+        timelineBtn.style.display = "flex";
+        timelineBtn.style.alignItems = "center";
+        timelineBtn.style.gap = "8px";
+        timelineBtn.style.transition = "all 0.15s ease";
+        timelineBtn.addEventListener("mouseenter", () => {
+          if (!isTimelineActive) {
+            timelineBtn.style.background = "#f8fafc";
+            timelineBtn.style.borderColor = "#94a3b8";
+          }
+        });
+        timelineBtn.addEventListener("mouseleave", () => {
+          if (!isTimelineActive) {
+            timelineBtn.style.background = "#ffffff";
+            timelineBtn.style.borderColor = "#cbd5e1";
+          }
+        });
+        timelineBtn.addEventListener("click", () => {
+          if (isTimelineActive) {
+            window._isEduDiagramsOpen = false;
+            window._selectedEduDiagCategory = null;
+          } else {
+            window._isEduDiagramsOpen = true;
+            window._selectedEduDiagCategory = "timelines";
+            window._selectedTimelineFilter = "all";
+          }
+          renderEduToolsOptions();
+          setTimeout(() => {
+            const el = document.getElementById("eduDiagramsBox");
+            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          }, 40);
+        });
+        instrumentsBox.appendChild(timelineBtn);
+
+        // 7. Map Tools Button
+        const isMapsActive = isDiagOpen && window._selectedEduDiagCategory === "maps";
+        const mapsBtn = document.createElement("button");
+        mapsBtn.type = "button";
+        mapsBtn.innerHTML = "<span style='font-size:1.1rem;'>🗺️</span> " + (isMapsActive ? "Hide Map Tools" : "Map Tools (Political, Physical & Labelling)");
+        mapsBtn.style.padding = "0.6rem 0.8rem";
+        mapsBtn.style.borderRadius = "8px";
+        mapsBtn.style.border = isMapsActive ? "1.5px solid #0284c7" : "1px solid #cbd5e1";
+        mapsBtn.style.background = isMapsActive ? "#eff6ff" : "#ffffff";
+        mapsBtn.style.color = isMapsActive ? "#1d4ed8" : "#1e293b";
+        mapsBtn.style.fontWeight = "700";
+        mapsBtn.style.fontSize = "0.85rem";
+        mapsBtn.style.cursor = "pointer";
+        mapsBtn.style.display = "flex";
+        mapsBtn.style.alignItems = "center";
+        mapsBtn.style.gap = "8px";
+        mapsBtn.style.transition = "all 0.15s ease";
+        mapsBtn.addEventListener("mouseenter", () => {
+          if (!isMapsActive) {
+            mapsBtn.style.background = "#f8fafc";
+            mapsBtn.style.borderColor = "#94a3b8";
+          }
+        });
+        mapsBtn.addEventListener("mouseleave", () => {
+          if (!isMapsActive) {
+            mapsBtn.style.background = "#ffffff";
+            mapsBtn.style.borderColor = "#cbd5e1";
+          }
+        });
+        mapsBtn.addEventListener("click", () => {
+          if (isMapsActive) {
+            window._isEduDiagramsOpen = false;
+            window._selectedEduDiagCategory = null;
+          } else {
+            window._isEduDiagramsOpen = true;
+            window._selectedEduDiagCategory = "maps";
+            window._selectedMapFilter = "all";
+          }
+          renderEduToolsOptions();
+          setTimeout(() => {
+            const el = document.getElementById("eduDiagramsBox");
+            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          }, 40);
+        });
+        instrumentsBox.appendChild(mapsBtn);
 
         wrap.appendChild(instrumentsBox);
 
@@ -17927,20 +17852,20 @@
               count: "7 solids"
             },
             {
+              id: "formulas",
+              icon: "📐",
+              theme: { bg: "#faf5ff", border: "#e9d5ff", text: "#7e22ce", badgeBg: "#f3e8ff" },
+              title: "Formulas & Dimensions",
+              subtitle: "Perimeter, Area & Volume with labeled diagrams",
+              count: "16 presets"
+            },
+            {
               id: "place_value",
               icon: "🧮",
               theme: { bg: "#ecfdf5", border: "#a7f3d0", text: "#047857", badgeBg: "#d1fae5" },
               title: "Place Value Charts",
               subtitle: "Indian, International & Decimal charts",
               count: "4 charts"
-            },
-            {
-              id: "formulas",
-              icon: "📐",
-              theme: { bg: "#faf5ff", border: "#e9d5ff", text: "#7e22ce", badgeBg: "#f3e8ff" },
-              title: "Formulas (2D & 3D)",
-              subtitle: "Perimeter, Area, Surface Area & Volume",
-              count: "3 sheets"
             },
             {
               id: "timelines",
@@ -17961,6 +17886,8 @@
           ];
 
           const diagBox = document.createElement("div");
+          diagBox.id = "eduDiagramsBox";
+          diagBox.className = "edu-diagrams-box";
           diagBox.style.background = "#f8fafc";
           diagBox.style.border = "1.5px solid #e2e8f0";
           diagBox.style.borderRadius = "10px";
@@ -18995,31 +18922,335 @@
                 });
                 diagBox.appendChild(card);
               });
-            } else if (selectedCatId === "place_value" || selectedCatId === "formulas" || selectedCatId === "timelines" || selectedCatId === "maps") {
-              const catTitle = selectedCatId === "place_value" ? "Place Value Charts (NCERT Class 4–8):" :
-                               selectedCatId === "formulas" ? "Perimeter, Area & Volume Formulas (Class 6–10):" :
-                               selectedCatId === "timelines" ? "Historical Timelines & Sequences:" : "Map Tools & Geography Labelling:";
-              const desc = document.createElement("p");
-              desc.style.margin = "0 0 8px 0";
-              desc.style.fontSize = "0.72rem";
-              desc.style.color = "#64748b";
-              desc.textContent = "Select " + catTitle;
-              diagBox.appendChild(desc);
+            } else if (selectedCatId === "formulas") {
+              const formulaFilterGroups = [
+                { id: "all", label: "All Formulas (16)" },
+                { id: "2d", label: "2D Plane Figures (7)" },
+                { id: "3d", label: "3D Solids (6)" },
+                { id: "master", label: "Master Reference Charts (3)" }
+              ];
 
-              const advPresets = (window.EduAshramAdvancedTools && Array.isArray(window.EduAshramAdvancedTools.ADVANCED_PRESETS))
-                ? window.EduAshramAdvancedTools.ADVANCED_PRESETS.filter(p => p.group === selectedCatId)
-                : [];
+              window._selectedFormulaFilter = window._selectedFormulaFilter || "all";
 
-              advPresets.forEach((ap) => {
-                const card = createPresetCard({
-                  chip: ap.chip,
-                  chipTheme: ap.chipTheme,
-                  title: ap.title,
-                  subtitle: ap.subtitle,
-                  onClick: () => insertAdvancedEduPreset(ap)
+              const pillContainer = document.createElement("div");
+              pillContainer.style.display = "flex";
+              pillContainer.style.gap = "8px";
+              pillContainer.style.overflowX = "auto";
+              pillContainer.style.paddingBottom = "10px";
+              pillContainer.style.marginBottom = "10px";
+              pillContainer.style.scrollbarWidth = "thin";
+
+              const cardsContainer = document.createElement("div");
+              cardsContainer.style.maxHeight = "440px";
+              cardsContainer.style.overflowY = "auto";
+              cardsContainer.style.display = "flex";
+              cardsContainer.style.flexDirection = "column";
+              cardsContainer.style.gap = "8px";
+              cardsContainer.style.padding = "2px 4px 6px 2px";
+
+              function renderFormulaCards() {
+                cardsContainer.innerHTML = "";
+                const advPresets = (window.EduAshramAdvancedTools && Array.isArray(window.EduAshramAdvancedTools.ADVANCED_PRESETS))
+                  ? window.EduAshramAdvancedTools.ADVANCED_PRESETS.filter(p => p.group === "formulas")
+                  : [];
+                const filtered = window._selectedFormulaFilter === "all"
+                  ? advPresets
+                  : advPresets.filter(p => p.subgroup === window._selectedFormulaFilter);
+
+                filtered.forEach((ap) => {
+                  const card = createPresetCard({
+                    chip: ap.chip,
+                    chipTheme: ap.chipTheme,
+                    title: ap.title,
+                    subtitle: ap.subtitle,
+                    onClick: () => insertAdvancedEduPreset(ap)
+                  });
+                  cardsContainer.appendChild(card);
                 });
-                diagBox.appendChild(card);
+              }
+
+              formulaFilterGroups.forEach((fg) => {
+                const btn = document.createElement("button");
+                btn.type = "button";
+                btn.textContent = fg.label;
+                btn.style.padding = "6px 12px";
+                btn.style.borderRadius = "20px";
+                btn.style.fontSize = "0.80rem";
+                btn.style.fontWeight = window._selectedFormulaFilter === fg.id ? "700" : "600";
+                btn.style.whiteSpace = "nowrap";
+                btn.style.cursor = "pointer";
+                btn.style.transition = "all 0.15s ease";
+                btn.style.border = window._selectedFormulaFilter === fg.id ? "1.5px solid #7c3aed" : "1px solid #cbd5e1";
+                btn.style.background = window._selectedFormulaFilter === fg.id ? "#7c3aed" : "#ffffff";
+                btn.style.color = window._selectedFormulaFilter === fg.id ? "#ffffff" : "#475569";
+                btn.style.boxShadow = window._selectedFormulaFilter === fg.id ? "0 1px 3px rgba(124, 58, 237, 0.25)" : "none";
+
+                btn.onclick = () => {
+                  window._selectedFormulaFilter = fg.id;
+                  Array.from(pillContainer.children).forEach((child, idx) => {
+                    const cGroup = formulaFilterGroups[idx];
+                    const active = window._selectedFormulaFilter === cGroup.id;
+                    child.style.border = active ? "1.5px solid #7c3aed" : "1px solid #cbd5e1";
+                    child.style.background = active ? "#7c3aed" : "#ffffff";
+                    child.style.color = active ? "#ffffff" : "#475569";
+                    child.style.fontWeight = active ? "700" : "600";
+                    child.style.boxShadow = active ? "0 1px 3px rgba(124, 58, 237, 0.25)" : "none";
+                  });
+                  renderFormulaCards();
+                };
+                pillContainer.appendChild(btn);
               });
+
+              diagBox.appendChild(pillContainer);
+              diagBox.appendChild(cardsContainer);
+              renderFormulaCards();
+            } else if (selectedCatId === "place_value") {
+              const pvcFilterGroups = [
+                { id: "all", label: "All Charts (4)" },
+                { id: "indian", label: "Indian System" },
+                { id: "intl", label: "International System" },
+                { id: "decimal", label: "Decimal System" },
+                { id: "comparison", label: "Indian vs Intl Comparison" }
+              ];
+
+              window._selectedPvcFilter = window._selectedPvcFilter || "all";
+
+              const pillContainer = document.createElement("div");
+              pillContainer.style.display = "flex";
+              pillContainer.style.gap = "8px";
+              pillContainer.style.overflowX = "auto";
+              pillContainer.style.paddingBottom = "10px";
+              pillContainer.style.marginBottom = "10px";
+              pillContainer.style.scrollbarWidth = "thin";
+
+              const cardsContainer = document.createElement("div");
+              cardsContainer.style.maxHeight = "440px";
+              cardsContainer.style.overflowY = "auto";
+              cardsContainer.style.display = "flex";
+              cardsContainer.style.flexDirection = "column";
+              cardsContainer.style.gap = "8px";
+              cardsContainer.style.padding = "2px 4px 6px 2px";
+
+              function renderPvcCards() {
+                cardsContainer.innerHTML = "";
+                const advPresets = (window.EduAshramAdvancedTools && Array.isArray(window.EduAshramAdvancedTools.ADVANCED_PRESETS))
+                  ? window.EduAshramAdvancedTools.ADVANCED_PRESETS.filter(p => p.group === "place_value")
+                  : [];
+                const filtered = window._selectedPvcFilter === "all"
+                  ? advPresets
+                  : advPresets.filter(p => p.subgroup === window._selectedPvcFilter);
+
+                filtered.forEach((ap) => {
+                  const card = createPresetCard({
+                    chip: ap.chip,
+                    chipTheme: ap.chipTheme,
+                    title: ap.title,
+                    subtitle: ap.subtitle,
+                    onClick: () => insertAdvancedEduPreset(ap)
+                  });
+                  cardsContainer.appendChild(card);
+                });
+              }
+
+              pvcFilterGroups.forEach((fg) => {
+                const btn = document.createElement("button");
+                btn.type = "button";
+                btn.textContent = fg.label;
+                btn.style.padding = "6px 12px";
+                btn.style.borderRadius = "20px";
+                btn.style.fontSize = "0.80rem";
+                btn.style.fontWeight = window._selectedPvcFilter === fg.id ? "700" : "600";
+                btn.style.whiteSpace = "nowrap";
+                btn.style.cursor = "pointer";
+                btn.style.transition = "all 0.15s ease";
+                btn.style.border = window._selectedPvcFilter === fg.id ? "1.5px solid #059669" : "1px solid #cbd5e1";
+                btn.style.background = window._selectedPvcFilter === fg.id ? "#059669" : "#ffffff";
+                btn.style.color = window._selectedPvcFilter === fg.id ? "#ffffff" : "#475569";
+                btn.style.boxShadow = window._selectedPvcFilter === fg.id ? "0 1px 3px rgba(5, 150, 105, 0.25)" : "none";
+
+                btn.onclick = () => {
+                  window._selectedPvcFilter = fg.id;
+                  Array.from(pillContainer.children).forEach((child, idx) => {
+                    const cGroup = pvcFilterGroups[idx];
+                    const active = window._selectedPvcFilter === cGroup.id;
+                    child.style.border = active ? "1.5px solid #059669" : "1px solid #cbd5e1";
+                    child.style.background = active ? "#059669" : "#ffffff";
+                    child.style.color = active ? "#ffffff" : "#475569";
+                    child.style.fontWeight = active ? "700" : "600";
+                    child.style.boxShadow = active ? "0 1px 3px rgba(5, 150, 105, 0.25)" : "none";
+                  });
+                  renderPvcCards();
+                };
+                pillContainer.appendChild(btn);
+              });
+
+              diagBox.appendChild(pillContainer);
+              diagBox.appendChild(cardsContainer);
+              renderPvcCards();
+            } else if (selectedCatId === "timelines") {
+              const timelineFilterGroups = [
+                { id: "all", label: "All Timelines (5)" },
+                { id: "india", label: "Indian History" },
+                { id: "world", label: "World History" },
+                { id: "science", label: "Science & Math" },
+                { id: "custom", label: "Custom Sequence" }
+              ];
+
+              window._selectedTimelineFilter = window._selectedTimelineFilter || "all";
+
+              const pillContainer = document.createElement("div");
+              pillContainer.style.display = "flex";
+              pillContainer.style.gap = "8px";
+              pillContainer.style.overflowX = "auto";
+              pillContainer.style.paddingBottom = "10px";
+              pillContainer.style.marginBottom = "10px";
+              pillContainer.style.scrollbarWidth = "thin";
+
+              const cardsContainer = document.createElement("div");
+              cardsContainer.style.maxHeight = "440px";
+              cardsContainer.style.overflowY = "auto";
+              cardsContainer.style.display = "flex";
+              cardsContainer.style.flexDirection = "column";
+              cardsContainer.style.gap = "8px";
+              cardsContainer.style.padding = "2px 4px 6px 2px";
+
+              function renderTimelineCards() {
+                cardsContainer.innerHTML = "";
+                const advPresets = (window.EduAshramAdvancedTools && Array.isArray(window.EduAshramAdvancedTools.ADVANCED_PRESETS))
+                  ? window.EduAshramAdvancedTools.ADVANCED_PRESETS.filter(p => p.group === "timelines")
+                  : [];
+                const filtered = window._selectedTimelineFilter === "all"
+                  ? advPresets
+                  : advPresets.filter(p => p.subgroup === window._selectedTimelineFilter);
+
+                filtered.forEach((ap) => {
+                  const card = createPresetCard({
+                    chip: ap.chip,
+                    chipTheme: ap.chipTheme,
+                    title: ap.title,
+                    subtitle: ap.subtitle,
+                    onClick: () => insertAdvancedEduPreset(ap)
+                  });
+                  cardsContainer.appendChild(card);
+                });
+              }
+
+              timelineFilterGroups.forEach((fg) => {
+                const btn = document.createElement("button");
+                btn.type = "button";
+                btn.textContent = fg.label;
+                btn.style.padding = "6px 12px";
+                btn.style.borderRadius = "20px";
+                btn.style.fontSize = "0.80rem";
+                btn.style.fontWeight = window._selectedTimelineFilter === fg.id ? "700" : "600";
+                btn.style.whiteSpace = "nowrap";
+                btn.style.cursor = "pointer";
+                btn.style.transition = "all 0.15s ease";
+                btn.style.border = window._selectedTimelineFilter === fg.id ? "1.5px solid #ea580c" : "1px solid #cbd5e1";
+                btn.style.background = window._selectedTimelineFilter === fg.id ? "#ea580c" : "#ffffff";
+                btn.style.color = window._selectedTimelineFilter === fg.id ? "#ffffff" : "#475569";
+                btn.style.boxShadow = window._selectedTimelineFilter === fg.id ? "0 1px 3px rgba(234, 88, 12, 0.25)" : "none";
+
+                btn.onclick = () => {
+                  window._selectedTimelineFilter = fg.id;
+                  Array.from(pillContainer.children).forEach((child, idx) => {
+                    const cGroup = timelineFilterGroups[idx];
+                    const active = window._selectedTimelineFilter === cGroup.id;
+                    child.style.border = active ? "1.5px solid #ea580c" : "1px solid #cbd5e1";
+                    child.style.background = active ? "#ea580c" : "#ffffff";
+                    child.style.color = active ? "#ffffff" : "#475569";
+                    child.style.fontWeight = active ? "700" : "600";
+                    child.style.boxShadow = active ? "0 1px 3px rgba(234, 88, 12, 0.25)" : "none";
+                  });
+                  renderTimelineCards();
+                };
+                pillContainer.appendChild(btn);
+              });
+
+              diagBox.appendChild(pillContainer);
+              diagBox.appendChild(cardsContainer);
+              renderTimelineCards();
+            } else if (selectedCatId === "maps") {
+              const mapFilterGroups = [
+                { id: "all", label: "All Map Tools (7)" },
+                { id: "maps", label: "Outline Maps" },
+                { id: "symbols", label: "Cartography & Navigation" }
+              ];
+
+              window._selectedMapFilter = window._selectedMapFilter || "all";
+
+              const pillContainer = document.createElement("div");
+              pillContainer.style.display = "flex";
+              pillContainer.style.gap = "8px";
+              pillContainer.style.overflowX = "auto";
+              pillContainer.style.paddingBottom = "10px";
+              pillContainer.style.marginBottom = "10px";
+              pillContainer.style.scrollbarWidth = "thin";
+
+              const cardsContainer = document.createElement("div");
+              cardsContainer.style.maxHeight = "440px";
+              cardsContainer.style.overflowY = "auto";
+              cardsContainer.style.display = "flex";
+              cardsContainer.style.flexDirection = "column";
+              cardsContainer.style.gap = "8px";
+              cardsContainer.style.padding = "2px 4px 6px 2px";
+
+              function renderMapCards() {
+                cardsContainer.innerHTML = "";
+                const advPresets = (window.EduAshramAdvancedTools && Array.isArray(window.EduAshramAdvancedTools.ADVANCED_PRESETS))
+                  ? window.EduAshramAdvancedTools.ADVANCED_PRESETS.filter(p => p.group === "maps")
+                  : [];
+                const filtered = window._selectedMapFilter === "all"
+                  ? advPresets
+                  : advPresets.filter(p => p.subgroup === window._selectedMapFilter);
+
+                filtered.forEach((ap) => {
+                  const card = createPresetCard({
+                    chip: ap.chip,
+                    chipTheme: ap.chipTheme,
+                    title: ap.title,
+                    subtitle: ap.subtitle,
+                    onClick: () => insertAdvancedEduPreset(ap)
+                  });
+                  cardsContainer.appendChild(card);
+                });
+              }
+
+              mapFilterGroups.forEach((fg) => {
+                const btn = document.createElement("button");
+                btn.type = "button";
+                btn.textContent = fg.label;
+                btn.style.padding = "6px 12px";
+                btn.style.borderRadius = "20px";
+                btn.style.fontSize = "0.80rem";
+                btn.style.fontWeight = window._selectedMapFilter === fg.id ? "700" : "600";
+                btn.style.whiteSpace = "nowrap";
+                btn.style.cursor = "pointer";
+                btn.style.transition = "all 0.15s ease";
+                btn.style.border = window._selectedMapFilter === fg.id ? "1.5px solid #0284c7" : "1px solid #cbd5e1";
+                btn.style.background = window._selectedMapFilter === fg.id ? "#0284c7" : "#ffffff";
+                btn.style.color = window._selectedMapFilter === fg.id ? "#ffffff" : "#475569";
+                btn.style.boxShadow = window._selectedMapFilter === fg.id ? "0 1px 3px rgba(2, 132, 199, 0.25)" : "none";
+
+                btn.onclick = () => {
+                  window._selectedMapFilter = fg.id;
+                  Array.from(pillContainer.children).forEach((child, idx) => {
+                    const cGroup = mapFilterGroups[idx];
+                    const active = window._selectedMapFilter === cGroup.id;
+                    child.style.border = active ? "1.5px solid #0284c7" : "1px solid #cbd5e1";
+                    child.style.background = active ? "#0284c7" : "#ffffff";
+                    child.style.color = active ? "#ffffff" : "#475569";
+                    child.style.fontWeight = active ? "700" : "600";
+                    child.style.boxShadow = active ? "0 1px 3px rgba(2, 132, 199, 0.25)" : "none";
+                  });
+                  renderMapCards();
+                };
+                pillContainer.appendChild(btn);
+              });
+
+              diagBox.appendChild(pillContainer);
+              diagBox.appendChild(cardsContainer);
+              renderMapCards();
             }
           }
 
