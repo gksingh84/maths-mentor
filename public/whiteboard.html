@@ -54,6 +54,7 @@
   <script src="vendor/mathjax-tex-svg.js"></script>
   <script src="graph-plotter-engine.js"></script>
   <script src="periodic-table-engine.js"></script>
+  <script src="geometric-figures-engine.js"></script>
   <style>
     /* Initial Light Loading Screen */
     .whiteboard-initial-loader {
@@ -5753,6 +5754,10 @@
       }
 
       function drawGeometricDiagramShape(ctx, shape) {
+        if (window.EduAshramGeometry && typeof window.EduAshramGeometry.drawGeometricDiagramShape === "function") {
+          window.EduAshramGeometry.drawGeometricDiagramShape(ctx, shape, isDarkMode);
+          return;
+        }
         const { start, end } = shape;
         const x1 = Math.min(start.x, end.x);
         const x2 = Math.max(start.x, end.x);
@@ -17449,8 +17454,8 @@
               icon: "📐",
               theme: { bg: "#ecfdf5", border: "#a7f3d0", text: "#047857", badgeBg: "#d1fae5" },
               title: "Geometric Figures",
-              subtitle: "Triangles, circles, unit circle & theorems",
-              count: "4 figures"
+              subtitle: "Angles, triangles, quads, polygons, circles & lines",
+              count: "37 figures"
             },
             {
               id: "solids",
@@ -18368,70 +18373,116 @@
               desc.style.margin = "0 0 8px 0";
               desc.style.fontSize = "0.72rem";
               desc.style.color = "#64748b";
-              desc.textContent = "Select geometric theorem or figure:";
+              desc.textContent = "Select geometric theorem or figure (NCERT Class 6-10):";
               diagBox.appendChild(desc);
 
-              const geoPresets = [
-                {
-                  chip: "90° △",
-                  chipTheme: { bg: "#ecfdf5", color: "#047857", border: "#a7f3d0" },
-                  title: "Right-Angled Triangle",
-                  subtitle: "Legs a, b, hypotenuse c with right square",
-                  type: "rightTriangle",
-                  w: 110,
-                  h: 80
-                },
-                {
-                  chip: "60° △",
-                  chipTheme: { bg: "#ecfdf5", color: "#047857", border: "#a7f3d0" },
-                  title: "Equilateral Triangle",
-                  subtitle: "Equal side tick marks and 60° angles",
-                  type: "equilateralTriangle",
-                  w: 100,
-                  h: 90
-                },
-                {
-                  chip: "○ Radius",
-                  chipTheme: { bg: "#f0fdf4", color: "#166534", border: "#bbf7d0" },
-                  title: "Circle with Radius",
-                  subtitle: "Center point O, radius r and circumference",
-                  type: "circleRadius",
-                  w: 90,
-                  h: 90
-                },
-                {
-                  chip: "⭕ Unit Circle",
-                  chipTheme: { bg: "#eff6ff", color: "#1d4ed8", border: "#bfdbfe" },
-                  title: "Trigonometric Unit Circle",
-                  subtitle: "Standard angles (0°-360°), radians (π) & (cos, sin) coordinates",
-                  type: "unitCircle",
-                  w: 130,
-                  h: 130
-                }
+              const geoFilterGroups = [
+                { id: "all", label: "All (37)" },
+                { id: "angles", label: "Angles" },
+                { id: "triangles_sides", label: "Triangles (Sides)" },
+                { id: "triangles_angles", label: "Triangles (Angles)" },
+                { id: "quadrilaterals", label: "Quadrilaterals" },
+                { id: "polygons", label: "Polygons" },
+                { id: "circle", label: "Circle Components" },
+                { id: "lines_angles", label: "Lines & Transversal" },
+                { id: "congruent", label: "Congruence" },
+                { id: "similar", label: "Similar Triangles" }
               ];
 
-              geoPresets.forEach((gp) => {
-                const card = createPresetCard({
-                  chip: gp.chip,
-                  chipTheme: gp.chipTheme,
-                  title: gp.title,
-                  subtitle: gp.subtitle,
-                  onClick: () => {
-                    const { x: cx, y: cy } = getVisibleBoardCenter();
-                    insertDiagramHelper({
-                      id: generateId(),
-                      type: "geometricDiagram",
-                      geoType: gp.type,
-                      color: penSettings.color || "#0f172a",
-                      width: 2,
-                      start: { x: cx - gp.w, y: cy - gp.h },
-                      end: { x: cx + gp.w, y: cy + gp.h },
-                      createdAt: Date.now()
-                    });
-                  }
+              window._selectedGeoFilter = window._selectedGeoFilter || "all";
+
+              const pillContainer = document.createElement("div");
+              pillContainer.style.display = "flex";
+              pillContainer.style.gap = "6px";
+              pillContainer.style.overflowX = "auto";
+              pillContainer.style.paddingBottom = "8px";
+              pillContainer.style.marginBottom = "8px";
+              pillContainer.style.scrollbarWidth = "thin";
+
+              const cardsContainer = document.createElement("div");
+              cardsContainer.style.maxHeight = "360px";
+              cardsContainer.style.overflowY = "auto";
+              cardsContainer.style.display = "flex";
+              cardsContainer.style.flexDirection = "column";
+              cardsContainer.style.gap = "2px";
+              cardsContainer.style.paddingRight = "4px";
+
+              function renderGeoCards() {
+                cardsContainer.innerHTML = "";
+                const allPresets = (window.EduAshramGeometry && window.EduAshramGeometry.GEO_PRESETS)
+                  ? window.EduAshramGeometry.GEO_PRESETS
+                  : [
+                      {
+                        chip: "90° △",
+                        chipTheme: { bg: "#ecfdf5", color: "#047857", border: "#a7f3d0" },
+                        title: "Right-Angled Triangle",
+                        subtitle: "Legs a, b, hypotenuse c with right square",
+                        type: "rightTriangle",
+                        w: 110,
+                        h: 80
+                      }
+                    ];
+                const filtered = window._selectedGeoFilter === "all"
+                  ? allPresets
+                  : allPresets.filter(p => p.group === window._selectedGeoFilter);
+
+                filtered.forEach((gp) => {
+                  const card = createPresetCard({
+                    chip: gp.chip,
+                    chipTheme: gp.chipTheme,
+                    title: gp.title,
+                    subtitle: gp.subtitle,
+                    onClick: () => {
+                      const { x: cx, y: cy } = getVisibleBoardCenter();
+                      insertDiagramHelper({
+                        id: generateId(),
+                        type: "geometricDiagram",
+                        geoType: gp.type,
+                        color: penSettings.color || "#0f172a",
+                        width: 2,
+                        start: { x: cx - gp.w, y: cy - gp.h },
+                        end: { x: cx + gp.w, y: cy + gp.h },
+                        createdAt: Date.now()
+                      });
+                    }
+                  });
+                  cardsContainer.appendChild(card);
                 });
-                diagBox.appendChild(card);
+              }
+
+              geoFilterGroups.forEach((fg) => {
+                const btn = document.createElement("button");
+                btn.type = "button";
+                btn.textContent = fg.label;
+                btn.style.padding = "4px 10px";
+                btn.style.borderRadius = "20px";
+                btn.style.fontSize = "0.72rem";
+                btn.style.fontWeight = window._selectedGeoFilter === fg.id ? "700" : "500";
+                btn.style.whiteSpace = "nowrap";
+                btn.style.cursor = "pointer";
+                btn.style.transition = "all 0.15s ease";
+                btn.style.border = window._selectedGeoFilter === fg.id ? "1.5px solid #0284c7" : "1px solid #cbd5e1";
+                btn.style.background = window._selectedGeoFilter === fg.id ? "#0284c7" : "#ffffff";
+                btn.style.color = window._selectedGeoFilter === fg.id ? "#ffffff" : "#475569";
+
+                btn.onclick = () => {
+                  window._selectedGeoFilter = fg.id;
+                  Array.from(pillContainer.children).forEach((child, idx) => {
+                    const cGroup = geoFilterGroups[idx];
+                    const active = window._selectedGeoFilter === cGroup.id;
+                    child.style.border = active ? "1.5px solid #0284c7" : "1px solid #cbd5e1";
+                    child.style.background = active ? "#0284c7" : "#ffffff";
+                    child.style.color = active ? "#ffffff" : "#475569";
+                    child.style.fontWeight = active ? "700" : "500";
+                  });
+                  renderGeoCards();
+                };
+                pillContainer.appendChild(btn);
               });
+
+              diagBox.appendChild(pillContainer);
+              diagBox.appendChild(cardsContainer);
+              renderGeoCards();
             } else if (selectedCatId === "solids") {
               const desc = document.createElement("p");
               desc.style.margin = "0 0 8px 0";

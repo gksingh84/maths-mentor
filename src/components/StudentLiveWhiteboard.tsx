@@ -2208,6 +2208,12 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
   };
 
   const drawStudentGeometricDiagram = (ctx: CanvasRenderingContext2D, shape: any, strokeColor: string, lineWidth: number) => {
+    if ((window as any).EduAshramGeometry && typeof (window as any).EduAshramGeometry.drawGeometricDiagramShape === 'function') {
+      const isDark = (document.documentElement.getAttribute('data-theme') === 'dark') || (shape.isDark ?? false);
+      const shaped = { ...shape, color: strokeColor || shape.color, width: lineWidth || shape.width };
+      (window as any).EduAshramGeometry.drawGeometricDiagramShape(ctx, shaped, isDark);
+      return;
+    }
     const { start, end } = shape;
     if (!start || !end) return;
     const x1 = Math.min(start.x, end.x);
