@@ -1,0 +1,302 @@
+# Comprehensive Security Audit & Vulnerability Assessment
+**Target Application:** Maths Mentor & Live Whiteboard Platform  
+**Date of Assessment:** October 31, 2026  
+**Assessment Type:** Source Code Security Review & Threat Modeling  
+**Status:** Action Required (Scheduled for Remediation)
+
+---
+
+## 1. Executive Summary
+
+This security assessment details vulnerabilities and security risks identified across the **Maths Mentor / Live Whiteboard** platform. The review covers:
+1. Authentication & Session Management (`server/index.ts`)
+2. Real-Time Socket.IO Streaming & Authorization
+3. File Upload & Static Asset Handling
+4. Frontend DOM Manipulation & Injection Vectors (`public/whiteboard.html`, React components)
+5. Architectural Resilience & Resource Management
+
+---
+
+## 2. Vulnerability Findings & Severity Matrix
+
+| ID | Title | Severity | OWASP / CWE | Status |
+| :--- | :--- | :---: | :--- | :---: |
+| **SEC-01** | Hardcoded Fallback JWT Secret (Authentication Bypass) | **CRITICAL** | CWE-798 / A07:2021 | Pending |
+| **SEC-02** | CPU Exhaustion / DoS in Student Authentication (`bcrypt` linear scan) | **HIGH** | CWE-400 / A04:2021 | Pending |
+| **SEC-03** | Student Delegation Identity Spoofing via Client Payload | **HIGH** | CWE-287 / A01:2021 | Pending |
+| **SEC-04** | Unrestricted 150MB In-Memory File Upload & Potential Stored XSS | **HIGH** | CWE-434 / CWE-79 | Pending |
+| **SEC-05** | Socket.IO Wildcard CORS & Cross-Site WebSocket Hijacking (CSWSH) | **MEDIUM** | CWE-942 / A01:2021 | Pending |
+| **SEC-06** | Disabled Content Security Policy (CSP) in Helmet | **MEDIUM** | CWE-1021 / A05:2021 | Pending |
+| **SEC-07** | DOM Injection Vector in Equation Typesetting (`innerHTML`) | **MEDIUM** | CWE-79 / A03:2021 | Pending |
+| **SEC-08** | In-Memory Session State & Single-Point-of-Failure | **MEDIUM** | Architecture / Availability | Pending |
+| **SEC-09** | Cookie Security Transmission Flags | **LOW** | CWE-614 / A05:2021 | Pending |
+| **SEC-10** | Unthrottled Whiteboard Broadcast Events | **LOW** | CWE-770 / A04:2021 | Pending |
+
+---
+
+## 3. In-Depth Vulnerability Analysis & Remediation
+
+---
+
+### [CRITICAL] SEC-01: Hardcoded Fallback JWT Secret (Authentication Bypass)
+
+* **Vulnerable Location:** `server/index.ts` (lines 29–34)
+* **Code Snippet:**
+  ```typescript
+  const rawSecret = process.env.SESSION_SECRET;
+  const secret = rawSecret && rawSecret.length >= 32
+    ? rawSecret
+    : (rawSecret
+      ? createHmac('sha256', 'livequiz-secret-salt').update(rawSecret).digest('hex')
+      : 'default-livequiz-secure-session-secret-key-32-chars-minimum-fallback');
+  ```
+* **Vulnerability Mechanics:**
+  If the `SESSION_SECRET` environment variable is not defined, blank, or omitted in production, the application silently defaults to the hardcoded string `'default-livequiz-secure-session-secret-key-32-chars-minimum-fallback'`.
+* **Impact:**
+  An attacker knowing this fallback string can forge arbitrary JSON Web Tokens (JWT) with `{ "role": "superadmin" }` or `{ "role": "teacher" }` and gain full administrative access to all student records, quizzes, and classroom sessions.
+* **Remediation Plan:**
+  Fail fast on startup. Abort server execution if `SESSION_SECRET` is missing:
+  ```typescript
+  if (!process.env.SESSION_SECRET || process.env.SESSION_SECRET.length < 32) {
+    console.error("FATAL: SESSION_SECRET must be configured and at least 32 characters long.");
+    process.exit(1);
+  }
+  const secret = process.env.SESSION_SECRET;
+  ```
+
+---
+
+### [HIGH] SEC-02: CPU Exhaustion / DoS in Student Authentication
+
+* **Vulnerable Location:** `server/index.ts` (lines 1078–1090)
+* **Code Snippet:**
+  ```typescript
+  if (!student) {
+    const activeStudents = await prisma.student.findMany({
+      where: { active: true },
+      include: { teacher: { select: { id: true, name: true } } }
+    });
+    for (const s of activeStudents) {
+      if (await bcrypt.compare(data.passkey.toUpperCase(), s.passkeyHash)) {
+        student = s;
+        await prisma.student.update({ where: { id: s.id }, data: { passkeyLookup: lookupHash } }).catch(() => { });
+        break;
+      }
+    }
+  }
+  ```
+* **Vulnerability Mechanics:**
+  When a passkey lookup misses in the database, the server queries **every active student** in the system and runs `bcrypt.compare` in an unthrottled loop.
+* **Impact:**
+  `bcrypt` is intentionally CPU-intensive (~100ms per check). If there are 300 active students, an invalid passkey forces up to 30 seconds of blocking CPU execution. An attacker sending 5–10 concurrent random login requests will completely freeze the Node.js event loop, causing a full Denial of Service (DoS) for all users.
+* **Remediation Plan:**
+  Remove the dynamic fallback loop entirely. Passkey authentication must strictly use the constant-time HMAC indexed lookup:
+  ```typescript
+  const student = await prisma.student.findUnique({
+    where: { passkeyLookup: lookupHash }
+  });
+  if (!student?.active || !(await bcrypt.compare(data.passkey.toUpperCase(), student.passkeyHash))) {
+    return res.status(401).json({ error: 'That passkey was not recognized.' });
+  }
+  ```
+
+---
+
+### [HIGH] SEC-03: Student Delegation Identity Spoofing via Client Payload
+
+* **Vulnerable Location:** `server/index.ts` (lines 4464–4468 and lines 4496–4500)
+* **Code Snippet:**
+  ```typescript
+  const isAuthorized =
+    active.delegatedStudent.socketId === socket.id ||
+    (active.delegatedStudent.studentId && active.delegatedStudent.studentId === session.id) ||
+    (active.delegatedStudent.studentName && active.delegatedStudent.studentName.trim().toLowerCase() === (session.name || data?.studentName || '').trim().toLowerCase()) ||
+    (data?.studentName && active.delegatedStudent.studentName.trim().toLowerCase() === data.studentName.trim().toLowerCase());
+  ```
+* **Vulnerability Mechanics:**
+  The server permits drawing and pointer delegation if `data.studentName` sent in the socket payload matches the delegated student's name: `(data?.studentName && active.delegatedStudent.studentName.trim().toLowerCase() === data.studentName.trim().toLowerCase())`.
+* **Impact:**
+  Because the teacher broadcasts the delegated student's name in `whiteboard:delegation_changed`, any student in the classroom can emit `whiteboard:student_stroke` or `whiteboard:student_pointer` containing the victim's name and draw on the teacher's board unauthorized.
+* **Remediation Plan:**
+  Authorize actions solely based on the authenticated session or socket ID:
+  ```typescript
+  const isAuthorized =
+    active.delegatedStudent.socketId === socket.id &&
+    active.delegatedStudent.studentId === session.id;
+  ```
+
+---
+
+### [HIGH] SEC-04: Unrestricted 150MB In-Memory File Upload & Potential Stored XSS
+
+* **Vulnerable Location:** `server/index.ts` (lines 7552–7575)
+* **Code Snippet:**
+  ```typescript
+  app.post('/api/whiteboard/upload-video', authenticate(['teacher', 'admin', 'superadmin']), express.json({ limit: '150mb' }), async (req: AuthRequest, res: Response) => {
+    ...
+    const cleanName = (name || 'video.mp4').replace(/[^a-zA-Z0-9._-]/g, '_');
+    const filename = `${Date.now()}_${cleanName}`;
+    const filePath = resolve(videosDir, filename);
+    const base64Data = data.includes(';base64,') ? data.split(';base64,')[1] : data;
+    const buffer = Buffer.from(base64Data, 'base64');
+    writeFileSync(filePath, buffer);
+  ```
+* **Vulnerability Mechanics:**
+  1. **Memory Exhaustion:** Parsing 150MB of base64 JSON in memory inflates the Node.js V8 heap past 450MB per concurrent upload, risking process crashes.
+  2. **File Extension Manipulation:** The file extension is taken from the client filename (`cleanName`). If a user uploads `video.html` or `vector.svg`, it is saved to `public/uploads/videos/` and served statically via Express without restricting MIME types or setting safe `Content-Disposition` headers.
+* **Impact:**
+  - High risk of server OOM crashes during large uploads.
+  - Stored Cross-Site Scripting (XSS) if HTML or SVG files containing scripts are uploaded and opened.
+* **Remediation Plan:**
+  1. Validate file extension and magic numbers strictly against `.mp4` and `.webm`.
+  2. Stream files directly to disk using standard multipart form data (`multer` or `busboy`) instead of massive in-memory base64 JSON buffers.
+  3. Ensure static file handler sets `Content-Disposition: attachment` or `X-Content-Type-Options: nosniff`.
+
+---
+
+### [MEDIUM] SEC-05: Socket.IO Wildcard CORS & CSWSH Risk
+
+* **Vulnerable Location:** `server/index.ts` (lines 21–25)
+* **Code Snippet:**
+  ```typescript
+  const io = new Server(httpServer, {
+    cors: {
+      origin: true,
+      credentials: true,
+    },
+    maxHttpBufferSize: 5e7, // 50MB
+  });
+  ```
+* **Vulnerability Mechanics:**
+  `origin: true` reflects whatever `Origin` header the client provides.
+* **Impact:**
+  A third-party malicious website visited by an authenticated teacher or student could initiate a Cross-Site WebSocket Hijacking (CSWSH) connection, relying on the browser to send session cookies automatically, and eavesdrop on private chats and whiteboard sync events.
+* **Remediation Plan:**
+  Whitelist explicit allowed origins from environment configuration:
+  ```typescript
+  const allowedOrigins = process.env.ALLOWED_ORIGINS
+    ? process.env.ALLOWED_ORIGINS.split(',').map(s => s.trim())
+    : ['http://localhost:4000'];
+
+  const io = new Server(httpServer, {
+    cors: {
+      origin: allowedOrigins,
+      credentials: true,
+    },
+    maxHttpBufferSize: 1e7, // Reduce to 10MB
+  });
+  ```
+
+---
+
+### [MEDIUM] SEC-06: Disabled Content Security Policy (CSP)
+
+* **Vulnerable Location:** `server/index.ts` (lines 37–42)
+* **Code Snippet:**
+  ```typescript
+  app.use(helmet({
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+    referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+    contentSecurityPolicy: false,
+    crossOriginEmbedderPolicy: false,
+  }));
+  ```
+* **Impact:**
+  Disabling CSP leaves no defense-in-depth against client-side script execution or data exfiltration if any XSS injection vector occurs.
+* **Remediation Plan:**
+  Implement a tailored CSP policy with explicit source directives:
+  ```typescript
+  app.use(helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net"],
+        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+        fontSrc: ["'self'", "https://fonts.gstatic.com"],
+        imgSrc: ["'self'", "data:", "blob:"],
+        connectSrc: ["'self'", "ws:", "wss:"],
+      },
+    },
+  }));
+  ```
+
+---
+
+### [MEDIUM] SEC-07: DOM Injection Vector in Equation Typesetting
+
+* **Vulnerable Location:** `public/whiteboard.html` (lines 14125–14130)
+* **Code Snippet:**
+  ```javascript
+  const tempDiv = document.createElement("div");
+  tempDiv.style.visibility = "hidden";
+  tempDiv.style.position = "absolute";
+  tempDiv.style.left = "-9999px";
+  tempDiv.innerHTML = '$$' + latex + '$$';
+  document.body.appendChild(tempDiv);
+  ```
+* **Vulnerability Mechanics:**
+  Assigning raw LaTeX text directly to `.innerHTML` causes the browser to parse HTML markup before MathJax processes it.
+* **Impact:**
+  If a student or teacher inputs HTML tags like `<img src=x onerror=...>` into an equation field, it triggers immediate script execution in the DOM.
+* **Remediation Plan:**
+  Use `.textContent` instead of `.innerHTML`:
+  ```javascript
+  tempDiv.textContent = '$$' + latex + '$$';
+  ```
+
+---
+
+### [MEDIUM] SEC-08: In-Memory Session State & Single-Point-of-Failure
+
+* **Vulnerable Location:** `server/index.ts` (`activeWhiteboardSessions`, `chatMemoryCache`, `activeTeacherSockets`)
+* **Impact:**
+  1. Process restarts or server crashes immediately terminate active whiteboard broadcasts and discard in-memory classroom chats.
+  2. The application cannot scale horizontally to multiple worker processes (PM2 cluster or Kubernetes pods) because socket rooms and state are local to a single Node.js process.
+* **Remediation Plan:**
+  Integrate `@socket.io/redis-adapter` and persist live session metadata in Redis.
+
+---
+
+### [LOW] SEC-09: Insecure Cookie Flags in Production
+
+* **Vulnerable Location:** `server/index.ts` (line 59)
+* **Code Snippet:**
+  ```typescript
+  const cookieOptions = {
+    httpOnly: true,
+    sameSite: 'lax' as const,
+    secure: process.env.COOKIE_SECURE === 'true',
+    path: '/'
+  };
+  ```
+* **Impact:**
+  If `COOKIE_SECURE` is not explicitly set in production, authentication cookies are transmitted in cleartext over unencrypted HTTP connections.
+* **Remediation Plan:**
+  Default `secure` to `true` when `NODE_ENV === 'production'`:
+  ```typescript
+  secure: process.env.COOKIE_SECURE === 'true' || process.env.NODE_ENV === 'production'
+  ```
+
+---
+
+### [LOW] SEC-10: Unthrottled Whiteboard Broadcast Events
+
+* **Vulnerable Location:** `server/index.ts` (lines 4057–4073, `whiteboard:stroke`)
+* **Impact:**
+  A modified client or script could emit thousands of `whiteboard:stroke` events per second, causing CPU spikes on the server and flooding connected student clients with massive rendering overhead.
+* **Remediation Plan:**
+  Implement socket-level rate limiting (e.g. max 60 stroke packets per second per socket).
+
+---
+
+## 4. Tomorrow's Resolution Checklist
+
+- [ ] **Task 1 (Critical):** Require `SESSION_SECRET` with minimum 32-character validation; remove fallback string.
+- [ ] **Task 2 (High):** Remove the `bcrypt.compare` loop over all active students in `/api/auth/student`.
+- [ ] **Task 3 (High):** Fix student delegation check in `whiteboard:student_stroke` and `whiteboard:student_pointer` to verify session ID strictly.
+- [ ] **Task 4 (High):** Whitelist file extensions (`.mp4`, `.webm`) and sanitize `/api/whiteboard/upload-video`.
+- [ ] **Task 5 (Medium):** Restrict Socket.IO CORS to specific configured domains.
+- [ ] **Task 6 (Medium):** Replace `tempDiv.innerHTML` with `tempDiv.textContent` in equation typesetting (`public/whiteboard.html`).
+- [ ] **Task 7 (Medium):** Re-enable and configure Helmet Content Security Policy.
+- [ ] **Task 8 (Low):** Enforce `secure: true` on cookies in production.
+

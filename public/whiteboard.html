@@ -2243,6 +2243,264 @@
       background: #fee2e2;
       color: #dc2626;
     }
+    /* --- Interactive Compass Overlay --- */
+    .edu-compass-overlay {
+      position: absolute;
+      z-index: 86;
+      width: 400px;
+      height: 400px;
+      user-select: none;
+      touch-action: none;
+      box-sizing: border-box;
+      pointer-events: none;
+    }
+    .edu-compass-svg {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      overflow: visible;
+    }
+    .edu-compass-needle-pin {
+      position: absolute;
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.95);
+      border: 2px solid #0284c7;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: grab;
+      box-shadow: 0 2px 8px rgba(2, 132, 199, 0.4);
+      z-index: 15;
+      transform: translate(-50%, -50%);
+      pointer-events: auto;
+    }
+    .edu-compass-needle-pin:active {
+      cursor: grabbing;
+      transform: translate(-50%, -50%) scale(1.15);
+    }
+    .edu-compass-needle-point {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #0284c7;
+    }
+    .edu-compass-pencil-knob {
+      position: absolute;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: #ffffff;
+      border: 2px solid #ea580c;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: grab;
+      box-shadow: 0 3px 10px rgba(234, 88, 12, 0.4);
+      z-index: 16;
+      transform: translate(-50%, -50%);
+      pointer-events: auto;
+      transition: transform 0.08s ease;
+    }
+    .edu-compass-pencil-knob:active {
+      cursor: grabbing;
+      transform: translate(-50%, -50%) scale(1.2);
+    }
+    .edu-compass-pencil-icon {
+      font-size: 0.9rem;
+      line-height: 1;
+    }
+    .edu-compass-hinge {
+      position: absolute;
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #e2e8f0 0%, #64748b 100%);
+      border: 2px solid #ffffff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: grab;
+      color: #ffffff;
+      box-shadow: 0 2px 8px rgba(15, 23, 42, 0.35);
+      z-index: 18;
+      transform: translate(-50%, -50%);
+      pointer-events: auto;
+    }
+    .edu-compass-hinge:active {
+      cursor: grabbing;
+      transform: translate(-50%, -50%) scale(1.1);
+    }
+    .edu-compass-controls-bar {
+      position: absolute;
+      top: -46px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      background: rgba(255, 255, 255, 0.98);
+      padding: 3px 8px;
+      border-radius: 9999px;
+      border: 1px solid #cbd5e1;
+      box-shadow: 0 4px 16px rgba(15, 23, 42, 0.16);
+      z-index: 25;
+      white-space: nowrap;
+      pointer-events: auto;
+    }
+    .edu-compass-btn {
+      appearance: none;
+      border: 1px solid #cbd5e1;
+      background: #ffffff;
+      color: #0f172a;
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 2px 7px;
+      border-radius: 4px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      transition: all 0.1s ease;
+    }
+    .edu-compass-btn:hover {
+      background: #e0f2fe;
+      border-color: #7dd3fc;
+      color: #0369a1;
+    }
+    .edu-compass-btn--primary {
+      background: #0284c7;
+      color: #ffffff;
+      border-color: #0284c7;
+    }
+    .edu-compass-btn--primary:hover {
+      background: #0369a1;
+      border-color: #0369a1;
+      color: #ffffff;
+    }
+    .edu-compass-close-btn {
+      background: none;
+      border: none;
+      color: #64748b;
+      cursor: pointer;
+      font-size: 0.85rem;
+      padding: 1px 4px;
+      border-radius: 4px;
+      line-height: 1;
+    }
+    .edu-compass-close-btn:hover {
+      background: #fee2e2;
+      color: #dc2626;
+    }
+
+    /* --- Interactive Set Square Overlay --- */
+    .edu-setsquare-overlay {
+      position: absolute;
+      z-index: 85;
+      user-select: none;
+      touch-action: none;
+      box-sizing: border-box;
+      cursor: grab;
+      filter: drop-shadow(0 6px 18px rgba(15, 23, 42, 0.18));
+      transform-origin: 24px 24px;
+    }
+    .edu-setsquare-overlay:active {
+      cursor: grabbing;
+    }
+    .edu-setsquare-svg {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      overflow: visible;
+    }
+    .edu-setsquare-center-bar {
+      position: absolute;
+      top: -46px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      background: rgba(255, 255, 255, 0.98);
+      padding: 3px 8px;
+      border-radius: 9999px;
+      border: 1px solid #cbd5e1;
+      box-shadow: 0 4px 16px rgba(15, 23, 42, 0.16);
+      z-index: 25;
+      white-space: nowrap;
+      pointer-events: auto;
+    }
+    .edu-setsquare-btn {
+      appearance: none;
+      border: 1px solid #cbd5e1;
+      background: #ffffff;
+      color: #0f172a;
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 2px 7px;
+      border-radius: 4px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      transition: all 0.1s ease;
+    }
+    .edu-setsquare-btn:hover {
+      background: #ecfdf5;
+      border-color: #6ee7b7;
+      color: #047857;
+    }
+    .edu-setsquare-btn--primary {
+      background: #059669;
+      color: #ffffff;
+      border-color: #059669;
+    }
+    .edu-setsquare-btn--primary:hover {
+      background: #047857;
+      border-color: #047857;
+      color: #ffffff;
+    }
+    .edu-setsquare-close-btn {
+      background: none;
+      border: none;
+      color: #64748b;
+      cursor: pointer;
+      font-size: 0.85rem;
+      padding: 1px 4px;
+      border-radius: 4px;
+      line-height: 1;
+    }
+    .edu-setsquare-close-btn:hover {
+      background: #fee2e2;
+      color: #dc2626;
+    }
+    .edu-setsquare-rotate-handle {
+      position: absolute;
+      width: 28px;
+      height: 28px;
+      background: #059669;
+      color: #ffffff;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: grab;
+      box-shadow: 0 2px 8px rgba(5, 150, 105, 0.45);
+      border: 2px solid #ffffff;
+      font-size: 0.85rem;
+      z-index: 10;
+      pointer-events: auto;
+      transition: transform 0.1s ease;
+    }
+    .edu-setsquare-rotate-handle:active {
+      cursor: grabbing;
+      transform: scale(1.15);
+    }
   </style>
 </head>
 
@@ -2444,6 +2702,46 @@
               <button type="button" class="edu-protractor-close-btn" id="eduProtractorCloseBtn" title="Close Protractor">✕</button>
             </div>
           </div>
+                    <!-- Educational Tools: Interactive Compass Overlay -->
+          <div id="eduCompassOverlay" class="edu-compass-overlay" style="display: none; left: 260px; top: 180px;">
+            <svg id="eduCompassSvg" class="edu-compass-svg" viewBox="-200 -200 400 400"></svg>
+            <div id="eduCompassNeedlePin" class="edu-compass-needle-pin" title="Drag to set center needle point O">
+              <div class="edu-compass-needle-point"></div>
+            </div>
+            <div id="eduCompassPencilKnob" class="edu-compass-pencil-knob" title="Drag to change radius / sweep circle">
+              <span class="edu-compass-pencil-icon">✏️</span>
+            </div>
+            <div id="eduCompassHinge" class="edu-compass-hinge" title="Drag to move entire compass">
+              <span class="edu-ruler-grip">⠿</span>
+            </div>
+            <div class="edu-compass-controls-bar">
+              <span class="edu-ruler-grip" style="cursor:grab;margin-right:2px;" title="Drag to move compass">⠿</span>
+              <span id="eduCompassRadiusBadge" class="edu-instrument-badge" style="background:#0284c7;">r = 4.0 cm</span>
+              <span id="eduCompassAngleBadge" class="edu-instrument-badge" style="background:#475569;">0°</span>
+              <button type="button" class="edu-compass-btn edu-compass-btn--primary" id="eduCompassDrawCircleBtn" title="Stamp complete circle onto canvas">⭕ Circle</button>
+              <button type="button" class="edu-compass-btn" id="eduCompassDrawArcBtn" title="Draw 90° Arc">✏️ 90° Arc</button>
+              <button type="button" class="edu-compass-btn" id="eduCompassLockBtn" title="Lock radius">🔓 Free</button>
+              <button type="button" class="edu-compass-btn" id="eduCompassResetBtn" title="Reset angle to 0°">🔄 0°</button>
+              <button type="button" class="edu-compass-close-btn" id="eduCompassCloseBtn" title="Close Compass">✕</button>
+            </div>
+          </div>
+
+          <!-- Educational Tools: Interactive Set Square Overlay -->
+          <div id="eduSetSquareOverlay" class="edu-setsquare-overlay" style="display: none; left: 240px; top: 160px; width: 280px; height: 320px;">
+            <svg id="eduSetSquareSvg" class="edu-setsquare-svg" viewBox="0 0 280 320"></svg>
+            <div class="edu-setsquare-center-bar" id="eduSetSquareDragHandle" title="Drag to move set square">
+              <span class="edu-ruler-grip">⠿</span>
+              <span id="eduSetSquareTypeBadge" class="edu-instrument-badge" style="background:#059669;">30°-60°-90°</span>
+              <span id="eduSetSquareAngleBadge" class="edu-instrument-badge" style="background:#475569;">0.0°</span>
+              <button type="button" class="edu-setsquare-btn" id="eduSetSquareToggleTypeBtn" title="Switch between 30°-60°-90° and 45°-45°-90°">📐 45°-45°</button>
+              <button type="button" class="edu-setsquare-btn edu-setsquare-btn--primary" id="eduSetSquareStampBtn" title="Stamp exact triangle onto canvas">🔺 Stamp △</button>
+              <button type="button" class="edu-setsquare-btn" id="eduSetSquareTraceHypBtn" title="Trace hypotenuse line">✏️ Hypotenuse</button>
+              <button type="button" class="edu-setsquare-btn" id="eduSetSquareResetAngleBtn" title="Reset angle to 0°">🔄 0°</button>
+              <button type="button" class="edu-setsquare-close-btn" id="eduSetSquareCloseBtn" title="Close Set Square">✕</button>
+            </div>
+            <div class="edu-setsquare-rotate-handle" id="eduSetSquareRotateHandle" title="Drag to rotate set square">↻</div>
+          </div>
+
           <div class="board-overlay">
             <span id="boardInfoLabel" class="board-info-label">
               Whiteboard - Page 1
@@ -5396,6 +5694,382 @@
           ctx.textBaseline = "bottom";
           ctx.fillStyle = "#0284c7";
           ctx.fillText("r", cx + r / 2, cy - 4);
+        } else if (shape.geoType === "unitCircle") {
+          const r = Math.min((x2 - x1), (y2 - y1)) / 2 - 20;
+
+          // X and Y Axes
+          ctx.strokeStyle = "#94a3b8";
+          ctx.lineWidth = 1.4;
+          ctx.beginPath();
+          ctx.moveTo(x1 + 6, cy); ctx.lineTo(x2 - 6, cy);
+          ctx.stroke();
+          ctx.fillStyle = "#64748b";
+          ctx.beginPath();
+          ctx.moveTo(x2 - 6, cy); ctx.lineTo(x2 - 12, cy - 3.5); ctx.lineTo(x2 - 12, cy + 3.5); ctx.fill();
+
+          ctx.beginPath();
+          ctx.moveTo(cx, y2 - 6); ctx.lineTo(cx, y1 + 6);
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.moveTo(cx, y1 + 6); ctx.lineTo(cx - 3.5, y1 + 12); ctx.lineTo(cx + 3.5, y1 + 12); ctx.fill();
+
+          ctx.font = "italic 11px sans-serif";
+          ctx.fillStyle = "#64748b";
+          ctx.textAlign = "right"; ctx.fillText("x", x2 - 14, cy - 6);
+          ctx.textAlign = "left"; ctx.fillText("y", cx + 6, y1 + 16);
+          ctx.fillText("O", cx - 12, cy + 12);
+
+          // Unit Circle
+          ctx.strokeStyle = color;
+          ctx.lineWidth = width;
+          ctx.beginPath();
+          ctx.arc(cx, cy, r, 0, Math.PI * 2);
+          ctx.stroke();
+
+          const keyAngles = [
+            { deg: 0, rad: "0, 2π" },
+            { deg: 30, rad: "π/6" },
+            { deg: 45, rad: "π/4" },
+            { deg: 60, rad: "π/3" },
+            { deg: 90, rad: "π/2" },
+            { deg: 120, rad: "2π/3" },
+            { deg: 135, rad: "3π/4" },
+            { deg: 150, rad: "5π/6" },
+            { deg: 180, rad: "π" },
+            { deg: 210, rad: "7π/6" },
+            { deg: 225, rad: "5π/4" },
+            { deg: 240, rad: "4π/3" },
+            { deg: 270, rad: "3π/2" },
+            { deg: 300, rad: "5π/3" },
+            { deg: 315, rad: "7π/4" },
+            { deg: 330, rad: "11π/6" }
+          ];
+
+          keyAngles.forEach((ka) => {
+            const radVal = (ka.deg * Math.PI) / 180;
+            const px = cx + r * Math.cos(radVal);
+            const py = cy - r * Math.sin(radVal);
+
+            ctx.strokeStyle = "rgba(148, 163, 184, 0.45)";
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(cx, cy);
+            ctx.lineTo(px, py);
+            ctx.stroke();
+
+            ctx.fillStyle = (ka.deg % 90 === 0) ? "#0284c7" : "#0f172a";
+            ctx.beginPath();
+            ctx.arc(px, py, (ka.deg % 90 === 0) ? 3.5 : 2.5, 0, Math.PI * 2);
+            ctx.fill();
+
+            const labelDist = r + 13;
+            const lx = cx + labelDist * Math.cos(radVal);
+            const ly = cy - labelDist * Math.sin(radVal);
+
+            ctx.font = "bold 9px monospace";
+            ctx.fillStyle = (ka.deg % 90 === 0) ? "#0369a1" : "#475569";
+            ctx.textAlign = (Math.cos(radVal) > 0.3) ? "left" : (Math.cos(radVal) < -0.3 ? "right" : "center");
+            ctx.textBaseline = (Math.sin(radVal) > 0.3) ? "bottom" : (Math.sin(radVal) < -0.3 ? "top" : "middle");
+            ctx.fillText(ka.deg + "° (" + ka.rad + ")", lx, ly);
+          });
+        }
+
+        ctx.restore();
+      }
+
+      function draw3dSolidShape(ctx, shape) {
+        const { start, end, solidType } = shape;
+        const x1 = Math.min(start.x, end.x);
+        const x2 = Math.max(start.x, end.x);
+        const y1 = Math.min(start.y, end.y);
+        const y2 = Math.max(start.y, end.y);
+        const w = x2 - x1;
+        const h = y2 - y1;
+        const cx = (x1 + x2) / 2;
+        const cy = (y1 + y2) / 2;
+        const color = shape.color || "#0f172a";
+        const width = shape.width || 2;
+
+        ctx.save();
+        ctx.strokeStyle = color;
+        ctx.lineWidth = width;
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+
+        if (solidType === "cube") {
+          const s = Math.min(w, h) * 0.72;
+          const dx = s * 0.38;
+          const dy = -s * 0.35;
+          const fx = cx - s / 2 - dx / 2;
+          const fy = cy - s / 2 - dy / 2;
+
+          ctx.beginPath();
+          ctx.rect(fx, fy, s, s);
+          ctx.stroke();
+
+          ctx.beginPath();
+          ctx.moveTo(fx, fy);
+          ctx.lineTo(fx + dx, fy + dy);
+          ctx.lineTo(fx + s + dx, fy + dy);
+          ctx.lineTo(fx + s, fy);
+          ctx.closePath();
+          ctx.stroke();
+
+          ctx.beginPath();
+          ctx.moveTo(fx + s, fy);
+          ctx.lineTo(fx + s + dx, fy + dy);
+          ctx.lineTo(fx + s + dx, fy + s + dy);
+          ctx.lineTo(fx + s, fy + s);
+          ctx.closePath();
+          ctx.stroke();
+
+          ctx.setLineDash([5, 4]);
+          ctx.strokeStyle = "rgba(100, 116, 139, 0.7)";
+          ctx.beginPath();
+          ctx.moveTo(fx, fy + s);
+          ctx.lineTo(fx + dx, fy + s + dy);
+          ctx.lineTo(fx + dx, fy + dy);
+          ctx.moveTo(fx + dx, fy + s + dy);
+          ctx.lineTo(fx + s + dx, fy + s + dy);
+          ctx.stroke();
+          ctx.setLineDash([]);
+
+          ctx.font = "italic 12px sans-serif";
+          ctx.fillStyle = color;
+          ctx.textAlign = "center";
+          ctx.fillText("s", fx + s / 2, fy + s + 15);
+        } else if (solidType === "cuboid") {
+          const l = w * 0.72;
+          const hc = h * 0.65;
+          const dx = w * 0.28;
+          const dy = -h * 0.3;
+          const fx = cx - l / 2 - dx / 2;
+          const fy = cy - hc / 2 - dy / 2;
+
+          ctx.beginPath();
+          ctx.rect(fx, fy, l, hc);
+          ctx.stroke();
+
+          ctx.beginPath();
+          ctx.moveTo(fx, fy);
+          ctx.lineTo(fx + dx, fy + dy);
+          ctx.lineTo(fx + l + dx, fy + dy);
+          ctx.lineTo(fx + l, fy);
+          ctx.closePath();
+          ctx.stroke();
+
+          ctx.beginPath();
+          ctx.moveTo(fx + l, fy);
+          ctx.lineTo(fx + l + dx, fy + dy);
+          ctx.lineTo(fx + l + dx, fy + hc + dy);
+          ctx.lineTo(fx + l, fy + hc);
+          ctx.closePath();
+          ctx.stroke();
+
+          ctx.setLineDash([5, 4]);
+          ctx.strokeStyle = "rgba(100, 116, 139, 0.7)";
+          ctx.beginPath();
+          ctx.moveTo(fx, fy + hc);
+          ctx.lineTo(fx + dx, fy + hc + dy);
+          ctx.lineTo(fx + dx, fy + dy);
+          ctx.moveTo(fx + dx, fy + hc + dy);
+          ctx.lineTo(fx + l + dx, fy + hc + dy);
+          ctx.stroke();
+          ctx.setLineDash([]);
+
+          ctx.font = "italic 11px sans-serif";
+          ctx.fillStyle = color;
+          ctx.textAlign = "center";
+          ctx.fillText("l", fx + l / 2, fy + hc + 14);
+          ctx.textAlign = "left";
+          ctx.fillText("h", fx + l + dx + 6, fy + hc / 2 + dy / 2);
+          ctx.textAlign = "center";
+          ctx.fillText("b", fx + l + dx / 2 + 8, fy + dy / 2 - 4);
+        } else if (solidType === "cylinder") {
+          const rx = w / 2 - 10;
+          const ry = rx * 0.32;
+          const topCy = y1 + ry + 6;
+          const botCy = y2 - ry - 6;
+
+          ctx.beginPath();
+          ctx.ellipse(cx, topCy, rx, ry, 0, 0, Math.PI * 2);
+          ctx.stroke();
+
+          ctx.beginPath();
+          ctx.moveTo(cx - rx, topCy);
+          ctx.lineTo(cx - rx, botCy);
+          ctx.moveTo(cx + rx, topCy);
+          ctx.lineTo(cx + rx, botCy);
+          ctx.stroke();
+
+          ctx.beginPath();
+          ctx.ellipse(cx, botCy, rx, ry, 0, 0, Math.PI);
+          ctx.stroke();
+
+          ctx.setLineDash([5, 4]);
+          ctx.strokeStyle = "rgba(100, 116, 139, 0.7)";
+          ctx.beginPath();
+          ctx.ellipse(cx, botCy, rx, ry, 0, Math.PI, Math.PI * 2);
+          ctx.stroke();
+
+          ctx.beginPath();
+          ctx.moveTo(cx, topCy);
+          ctx.lineTo(cx, botCy);
+          ctx.moveTo(cx, topCy);
+          ctx.lineTo(cx + rx, topCy);
+          ctx.stroke();
+          ctx.setLineDash([]);
+
+          ctx.font = "italic 11px sans-serif";
+          ctx.fillStyle = color;
+          ctx.textAlign = "center";
+          ctx.fillText("r", cx + rx / 2, topCy - 5);
+          ctx.textAlign = "left";
+          ctx.fillText("h", cx + 8, (topCy + botCy) / 2);
+        } else if (solidType === "cone") {
+          const rx = w / 2 - 10;
+          const ry = rx * 0.32;
+          const apexY = y1 + 8;
+          const botCy = y2 - ry - 6;
+
+          ctx.beginPath();
+          ctx.moveTo(cx, apexY);
+          ctx.lineTo(cx - rx, botCy);
+          ctx.moveTo(cx, apexY);
+          ctx.lineTo(cx + rx, botCy);
+          ctx.stroke();
+
+          ctx.beginPath();
+          ctx.ellipse(cx, botCy, rx, ry, 0, 0, Math.PI);
+          ctx.stroke();
+
+          ctx.setLineDash([5, 4]);
+          ctx.strokeStyle = "rgba(100, 116, 139, 0.7)";
+          ctx.beginPath();
+          ctx.ellipse(cx, botCy, rx, ry, 0, Math.PI, Math.PI * 2);
+          ctx.stroke();
+
+          ctx.beginPath();
+          ctx.moveTo(cx, apexY);
+          ctx.lineTo(cx, botCy);
+          ctx.moveTo(cx, botCy);
+          ctx.lineTo(cx + rx, botCy);
+          ctx.stroke();
+
+          const sq = 8;
+          ctx.strokeRect(cx, botCy - sq, sq, sq);
+          ctx.setLineDash([]);
+
+          ctx.font = "italic 11px sans-serif";
+          ctx.fillStyle = color;
+          ctx.textAlign = "right";
+          ctx.fillText("h", cx - 6, (apexY + botCy) / 2);
+          ctx.textAlign = "center";
+          ctx.fillText("r", cx + rx / 2, botCy - 5);
+          ctx.textAlign = "left";
+          ctx.fillText("l", cx + rx / 2 + 8, (apexY + botCy) / 2 - 4);
+        } else if (solidType === "sphere") {
+          const r = Math.min(w, h) / 2 - 10;
+          const ry = r * 0.32;
+
+          ctx.beginPath();
+          ctx.arc(cx, cy, r, 0, Math.PI * 2);
+          ctx.stroke();
+
+          ctx.beginPath();
+          ctx.ellipse(cx, cy, r, ry, 0, 0, Math.PI);
+          ctx.stroke();
+
+          ctx.setLineDash([5, 4]);
+          ctx.strokeStyle = "rgba(100, 116, 139, 0.7)";
+          ctx.beginPath();
+          ctx.ellipse(cx, cy, r, ry, 0, Math.PI, Math.PI * 2);
+          ctx.stroke();
+
+          ctx.beginPath();
+          ctx.moveTo(cx, cy);
+          ctx.lineTo(cx + r, cy);
+          ctx.stroke();
+          ctx.setLineDash([]);
+
+          ctx.fillStyle = color;
+          ctx.beginPath();
+          ctx.arc(cx, cy, 3.5, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.font = "italic 11px sans-serif";
+          ctx.fillText("O", cx - 8, cy - 6);
+          ctx.textAlign = "center";
+          ctx.fillText("r", cx + r / 2, cy - 6);
+        } else if (solidType === "triangularPrism") {
+          const fw = w * 0.62;
+          const fh = h * 0.7;
+          const dx = w * 0.35;
+          const dy = -h * 0.28;
+
+          const fA = { x: x1 + fw / 2, y: y2 - fh };
+          const fB = { x: x1, y: y2 };
+          const fC = { x: x1 + fw, y: y2 };
+
+          ctx.beginPath();
+          ctx.moveTo(fA.x, fA.y);
+          ctx.lineTo(fB.x, fB.y);
+          ctx.lineTo(fC.x, fC.y);
+          ctx.closePath();
+          ctx.stroke();
+
+          ctx.beginPath();
+          ctx.moveTo(fA.x, fA.y);
+          ctx.lineTo(fA.x + dx, fA.y + dy);
+          ctx.lineTo(fC.x + dx, fC.y + dy);
+          ctx.lineTo(fC.x, fC.y);
+          ctx.moveTo(fA.x + dx, fA.y + dy);
+          ctx.lineTo(fB.x + dx, fB.y + dy);
+          ctx.stroke();
+
+          ctx.setLineDash([5, 4]);
+          ctx.strokeStyle = "rgba(100, 116, 139, 0.7)";
+          ctx.beginPath();
+          ctx.moveTo(fB.x, fB.y);
+          ctx.lineTo(fB.x + dx, fB.y + dy);
+          ctx.lineTo(fC.x + dx, fC.y + dy);
+          ctx.stroke();
+          ctx.setLineDash([]);
+        } else if (solidType === "squarePyramid") {
+          const bw = w * 0.8;
+          const bh = h * 0.36;
+          const apexY = y1 + 8;
+          const baseCenterY = y2 - bh / 2;
+
+          const pA = { x: cx - bw / 2 + 16, y: y2 - bh };
+          const pB = { x: cx + bw / 2, y: y2 - bh };
+          const pC = { x: cx + bw / 2 - 16, y: y2 };
+          const pD = { x: cx - bw / 2, y: y2 };
+
+          ctx.beginPath();
+          ctx.moveTo(pD.x, pD.y); ctx.lineTo(pC.x, pC.y);
+          ctx.lineTo(pB.x, pB.y);
+          ctx.stroke();
+
+          ctx.beginPath();
+          ctx.moveTo(cx, apexY); ctx.lineTo(pD.x, pD.y);
+          ctx.moveTo(cx, apexY); ctx.lineTo(pC.x, pC.y);
+          ctx.moveTo(cx, apexY); ctx.lineTo(pB.x, pB.y);
+          ctx.stroke();
+
+          ctx.setLineDash([5, 4]);
+          ctx.strokeStyle = "rgba(100, 116, 139, 0.7)";
+          ctx.beginPath();
+          ctx.moveTo(pD.x, pD.y); ctx.lineTo(pA.x, pA.y); ctx.lineTo(pB.x, pB.y);
+          ctx.moveTo(cx, apexY); ctx.lineTo(pA.x, pA.y);
+          ctx.moveTo(cx, apexY); ctx.lineTo(cx, baseCenterY);
+          ctx.stroke();
+          ctx.setLineDash([]);
+
+          ctx.font = "italic 11px sans-serif";
+          ctx.fillStyle = color;
+          ctx.textAlign = "right";
+          ctx.fillText("h", cx - 6, (apexY + baseCenterY) / 2);
         }
 
         ctx.restore();
@@ -5489,6 +6163,8 @@
           drawFractionModelDiagram(ctx, shape);
         } else if (type === "geometricDiagram") {
           drawGeometricDiagramShape(ctx, shape);
+        } else if (type === "3dSolid") {
+          draw3dSolidShape(ctx, shape);
         } else if (type === "angleArc" || type === "arc") {
           const vx = (shape.vertex && typeof shape.vertex.x === "number") ? shape.vertex.x : cx;
           const vy = (shape.vertex && typeof shape.vertex.y === "number") ? shape.vertex.y : cy;
@@ -14804,6 +15480,48 @@
         });
         instrumentsBox.appendChild(protractorBtn);
 
+        // Compass Toggle Button
+        const compassBtn = document.createElement("button");
+        compassBtn.type = "button";
+        compassBtn.innerHTML = "<span style='font-size:1.1rem;'>🧭</span> " + (compassState.visible ? "Hide Compass" : "Show Compass (Geometric)");
+        compassBtn.style.padding = "0.6rem 0.8rem";
+        compassBtn.style.borderRadius = "8px";
+        compassBtn.style.border = compassState.visible ? "1.5px solid #0284c7" : "1px solid #cbd5e1";
+        compassBtn.style.background = compassState.visible ? "#f0f9ff" : "#ffffff";
+        compassBtn.style.color = compassState.visible ? "#0369a1" : "#1e293b";
+        compassBtn.style.fontWeight = "700";
+        compassBtn.style.fontSize = "0.85rem";
+        compassBtn.style.cursor = "pointer";
+        compassBtn.style.display = "flex";
+        compassBtn.style.alignItems = "center";
+        compassBtn.style.gap = "8px";
+        compassBtn.addEventListener("click", () => {
+          toggleCompass(!compassState.visible);
+          renderEduToolsOptions();
+        });
+        instrumentsBox.appendChild(compassBtn);
+
+        // Set Squares Toggle Button
+        const setSquareBtn = document.createElement("button");
+        setSquareBtn.type = "button";
+        setSquareBtn.innerHTML = "<span style='font-size:1.1rem;'>📐</span> " + (setSquareState.visible ? "Hide Set Squares" : "Show Set Squares (30°-60° & 45°)");
+        setSquareBtn.style.padding = "0.6rem 0.8rem";
+        setSquareBtn.style.borderRadius = "8px";
+        setSquareBtn.style.border = setSquareState.visible ? "1.5px solid #059669" : "1px solid #cbd5e1";
+        setSquareBtn.style.background = setSquareState.visible ? "#ecfdf5" : "#ffffff";
+        setSquareBtn.style.color = setSquareState.visible ? "#047857" : "#1e293b";
+        setSquareBtn.style.fontWeight = "700";
+        setSquareBtn.style.fontSize = "0.85rem";
+        setSquareBtn.style.cursor = "pointer";
+        setSquareBtn.style.display = "flex";
+        setSquareBtn.style.alignItems = "center";
+        setSquareBtn.style.gap = "8px";
+        setSquareBtn.addEventListener("click", () => {
+          toggleSetSquare(!setSquareState.visible);
+          renderEduToolsOptions();
+        });
+        instrumentsBox.appendChild(setSquareBtn);
+
         // 3. Educational Diagrams Toggle Button (matching Ruler and Protractor)
         const isDiagOpen = !!window._isEduDiagramsOpen;
         const diagBtn = document.createElement("button");
@@ -14885,8 +15603,16 @@
               icon: "📐",
               theme: { bg: "#ecfdf5", border: "#a7f3d0", text: "#047857", badgeBg: "#d1fae5" },
               title: "Geometric Figures",
-              subtitle: "Triangles, circles & theorems",
-              count: "3 figures"
+              subtitle: "Triangles, circles, unit circle & theorems",
+              count: "4 figures"
+            },
+            {
+              id: "solids",
+              icon: "🧊",
+              theme: { bg: "#f0fdf4", border: "#bbf7d0", text: "#15803d", badgeBg: "#dcfce7" },
+              title: "3D Solids / Shapes",
+              subtitle: "Cubes, cylinders, cones & prisms",
+              count: "7 solids"
             }
           ];
 
@@ -15026,7 +15752,7 @@
             catBadge.style.background = "#e2e8f0";
             catBadge.style.padding = "1px 7px";
             catBadge.style.borderRadius = "999px";
-            catBadge.textContent = "5 Topics";
+            catBadge.textContent = categories.length + " Topics";
             catHeader.appendChild(catBadge);
             diagBox.appendChild(catHeader);
 
@@ -15826,6 +16552,15 @@
                   type: "circleRadius",
                   w: 90,
                   h: 90
+                },
+                {
+                  chip: "⭕ Unit Circle",
+                  chipTheme: { bg: "#eff6ff", color: "#1d4ed8", border: "#bfdbfe" },
+                  title: "Trigonometric Unit Circle",
+                  subtitle: "Standard angles (0°-360°), radians (π) & (cos, sin) coordinates",
+                  type: "unitCircle",
+                  w: 130,
+                  h: 130
                 }
               ];
 
@@ -15845,6 +16580,102 @@
                       width: 2,
                       start: { x: cx - gp.w, y: cy - gp.h },
                       end: { x: cx + gp.w, y: cy + gp.h },
+                      createdAt: Date.now()
+                    });
+                  }
+                });
+                diagBox.appendChild(card);
+              });
+            } else if (selectedCatId === "solids") {
+              const desc = document.createElement("p");
+              desc.style.margin = "0 0 8px 0";
+              desc.style.fontSize = "0.72rem";
+              desc.style.color = "#64748b";
+              desc.textContent = "Select 3D geometric solid:";
+              diagBox.appendChild(desc);
+
+              const solidPresets = [
+                {
+                  chip: "🧊 Cube",
+                  chipTheme: { bg: "#f0fdf4", color: "#15803d", border: "#bbf7d0" },
+                  title: "Isometric 3D Cube",
+                  subtitle: "Front & rear square with dashed hidden edges and side s",
+                  type: "cube",
+                  w: 90,
+                  h: 90
+                },
+                {
+                  chip: "📦 Cuboid",
+                  chipTheme: { bg: "#f0fdf4", color: "#15803d", border: "#bbf7d0" },
+                  title: "Rectangular Box (Cuboid)",
+                  subtitle: "Length l, width w, height h with 3D dashed hidden edges",
+                  type: "cuboid",
+                  w: 120,
+                  h: 80
+                },
+                {
+                  chip: "🛢️ Cylinder",
+                  chipTheme: { bg: "#ecfdf5", color: "#047857", border: "#a7f3d0" },
+                  title: "Right Circular Cylinder",
+                  subtitle: "Bases with radius r, height h and dashed rear base",
+                  type: "cylinder",
+                  w: 80,
+                  h: 110
+                },
+                {
+                  chip: "🍦 Cone",
+                  chipTheme: { bg: "#fef3c7", color: "#b45309", border: "#fde68a" },
+                  title: "Right Circular Cone",
+                  subtitle: "Circular base, apex, vertical height h & radius r",
+                  type: "cone",
+                  w: 80,
+                  h: 110
+                },
+                {
+                  chip: "⚽ Sphere",
+                  chipTheme: { bg: "#eff6ff", color: "#1d4ed8", border: "#bfdbfe" },
+                  title: "Sphere with Equator",
+                  subtitle: "Great circle, equatorial ring, center O & radius r",
+                  type: "sphere",
+                  w: 90,
+                  h: 90
+                },
+                {
+                  chip: "⛺ Prism",
+                  chipTheme: { bg: "#f5f3ff", color: "#6d28d9", border: "#ddd6fe" },
+                  title: "Triangular Prism",
+                  subtitle: "Triangular faces, rectangular sides and hidden edges",
+                  type: "triangularPrism",
+                  w: 110,
+                  h: 80
+                },
+                {
+                  chip: "🔺 Pyramid",
+                  chipTheme: { bg: "#fff1f2", color: "#be123c", border: "#fecdd3" },
+                  title: "Square-Based Pyramid",
+                  subtitle: "Square base, 4 slant faces, apex & vertical height axis",
+                  type: "squarePyramid",
+                  w: 100,
+                  h: 95
+                }
+              ];
+
+              solidPresets.forEach((sp) => {
+                const card = createPresetCard({
+                  chip: sp.chip,
+                  chipTheme: sp.chipTheme,
+                  title: sp.title,
+                  subtitle: sp.subtitle,
+                  onClick: () => {
+                    const { x: cx, y: cy } = getVisibleBoardCenter();
+                    insertDiagramHelper({
+                      id: generateId(),
+                      type: "3dSolid",
+                      solidType: sp.type,
+                      color: penSettings.color || "#0f172a",
+                      width: 2,
+                      start: { x: cx - sp.w, y: cy - sp.h },
+                      end: { x: cx + sp.w, y: cy + sp.h },
                       createdAt: Date.now()
                     });
                   }
@@ -16031,6 +16862,220 @@
           protractorSub.appendChild(drawAngleBtn);
 
           wrap.appendChild(protractorSub);
+        }
+
+        // Sub-controls if Compass is active
+        if (compassState.visible) {
+          const compassSub = document.createElement("div");
+          compassSub.style.background = "#f0f9ff";
+          compassSub.style.padding = "10px";
+          compassSub.style.borderRadius = "8px";
+          compassSub.style.border = "1px solid #bae6fd";
+          compassSub.style.marginBottom = "0.85rem";
+
+          const subTitle = document.createElement("div");
+          subTitle.style.fontSize = "0.75rem";
+          subTitle.style.fontWeight = "700";
+          subTitle.style.color = "#0369a1";
+          subTitle.style.marginBottom = "6px";
+          subTitle.textContent = "Compass Controls:";
+          compassSub.appendChild(subTitle);
+
+          const presetRow = document.createElement("div");
+          presetRow.style.display = "flex";
+          presetRow.style.gap = "4px";
+          presetRow.style.marginBottom = "8px";
+
+          [2, 3, 4, 5, 6, 8].forEach((r) => {
+            const btn = document.createElement("button");
+            btn.type = "button";
+            btn.textContent = "r=" + r + "cm";
+            btn.style.padding = "3px 6px";
+            btn.style.fontSize = "0.71rem";
+            btn.style.fontWeight = "600";
+            btn.style.borderRadius = "4px";
+            btn.style.border = "1px solid " + (compassState.radiusCm === r ? "#0284c7" : "#cbd5e1");
+            btn.style.background = compassState.radiusCm === r ? "#0284c7" : "#ffffff";
+            btn.style.color = compassState.radiusCm === r ? "#ffffff" : "#334155";
+            btn.style.cursor = "pointer";
+            btn.addEventListener("click", () => {
+              compassState.radiusCm = r;
+              renderCompassSvg();
+              renderEduToolsOptions();
+              syncEduInstrumentsToPage(true);
+            });
+            presetRow.appendChild(btn);
+          });
+          compassSub.appendChild(presetRow);
+
+          const lockRow = document.createElement("div");
+          lockRow.style.display = "flex";
+          lockRow.style.alignItems = "center";
+          lockRow.style.justifyContent = "space-between";
+          lockRow.style.marginBottom = "8px";
+
+          const lockBtn = document.createElement("button");
+          lockBtn.type = "button";
+          lockBtn.textContent = compassState.isLocked ? "🔒 Radius Locked" : "🔓 Radius Free (Drag to resize)";
+          lockBtn.style.width = "100%";
+          lockBtn.style.padding = "4px 8px";
+          lockBtn.style.fontSize = "0.73rem";
+          lockBtn.style.fontWeight = "600";
+          lockBtn.style.borderRadius = "5px";
+          lockBtn.style.border = compassState.isLocked ? "1px solid #f59e0b" : "1px solid #cbd5e1";
+          lockBtn.style.background = compassState.isLocked ? "#fef3c7" : "#ffffff";
+          lockBtn.style.color = compassState.isLocked ? "#b45309" : "#475569";
+          lockBtn.style.cursor = "pointer";
+          lockBtn.addEventListener("click", () => {
+            compassState.isLocked = !compassState.isLocked;
+            renderCompassSvg();
+            renderEduToolsOptions();
+            syncEduInstrumentsToPage(true);
+          });
+          lockRow.appendChild(lockBtn);
+          compassSub.appendChild(lockRow);
+
+          const drawCircleBtn = document.createElement("button");
+          drawCircleBtn.type = "button";
+          drawCircleBtn.innerHTML = "⭕ Draw Complete Circle (r = " + compassState.radiusCm.toFixed(1) + " cm)";
+          drawCircleBtn.style.width = "100%";
+          drawCircleBtn.style.padding = "6px";
+          drawCircleBtn.style.marginBottom = "5px";
+          drawCircleBtn.style.borderRadius = "6px";
+          drawCircleBtn.style.border = "none";
+          drawCircleBtn.style.background = "#0284c7";
+          drawCircleBtn.style.color = "#ffffff";
+          drawCircleBtn.style.fontWeight = "700";
+          drawCircleBtn.style.fontSize = "0.78rem";
+          drawCircleBtn.style.cursor = "pointer";
+          drawCircleBtn.addEventListener("click", () => {
+            drawCompassCircle();
+          });
+          compassSub.appendChild(drawCircleBtn);
+
+          const drawArcBtn = document.createElement("button");
+          drawArcBtn.type = "button";
+          drawArcBtn.innerHTML = "✏️ Draw 90° Arc at " + compassState.angle.toFixed(1) + "°";
+          drawArcBtn.style.width = "100%";
+          drawArcBtn.style.padding = "6px";
+          drawArcBtn.style.borderRadius = "6px";
+          drawArcBtn.style.border = "1px solid #0284c7";
+          drawArcBtn.style.background = "#ffffff";
+          drawArcBtn.style.color = "#0284c7";
+          drawArcBtn.style.fontWeight = "700";
+          drawArcBtn.style.fontSize = "0.78rem";
+          drawArcBtn.style.cursor = "pointer";
+          drawArcBtn.addEventListener("click", () => {
+            drawCompassArc(90);
+          });
+          compassSub.appendChild(drawArcBtn);
+
+          wrap.appendChild(compassSub);
+        }
+
+        // Sub-controls if Set Square is active
+        if (setSquareState.visible) {
+          const sqSub = document.createElement("div");
+          sqSub.style.background = "#ecfdf5";
+          sqSub.style.padding = "10px";
+          sqSub.style.borderRadius = "8px";
+          sqSub.style.border = "1px solid #a7f3d0";
+          sqSub.style.marginBottom = "0.85rem";
+
+          const subTitle = document.createElement("div");
+          subTitle.style.fontSize = "0.75rem";
+          subTitle.style.fontWeight = "700";
+          subTitle.style.color = "#047857";
+          subTitle.style.marginBottom = "6px";
+          subTitle.textContent = "Set Square Controls:";
+          sqSub.appendChild(subTitle);
+
+          const is3060 = setSquareState.type === "30-60-90";
+
+          const typeToggleBtn = document.createElement("button");
+          typeToggleBtn.type = "button";
+          typeToggleBtn.textContent = is3060 ? "Switch to 45°-45°-90° Triangle" : "Switch to 30°-60°-90° Triangle";
+          typeToggleBtn.style.width = "100%";
+          typeToggleBtn.style.padding = "5px";
+          typeToggleBtn.style.marginBottom = "6px";
+          typeToggleBtn.style.borderRadius = "6px";
+          typeToggleBtn.style.border = "1px solid #6ee7b7";
+          typeToggleBtn.style.background = "#ffffff";
+          typeToggleBtn.style.color = "#047857";
+          typeToggleBtn.style.fontSize = "0.74rem";
+          typeToggleBtn.style.fontWeight = "700";
+          typeToggleBtn.style.cursor = "pointer";
+          typeToggleBtn.addEventListener("click", () => {
+            setSquareState.type = is3060 ? "45-45-90" : "30-60-90";
+            renderSetSquareSvg();
+            renderEduToolsOptions();
+            syncEduInstrumentsToPage(true);
+          });
+          sqSub.appendChild(typeToggleBtn);
+
+          const anglesRow = document.createElement("div");
+          anglesRow.style.display = "flex";
+          anglesRow.style.gap = "4px";
+          anglesRow.style.marginBottom = "8px";
+
+          [0, 30, 45, 60, 90, 180].forEach((ang) => {
+            const btn = document.createElement("button");
+            btn.type = "button";
+            btn.textContent = ang + "°";
+            btn.style.padding = "3px 6px";
+            btn.style.fontSize = "0.71rem";
+            btn.style.fontWeight = "600";
+            btn.style.borderRadius = "4px";
+            btn.style.border = "1px solid " + (setSquareState.angle === ang ? "#059669" : "#cbd5e1");
+            btn.style.background = setSquareState.angle === ang ? "#059669" : "#ffffff";
+            btn.style.color = setSquareState.angle === ang ? "#ffffff" : "#334155";
+            btn.style.cursor = "pointer";
+            btn.addEventListener("click", () => {
+              setSquareState.angle = ang;
+              updateSetSquarePosition();
+              renderEduToolsOptions();
+              syncEduInstrumentsToPage(true);
+            });
+            anglesRow.appendChild(btn);
+          });
+          sqSub.appendChild(anglesRow);
+
+          const stampBtn = document.createElement("button");
+          stampBtn.type = "button";
+          stampBtn.innerHTML = "🔺 Stamp Triangle on Board";
+          stampBtn.style.width = "100%";
+          stampBtn.style.padding = "6px";
+          stampBtn.style.marginBottom = "5px";
+          stampBtn.style.borderRadius = "6px";
+          stampBtn.style.border = "none";
+          stampBtn.style.background = "#059669";
+          stampBtn.style.color = "#ffffff";
+          stampBtn.style.fontWeight = "700";
+          stampBtn.style.fontSize = "0.78rem";
+          stampBtn.style.cursor = "pointer";
+          stampBtn.addEventListener("click", () => {
+            stampSetSquareTriangle();
+          });
+          sqSub.appendChild(stampBtn);
+
+          const traceHypBtn = document.createElement("button");
+          traceHypBtn.type = "button";
+          traceHypBtn.innerHTML = "✏️ Trace Hypotenuse Edge";
+          traceHypBtn.style.width = "100%";
+          traceHypBtn.style.padding = "6px";
+          traceHypBtn.style.borderRadius = "6px";
+          traceHypBtn.style.border = "1px solid #059669";
+          traceHypBtn.style.background = "#ffffff";
+          traceHypBtn.style.color = "#047857";
+          traceHypBtn.style.fontWeight = "700";
+          traceHypBtn.style.fontSize = "0.78rem";
+          traceHypBtn.style.cursor = "pointer";
+          traceHypBtn.addEventListener("click", () => {
+            traceSetSquareHypotenuse();
+          });
+          sqSub.appendChild(traceHypBtn);
+
+          wrap.appendChild(sqSub);
         }
 
       }
@@ -16485,6 +17530,407 @@
       }
       window.drawProtractorAngle = drawProtractorAngle;
 
+      // --- Interactive Compass Functions ---
+      function toggleCompass(show) {
+        compassState.visible = (show !== undefined) ? show : !compassState.visible;
+        const el = document.getElementById("eduCompassOverlay");
+        if (!el) return;
+        el.style.display = compassState.visible ? "block" : "none";
+        if (compassState.visible) {
+          updateCompassPosition();
+          renderCompassSvg();
+        }
+        syncEduInstrumentsToPage(true);
+      }
+      window.toggleCompass = toggleCompass;
+
+      function updateCompassPosition() {
+        const el = document.getElementById("eduCompassOverlay");
+        if (!el) return;
+        el.style.left = (compassState.x - 200) + "px";
+        el.style.top = (compassState.y - 200) + "px";
+      }
+
+      function renderCompassSvg() {
+        const svg = document.getElementById("eduCompassSvg");
+        const radiusBadge = document.getElementById("eduCompassRadiusBadge");
+        const angleBadge = document.getElementById("eduCompassAngleBadge");
+        const lockBtn = document.getElementById("eduCompassLockBtn");
+        const needlePin = document.getElementById("eduCompassNeedlePin");
+        const pencilKnob = document.getElementById("eduCompassPencilKnob");
+        const hinge = document.getElementById("eduCompassHinge");
+        if (!svg) return;
+
+        const rPx = compassState.radiusCm * compassState.pxPerCm;
+        const rad = (compassState.angle * Math.PI) / 180;
+        const px = rPx * Math.cos(rad);
+        const py = rPx * Math.sin(rad);
+
+        const armLength = Math.max(160, rPx * 0.95);
+        const halfR = rPx / 2;
+        const hDist = Math.sqrt(Math.max(400, armLength * armLength - halfR * halfR));
+        const nx = -Math.sin(rad);
+        const ny = Math.cos(rad);
+        const hx = (px / 2) + nx * hDist;
+        const hy = (py / 2) + ny * hDist;
+
+        if (radiusBadge) radiusBadge.textContent = "r = " + compassState.radiusCm.toFixed(1) + " cm";
+        if (angleBadge) {
+          const normAngle = ((compassState.angle % 360) + 360) % 360;
+          angleBadge.textContent = normAngle.toFixed(1) + "°";
+        }
+        if (lockBtn) {
+          lockBtn.textContent = compassState.isLocked ? "🔒 Locked" : "🔓 Free";
+          lockBtn.style.color = compassState.isLocked ? "#b45309" : "#0f172a";
+          lockBtn.style.background = compassState.isLocked ? "#fef3c7" : "#ffffff";
+        }
+
+        if (needlePin) {
+          needlePin.style.left = "200px";
+          needlePin.style.top = "200px";
+        }
+        if (pencilKnob) {
+          pencilKnob.style.left = (200 + px) + "px";
+          pencilKnob.style.top = (200 + py) + "px";
+        }
+        if (hinge) {
+          hinge.style.left = (200 + hx) + "px";
+          hinge.style.top = (200 + hy) + "px";
+        }
+
+        let svgContent = '';
+        svgContent += '<circle cx="0" cy="0" r="' + rPx + '" fill="none" stroke="rgba(2, 132, 199, 0.22)" stroke-dasharray="4,4" stroke-width="1.2" />';
+
+        svgContent += '<defs>' +
+          '<linearGradient id="legGrad" x1="0%" y1="0%" x2="100%" y2="100%">' +
+            '<stop offset="0%" stop-color="#94a3b8" />' +
+            '<stop offset="50%" stop-color="#cbd5e1" />' +
+            '<stop offset="100%" stop-color="#64748b" />' +
+          '</linearGradient>' +
+          '<linearGradient id="brassGrad" x1="0%" y1="0%" x2="100%" y2="100%">' +
+            '<stop offset="0%" stop-color="#fbbf24" />' +
+            '<stop offset="100%" stop-color="#d97706" />' +
+          '</linearGradient>' +
+        '</defs>';
+
+        svgContent += '<line x1="' + (hx + 2) + '" y1="' + (hy + 2) + '" x2="2" y2="2" stroke="rgba(0,0,0,0.18)" stroke-width="7" stroke-linecap="round" />';
+        svgContent += '<line x1="' + hx + '" y1="' + hy + '" x2="0" y2="0" stroke="url(#legGrad)" stroke-width="6.5" stroke-linecap="round" />';
+        svgContent += '<line x1="' + (hx * 0.15) + '" y1="' + (hy * 0.15) + '" x2="0" y2="0" stroke="#0f172a" stroke-width="2.5" stroke-linecap="round" />';
+
+        svgContent += '<line x1="' + (hx + 2) + '" y1="' + (hy + 2) + '" x2="' + (px + 2) + '" y2="' + (py + 2) + '" stroke="rgba(0,0,0,0.18)" stroke-width="7" stroke-linecap="round" />';
+        svgContent += '<line x1="' + hx + '" y1="' + hy + '" x2="' + (px * 0.75 + hx * 0.25) + '" y2="' + (py * 0.75 + hy * 0.25) + '" stroke="url(#legGrad)" stroke-width="6.5" stroke-linecap="round" />';
+
+        const cx1 = px * 0.65 + hx * 0.35;
+        const cy1 = py * 0.65 + hy * 0.35;
+        svgContent += '<circle cx="' + cx1 + '" cy="' + cy1 + '" r="6" fill="url(#brassGrad)" stroke="#b45309" stroke-width="1" />';
+
+        svgContent += '<line x1="' + cx1 + '" y1="' + cy1 + '" x2="' + (px * 0.95 + hx * 0.05) + '" y2="' + (py * 0.95 + hy * 0.05) + '" stroke="#ea580c" stroke-width="5" stroke-linecap="butt" />';
+        svgContent += '<line x1="' + (px * 0.95 + hx * 0.05) + '" y1="' + (py * 0.95 + hy * 0.05) + '" x2="' + (px * 0.98 + hx * 0.02) + '" y2="' + (py * 0.98 + hy * 0.02) + '" stroke="#fed7aa" stroke-width="3.5" stroke-linecap="round" />';
+        svgContent += '<line x1="' + (px * 0.98 + hx * 0.02) + '" y1="' + (py * 0.98 + hy * 0.02) + '" x2="' + px + '" y2="' + py + '" stroke="#0f172a" stroke-width="2" stroke-linecap="round" />';
+
+        svgContent += '<circle cx="' + hx + '" cy="' + hy + '" r="9" fill="url(#brassGrad)" stroke="#b45309" stroke-width="1.5" />';
+        svgContent += '<circle cx="' + hx + '" cy="' + hy + '" r="3" fill="#ffffff" />';
+
+        svgContent += '<line x1="0" y1="0" x2="' + px + '" y2="' + py + '" stroke="rgba(2, 132, 199, 0.45)" stroke-width="1.2" stroke-dasharray="2,2" />';
+
+        svg.innerHTML = svgContent;
+      }
+
+      function drawCompassCircle() {
+        const page = pages[currentPageIndex];
+        if (!page) return;
+        if (!page.shapes) page.shapes = [];
+        pushUndo();
+
+        const pt = getCanvasPointFromClient(compassState.x, compassState.y);
+        const radiusCanvas = (compassState.radiusCm * compassState.pxPerCm) / zoom;
+
+        const circleShape = {
+          id: generateId(),
+          type: "circle",
+          color: penSettings.color || "#0284c7",
+          width: penSettings.width || 2,
+          fillMode: "none",
+          start: { x: pt.x, y: pt.y },
+          end: { x: pt.x + radiusCanvas, y: pt.y },
+          createdAt: Date.now()
+        };
+
+        page.shapes.push(circleShape);
+        updateBoardAppearance();
+        notifyParentPageUpdate(currentPageIndex, true);
+        scheduleNotifyParentPages(100);
+
+        const knob = document.getElementById("eduCompassPencilKnob");
+        if (knob) {
+          knob.style.boxShadow = "0 0 0 4px #0284c7, 0 8px 24px rgba(2, 132, 199, 0.6)";
+          setTimeout(() => { knob.style.boxShadow = ""; }, 250);
+        }
+      }
+
+      function drawCompassArc(spanDeg = 90) {
+        const page = pages[currentPageIndex];
+        if (!page) return;
+        if (!page.shapes) page.shapes = [];
+        pushUndo();
+
+        const pt = getCanvasPointFromClient(compassState.x, compassState.y);
+        const radiusCanvas = (compassState.radiusCm * compassState.pxPerCm) / zoom;
+        const sRad = (compassState.angle * Math.PI) / 180;
+        const eRad = sRad + ((spanDeg * Math.PI) / 180);
+
+        const arcShape = {
+          id: generateId(),
+          type: "angleArc",
+          color: penSettings.color || "#0284c7",
+          width: penSettings.width || 2,
+          vertex: { x: pt.x, y: pt.y },
+          radius: radiusCanvas,
+          startAngle: sRad,
+          endAngle: eRad,
+          fill: "transparent",
+          createdAt: Date.now()
+        };
+
+        page.shapes.push(arcShape);
+        updateBoardAppearance();
+        notifyParentPageUpdate(currentPageIndex, true);
+        scheduleNotifyParentPages(100);
+
+        compassState.angle = (compassState.angle + spanDeg) % 360;
+        renderCompassSvg();
+        syncEduInstrumentsToPage(true);
+      }
+
+      // --- Interactive Set Square Functions ---
+      function toggleSetSquare(show) {
+        setSquareState.visible = (show !== undefined) ? show : !setSquareState.visible;
+        const el = document.getElementById("eduSetSquareOverlay");
+        if (!el) return;
+        el.style.display = setSquareState.visible ? "block" : "none";
+        if (setSquareState.visible) {
+          updateSetSquarePosition();
+          renderSetSquareSvg();
+        }
+        syncEduInstrumentsToPage(true);
+      }
+      window.toggleSetSquare = toggleSetSquare;
+
+      function updateSetSquarePosition() {
+        const el = document.getElementById("eduSetSquareOverlay");
+        const angleBadge = document.getElementById("eduSetSquareAngleBadge");
+        if (!el) return;
+        el.style.left = setSquareState.x + "px";
+        el.style.top = setSquareState.y + "px";
+        el.style.transform = "rotate(" + setSquareState.angle + "deg)";
+        if (angleBadge) {
+          const normAngle = ((setSquareState.angle % 360) + 360) % 360;
+          angleBadge.textContent = normAngle.toFixed(1) + "°";
+        }
+      }
+
+      function renderSetSquareSvg() {
+        const svg = document.getElementById("eduSetSquareSvg");
+        const overlay = document.getElementById("eduSetSquareOverlay");
+        const typeBadge = document.getElementById("eduSetSquareTypeBadge");
+        const rotateHandle = document.getElementById("eduSetSquareRotateHandle");
+        const toggleBtn = document.getElementById("eduSetSquareToggleTypeBtn");
+        if (!svg || !overlay) return;
+
+        const is3060 = setSquareState.type === "30-60-90";
+        if (typeBadge) typeBadge.textContent = is3060 ? "30°-60°-90°" : "45°-45°-90°";
+        if (toggleBtn) toggleBtn.textContent = is3060 ? "📐 45°-45°" : "📐 30°-60°";
+
+        const pxPerCm = setSquareState.pxPerCm;
+        const pad = 24;
+
+        let wPx, hPx, hypPx;
+        let pA, pB, pC;
+
+        if (is3060) {
+          wPx = 6 * pxPerCm;
+          hPx = Math.round(wPx * Math.sqrt(3));
+          hypPx = wPx * 2;
+        } else {
+          wPx = 7 * pxPerCm;
+          hPx = wPx;
+          hypPx = Math.round(wPx * Math.SQRT2);
+        }
+
+        const totalW = pad + wPx + 36;
+        const totalH = pad + hPx + 36;
+        overlay.style.width = totalW + "px";
+        overlay.style.height = totalH + "px";
+        svg.setAttribute("viewBox", "0 0 " + totalW + " " + totalH);
+
+        pA = { x: pad, y: pad };
+        pB = { x: pad + wPx, y: pad };
+        pC = { x: pad, y: pad + hPx };
+
+        if (rotateHandle) {
+          const midHypX = (pB.x + pC.x) / 2 + 18;
+          const midHypY = (pB.y + pC.y) / 2 + 18;
+          rotateHandle.style.left = midHypX + "px";
+          rotateHandle.style.top = midHypY + "px";
+        }
+
+        const innerInset = 36;
+        const ipA = { x: pad + innerInset, y: pad + innerInset };
+        const ipB = { x: pad + Math.max(30, wPx - innerInset * 2.2), y: pad + innerInset };
+        const ipC = { x: pad + innerInset, y: pad + Math.max(30, hPx - innerInset * 2.2) };
+
+        let svgMarkup = '';
+
+        const outerPath = "M " + pA.x + " " + pA.y + " L " + pB.x + " " + pB.y + " L " + pC.x + " " + pC.y + " Z";
+        const innerPath = "M " + ipA.x + " " + ipA.y + " L " + ipB.x + " " + ipB.y + " L " + ipC.x + " " + ipC.y + " Z";
+
+        svgMarkup += '<path d="' + outerPath + ' ' + innerPath + '" fill="rgba(240, 253, 250, 0.78)" fill-rule="evenodd" stroke="rgba(13, 148, 136, 0.75)" stroke-width="2.5" stroke-linejoin="round" />';
+        svgMarkup += '<path d="' + innerPath + '" fill="none" stroke="rgba(255, 255, 255, 0.9)" stroke-width="1.5" />';
+
+        const sq = 14;
+        svgMarkup += '<rect x="' + pad + '" y="' + pad + '" width="' + sq + '" height="' + sq + '" fill="none" stroke="#0f172a" stroke-width="1.2" />';
+
+        const totalMmH = Math.round((wPx / pxPerCm) * 10);
+        for (let i = 0; i <= totalMmH; i++) {
+          const tx = pad + i * (pxPerCm / 10);
+          if (i % 10 === 0) {
+            const cmVal = i / 10;
+            svgMarkup += '<line x1="' + tx + '" y1="' + pad + '" x2="' + tx + '" y2="' + (pad + 14) + '" stroke="#0f172a" stroke-width="1.4" />';
+            svgMarkup += '<text x="' + tx + '" y="' + (pad + 24) + '" font-size="9" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="sans-serif">' + cmVal + '</text>';
+          } else if (i % 5 === 0) {
+            svgMarkup += '<line x1="' + tx + '" y1="' + pad + '" x2="' + tx + '" y2="' + (pad + 10) + '" stroke="#334155" stroke-width="1.1" />';
+          } else {
+            svgMarkup += '<line x1="' + tx + '" y1="' + pad + '" x2="' + tx + '" y2="' + (pad + 6) + '" stroke="#64748b" stroke-width="0.8" />';
+          }
+        }
+
+        const totalMmV = Math.round((hPx / pxPerCm) * 10);
+        for (let j = 0; j <= totalMmV; j++) {
+          const ty = pad + j * (pxPerCm / 10);
+          if (j % 10 === 0) {
+            const cmVal = j / 10;
+            svgMarkup += '<line x1="' + pad + '" y1="' + ty + '" x2="' + (pad + 14) + '" y2="' + ty + '" stroke="#0f172a" stroke-width="1.4" />';
+            svgMarkup += '<text x="' + (pad + 22) + '" y="' + (ty + 3) + '" font-size="9" font-weight="700" fill="#0f172a" text-anchor="start" font-family="sans-serif">' + cmVal + '</text>';
+          } else if (j % 5 === 0) {
+            svgMarkup += '<line x1="' + pad + '" y1="' + ty + '" x2="' + (pad + 10) + '" y2="' + ty + '" stroke="#334155" stroke-width="1.1" />';
+          } else {
+            svgMarkup += '<line x1="' + pad + '" y1="' + ty + '" x2="' + (pad + 6) + '" y2="' + ty + '" stroke="#64748b" stroke-width="0.8" />';
+          }
+        }
+
+        if (is3060) {
+          svgMarkup += '<text x="' + (pad + 18) + '" y="' + (pad + 18) + '" font-size="11" font-weight="800" fill="#047857" font-family="sans-serif">90°</text>';
+          svgMarkup += '<text x="' + (pB.x - 28) + '" y="' + (pad + 20) + '" font-size="11" font-weight="800" fill="#047857" font-family="sans-serif">60°</text>';
+          svgMarkup += '<text x="' + (pad + 18) + '" y="' + (pC.y - 18) + '" font-size="11" font-weight="800" fill="#047857" font-family="sans-serif">30°</text>';
+        } else {
+          svgMarkup += '<text x="' + (pad + 18) + '" y="' + (pad + 18) + '" font-size="11" font-weight="800" fill="#047857" font-family="sans-serif">90°</text>';
+          svgMarkup += '<text x="' + (pB.x - 28) + '" y="' + (pad + 20) + '" font-size="11" font-weight="800" fill="#047857" font-family="sans-serif">45°</text>';
+          svgMarkup += '<text x="' + (pad + 18) + '" y="' + (pC.y - 18) + '" font-size="11" font-weight="800" fill="#047857" font-family="sans-serif">45°</text>';
+        }
+
+        svg.innerHTML = svgMarkup;
+      }
+
+      function stampSetSquareTriangle() {
+        const overlay = document.getElementById("eduSetSquareOverlay");
+        if (!overlay || !boardCanvas) return;
+        const page = pages[currentPageIndex];
+        if (!page) return;
+        if (!page.shapes) page.shapes = [];
+        pushUndo();
+
+        const rect = overlay.getBoundingClientRect();
+        const rad = (setSquareState.angle * Math.PI) / 180;
+        const pad = 24;
+        const pxPerCm = setSquareState.pxPerCm;
+        const is3060 = setSquareState.type === "30-60-90";
+        const wPx = is3060 ? (6 * pxPerCm) : (7 * pxPerCm);
+        const hPx = is3060 ? Math.round(wPx * Math.sqrt(3)) : wPx;
+
+        function getRotatedPoint(lx, ly) {
+          const rx = lx * Math.cos(rad) - ly * Math.sin(rad);
+          const ry = lx * Math.sin(rad) + ly * Math.cos(rad);
+          return getCanvasPointFromClient(rect.left + rx, rect.top + ry);
+        }
+
+        const ptA = getRotatedPoint(pad, pad);
+        const ptB = getRotatedPoint(pad + wPx, pad);
+        const ptC = getRotatedPoint(pad, pad + hPx);
+
+        const strokeColor = penSettings.color || "#047857";
+        const strokeWidth = penSettings.width || 2;
+
+        const triangleShape = {
+          id: generateId(),
+          type: "polygon",
+          color: strokeColor,
+          width: strokeWidth,
+          fillMode: "solid",
+          fillOpacity: 0.1,
+          points: [
+            { x: ptA.x, y: ptA.y },
+            { x: ptB.x, y: ptB.y },
+            { x: ptC.x, y: ptC.y }
+          ],
+          createdAt: Date.now()
+        };
+
+        page.shapes.push(triangleShape);
+        updateBoardAppearance();
+        notifyParentPageUpdate(currentPageIndex, true);
+        scheduleNotifyParentPages(100);
+
+        overlay.style.boxShadow = "0 0 0 3px #059669, 0 12px 32px rgba(5, 150, 105, 0.4)";
+        setTimeout(() => { overlay.style.boxShadow = ""; }, 220);
+      }
+
+      function traceSetSquareHypotenuse() {
+        const overlay = document.getElementById("eduSetSquareOverlay");
+        if (!overlay || !boardCanvas) return;
+        const page = pages[currentPageIndex];
+        if (!page) return;
+        if (!page.shapes) page.shapes = [];
+        pushUndo();
+
+        const rect = overlay.getBoundingClientRect();
+        const rad = (setSquareState.angle * Math.PI) / 180;
+        const pad = 24;
+        const pxPerCm = setSquareState.pxPerCm;
+        const is3060 = setSquareState.type === "30-60-90";
+        const wPx = is3060 ? (6 * pxPerCm) : (7 * pxPerCm);
+        const hPx = is3060 ? Math.round(wPx * Math.sqrt(3)) : wPx;
+
+        function getRotatedPoint(lx, ly) {
+          const rx = lx * Math.cos(rad) - ly * Math.sin(rad);
+          const ry = lx * Math.sin(rad) + ly * Math.cos(rad);
+          return getCanvasPointFromClient(rect.left + rx, rect.top + ry);
+        }
+
+        const ptB = getRotatedPoint(pad + wPx, pad);
+        const ptC = getRotatedPoint(pad, pad + hPx);
+
+        const strokeColor = penSettings.color || "#047857";
+        const strokeWidth = penSettings.width || 2;
+
+        const lineShape = {
+          id: generateId(),
+          type: "line",
+          color: strokeColor,
+          width: strokeWidth,
+          start: { x: ptB.x, y: ptB.y },
+          end: { x: ptC.x, y: ptC.y },
+          createdAt: Date.now()
+        };
+
+        page.shapes.push(lineShape);
+        updateBoardAppearance();
+        notifyParentPageUpdate(currentPageIndex, true);
+        scheduleNotifyParentPages(100);
+
+        overlay.style.boxShadow = "0 0 0 3px #059669, 0 12px 32px rgba(5, 150, 105, 0.4)";
+        setTimeout(() => { overlay.style.boxShadow = ""; }, 220);
+      }
+
       function setupEduToolsListeners() {
         const rulerOverlay = document.getElementById("eduRulerOverlay");
         const rulerRotateHandle = document.getElementById("eduRulerRotateHandle");
@@ -16769,6 +18215,256 @@
           };
           protractorNeedleKnob.addEventListener("pointerup", onEndMeasure);
           protractorNeedleKnob.addEventListener("pointercancel", onEndMeasure);
+        }
+
+        // --- Compass Listeners ---
+        const compassOverlay = document.getElementById("eduCompassOverlay");
+        const compassNeedlePin = document.getElementById("eduCompassNeedlePin");
+        const compassPencilKnob = document.getElementById("eduCompassPencilKnob");
+        const compassHinge = document.getElementById("eduCompassHinge");
+        const compassDrawCircleBtn = document.getElementById("eduCompassDrawCircleBtn");
+        const compassDrawArcBtn = document.getElementById("eduCompassDrawArcBtn");
+        const compassLockBtn = document.getElementById("eduCompassLockBtn");
+        const compassResetBtn = document.getElementById("eduCompassResetBtn");
+        const compassCloseBtn = document.getElementById("eduCompassCloseBtn");
+
+        if (compassDrawCircleBtn) compassDrawCircleBtn.onclick = drawCompassCircle;
+        if (compassDrawArcBtn) compassDrawArcBtn.onclick = () => drawCompassArc(90);
+        if (compassLockBtn) compassLockBtn.onclick = () => {
+          compassState.isLocked = !compassState.isLocked;
+          renderCompassSvg();
+          renderEduToolsOptions();
+          syncEduInstrumentsToPage(true);
+        };
+        if (compassResetBtn) compassResetBtn.onclick = () => {
+          compassState.angle = 0;
+          renderCompassSvg();
+          syncEduInstrumentsToPage(true);
+        };
+        if (compassCloseBtn) compassCloseBtn.onclick = () => toggleCompass(false);
+
+        // Compass Needle Dragging (Sets Origin O)
+        if (compassNeedlePin && compassOverlay) {
+          let isMovingNeedle = false;
+          let startCX = 0, startCY = 0;
+          let initX = 0, initY = 0;
+
+          compassNeedlePin.addEventListener("pointerdown", (e) => {
+            isMovingNeedle = true;
+            startCX = e.clientX;
+            startCY = e.clientY;
+            initX = compassState.x;
+            initY = compassState.y;
+            try { compassNeedlePin.setPointerCapture(e.pointerId); } catch (_) {}
+            e.stopPropagation();
+            e.preventDefault();
+          });
+
+          compassNeedlePin.addEventListener("pointermove", (e) => {
+            if (!isMovingNeedle) return;
+            compassState.x = initX + (e.clientX - startCX);
+            compassState.y = Math.max(60, initY + (e.clientY - startCY));
+            updateCompassPosition();
+            syncEduInstrumentsToPage(false);
+            e.stopPropagation();
+            e.preventDefault();
+          });
+
+          const onEndNeedle = (e) => {
+            if (!isMovingNeedle) return;
+            isMovingNeedle = false;
+            try { compassNeedlePin.releasePointerCapture(e.pointerId); } catch (_) {}
+            syncEduInstrumentsToPage(true);
+          };
+          compassNeedlePin.addEventListener("pointerup", onEndNeedle);
+          compassNeedlePin.addEventListener("pointercancel", onEndNeedle);
+        }
+
+        // Compass Hinge Dragging (Moves entire compass together)
+        if (compassHinge && compassOverlay) {
+          let isMovingHinge = false;
+          let startCX = 0, startCY = 0;
+          let initX = 0, initY = 0;
+
+          compassHinge.addEventListener("pointerdown", (e) => {
+            isMovingHinge = true;
+            startCX = e.clientX;
+            startCY = e.clientY;
+            initX = compassState.x;
+            initY = compassState.y;
+            try { compassHinge.setPointerCapture(e.pointerId); } catch (_) {}
+            e.stopPropagation();
+            e.preventDefault();
+          });
+
+          compassHinge.addEventListener("pointermove", (e) => {
+            if (!isMovingHinge) return;
+            compassState.x = initX + (e.clientX - startCX);
+            compassState.y = Math.max(60, initY + (e.clientY - startCY));
+            updateCompassPosition();
+            syncEduInstrumentsToPage(false);
+            e.stopPropagation();
+            e.preventDefault();
+          });
+
+          const onEndHinge = (e) => {
+            if (!isMovingHinge) return;
+            isMovingHinge = false;
+            try { compassHinge.releasePointerCapture(e.pointerId); } catch (_) {}
+            syncEduInstrumentsToPage(true);
+          };
+          compassHinge.addEventListener("pointerup", onEndHinge);
+          compassHinge.addEventListener("pointercancel", onEndHinge);
+        }
+
+        // Compass Pencil Knob Dragging (Radius Adjustment & Sweep)
+        if (compassPencilKnob && compassOverlay) {
+          let isAdjusting = false;
+
+          compassPencilKnob.addEventListener("pointerdown", (e) => {
+            isAdjusting = true;
+            try { compassPencilKnob.setPointerCapture(e.pointerId); } catch (_) {}
+            e.stopPropagation();
+            e.preventDefault();
+          });
+
+          compassPencilKnob.addEventListener("pointermove", (e) => {
+            if (!isAdjusting) return;
+            const dx = e.clientX - compassState.x;
+            const dy = e.clientY - compassState.y;
+
+            let angleDeg = Math.atan2(dy, dx) * (180 / Math.PI);
+            if (angleDeg < 0) angleDeg += 360;
+
+            if (e.shiftKey) {
+              angleDeg = Math.round(angleDeg / 15) * 15;
+            } else {
+              angleDeg = Math.round(angleDeg * 2) / 2;
+            }
+            compassState.angle = angleDeg;
+
+            if (!compassState.isLocked) {
+              const distPx = Math.sqrt(dx * dx + dy * dy);
+              const rCm = distPx / compassState.pxPerCm;
+              compassState.radiusCm = Math.max(1, Math.min(12, Math.round(rCm * 2) / 2));
+            }
+
+            renderCompassSvg();
+            syncEduInstrumentsToPage(false);
+            e.stopPropagation();
+            e.preventDefault();
+          });
+
+          const onEndAdjust = (e) => {
+            if (!isAdjusting) return;
+            isAdjusting = false;
+            try { compassPencilKnob.releasePointerCapture(e.pointerId); } catch (_) {}
+            renderEduToolsOptions();
+            syncEduInstrumentsToPage(true);
+          };
+          compassPencilKnob.addEventListener("pointerup", onEndAdjust);
+          compassPencilKnob.addEventListener("pointercancel", onEndAdjust);
+        }
+
+        // --- Set Square Listeners ---
+        const setSquareOverlay = document.getElementById("eduSetSquareOverlay");
+        const setSquareRotateHandle = document.getElementById("eduSetSquareRotateHandle");
+        const setSquareToggleTypeBtn = document.getElementById("eduSetSquareToggleTypeBtn");
+        const setSquareStampBtn = document.getElementById("eduSetSquareStampBtn");
+        const setSquareTraceHypBtn = document.getElementById("eduSetSquareTraceHypBtn");
+        const setSquareResetAngleBtn = document.getElementById("eduSetSquareResetAngleBtn");
+        const setSquareCloseBtn = document.getElementById("eduSetSquareCloseBtn");
+
+        if (setSquareToggleTypeBtn) setSquareToggleTypeBtn.onclick = () => {
+          setSquareState.type = setSquareState.type === "30-60-90" ? "45-45-90" : "30-60-90";
+          renderSetSquareSvg();
+          renderEduToolsOptions();
+          syncEduInstrumentsToPage(true);
+        };
+        if (setSquareStampBtn) setSquareStampBtn.onclick = stampSetSquareTriangle;
+        if (setSquareTraceHypBtn) setSquareTraceHypBtn.onclick = traceSetSquareHypotenuse;
+        if (setSquareResetAngleBtn) setSquareResetAngleBtn.onclick = () => {
+          setSquareState.angle = 0;
+          updateSetSquarePosition();
+          syncEduInstrumentsToPage(true);
+        };
+        if (setSquareCloseBtn) setSquareCloseBtn.onclick = () => toggleSetSquare(false);
+
+        // Set Square Dragging (Whole Body)
+        if (setSquareOverlay) {
+          let isDraggingSq = false;
+          let startCX = 0, startCY = 0;
+          let initX = 0, initY = 0;
+
+          setSquareOverlay.addEventListener("pointerdown", (e) => {
+            if (e.target.closest("button") || e.target === setSquareRotateHandle || e.target.closest(".edu-setsquare-rotate-handle")) return;
+            isDraggingSq = true;
+            startCX = e.clientX;
+            startCY = e.clientY;
+            initX = setSquareState.x;
+            initY = setSquareState.y;
+            try { setSquareOverlay.setPointerCapture(e.pointerId); } catch (_) {}
+            e.preventDefault();
+            e.stopPropagation();
+          });
+
+          setSquareOverlay.addEventListener("pointermove", (e) => {
+            if (!isDraggingSq) return;
+            setSquareState.x = initX + (e.clientX - startCX);
+            setSquareState.y = Math.max(52, initY + (e.clientY - startCY));
+            updateSetSquarePosition();
+            syncEduInstrumentsToPage(false);
+            e.preventDefault();
+            e.stopPropagation();
+          });
+
+          const onEndSqDrag = (e) => {
+            if (!isDraggingSq) return;
+            isDraggingSq = false;
+            try { setSquareOverlay.releasePointerCapture(e.pointerId); } catch (_) {}
+            syncEduInstrumentsToPage(true);
+          };
+          setSquareOverlay.addEventListener("pointerup", onEndSqDrag);
+          setSquareOverlay.addEventListener("pointercancel", onEndSqDrag);
+        }
+
+        // Set Square Rotation Handle
+        if (setSquareRotateHandle && setSquareOverlay) {
+          let isRotatingSq = false;
+
+          setSquareRotateHandle.addEventListener("pointerdown", (e) => {
+            isRotatingSq = true;
+            try { setSquareRotateHandle.setPointerCapture(e.pointerId); } catch (_) {}
+            e.stopPropagation();
+            e.preventDefault();
+          });
+
+          setSquareRotateHandle.addEventListener("pointermove", (e) => {
+            if (!isRotatingSq) return;
+            const dx = e.clientX - setSquareState.x;
+            const dy = e.clientY - setSquareState.y;
+
+            let angleDeg = Math.atan2(dy, dx) * (180 / Math.PI);
+            if (e.shiftKey) {
+              angleDeg = Math.round(angleDeg / 15) * 15;
+            } else {
+              angleDeg = Math.round(angleDeg * 2) / 2;
+            }
+            setSquareState.angle = angleDeg;
+            updateSetSquarePosition();
+            syncEduInstrumentsToPage(false);
+            e.stopPropagation();
+            e.preventDefault();
+          });
+
+          const onEndSqRotate = (e) => {
+            if (!isRotatingSq) return;
+            isRotatingSq = false;
+            try { setSquareRotateHandle.releasePointerCapture(e.pointerId); } catch (_) {}
+            syncEduInstrumentsToPage(true);
+          };
+          setSquareRotateHandle.addEventListener("pointerup", onEndSqRotate);
+          setSquareRotateHandle.addEventListener("pointercancel", onEndSqRotate);
         }
       }
 

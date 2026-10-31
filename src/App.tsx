@@ -4740,7 +4740,7 @@ function QuizManager({ quizzes, selectedQuiz, setSelectedQuiz, liveQuiz, refresh
                       timeMinutes: liveQuiz.mode === 'LIVE' ? null : (liveQuiz.timeLimitSeconds ? Math.round(liveQuiz.timeLimitSeconds / 60) : null),
                       teacherName,
                     });
-                    openWhatsAppChat(null, text);
+                    openWhatsAppChat(null, text, setNotice);
                   }}
                 >
                   <MessageCircle size={15} color="#059669" /> WhatsApp
@@ -4916,7 +4916,7 @@ function QuizManager({ quizzes, selectedQuiz, setSelectedQuiz, liveQuiz, refresh
                         timeMinutes: quiz.mode === 'LIVE' ? null : (quiz.timeLimitSeconds ? Math.round(quiz.timeLimitSeconds / 60) : null),
                         teacherName,
                       });
-                      openWhatsAppChat(null, text);
+                      openWhatsAppChat(null, text, setNotice);
                     }}
                   >
                     <MessageCircle size={13} color="#059669" /> WhatsApp
@@ -8917,7 +8917,7 @@ function ResultsPanel({
       teacherName,
     });
 
-    openWhatsAppChat(phone, message);
+    openWhatsAppChat(phone, message, setNotice);
   }
 
   function handleShareScorecard(result: Result) {
@@ -10599,7 +10599,7 @@ function WorksheetsPanel({ setNotice, teacherName, onNavigateToAISettings, onNav
                           totalMarks: paper.totalMarks,
                           teacherName,
                         });
-                        openWhatsAppChat(null, text);
+                        openWhatsAppChat(null, text, setNotice);
                       }}
                     >
                       <MessageCircle size={13} color="#059669" /> WhatsApp

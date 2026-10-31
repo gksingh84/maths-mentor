@@ -1500,6 +1500,250 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
     ctx.restore();
   };
 
+  // Render Educational Instruments (Compass) synced from teacher
+  const drawStudentCompass = (ctx: CanvasRenderingContext2D, c: any) => {
+    if (!c || !c.visible) return;
+    const x = typeof c.x === 'number' ? c.x : 280;
+    const y = typeof c.y === 'number' ? c.y : 220;
+    const r = typeof c.radiusPx === 'number' ? c.radiusPx : 144;
+    const angle = typeof c.angle === 'number' ? c.angle : 45;
+    const rad = (angle * Math.PI) / 180;
+    const px = r * Math.cos(rad);
+    const py = r * Math.sin(rad);
+
+    ctx.save();
+    ctx.translate(x, y);
+
+    // Subtle radius dashed guide circle
+    ctx.strokeStyle = 'rgba(2, 132, 199, 0.25)';
+    ctx.lineWidth = 1.2;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.arc(0, 0, r, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Hinge calculation
+    const armLength = Math.max(160, r * 0.95);
+    const halfR = r / 2;
+    const hDist = Math.sqrt(Math.max(400, armLength * armLength - halfR * halfR));
+    const nx = -Math.sin(rad);
+    const ny = Math.cos(rad);
+    const hx = (px / 2) + nx * hDist;
+    const hy = (py / 2) + ny * hDist;
+
+    // Shadow
+    ctx.shadowColor = 'rgba(15, 23, 42, 0.25)';
+    ctx.shadowBlur = 10;
+    ctx.shadowOffsetY = 4;
+
+    // Needle arm (H to 0,0)
+    ctx.strokeStyle = '#64748b';
+    ctx.lineWidth = 6;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(hx, hy);
+    ctx.lineTo(0, 0);
+    ctx.stroke();
+
+    // Needle tip
+    ctx.strokeStyle = '#0f172a';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(hx * 0.15, hy * 0.15);
+    ctx.lineTo(0, 0);
+    ctx.stroke();
+
+    // Pencil arm (H to px,py)
+    ctx.strokeStyle = '#64748b';
+    ctx.lineWidth = 6;
+    ctx.beginPath();
+    ctx.moveTo(hx, hy);
+    ctx.lineTo(px * 0.75 + hx * 0.25, py * 0.75 + hy * 0.25);
+    ctx.stroke();
+
+    // Pencil body & wood cone
+    const cx1 = px * 0.65 + hx * 0.35;
+    const cy1 = py * 0.65 + hy * 0.35;
+    ctx.strokeStyle = '#ea580c';
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.moveTo(cx1, cy1);
+    ctx.lineTo(px * 0.95 + hx * 0.05, py * 0.95 + hy * 0.05);
+    ctx.stroke();
+
+    // Pencil lead tip
+    ctx.strokeStyle = '#0f172a';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(px * 0.98 + hx * 0.02, py * 0.98 + hy * 0.02);
+    ctx.lineTo(px, py);
+    ctx.stroke();
+
+    // Hinge knob
+    ctx.shadowColor = 'transparent';
+    ctx.fillStyle = '#f59e0b';
+    ctx.strokeStyle = '#b45309';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(hx, hy, 8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    // Center anchor pin O
+    ctx.fillStyle = '#0284c7';
+    ctx.beginPath();
+    ctx.arc(0, 0, 4, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Radius badge
+    const radiusCm = typeof c.radiusCm === 'number' ? c.radiusCm : (r / 36);
+    const badgeText = `🧭 r = ${radiusCm.toFixed(1)} cm • ${angle.toFixed(1)}°`;
+    ctx.font = 'bold 10px monospace';
+    const btw = ctx.measureText(badgeText).width;
+    const pw = btw + 14;
+    const bx = px / 2;
+    const by = py / 2 - 12;
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+    ctx.strokeStyle = '#0284c7';
+    ctx.lineWidth = 1;
+    if (ctx.roundRect) {
+      ctx.beginPath(); ctx.roundRect(bx - pw / 2, by - 9, pw, 18, 4); ctx.fill(); ctx.stroke();
+    } else {
+      ctx.beginPath(); ctx.rect(bx - pw / 2, by - 9, pw, 18); ctx.fill(); ctx.stroke();
+    }
+    ctx.fillStyle = '#0284c7';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(badgeText, bx, by);
+
+    ctx.restore();
+  };
+
+  // Render Educational Instruments (Set Square) synced from teacher
+  const drawStudentSetSquare = (ctx: CanvasRenderingContext2D, sq: any) => {
+    if (!sq || !sq.visible) return;
+    const x = typeof sq.x === 'number' ? sq.x : 240;
+    const y = typeof sq.y === 'number' ? sq.y : 180;
+    const angle = typeof sq.angle === 'number' ? sq.angle : 0;
+    const is3060 = sq.type === '30-60-90';
+    const pxPerCm = typeof sq.pxPerCm === 'number' ? sq.pxPerCm : 36;
+    const wPx = is3060 ? (6 * pxPerCm) : (7 * pxPerCm);
+    const hPx = is3060 ? Math.round(wPx * Math.sqrt(3)) : wPx;
+    const pad = 24;
+
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate((angle * Math.PI) / 180);
+
+    ctx.shadowColor = 'rgba(15, 23, 42, 0.2)';
+    ctx.shadowBlur = 14;
+    ctx.shadowOffsetY = 4;
+
+    const pA = { x: pad, y: pad };
+    const pB = { x: pad + wPx, y: pad };
+    const pC = { x: pad, y: pad + hPx };
+
+    const innerInset = 36;
+    const ipA = { x: pad + innerInset, y: pad + innerInset };
+    const ipB = { x: pad + Math.max(30, wPx - innerInset * 2.2), y: pad + innerInset };
+    const ipC = { x: pad + innerInset, y: pad + Math.max(30, hPx - innerInset * 2.2) };
+
+    ctx.beginPath();
+    ctx.moveTo(pA.x, pA.y);
+    ctx.lineTo(pB.x, pB.y);
+    ctx.lineTo(pC.x, pC.y);
+    ctx.closePath();
+    ctx.moveTo(ipA.x, ipA.y);
+    ctx.lineTo(ipB.x, ipB.y);
+    ctx.lineTo(ipC.x, ipC.y);
+    ctx.closePath();
+
+    ctx.fillStyle = 'rgba(240, 253, 250, 0.85)';
+    ctx.strokeStyle = 'rgba(13, 148, 136, 0.8)';
+    ctx.lineWidth = 2.2;
+    ctx.fill('evenodd');
+    ctx.stroke();
+
+    ctx.shadowColor = 'transparent';
+
+    ctx.strokeStyle = '#0f172a';
+    ctx.lineWidth = 1.2;
+    ctx.strokeRect(pad, pad, 14, 14);
+
+    const totalMmH = Math.round((wPx / pxPerCm) * 10);
+    for (let i = 0; i <= totalMmH; i++) {
+      const tx = pad + i * (pxPerCm / 10);
+      if (i % 10 === 0) {
+        ctx.strokeStyle = '#0f172a';
+        ctx.lineWidth = 1.4;
+        ctx.beginPath(); ctx.moveTo(tx, pad); ctx.lineTo(tx, pad + 12); ctx.stroke();
+        ctx.font = 'bold 8px sans-serif';
+        ctx.fillStyle = '#0f172a';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+        ctx.fillText(String(i / 10), tx, pad + 14);
+      } else if (i % 5 === 0) {
+        ctx.strokeStyle = '#334155'; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(tx, pad); ctx.lineTo(tx, pad + 8); ctx.stroke();
+      } else {
+        ctx.strokeStyle = '#64748b'; ctx.lineWidth = 0.7;
+        ctx.beginPath(); ctx.moveTo(tx, pad); ctx.lineTo(tx, pad + 5); ctx.stroke();
+      }
+    }
+
+    const totalMmV = Math.round((hPx / pxPerCm) * 10);
+    for (let j = 0; j <= totalMmV; j++) {
+      const ty = pad + j * (pxPerCm / 10);
+      if (j % 10 === 0) {
+        ctx.strokeStyle = '#0f172a';
+        ctx.lineWidth = 1.4;
+        ctx.beginPath(); ctx.moveTo(pad, ty); ctx.lineTo(pad + 12, ty); ctx.stroke();
+        ctx.font = 'bold 8px sans-serif';
+        ctx.fillStyle = '#0f172a';
+        ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+        ctx.fillText(String(j / 10), pad + 14, ty);
+      } else if (j % 5 === 0) {
+        ctx.strokeStyle = '#334155'; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(pad, ty); ctx.lineTo(pad + 8, ty); ctx.stroke();
+      } else {
+        ctx.strokeStyle = '#64748b'; ctx.lineWidth = 0.7;
+        ctx.beginPath(); ctx.moveTo(pad, ty); ctx.lineTo(pad + 5, ty); ctx.stroke();
+      }
+    }
+
+    ctx.font = 'bold 10px sans-serif';
+    ctx.fillStyle = '#047857';
+    ctx.fillText('90°', pad + 16, pad + 26);
+    if (is3060) {
+      ctx.fillText('60°', pB.x - 24, pad + 16);
+      ctx.fillText('30°', pad + 6, pC.y - 12);
+    } else {
+      ctx.fillText('45°', pB.x - 24, pad + 16);
+      ctx.fillText('45°', pad + 6, pC.y - 12);
+    }
+
+    const badgeText = `📐 ${is3060 ? '30°-60°-90°' : '45°-45°-90°'} • ${angle.toFixed(1)}°`;
+    ctx.font = 'bold 9px monospace';
+    const tw = ctx.measureText(badgeText).width;
+    const pw = tw + 12;
+    const bx = (pB.x + pC.x) / 2 + 10;
+    const by = (pB.y + pC.y) / 2 + 10;
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+    ctx.strokeStyle = '#059669';
+    ctx.lineWidth = 1;
+    if (ctx.roundRect) {
+      ctx.beginPath(); ctx.roundRect(bx - pw / 2, by - 8, pw, 16, 4); ctx.fill(); ctx.stroke();
+    } else {
+      ctx.beginPath(); ctx.rect(bx - pw / 2, by - 8, pw, 16); ctx.fill(); ctx.stroke();
+    }
+    ctx.fillStyle = '#047857';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(badgeText, bx, by);
+
+    ctx.restore();
+  };
+
   // --- Educational Diagram Renderers (Phase 4B) ---
   const drawStudentNumberLine = (ctx: CanvasRenderingContext2D, shape: any, strokeColor: string, lineWidth: number) => {
     const { start, end } = shape;
@@ -2030,6 +2274,382 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
       ctx.textBaseline = 'bottom';
       ctx.fillStyle = '#0284c7';
       ctx.fillText('r', cx + r / 2, cy - 4);
+    } else if (shape.geoType === 'unitCircle') {
+      const r = Math.min((x2 - x1), (y2 - y1)) / 2 - 20;
+
+      // X and Y Axes
+      ctx.strokeStyle = '#94a3b8';
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      ctx.moveTo(x1 + 6, cy); ctx.lineTo(x2 - 6, cy);
+      ctx.stroke();
+      ctx.fillStyle = '#64748b';
+      ctx.beginPath();
+      ctx.moveTo(x2 - 6, cy); ctx.lineTo(x2 - 12, cy - 3.5); ctx.lineTo(x2 - 12, cy + 3.5); ctx.fill();
+
+      ctx.beginPath();
+      ctx.moveTo(cx, y2 - 6); ctx.lineTo(cx, y1 + 6);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(cx, y1 + 6); ctx.lineTo(cx - 3.5, y1 + 12); ctx.lineTo(cx + 3.5, y1 + 12); ctx.fill();
+
+      ctx.font = 'italic 11px sans-serif';
+      ctx.fillStyle = '#64748b';
+      ctx.textAlign = 'right'; ctx.fillText('x', x2 - 14, cy - 6);
+      ctx.textAlign = 'left'; ctx.fillText('y', cx + 6, y1 + 16);
+      ctx.fillText('O', cx - 12, cy + 12);
+
+      // Unit Circle
+      ctx.strokeStyle = color;
+      ctx.lineWidth = width;
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.stroke();
+
+      const keyAngles = [
+        { deg: 0, rad: '0, 2π' },
+        { deg: 30, rad: 'π/6' },
+        { deg: 45, rad: 'π/4' },
+        { deg: 60, rad: 'π/3' },
+        { deg: 90, rad: 'π/2' },
+        { deg: 120, rad: '2π/3' },
+        { deg: 135, rad: '3π/4' },
+        { deg: 150, rad: '5π/6' },
+        { deg: 180, rad: 'π' },
+        { deg: 210, rad: '7π/6' },
+        { deg: 225, rad: '5π/4' },
+        { deg: 240, rad: '4π/3' },
+        { deg: 270, rad: '3π/2' },
+        { deg: 300, rad: '5π/3' },
+        { deg: 315, rad: '7π/4' },
+        { deg: 330, rad: '11π/6' }
+      ];
+
+      keyAngles.forEach((ka) => {
+        const radVal = (ka.deg * Math.PI) / 180;
+        const px = cx + r * Math.cos(radVal);
+        const py = cy - r * Math.sin(radVal);
+
+        ctx.strokeStyle = 'rgba(148, 163, 184, 0.45)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(px, py);
+        ctx.stroke();
+
+        ctx.fillStyle = (ka.deg % 90 === 0) ? '#0284c7' : '#0f172a';
+        ctx.beginPath();
+        ctx.arc(px, py, (ka.deg % 90 === 0) ? 3.5 : 2.5, 0, Math.PI * 2);
+        ctx.fill();
+
+        const labelDist = r + 13;
+        const lx = cx + labelDist * Math.cos(radVal);
+        const ly = cy - labelDist * Math.sin(radVal);
+
+        ctx.font = 'bold 9px monospace';
+        ctx.fillStyle = (ka.deg % 90 === 0) ? '#0369a1' : '#475569';
+        ctx.textAlign = (Math.cos(radVal) > 0.3) ? 'left' : (Math.cos(radVal) < -0.3 ? 'right' : 'center');
+        ctx.textBaseline = (Math.sin(radVal) > 0.3) ? 'bottom' : (Math.sin(radVal) < -0.3 ? 'top' : 'middle');
+        ctx.fillText(`${ka.deg}° (${ka.rad})`, lx, ly);
+      });
+    }
+
+    ctx.restore();
+  };
+
+  const drawStudent3dSolid = (ctx: CanvasRenderingContext2D, shape: any, strokeColor: string, lineWidth: number) => {
+    const { start, end, solidType } = shape;
+    if (!start || !end) return;
+    const x1 = Math.min(start.x, end.x);
+    const x2 = Math.max(start.x, end.x);
+    const y1 = Math.min(start.y, end.y);
+    const y2 = Math.max(start.y, end.y);
+    const w = x2 - x1;
+    const h = y2 - y1;
+    const cx = (x1 + x2) / 2;
+    const cy = (y1 + y2) / 2;
+    const color = strokeColor || shape.color || '#0f172a';
+    const width = lineWidth || shape.width || 2;
+
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    if (solidType === 'cube') {
+      const s = Math.min(w, h) * 0.72;
+      const dx = s * 0.38;
+      const dy = -s * 0.35;
+      const fx = cx - s / 2 - dx / 2;
+      const fy = cy - s / 2 - dy / 2;
+
+      ctx.beginPath();
+      ctx.rect(fx, fy, s, s);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(fx, fy);
+      ctx.lineTo(fx + dx, fy + dy);
+      ctx.lineTo(fx + s + dx, fy + dy);
+      ctx.lineTo(fx + s, fy);
+      ctx.closePath();
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(fx + s, fy);
+      ctx.lineTo(fx + s + dx, fy + dy);
+      ctx.lineTo(fx + s + dx, fy + s + dy);
+      ctx.lineTo(fx + s, fy + s);
+      ctx.closePath();
+      ctx.stroke();
+
+      ctx.setLineDash([5, 4]);
+      ctx.strokeStyle = 'rgba(100, 116, 139, 0.7)';
+      ctx.beginPath();
+      ctx.moveTo(fx, fy + s);
+      ctx.lineTo(fx + dx, fy + s + dy);
+      ctx.lineTo(fx + dx, fy + dy);
+      ctx.moveTo(fx + dx, fy + s + dy);
+      ctx.lineTo(fx + s + dx, fy + s + dy);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      ctx.font = 'italic 12px sans-serif';
+      ctx.fillStyle = color;
+      ctx.textAlign = 'center';
+      ctx.fillText('s', fx + s / 2, fy + s + 15);
+    } else if (solidType === 'cuboid') {
+      const l = w * 0.72;
+      const hc = h * 0.65;
+      const dx = w * 0.28;
+      const dy = -h * 0.3;
+      const fx = cx - l / 2 - dx / 2;
+      const fy = cy - hc / 2 - dy / 2;
+
+      ctx.beginPath();
+      ctx.rect(fx, fy, l, hc);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(fx, fy);
+      ctx.lineTo(fx + dx, fy + dy);
+      ctx.lineTo(fx + l + dx, fy + dy);
+      ctx.lineTo(fx + l, fy);
+      ctx.closePath();
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(fx + l, fy);
+      ctx.lineTo(fx + l + dx, fy + dy);
+      ctx.lineTo(fx + l + dx, fy + hc + dy);
+      ctx.lineTo(fx + l, fy + hc);
+      ctx.closePath();
+      ctx.stroke();
+
+      ctx.setLineDash([5, 4]);
+      ctx.strokeStyle = 'rgba(100, 116, 139, 0.7)';
+      ctx.beginPath();
+      ctx.moveTo(fx, fy + hc);
+      ctx.lineTo(fx + dx, fy + hc + dy);
+      ctx.lineTo(fx + dx, fy + dy);
+      ctx.moveTo(fx + dx, fy + hc + dy);
+      ctx.lineTo(fx + l + dx, fy + hc + dy);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      ctx.font = 'italic 11px sans-serif';
+      ctx.fillStyle = color;
+      ctx.textAlign = 'center';
+      ctx.fillText('l', fx + l / 2, fy + hc + 14);
+      ctx.textAlign = 'left';
+      ctx.fillText('h', fx + l + dx + 6, fy + hc / 2 + dy / 2);
+      ctx.textAlign = 'center';
+      ctx.fillText('b', fx + l + dx / 2 + 8, fy + dy / 2 - 4);
+    } else if (solidType === 'cylinder') {
+      const rx = w / 2 - 10;
+      const ry = rx * 0.32;
+      const topCy = y1 + ry + 6;
+      const botCy = y2 - ry - 6;
+
+      ctx.beginPath();
+      ctx.ellipse(cx, topCy, rx, ry, 0, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(cx - rx, topCy);
+      ctx.lineTo(cx - rx, botCy);
+      ctx.moveTo(cx + rx, topCy);
+      ctx.lineTo(cx + rx, botCy);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.ellipse(cx, botCy, rx, ry, 0, 0, Math.PI);
+      ctx.stroke();
+
+      ctx.setLineDash([5, 4]);
+      ctx.strokeStyle = 'rgba(100, 116, 139, 0.7)';
+      ctx.beginPath();
+      ctx.ellipse(cx, botCy, rx, ry, 0, Math.PI, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(cx, topCy);
+      ctx.lineTo(cx, botCy);
+      ctx.moveTo(cx, topCy);
+      ctx.lineTo(cx + rx, topCy);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      ctx.font = 'italic 11px sans-serif';
+      ctx.fillStyle = color;
+      ctx.textAlign = 'center';
+      ctx.fillText('r', cx + rx / 2, topCy - 5);
+      ctx.textAlign = 'left';
+      ctx.fillText('h', cx + 8, (topCy + botCy) / 2);
+    } else if (solidType === 'cone') {
+      const rx = w / 2 - 10;
+      const ry = rx * 0.32;
+      const apexY = y1 + 8;
+      const botCy = y2 - ry - 6;
+
+      ctx.beginPath();
+      ctx.moveTo(cx, apexY);
+      ctx.lineTo(cx - rx, botCy);
+      ctx.moveTo(cx, apexY);
+      ctx.lineTo(cx + rx, botCy);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.ellipse(cx, botCy, rx, ry, 0, 0, Math.PI);
+      ctx.stroke();
+
+      ctx.setLineDash([5, 4]);
+      ctx.strokeStyle = 'rgba(100, 116, 139, 0.7)';
+      ctx.beginPath();
+      ctx.ellipse(cx, botCy, rx, ry, 0, Math.PI, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(cx, apexY);
+      ctx.lineTo(cx, botCy);
+      ctx.moveTo(cx, botCy);
+      ctx.lineTo(cx + rx, botCy);
+      ctx.stroke();
+
+      const sq = 8;
+      ctx.strokeRect(cx, botCy - sq, sq, sq);
+      ctx.setLineDash([]);
+
+      ctx.font = 'italic 11px sans-serif';
+      ctx.fillStyle = color;
+      ctx.textAlign = 'right';
+      ctx.fillText('h', cx - 6, (apexY + botCy) / 2);
+      ctx.textAlign = 'center';
+      ctx.fillText('r', cx + rx / 2, botCy - 5);
+      ctx.textAlign = 'left';
+      ctx.fillText('l', cx + rx / 2 + 8, (apexY + botCy) / 2 - 4);
+    } else if (solidType === 'sphere') {
+      const r = Math.min(w, h) / 2 - 10;
+      const ry = r * 0.32;
+
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, r, ry, 0, 0, Math.PI);
+      ctx.stroke();
+
+      ctx.setLineDash([5, 4]);
+      ctx.strokeStyle = 'rgba(100, 116, 139, 0.7)';
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, r, ry, 0, Math.PI, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(cx + r, cy);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.arc(cx, cy, 3.5, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.font = 'italic 11px sans-serif';
+      ctx.fillText('O', cx - 8, cy - 6);
+      ctx.textAlign = 'center';
+      ctx.fillText('r', cx + r / 2, cy - 6);
+    } else if (solidType === 'triangularPrism') {
+      const fw = w * 0.62;
+      const fh = h * 0.7;
+      const dx = w * 0.35;
+      const dy = -h * 0.28;
+
+      const fA = { x: x1 + fw / 2, y: y2 - fh };
+      const fB = { x: x1, y: y2 };
+      const fC = { x: x1 + fw, y: y2 };
+
+      ctx.beginPath();
+      ctx.moveTo(fA.x, fA.y);
+      ctx.lineTo(fB.x, fB.y);
+      ctx.lineTo(fC.x, fC.y);
+      ctx.closePath();
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(fA.x, fA.y);
+      ctx.lineTo(fA.x + dx, fA.y + dy);
+      ctx.lineTo(fC.x + dx, fC.y + dy);
+      ctx.lineTo(fC.x, fC.y);
+      ctx.moveTo(fA.x + dx, fA.y + dy);
+      ctx.lineTo(fB.x + dx, fB.y + dy);
+      ctx.stroke();
+
+      ctx.setLineDash([5, 4]);
+      ctx.strokeStyle = 'rgba(100, 116, 139, 0.7)';
+      ctx.beginPath();
+      ctx.moveTo(fB.x, fB.y);
+      ctx.lineTo(fB.x + dx, fB.y + dy);
+      ctx.lineTo(fC.x + dx, fC.y + dy);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    } else if (solidType === 'squarePyramid') {
+      const bw = w * 0.8;
+      const bh = h * 0.36;
+      const apexY = y1 + 8;
+      const baseCenterY = y2 - bh / 2;
+
+      const pA = { x: cx - bw / 2 + 16, y: y2 - bh };
+      const pB = { x: cx + bw / 2, y: y2 - bh };
+      const pC = { x: cx + bw / 2 - 16, y: y2 };
+      const pD = { x: cx - bw / 2, y: y2 };
+
+      ctx.beginPath();
+      ctx.moveTo(pD.x, pD.y); ctx.lineTo(pC.x, pC.y); ctx.lineTo(pB.x, pB.y);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(cx, apexY); ctx.lineTo(pD.x, pD.y);
+      ctx.moveTo(cx, apexY); ctx.lineTo(pC.x, pC.y);
+      ctx.moveTo(cx, apexY); ctx.lineTo(pB.x, pB.y);
+      ctx.stroke();
+
+      ctx.setLineDash([5, 4]);
+      ctx.strokeStyle = 'rgba(100, 116, 139, 0.7)';
+      ctx.beginPath();
+      ctx.moveTo(pD.x, pD.y); ctx.lineTo(pA.x, pA.y); ctx.lineTo(pB.x, pB.y);
+      ctx.moveTo(cx, apexY); ctx.lineTo(pA.x, pA.y);
+      ctx.moveTo(cx, apexY); ctx.lineTo(cx, baseCenterY);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      ctx.font = 'italic 11px sans-serif';
+      ctx.fillStyle = color;
+      ctx.textAlign = 'right';
+      ctx.fillText('h', cx - 6, (apexY + baseCenterY) / 2);
     }
 
     ctx.restore();
@@ -2299,6 +2919,8 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
         drawStudentFractionModel(ctx, sh, strokeColor, lineWidth);
       } else if (type === 'geometricDiagram') {
         drawStudentGeometricDiagram(ctx, sh, strokeColor, lineWidth);
+      } else if (type === '3dSolid') {
+        drawStudent3dSolid(ctx, sh, strokeColor, lineWidth);
       } else if (type === 'rectangle' || type === 'rect') {
         if (isSolid) {
           ctx.save();
@@ -2700,6 +3322,12 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
       if (page.eduInstruments.protractor && page.eduInstruments.protractor.visible) {
         drawStudentProtractor(ctx, page.eduInstruments.protractor);
       }
+      if (page.eduInstruments.compass && page.eduInstruments.compass.visible) {
+        drawStudentCompass(ctx, page.eduInstruments.compass);
+      }
+      if (page.eduInstruments.setSquare && page.eduInstruments.setSquare.visible) {
+        drawStudentSetSquare(ctx, page.eduInstruments.setSquare);
+      }
     }
 
     if (hasOffset) {
@@ -2793,6 +3421,12 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
     }
     if (page?.eduInstruments?.protractor?.visible && typeof page.eduInstruments.protractor.y === 'number') {
       if (page.eduInstruments.protractor.y + 260 > computedHeight) computedHeight = Math.ceil(page.eduInstruments.protractor.y + 260);
+    }
+    if (page?.eduInstruments?.compass?.visible && typeof page.eduInstruments.compass.y === 'number') {
+      if (page.eduInstruments.compass.y + 200 > computedHeight) computedHeight = Math.ceil(page.eduInstruments.compass.y + 200);
+    }
+    if (page?.eduInstruments?.setSquare?.visible && typeof page.eduInstruments.setSquare.y === 'number') {
+      if (page.eduInstruments.setSquare.y + 300 > computedHeight) computedHeight = Math.ceil(page.eduInstruments.setSquare.y + 300);
     }
 
     const displayHeight = Math.max(computedHeight, container ? container.clientHeight : 720);

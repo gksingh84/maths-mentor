@@ -30,18 +30,47 @@ export function cleanIndianPhoneNumber(rawPhone?: string | null): { isValid: boo
   };
 }
 
-export function openWhatsAppChat(phone: string | null | undefined, text: string) {
+export function getStudentPortalUrl(): string {
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    const origin = window.location.origin;
+    // Don't use localhost or loopback in WhatsApp messages meant for parents
+    if (!origin.includes('localhost') && !origin.includes('127.0.0.1') && !origin.includes('0.0.0.0')) {
+      return origin;
+    }
+  }
+  return 'https://maths-mentor-32kc.onrender.com';
+}
+
+export const STUDENT_PORTAL_URL = 'https://maths-mentor-32kc.onrender.com';
+
+export function openWhatsAppChat(
+  phone: string | null | undefined,
+  text: string,
+  onNotice?: ((msg: string) => void) | null
+) {
   const { fullWithCountry, isValid } = cleanIndianPhoneNumber(phone);
+
+  // 1. Copy complete message to clipboard as an instant fallback
+  // If WhatsApp Desktop or Web has handoff issues and drops the text,
+  // the teacher can immediately press Ctrl+V to paste the complete announcement.
+  if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+    navigator.clipboard.writeText(text).catch(() => {});
+  }
+
+  // 2. Strict RFC 3986 encoding
   const encodedText = encodeURIComponent(text);
   
-  // If valid 10-digit Indian phone is provided, open specific chat with wa.me/91...
-  // Otherwise open WhatsApp with prefilled text so teacher can choose any chat/group
+  // 3. Always use official modern wa.me universal link (avoid legacy api.whatsapp.com which drops text)
   const url = isValid && fullWithCountry
     ? `https://wa.me/${fullWithCountry}?text=${encodedText}`
-    : `https://api.whatsapp.com/send?text=${encodedText}`;
+    : `https://wa.me/?text=${encodedText}`;
 
   if (typeof window !== 'undefined') {
     window.open(url, '_blank', 'noopener,noreferrer');
+  }
+
+  if (onNotice) {
+    onNotice('✓ WhatsApp opened & announcement copied to clipboard! (Press Ctrl+V in WhatsApp if text was not auto-filled)');
   }
 }
 
@@ -70,11 +99,11 @@ export function generateScorecardMessage({
   const percentage = totalMarks > 0 ? Math.round((finalScore / totalMarks) * 100) : 0;
   
   let gradeBadge = 'Good Effort';
-  if (percentage >= 90) gradeBadge = 'Outstanding Performance';
-  else if (percentage >= 75) gradeBadge = 'Excellent Work';
-  else if (percentage >= 60) gradeBadge = 'Very Good Progress';
-  else if (percentage >= 40) gradeBadge = 'Satisfactory - Keep Practicing';
-  else gradeBadge = 'Needs Extra Practice & Revision';
+  if (percentage >= 90) gradeBadge = 'Outstanding Performance 🌟';
+  else if (percentage >= 75) gradeBadge = 'Excellent Work ⭐';
+  else if (percentage >= 60) gradeBadge = 'Very Good Progress 👍';
+  else if (percentage >= 40) gradeBadge = 'Satisfactory - Keep Practicing ✍️';
+  else gradeBadge = 'Needs Extra Practice & Revision 📖';
 
   const dateStr = submittedAt
     ? new Date(submittedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
@@ -82,26 +111,28 @@ export function generateScorecardMessage({
 
   const greeting = parentName ? `Dear ${parentName},` : `Dear Parent,`;
   const teacherSign = teacherName ? `Teacher: ${teacherName}` : 'Maths Mentor Classroom';
+  const portalUrl = getStudentPortalUrl();
 
-  return `STUDENT ASSESSMENT REPORT
-----------------------------------------
+  return `*📊 STUDENT ASSESSMENT REPORT*
+━━━━━━━━━━━━━━━━━━━━━
 ${greeting}
-Here is the performance update for ${studentName} in the recent classroom assessment:
+Here is the performance update for *${studentName}* in the recent classroom assessment:
 
-Quiz / Test: ${quizTitle}
-Score Obtained: ${finalScore} / ${totalMarks} (${percentage}%)
-Performance: ${gradeBadge}
-${typeof correctCount === 'number' && typeof totalQuestions === 'number' ? `Correct Answers: ${correctCount} / ${totalQuestions}\n` : ''}Date: ${dateStr}
+📝 *Quiz / Test:* ${quizTitle}
+🎯 *Score Obtained:* ${finalScore} / ${totalMarks} (${percentage}%)
+🏆 *Performance:* ${gradeBadge}
+${typeof correctCount === 'number' && typeof totalQuestions === 'number' ? `✅ *Correct Answers:* ${correctCount} / ${totalQuestions}\n` : ''}📅 *Date:* ${dateStr}
 
-----------------------------------------
-Teacher Note:
-Consistent revision and problem-solving build strong foundations. Please encourage ${studentName} to review questions and continue the good work.
+━━━━━━━━━━━━━━━━━━━━━
+💡 *Teacher Note:*
+Consistent revision and problem-solving build strong foundations. Please encourage *${studentName}* to review questions and continue the good work.
+
+🌐 *Student Portal:*
+${portalUrl}
 
 Best regards,
-${teacherSign}`;
+*${teacherSign}*`;
 }
-
-export const STUDENT_PORTAL_URL = 'https://maths-mentor-32kc.onrender.com';
 
 export function generateQuizAnnouncementMessage({
   quizTitle,
@@ -120,23 +151,27 @@ export function generateQuizAnnouncementMessage({
 }): string {
   const modeLabel = mode === 'LIVE' ? 'Live Interactive Quiz' : (timeMinutes ? `Timed Practice (${timeMinutes} mins)` : 'Self-Paced Practice');
   const teacherSign = teacherName ? `Teacher: ${teacherName}` : 'Maths Mentor Classroom';
+  const portalUrl = getStudentPortalUrl();
 
-  return `NEW CLASSROOM ASSESSMENT ANNOUNCEMENT
-----------------------------------------
-Dear Parents & Students,
+  return `*📢 NEW CLASSROOM ASSESSMENT ANNOUNCEMENT*
+━━━━━━━━━━━━━━━━━━━━━
+Dear Parents and Students,
 
-A new assessment is now available for your class:
+A new assessment is now active on Maths Mentor:
 
-Assessment: ${quizTitle}
-Class / Grade: ${grade || 'Classroom'}
-Format: ${modeLabel}
-Questions: ${questionCount} questions
+📝 *Assessment:* ${quizTitle}
+🎓 *Class / Grade:* ${grade || 'Classroom'}
+⏱️ *Format:* ${modeLabel}
+❓ *Questions:* ${questionCount} questions
 
-Student Portal: ${STUDENT_PORTAL_URL}
-Students can sign in with their registered student passkey. Please ensure timely completion.
+🌐 *Student Portal:*
+${portalUrl}
+
+🔑 *Instructions:*
+Students can sign in to the portal using their registered passkey to begin. Please ensure timely completion.
 
 Best regards,
-${teacherSign}`;
+*${teacherSign}*`;
 }
 
 export function generateWorksheetAnnouncementMessage({
@@ -153,23 +188,26 @@ export function generateWorksheetAnnouncementMessage({
   teacherName?: string | null;
 }): string {
   const teacherSign = teacherName ? `Teacher: ${teacherName}` : 'Maths Mentor Classroom';
+  const portalUrl = getStudentPortalUrl();
 
-  return `NEW HOMEWORK / QUESTION PAPER ASSIGNED
-----------------------------------------
-Dear Parents & Students,
+  return `*📚 NEW HOMEWORK / QUESTION PAPER ASSIGNED*
+━━━━━━━━━━━━━━━━━━━━━
+Dear Parents and Students,
 
 A new question paper has been assigned for practice:
 
-Topic: ${paperTitle}
-Subject & Class: ${subject || 'General'} - ${grade || 'Classroom'}
-Total Marks: ${totalMarks} Marks
+📋 *Topic:* ${paperTitle}
+📖 *Subject and Class:* ${subject || 'General'} - ${grade || 'Classroom'}
+🎯 *Total Marks:* ${totalMarks} Marks
 
-Instructions for Students:
-1. Write all answers neatly in your physical notebook / workbook.
-2. When finished, take clear photos and upload them via the student portal.
+📝 *Instructions for Students:*
+1. Solve questions neatly in your physical notebook / register.
+2. When finished, take clear photos of your solution pages.
+3. Upload the photos to the student portal for teacher review.
 
-Student Portal: ${STUDENT_PORTAL_URL}
+🌐 *Student Portal:*
+${portalUrl}
 
 Best regards,
-${teacherSign}`;
+*${teacherSign}*`;
 }

@@ -312,7 +312,7 @@ export function SuperAdminConsole({ currentUser, onSignOut, onLoginSuccess, onBa
       const fullPhone = cleanPhone.length === 10 ? `91${cleanPhone}` : cleanPhone;
       return `https://wa.me/${fullPhone}?text=${encodeURIComponent(message)}`;
     }
-    return `https://api.whatsapp.com/send?text=${encodeURIComponent(message)}`;
+    return `https://wa.me/?text=${encodeURIComponent(message)}`;
   }
 
   // Filter teachers
