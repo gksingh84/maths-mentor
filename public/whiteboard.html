@@ -18451,10 +18451,10 @@
                 { id: "triangles_angles", label: "Triangles (Angles)" },
                 { id: "quadrilaterals", label: "Quadrilaterals" },
                 { id: "polygons", label: "Polygons" },
-                { id: "circle", label: "Circle Components" },
+                { id: "circles", label: "Circle Components" },
                 { id: "lines_angles", label: "Lines & Transversal" },
-                { id: "congruent", label: "Congruence" },
-                { id: "similar", label: "Similar Triangles" }
+                { id: "congruent_triangles", label: "Congruence" },
+                { id: "similar_triangles", label: "Similar Triangles" }
               ];
 
               window._selectedGeoFilter = window._selectedGeoFilter || "all";
@@ -18492,7 +18492,17 @@
                     ];
                 const filtered = window._selectedGeoFilter === "all"
                   ? allPresets
-                  : allPresets.filter(p => p.group === window._selectedGeoFilter);
+                  : allPresets.filter(p => {
+                      const f = window._selectedGeoFilter;
+                      return p.group === f ||
+                             (f === "circle" && (p.group === "circles" || p.group === "circle")) ||
+                             (f === "circles" && (p.group === "circles" || p.group === "circle")) ||
+                             (f === "congruent" && (p.group === "congruent_triangles" || p.group === "congruent")) ||
+                             (f === "congruent_triangles" && (p.group === "congruent_triangles" || p.group === "congruent")) ||
+                             (f === "similar" && (p.group === "similar_triangles" || p.group === "similar")) ||
+                             (f === "similar_triangles" && (p.group === "similar_triangles" || p.group === "similar")) ||
+                             p.group?.startsWith(f);
+                    });
 
                 filtered.forEach((gp) => {
                   const card = createPresetCard({
