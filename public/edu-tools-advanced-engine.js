@@ -925,7 +925,7 @@
         { name: "Africa", x: leftX + contentW * 0.51, y: topY + contentH * 0.55, c: warn },
         { name: "Asia", x: leftX + contentW * 0.72, y: topY + contentH * 0.28, c: rose },
         { name: "Australia", x: leftX + contentW * 0.84, y: topY + contentH * 0.72, c: accent },
-        { name: "Antarctica", x: cx, bottomY - 14, c: primary }
+        { name: "Antarctica", x: cx, y: bottomY - 14, c: primary }
       ];
 
       continents.forEach((cont) => {

@@ -17240,6 +17240,228 @@
         intro.textContent = "Interactive drafting instruments. Move, rotate, measure, and stamp directly onto the board:";
         wrap.appendChild(intro);
 
+        // Shared Helper: Insert diagram/instrument shape onto active whiteboard
+        function insertDiagramHelper(shapeData) {
+          const page = pages[currentPageIndex];
+          if (!page) return;
+          if (!page.shapes) page.shapes = [];
+          pushUndo();
+          page.shapes.push(shapeData);
+          updateBoardAppearance();
+          notifyParentPageUpdate(currentPageIndex, true);
+          scheduleNotifyParentPages(100);
+          selectedShapes = [shapeData];
+          selectedTexts = [];
+          selectedWidgets = [];
+          handleToolSelection("select");
+        }
+
+        // Shared Helper: Insert Advanced Edu Tool Preset (PVC, Formulas, Timelines, Maps)
+        function insertAdvancedEduPreset(ap) {
+          const { x: cx, y: cy } = getVisibleBoardCenter();
+          const isBoardDark = (typeof currentBoardType === "string" && (currentBoardType === "black" || currentBoardType === "green")) ||
+                              (pages[currentPageIndex]?.boardType === "black" || pages[currentPageIndex]?.boardType === "green");
+          let strokeColor = penSettings.color;
+          if (isBoardDark) {
+            if (!strokeColor || strokeColor === "#0f172a" || strokeColor === "#000000") strokeColor = "#f8fafc";
+          } else {
+            if (!strokeColor || strokeColor === "#ffffff" || strokeColor === "#f8fafc" || strokeColor === "#f1f5f9") strokeColor = "#0f172a";
+          }
+          insertDiagramHelper({
+            id: generateId(),
+            type: "geometricDiagram",
+            geoType: ap.type,
+            color: strokeColor,
+            width: 2,
+            start: { x: cx - ap.w, y: cy - ap.h },
+            end: { x: cx + ap.w, y: cy + ap.h },
+            createdAt: Date.now()
+          });
+          if (typeof showExportToast === "function") {
+            showExportToast(ap.title + " added to board");
+          }
+        }
+
+        // Shared Helper: Create Interactive Preset Card
+        function createPresetCard({ chip, chipTheme, title, subtitle, onClick }) {
+          const card = document.createElement("div");
+          card.style.display = "flex";
+          card.style.alignItems = "center";
+          card.style.justifyContent = "space-between";
+          card.style.gap = "10px";
+          card.style.width = "100%";
+          card.style.padding = "9px 12px";
+          card.style.marginBottom = "8px";
+          card.style.background = "#ffffff";
+          card.style.border = "1.5px solid #e2e8f0";
+          card.style.borderRadius = "9px";
+          card.style.cursor = "pointer";
+          card.style.transition = "all 0.16s cubic-bezier(0.4, 0, 0.2, 1)";
+          card.style.boxShadow = "0 1px 2px rgba(0,0,0,0.03)";
+
+          const leftStack = document.createElement("div");
+          leftStack.style.display = "flex";
+          leftStack.style.flexDirection = "column";
+          leftStack.style.gap = "3px";
+          leftStack.style.minWidth = "0";
+          leftStack.style.flex = "1";
+
+          const topRow = document.createElement("div");
+          topRow.style.display = "flex";
+          topRow.style.alignItems = "center";
+          topRow.style.gap = "8px";
+
+          const chipEl = document.createElement("span");
+          chipEl.style.fontSize = "0.76rem";
+          chipEl.style.fontWeight = "800";
+          chipEl.style.padding = "3px 8px";
+          chipEl.style.borderRadius = "5px";
+          chipEl.style.background = chipTheme?.bg || "#f1f5f9";
+          chipEl.style.color = chipTheme?.color || "#0369a1";
+          chipEl.style.border = "1px solid " + (chipTheme?.border || "#cbd5e1");
+          chipEl.style.whiteSpace = "nowrap";
+          chipEl.style.fontFamily = "ui-monospace, monospace, sans-serif";
+          chipEl.textContent = chip;
+          topRow.appendChild(chipEl);
+
+          const titleEl = document.createElement("span");
+          titleEl.style.fontSize = "0.86rem";
+          titleEl.style.fontWeight = "700";
+          titleEl.style.color = "#0f172a";
+          titleEl.style.whiteSpace = "nowrap";
+          titleEl.style.overflow = "hidden";
+          titleEl.style.textOverflow = "ellipsis";
+          titleEl.textContent = title;
+          topRow.appendChild(titleEl);
+          leftStack.appendChild(topRow);
+
+          if (subtitle) {
+            const subEl = document.createElement("span");
+            subEl.style.fontSize = "0.76rem";
+            subEl.style.color = "#475569";
+            subEl.style.lineHeight = "1.35";
+            subEl.textContent = subtitle;
+            leftStack.appendChild(subEl);
+          }
+          card.appendChild(leftStack);
+
+          const actionBtn = document.createElement("button");
+          actionBtn.type = "button";
+          actionBtn.innerHTML = "+ Add";
+          actionBtn.style.padding = "5px 12px";
+          actionBtn.style.fontSize = "0.78rem";
+          actionBtn.style.fontWeight = "700";
+          actionBtn.style.color = "#0284c7";
+          actionBtn.style.background = "#e0f2fe";
+          actionBtn.style.border = "1px solid #bae6fd";
+          actionBtn.style.borderRadius = "6px";
+          actionBtn.style.cursor = "pointer";
+          actionBtn.style.flexShrink = "0";
+          actionBtn.style.transition = "all 0.15s ease";
+          actionBtn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            if (typeof onClick === "function") onClick(e);
+          });
+          card.appendChild(actionBtn);
+
+          card.addEventListener("mouseenter", () => {
+            card.style.background = "#f8fafc";
+            card.style.borderColor = "#38bdf8";
+            card.style.boxShadow = "0 3px 8px rgba(2, 132, 199, 0.12)";
+            card.style.transform = "translateY(-1px)";
+            actionBtn.style.background = "#0284c7";
+            actionBtn.style.color = "#ffffff";
+            actionBtn.style.borderColor = "#0284c7";
+          });
+          card.addEventListener("mouseleave", () => {
+            card.style.background = "#ffffff";
+            card.style.borderColor = "#e2e8f0";
+            card.style.boxShadow = "0 1px 2px rgba(0,0,0,0.03)";
+            card.style.transform = "translateY(0)";
+            actionBtn.style.background = "#e0f2fe";
+            actionBtn.style.color = "#0284c7";
+            actionBtn.style.borderColor = "#bae6fd";
+          });
+
+          card.addEventListener("click", onClick);
+          return card;
+        }
+
+        // Shared Helper: Create Expandable Accordion Sub-Panel for Edu Tools
+        function createAccordionDrawer(groupId, theme) {
+          const drawer = document.createElement("div");
+          drawer.style.background = theme.drawerBg;
+          drawer.style.border = "1.5px solid " + theme.drawerBorder;
+          drawer.style.borderRadius = "10px";
+          drawer.style.padding = "10px";
+          drawer.style.margin = "2px 0 8px 0";
+          drawer.style.boxShadow = "0 2px 6px rgba(0,0,0,0.04)";
+
+          const dHeader = document.createElement("div");
+          dHeader.style.display = "flex";
+          dHeader.style.alignItems = "center";
+          dHeader.style.justifyContent = "space-between";
+          dHeader.style.marginBottom = "6px";
+
+          const dTitle = document.createElement("span");
+          dTitle.style.fontSize = "0.75rem";
+          dTitle.style.fontWeight = "800";
+          dTitle.style.color = theme.accentColor;
+          dTitle.style.textTransform = "uppercase";
+          dTitle.style.letterSpacing = "0.4px";
+          dTitle.textContent = theme.title;
+          dHeader.appendChild(dTitle);
+
+          const closeBtn = document.createElement("button");
+          closeBtn.type = "button";
+          closeBtn.innerHTML = "✕ Close";
+          closeBtn.style.padding = "2px 8px";
+          closeBtn.style.fontSize = "0.70rem";
+          closeBtn.style.fontWeight = "700";
+          closeBtn.style.color = "#64748b";
+          closeBtn.style.background = "#ffffff";
+          closeBtn.style.border = "1px solid #cbd5e1";
+          closeBtn.style.borderRadius = "5px";
+          closeBtn.style.cursor = "pointer";
+          closeBtn.addEventListener("click", () => {
+            window._activeEduDrawer = null;
+            renderEduToolsOptions();
+          });
+          dHeader.appendChild(closeBtn);
+          drawer.appendChild(dHeader);
+
+          if (theme.desc) {
+            const dDesc = document.createElement("p");
+            dDesc.style.margin = "0 0 8px 0";
+            dDesc.style.fontSize = "0.73rem";
+            dDesc.style.color = "#64748b";
+            dDesc.style.lineHeight = "1.35";
+            dDesc.textContent = theme.desc;
+            drawer.appendChild(dDesc);
+          }
+
+          const advPresets = (window.EduAshramAdvancedTools && Array.isArray(window.EduAshramAdvancedTools.ADVANCED_PRESETS))
+            ? window.EduAshramAdvancedTools.ADVANCED_PRESETS.filter(p => p.group === groupId)
+            : [];
+
+          advPresets.forEach((ap) => {
+            const card = createPresetCard({
+              chip: ap.chip,
+              chipTheme: ap.chipTheme,
+              title: ap.title,
+              subtitle: ap.subtitle,
+              onClick: () => insertAdvancedEduPreset(ap)
+            });
+            drawer.appendChild(card);
+          });
+
+          setTimeout(() => {
+            drawer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          }, 30);
+
+          return drawer;
+        }
+
         // Section: Instruments Toggles
         const instrumentsBox = document.createElement("div");
         instrumentsBox.style.display = "flex";
@@ -17448,15 +17670,16 @@
         });
         instrumentsBox.appendChild(diagBtn);
 
-        // 4. Timeline Builder Button
+        // 4. Timeline Builder Button (with Direct Accordion Drawer)
+        const isTimelineOpen = window._activeEduDrawer === "timelines";
         const timelineBtn = document.createElement("button");
         timelineBtn.type = "button";
-        timelineBtn.innerHTML = "<span style='font-size:1.1rem;'>⏳</span> Timeline Builder (History & Sequences)";
+        timelineBtn.innerHTML = `<span style='font-size:1.1rem;'>⏳</span> Timeline Builder (History & Sequences) <span style='margin-left:auto;font-size:0.75rem;color:#ea580c;font-weight:800;'>${isTimelineOpen ? "▲" : "▼"}</span>`;
         timelineBtn.style.padding = "0.6rem 0.8rem";
         timelineBtn.style.borderRadius = "8px";
-        timelineBtn.style.border = (isDiagOpen && window._selectedEduDiagCategory === "timelines") ? "1.5px solid #ea580c" : "1px solid #cbd5e1";
-        timelineBtn.style.background = (isDiagOpen && window._selectedEduDiagCategory === "timelines") ? "#fff7ed" : "#ffffff";
-        timelineBtn.style.color = (isDiagOpen && window._selectedEduDiagCategory === "timelines") ? "#c2410c" : "#1e293b";
+        timelineBtn.style.border = isTimelineOpen ? "1.5px solid #ea580c" : "1px solid #cbd5e1";
+        timelineBtn.style.background = isTimelineOpen ? "#fff7ed" : "#ffffff";
+        timelineBtn.style.color = isTimelineOpen ? "#c2410c" : "#1e293b";
         timelineBtn.style.fontWeight = "700";
         timelineBtn.style.fontSize = "0.85rem";
         timelineBtn.style.cursor = "pointer";
@@ -17465,37 +17688,44 @@
         timelineBtn.style.gap = "8px";
         timelineBtn.style.transition = "all 0.15s ease";
         timelineBtn.addEventListener("mouseenter", () => {
-          if (!(isDiagOpen && window._selectedEduDiagCategory === "timelines")) {
+          if (!isTimelineOpen) {
             timelineBtn.style.background = "#f8fafc";
             timelineBtn.style.borderColor = "#94a3b8";
           }
         });
         timelineBtn.addEventListener("mouseleave", () => {
-          if (!(isDiagOpen && window._selectedEduDiagCategory === "timelines")) {
+          if (!isTimelineOpen) {
             timelineBtn.style.background = "#ffffff";
             timelineBtn.style.borderColor = "#cbd5e1";
           }
         });
         timelineBtn.addEventListener("click", () => {
-          if (isDiagOpen && window._selectedEduDiagCategory === "timelines") {
-            window._isEduDiagramsOpen = false;
-          } else {
-            window._isEduDiagramsOpen = true;
-            window._selectedEduDiagCategory = "timelines";
-          }
+          window._activeEduDrawer = isTimelineOpen ? null : "timelines";
           renderEduToolsOptions();
         });
         instrumentsBox.appendChild(timelineBtn);
 
-        // 5. Map Tools Button
+        if (isTimelineOpen) {
+          const drawer = createAccordionDrawer("timelines", {
+            title: "Timeline Presets (5 Timelines)",
+            accentColor: "#c2410c",
+            drawerBg: "#fffaf5",
+            drawerBorder: "#fed7aa",
+            desc: "Chronological timelines for history, science milestones & custom sequences. Click any preset to stamp on canvas:"
+          });
+          instrumentsBox.appendChild(drawer);
+        }
+
+        // 5. Map Tools Button (with Direct Accordion Drawer)
+        const isMapsOpen = window._activeEduDrawer === "maps";
         const mapsBtn = document.createElement("button");
         mapsBtn.type = "button";
-        mapsBtn.innerHTML = "<span style='font-size:1.1rem;'>🗺️</span> Map Tools (Political, Physical & Labelling)";
+        mapsBtn.innerHTML = `<span style='font-size:1.1rem;'>🗺️</span> Map Tools (Political, Physical & Labelling) <span style='margin-left:auto;font-size:0.75rem;color:#0284c7;font-weight:800;'>${isMapsOpen ? "▲" : "▼"}</span>`;
         mapsBtn.style.padding = "0.6rem 0.8rem";
         mapsBtn.style.borderRadius = "8px";
-        mapsBtn.style.border = (isDiagOpen && window._selectedEduDiagCategory === "maps") ? "1.5px solid #0284c7" : "1px solid #cbd5e1";
-        mapsBtn.style.background = (isDiagOpen && window._selectedEduDiagCategory === "maps") ? "#eff6ff" : "#ffffff";
-        mapsBtn.style.color = (isDiagOpen && window._selectedEduDiagCategory === "maps") ? "#1d4ed8" : "#1e293b";
+        mapsBtn.style.border = isMapsOpen ? "1.5px solid #0284c7" : "1px solid #cbd5e1";
+        mapsBtn.style.background = isMapsOpen ? "#eff6ff" : "#ffffff";
+        mapsBtn.style.color = isMapsOpen ? "#1d4ed8" : "#1e293b";
         mapsBtn.style.fontWeight = "700";
         mapsBtn.style.fontSize = "0.85rem";
         mapsBtn.style.cursor = "pointer";
@@ -17504,37 +17734,44 @@
         mapsBtn.style.gap = "8px";
         mapsBtn.style.transition = "all 0.15s ease";
         mapsBtn.addEventListener("mouseenter", () => {
-          if (!(isDiagOpen && window._selectedEduDiagCategory === "maps")) {
+          if (!isMapsOpen) {
             mapsBtn.style.background = "#f8fafc";
             mapsBtn.style.borderColor = "#94a3b8";
           }
         });
         mapsBtn.addEventListener("mouseleave", () => {
-          if (!(isDiagOpen && window._selectedEduDiagCategory === "maps")) {
+          if (!isMapsOpen) {
             mapsBtn.style.background = "#ffffff";
             mapsBtn.style.borderColor = "#cbd5e1";
           }
         });
         mapsBtn.addEventListener("click", () => {
-          if (isDiagOpen && window._selectedEduDiagCategory === "maps") {
-            window._isEduDiagramsOpen = false;
-          } else {
-            window._isEduDiagramsOpen = true;
-            window._selectedEduDiagCategory = "maps";
-          }
+          window._activeEduDrawer = isMapsOpen ? null : "maps";
           renderEduToolsOptions();
         });
         instrumentsBox.appendChild(mapsBtn);
 
-        // 6. Place Value Charts Button
+        if (isMapsOpen) {
+          const drawer = createAccordionDrawer("maps", {
+            title: "Map Tools & Cartography (7 Tools)",
+            accentColor: "#1d4ed8",
+            drawerBg: "#f0f9ff",
+            drawerBorder: "#bae6fd",
+            desc: "India political & physical maps, world continents, compass rose, metric scale bar, legend box & location pin:"
+          });
+          instrumentsBox.appendChild(drawer);
+        }
+
+        // 6. Place Value Charts Button (with Direct Accordion Drawer)
+        const isPvcOpen = window._activeEduDrawer === "place_value";
         const pvcBtn = document.createElement("button");
         pvcBtn.type = "button";
-        pvcBtn.innerHTML = "<span style='font-size:1.1rem;'>🧮</span> Place Value Charts (Indian, Intl, Decimal)";
+        pvcBtn.innerHTML = `<span style='font-size:1.1rem;'>🧮</span> Place Value Charts (Indian, Intl, Decimal) <span style='margin-left:auto;font-size:0.75rem;color:#059669;font-weight:800;'>${isPvcOpen ? "▲" : "▼"}</span>`;
         pvcBtn.style.padding = "0.6rem 0.8rem";
         pvcBtn.style.borderRadius = "8px";
-        pvcBtn.style.border = (isDiagOpen && window._selectedEduDiagCategory === "place_value") ? "1.5px solid #059669" : "1px solid #cbd5e1";
-        pvcBtn.style.background = (isDiagOpen && window._selectedEduDiagCategory === "place_value") ? "#ecfdf5" : "#ffffff";
-        pvcBtn.style.color = (isDiagOpen && window._selectedEduDiagCategory === "place_value") ? "#047857" : "#1e293b";
+        pvcBtn.style.border = isPvcOpen ? "1.5px solid #059669" : "1px solid #cbd5e1";
+        pvcBtn.style.background = isPvcOpen ? "#ecfdf5" : "#ffffff";
+        pvcBtn.style.color = isPvcOpen ? "#047857" : "#1e293b";
         pvcBtn.style.fontWeight = "700";
         pvcBtn.style.fontSize = "0.85rem";
         pvcBtn.style.cursor = "pointer";
@@ -17543,37 +17780,44 @@
         pvcBtn.style.gap = "8px";
         pvcBtn.style.transition = "all 0.15s ease";
         pvcBtn.addEventListener("mouseenter", () => {
-          if (!(isDiagOpen && window._selectedEduDiagCategory === "place_value")) {
+          if (!isPvcOpen) {
             pvcBtn.style.background = "#f8fafc";
             pvcBtn.style.borderColor = "#94a3b8";
           }
         });
         pvcBtn.addEventListener("mouseleave", () => {
-          if (!(isDiagOpen && window._selectedEduDiagCategory === "place_value")) {
+          if (!isPvcOpen) {
             pvcBtn.style.background = "#ffffff";
             pvcBtn.style.borderColor = "#cbd5e1";
           }
         });
         pvcBtn.addEventListener("click", () => {
-          if (isDiagOpen && window._selectedEduDiagCategory === "place_value") {
-            window._isEduDiagramsOpen = false;
-          } else {
-            window._isEduDiagramsOpen = true;
-            window._selectedEduDiagCategory = "place_value";
-          }
+          window._activeEduDrawer = isPvcOpen ? null : "place_value";
           renderEduToolsOptions();
         });
         instrumentsBox.appendChild(pvcBtn);
 
-        // 7. Formulas Reference Button
+        if (isPvcOpen) {
+          const drawer = createAccordionDrawer("place_value", {
+            title: "Place Value Charts (4 Charts)",
+            accentColor: "#047857",
+            drawerBg: "#f0fdf4",
+            drawerBorder: "#bbf7d0",
+            desc: "Indian (Crores/Lakhs) and International (Millions/Thousands) place value grids, decimal charts & conversions:"
+          });
+          instrumentsBox.appendChild(drawer);
+        }
+
+        // 7. Formulas Reference Button (with Direct Accordion Drawer)
+        const isFormulasOpen = window._activeEduDrawer === "formulas";
         const formulasBtn = document.createElement("button");
         formulasBtn.type = "button";
-        formulasBtn.innerHTML = "<span style='font-size:1.1rem;'>📐</span> Perimeter, Area & Volume Formulas";
+        formulasBtn.innerHTML = `<span style='font-size:1.1rem;'>📐</span> Perimeter, Area & Volume Formulas <span style='margin-left:auto;font-size:0.75rem;color:#7e22ce;font-weight:800;'>${isFormulasOpen ? "▲" : "▼"}</span>`;
         formulasBtn.style.padding = "0.6rem 0.8rem";
         formulasBtn.style.borderRadius = "8px";
-        formulasBtn.style.border = (isDiagOpen && window._selectedEduDiagCategory === "formulas") ? "1.5px solid #9333ea" : "1px solid #cbd5e1";
-        formulasBtn.style.background = (isDiagOpen && window._selectedEduDiagCategory === "formulas") ? "#faf5ff" : "#ffffff";
-        formulasBtn.style.color = (isDiagOpen && window._selectedEduDiagCategory === "formulas") ? "#7e22ce" : "#1e293b";
+        formulasBtn.style.border = isFormulasOpen ? "1.5px solid #9333ea" : "1px solid #cbd5e1";
+        formulasBtn.style.background = isFormulasOpen ? "#faf5ff" : "#ffffff";
+        formulasBtn.style.color = isFormulasOpen ? "#7e22ce" : "#1e293b";
         formulasBtn.style.fontWeight = "700";
         formulasBtn.style.fontSize = "0.85rem";
         formulasBtn.style.cursor = "pointer";
@@ -17582,27 +17826,33 @@
         formulasBtn.style.gap = "8px";
         formulasBtn.style.transition = "all 0.15s ease";
         formulasBtn.addEventListener("mouseenter", () => {
-          if (!(isDiagOpen && window._selectedEduDiagCategory === "formulas")) {
+          if (!isFormulasOpen) {
             formulasBtn.style.background = "#f8fafc";
             formulasBtn.style.borderColor = "#94a3b8";
           }
         });
         formulasBtn.addEventListener("mouseleave", () => {
-          if (!(isDiagOpen && window._selectedEduDiagCategory === "formulas")) {
+          if (!isFormulasOpen) {
             formulasBtn.style.background = "#ffffff";
             formulasBtn.style.borderColor = "#cbd5e1";
           }
         });
         formulasBtn.addEventListener("click", () => {
-          if (isDiagOpen && window._selectedEduDiagCategory === "formulas") {
-            window._isEduDiagramsOpen = false;
-          } else {
-            window._isEduDiagramsOpen = true;
-            window._selectedEduDiagCategory = "formulas";
-          }
+          window._activeEduDrawer = isFormulasOpen ? null : "formulas";
           renderEduToolsOptions();
         });
         instrumentsBox.appendChild(formulasBtn);
+
+        if (isFormulasOpen) {
+          const drawer = createAccordionDrawer("formulas", {
+            title: "Perimeter, Area & Volume Formulas (3 Sheets)",
+            accentColor: "#7e22ce",
+            drawerBg: "#faf5ff",
+            drawerBorder: "#e9d5ff",
+            desc: "2D perimeter/area tables, 3D surface area/volume formulas & master geometry reference cheat sheet:"
+          });
+          instrumentsBox.appendChild(drawer);
+        }
 
         wrap.appendChild(instrumentsBox);
 
@@ -17624,24 +17874,6 @@
 
             insertDiagramHelper(newShape);
           });
-        }
-
-        // ==========================================
-        // Educational Diagrams Library (Hierarchical)
-        // ==========================================
-        function insertDiagramHelper(shapeData) {
-          const page = pages[currentPageIndex];
-          if (!page) return;
-          if (!page.shapes) page.shapes = [];
-          pushUndo();
-          page.shapes.push(shapeData);
-          updateBoardAppearance();
-          notifyParentPageUpdate(currentPageIndex, true);
-          scheduleNotifyParentPages(100);
-          selectedShapes = [shapeData];
-          selectedTexts = [];
-          selectedWidgets = [];
-          handleToolSelection("select");
         }
 
         if (isDiagOpen) {
@@ -17737,111 +17969,6 @@
           diagBox.style.boxShadow = "inset 0 1px 2px rgba(0,0,0,0.02)";
 
           const selectedCatId = window._selectedEduDiagCategory;
-
-          // Helper function for creating high-end preset item cards
-          function createPresetCard({ chip, chipTheme, title, subtitle, onClick }) {
-            const card = document.createElement("div");
-            card.style.display = "flex";
-            card.style.alignItems = "center";
-            card.style.justifyContent = "space-between";
-            card.style.gap = "10px";
-            card.style.width = "100%";
-            card.style.padding = "9px 12px";
-            card.style.marginBottom = "8px";
-            card.style.background = "#ffffff";
-            card.style.border = "1.5px solid #e2e8f0";
-            card.style.borderRadius = "9px";
-            card.style.cursor = "pointer";
-            card.style.transition = "all 0.16s cubic-bezier(0.4, 0, 0.2, 1)";
-            card.style.boxShadow = "0 1px 2px rgba(0,0,0,0.03)";
-
-            const leftStack = document.createElement("div");
-            leftStack.style.display = "flex";
-            leftStack.style.flexDirection = "column";
-            leftStack.style.gap = "3px";
-            leftStack.style.minWidth = "0";
-            leftStack.style.flex = "1";
-
-            const topRow = document.createElement("div");
-            topRow.style.display = "flex";
-            topRow.style.alignItems = "center";
-            topRow.style.gap = "8px";
-
-            const chipEl = document.createElement("span");
-            chipEl.style.fontSize = "0.78rem";
-            chipEl.style.fontWeight = "800";
-            chipEl.style.padding = "3px 8px";
-            chipEl.style.borderRadius = "5px";
-            chipEl.style.background = chipTheme?.bg || "#f1f5f9";
-            chipEl.style.color = chipTheme?.color || "#0369a1";
-            chipEl.style.border = "1px solid " + (chipTheme?.border || "#cbd5e1");
-            chipEl.style.whiteSpace = "nowrap";
-            chipEl.style.fontFamily = "ui-monospace, monospace, sans-serif";
-            chipEl.textContent = chip;
-            topRow.appendChild(chipEl);
-
-            const titleEl = document.createElement("span");
-            titleEl.style.fontSize = "0.88rem";
-            titleEl.style.fontWeight = "700";
-            titleEl.style.color = "#0f172a";
-            titleEl.style.whiteSpace = "nowrap";
-            titleEl.style.overflow = "hidden";
-            titleEl.style.textOverflow = "ellipsis";
-            titleEl.textContent = title;
-            topRow.appendChild(titleEl);
-            leftStack.appendChild(topRow);
-
-            if (subtitle) {
-              const subEl = document.createElement("span");
-              subEl.style.fontSize = "0.78rem";
-              subEl.style.color = "#475569";
-              subEl.style.lineHeight = "1.35";
-              subEl.textContent = subtitle;
-              leftStack.appendChild(subEl);
-            }
-            card.appendChild(leftStack);
-
-            const actionBtn = document.createElement("button");
-            actionBtn.type = "button";
-            actionBtn.innerHTML = "+ Add";
-            actionBtn.style.padding = "5px 12px";
-            actionBtn.style.fontSize = "0.78rem";
-            actionBtn.style.fontWeight = "700";
-            actionBtn.style.color = "#0284c7";
-            actionBtn.style.background = "#e0f2fe";
-            actionBtn.style.border = "1px solid #bae6fd";
-            actionBtn.style.borderRadius = "6px";
-            actionBtn.style.cursor = "pointer";
-            actionBtn.style.flexShrink = "0";
-            actionBtn.style.transition = "all 0.15s ease";
-            actionBtn.addEventListener("click", (e) => {
-              e.stopPropagation();
-              if (typeof onClick === "function") onClick(e);
-            });
-            card.appendChild(actionBtn);
-
-            card.addEventListener("mouseenter", () => {
-              card.style.background = "#f8fafc";
-              card.style.borderColor = "#38bdf8";
-              card.style.boxShadow = "0 3px 8px rgba(2, 132, 199, 0.12)";
-              card.style.transform = "translateY(-1px)";
-              actionBtn.style.background = "#0284c7";
-              actionBtn.style.color = "#ffffff";
-              actionBtn.style.borderColor = "#0284c7";
-            });
-            card.addEventListener("mouseleave", () => {
-              card.style.background = "#ffffff";
-              card.style.borderColor = "#e2e8f0";
-              card.style.boxShadow = "0 1px 2px rgba(0,0,0,0.03)";
-              card.style.transform = "translateY(0)";
-              actionBtn.style.background = "#e0f2fe";
-              actionBtn.style.color = "#0284c7";
-              actionBtn.style.borderColor = "#bae6fd";
-            });
-
-            card.addEventListener("click", onClick);
-            return card;
-          }
 
           if (!selectedCatId) {
             // --- Level 1: Sleek Category Selection Cards ---
@@ -18889,30 +19016,7 @@
                   chipTheme: ap.chipTheme,
                   title: ap.title,
                   subtitle: ap.subtitle,
-                  onClick: () => {
-                    const { x: cx, y: cy } = getVisibleBoardCenter();
-                    const isBoardDark = (typeof currentBoardType === "string" && (currentBoardType === "black" || currentBoardType === "green")) ||
-                                        (pages[currentPageIndex]?.boardType === "black" || pages[currentPageIndex]?.boardType === "green");
-                    let strokeColor = penSettings.color;
-                    if (isBoardDark) {
-                      if (!strokeColor || strokeColor === "#0f172a" || strokeColor === "#000000") strokeColor = "#f8fafc";
-                    } else {
-                      if (!strokeColor || strokeColor === "#ffffff" || strokeColor === "#f8fafc" || strokeColor === "#f1f5f9") strokeColor = "#0f172a";
-                    }
-                    insertDiagramHelper({
-                      id: generateId(),
-                      type: "geometricDiagram",
-                      geoType: ap.type,
-                      color: strokeColor,
-                      width: 2,
-                      start: { x: cx - ap.w, y: cy - ap.h },
-                      end: { x: cx + ap.w, y: cy + ap.h },
-                      createdAt: Date.now()
-                    });
-                    if (typeof showExportToast === "function") {
-                      showExportToast(ap.title + " added to board");
-                    }
-                  }
+                  onClick: () => insertAdvancedEduPreset(ap)
                 });
                 diagBox.appendChild(card);
               });
