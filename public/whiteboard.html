@@ -53,6 +53,7 @@
   </script>
   <script src="vendor/mathjax-tex-svg.js"></script>
   <script src="graph-plotter-engine.js"></script>
+  <script src="periodic-table-engine.js"></script>
   <style>
     /* Initial Light Loading Screen */
     .whiteboard-initial-loader {
@@ -6363,6 +6364,14 @@
           if (window.EduAshramGraphPlotter && typeof window.EduAshramGraphPlotter.drawGraphPlotterShape === "function") {
             window.EduAshramGraphPlotter.drawGraphPlotterShape(ctx, shape, isPreview);
           }
+        } else if (type === "elementCard") {
+          if (window.EduAshramPeriodicTable && typeof window.EduAshramPeriodicTable.drawElementCardShape === "function") {
+            window.EduAshramPeriodicTable.drawElementCardShape(ctx, shape, isPreview);
+          }
+        } else if (type === "periodicTable") {
+          if (window.EduAshramPeriodicTable && typeof window.EduAshramPeriodicTable.drawPeriodicTableShape === "function") {
+            window.EduAshramPeriodicTable.drawPeriodicTableShape(ctx, shape, isPreview);
+          }
         } else if (type === "angleArc" || type === "arc") {
           const vx = (shape.vertex && typeof shape.vertex.x === "number") ? shape.vertex.x : cx;
           const vy = (shape.vertex && typeof shape.vertex.y === "number") ? shape.vertex.y : cy;
@@ -7851,6 +7860,82 @@
                 scheduleNotifyParentPages(100);
               });
             }
+          }
+          if (selectedShapes.length === 1 && selectedShapes[0].type === "elementCard") {
+            const card = document.createElement("div");
+            card.style.background = "#f8fafc";
+            card.style.border = "1.5px solid #0284c7";
+            card.style.borderRadius = "8px";
+            card.style.padding = "10px";
+            card.style.marginTop = "0.75rem";
+            card.style.marginBottom = "0.5rem";
+
+            const elList = (window.EduAshramPeriodicTable && window.EduAshramPeriodicTable.elements) || [];
+            const curEl = elList.find(e => e.z === selectedShapes[0].atomicNumber) || { z: 11, symbol: "Na", name: "Sodium" };
+
+            const head = document.createElement("div");
+            head.style.fontWeight = "700";
+            head.style.fontSize = "0.84rem";
+            head.style.color = "#0369a1";
+            head.style.marginBottom = "6px";
+            head.textContent = "🔬 Element Card: " + curEl.name + " (" + curEl.symbol + ")";
+            card.appendChild(head);
+
+            const selLbl = document.createElement("label");
+            selLbl.style.fontSize = "0.72rem";
+            selLbl.style.color = "#64748b";
+            selLbl.textContent = "Switch Element:";
+            card.appendChild(selLbl);
+
+            const elSel = document.createElement("select");
+            elSel.style.width = "100%";
+            elSel.style.padding = "4px 6px";
+            elSel.style.fontSize = "0.76rem";
+            elSel.style.borderRadius = "5px";
+            elSel.style.border = "1px solid #cbd5e1";
+            elSel.style.marginBottom = "8px";
+
+            elList.forEach(elItem => {
+              const opt = document.createElement("option");
+              opt.value = elItem.z;
+              opt.textContent = elItem.z + ". " + elItem.symbol + " - " + elItem.name;
+              if (elItem.z === selectedShapes[0].atomicNumber) opt.selected = true;
+              elSel.appendChild(opt);
+            });
+
+            elSel.addEventListener("change", (e) => {
+              pushUndo();
+              selectedShapes[0].atomicNumber = Number(e.target.value);
+              const found = elList.find(elItem => elItem.z === selectedShapes[0].atomicNumber);
+              if (found) {
+                selectedShapes[0].symbol = found.symbol;
+                selectedShapes[0].name = found.name;
+              }
+              updateBoardAppearance();
+              notifyParentPageUpdate(currentPageIndex, true);
+              scheduleNotifyParentPages(100);
+            });
+            card.appendChild(elSel);
+
+            const reopenBtn = document.createElement("button");
+            reopenBtn.type = "button";
+            reopenBtn.textContent = "🔍 Open Periodic Table Explorer";
+            reopenBtn.style.width = "100%";
+            reopenBtn.style.padding = "6px";
+            reopenBtn.style.fontSize = "0.76rem";
+            reopenBtn.style.fontWeight = "600";
+            reopenBtn.style.background = "#e0f2fe";
+            reopenBtn.style.color = "#0369a1";
+            reopenBtn.style.border = "1px solid #bae6fd";
+            reopenBtn.style.borderRadius = "5px";
+            reopenBtn.style.cursor = "pointer";
+            reopenBtn.addEventListener("click", () => {
+              if (window.EduAshramPeriodicTable) {
+                window.EduAshramPeriodicTable.openPeriodicTableModal();
+              }
+            });
+            card.appendChild(reopenBtn);
+            wrap.appendChild(card);
           }
           const delBtn = document.createElement("button");
           delBtn.type = "button";
@@ -17192,6 +17277,70 @@
           renderEduToolsOptions();
         });
         instrumentsBox.appendChild(graphBtn);
+
+        // Periodic Table Modal Button (118 Elements & Bohr Atom Model)
+        const periodicBtn = document.createElement("button");
+        periodicBtn.type = "button";
+        periodicBtn.innerHTML = "<span style='font-size:1.1rem;'>🔬</span> Open Periodic Table (118 Elements)";
+        periodicBtn.style.padding = "0.6rem 0.8rem";
+        periodicBtn.style.borderRadius = "8px";
+        periodicBtn.style.border = "1.5px solid #0284c7";
+        periodicBtn.style.background = "#e0f2fe";
+        periodicBtn.style.color = "#0369a1";
+        periodicBtn.style.fontWeight = "700";
+        periodicBtn.style.fontSize = "0.85rem";
+        periodicBtn.style.cursor = "pointer";
+        periodicBtn.style.display = "flex";
+        periodicBtn.style.alignItems = "center";
+        periodicBtn.style.gap = "8px";
+        periodicBtn.addEventListener("click", () => {
+          if (window.EduAshramPeriodicTable && typeof window.EduAshramPeriodicTable.openPeriodicTableModal === "function") {
+            window.EduAshramPeriodicTable.openPeriodicTableModal(
+              (element) => {
+                const scale = window.devicePixelRatio || 1;
+                const logicalW = boardCanvas.width / (scale * zoom);
+                const cx = logicalW / 2;
+                const container = boardCanvas.closest ? boardCanvas.closest(".canvas-container") : null;
+                const scrollTop = container ? container.scrollTop : 0;
+                const visibleTop = scrollTop / zoom;
+                const topY = Math.max(40, visibleTop + 50);
+
+                const shapeW = 270;
+                const shapeH = 340;
+                const newShape = {
+                  type: "elementCard",
+                  atomicNumber: element.z,
+                  symbol: element.symbol,
+                  name: element.name,
+                  start: { x: cx - shapeW / 2, y: topY },
+                  end: { x: cx + shapeW / 2, y: topY + shapeH },
+                  rotation: 0
+                };
+                insertDiagramHelper(newShape);
+              },
+              () => {
+                const scale = window.devicePixelRatio || 1;
+                const logicalW = boardCanvas.width / (scale * zoom);
+                const cx = logicalW / 2;
+                const container = boardCanvas.closest ? boardCanvas.closest(".canvas-container") : null;
+                const scrollTop = container ? container.scrollTop : 0;
+                const visibleTop = scrollTop / zoom;
+                const topY = Math.max(40, visibleTop + 50);
+
+                const shapeW = 760;
+                const shapeH = 460;
+                const newShape = {
+                  type: "periodicTable",
+                  start: { x: cx - shapeW / 2, y: topY },
+                  end: { x: cx + shapeW / 2, y: topY + shapeH },
+                  rotation: 0
+                };
+                insertDiagramHelper(newShape);
+              }
+            );
+          }
+        });
+        instrumentsBox.appendChild(periodicBtn);
 
         // 3. Educational Diagrams Toggle Button (matching Ruler and Protractor)
         const isDiagOpen = !!window._isEduDiagramsOpen;
