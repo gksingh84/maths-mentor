@@ -475,7 +475,7 @@
     const fontBody  = `${Math.max(9, Math.round(10 * sFactor))}px "Plus Jakarta Sans", sans-serif`;
     const fontSmall = `${Math.max(8.5, Math.round(9 * sFactor))}px "Plus Jakarta Sans", sans-serif`;
 
-    function drawLabel(text, tx, ty, font, txtColor, align, baseline) {
+    function drawLabel(text, tx, ty, font, txtColor, align, baseline, withStroke = true) {
       if (text === undefined || text === null || text === "") return;
       const str = String(text);
       ctx.save();
@@ -485,9 +485,11 @@
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
 
-      ctx.strokeStyle = isActuallyDark ? "rgba(15, 23, 42, 0.95)" : "rgba(255, 255, 255, 0.96)";
-      ctx.lineWidth = Math.max(2.5, Math.round(3 * sFactor));
-      ctx.strokeText(str, tx, ty);
+      if (withStroke) {
+        ctx.strokeStyle = isActuallyDark ? "rgba(15, 23, 42, 0.95)" : "rgba(255, 255, 255, 0.96)";
+        ctx.lineWidth = Math.max(2, Math.min(3.2, Math.round(2.2 * Math.sqrt(sFactor))));
+        ctx.strokeText(str, tx, ty);
+      }
 
       ctx.fillStyle = txtColor || color;
       ctx.fillText(str, tx, ty);
@@ -704,66 +706,170 @@
     // =========================================================================
     else if (geo.startsWith("formula")) {
       function drawFormulaLayout({ title, subtitle, drawFigure, formulaRows, notes }) {
+        // Outer Card Box Dimensions
+        const cardX = leftX;
+        const cardY = y1 + 4;
+        const cardW = contentW;
+        const cardH = h - 8;
+        const cardR = 14;
+
+        // 1. Outer Card Background & Smooth Border
         ctx.fillStyle = cardBg;
         ctx.strokeStyle = borderCol;
         ctx.lineWidth = 1.5;
-        roundRect(ctx, leftX, y1 + 8, contentW, h - 16, 12);
+        roundRect(ctx, cardX, cardY, cardW, cardH, cardR);
         ctx.fill();
         ctx.stroke();
 
-        drawLabel(title, cx, y1 + 22, fontTitle, color);
-        if (subtitle) {
-          drawLabel(subtitle, cx, y1 + 36, fontSmall, primary);
-        }
+        // 2. Dedicated Top Header Section (generous height, no overlap)
+        const headerH = Math.max(54, Math.min(68, Math.round(cardH * 0.16)));
+        const headerBottomY = cardY + headerH;
 
-        const figW = Math.max(120, Math.round(contentW * 0.44));
-        const figX1 = leftX + 10;
-        const figX2 = figX1 + figW;
-        const figCX = figX1 + figW / 2;
-        const figCY = (topY + 14 + bottomY) / 2;
-
-        const divX = figX2 + 8;
+        // Subtle Header Banner
         ctx.save();
+        ctx.beginPath();
+        roundRect(ctx, cardX, cardY, cardW, headerH, cardR);
+        ctx.clip();
+        ctx.fillStyle = isActuallyDark ? "rgba(30, 41, 59, 0.95)" : "rgba(241, 245, 249, 0.88)";
+        ctx.fillRect(cardX, cardY, cardW, headerH);
+        ctx.restore();
+
+        // Header separator line
         ctx.strokeStyle = borderCol;
         ctx.lineWidth = 1;
-        ctx.setLineDash([3, 3]);
         ctx.beginPath();
-        ctx.moveTo(divX, topY + 12);
-        ctx.lineTo(divX, bottomY - 12);
+        ctx.moveTo(cardX, headerBottomY);
+        ctx.lineTo(cardX + cardW, headerBottomY);
         ctx.stroke();
-        ctx.restore();
+
+        // Main Title (bold, comfortable margin from top)
+        const titleY = cardY + Math.round(headerH * 0.38);
+        const subY = cardY + Math.round(headerH * 0.74);
+        const cardTitleFont = `bold ${Math.max(14, Math.min(19, Math.round(15 * sFactor)))}px "Plus Jakarta Sans", sans-serif`;
+        const cardSubFont = `600 ${Math.max(10, Math.min(12.5, Math.round(10.5 * sFactor)))}px "Plus Jakarta Sans", sans-serif`;
+
+        drawLabel(title, cx, titleY, cardTitleFont, color, "center", "middle", false);
+        if (subtitle) {
+          const subColor = isActuallyDark ? "#94a3b8" : "#64748b";
+          drawLabel(subtitle, cx, subY, cardSubFont, subColor, "center", "middle", false);
+        }
+
+        // 3. Footer Strip (Notes & key properties at bottom)
+        const footerH = notes ? Math.max(28, Math.min(36, Math.round(cardH * 0.09))) : 0;
+        const footerTopY = cardY + cardH - footerH - 8;
+
+        if (notes) {
+          const footPillX = cardX + 14;
+          const footPillW = cardW - 28;
+          const footPillY = footerTopY + 2;
+          const footPillH = footerH - 4;
+
+          ctx.fillStyle = isActuallyDark ? "rgba(56, 189, 248, 0.08)" : "rgba(2, 132, 199, 0.05)";
+          ctx.strokeStyle = isActuallyDark ? "rgba(56, 189, 248, 0.25)" : "rgba(2, 132, 199, 0.18)";
+          ctx.lineWidth = 1;
+          roundRect(ctx, footPillX, footPillY, footPillW, footPillH, 6);
+          ctx.fill();
+          ctx.stroke();
+
+          const noteFont = `600 ${Math.max(9.5, Math.min(12, Math.round(10 * sFactor)))}px "Plus Jakarta Sans", sans-serif`;
+          drawLabel("💡 " + notes, cx, footPillY + footPillH / 2, noteFont, primary, "center", "middle", false);
+        }
+
+        // 4. Main Body: Left Figure Showcase & Right Formula Deck
+        const bodyTopY = headerBottomY + 10;
+        const bodyBottomY = notes ? (footerTopY - 8) : (cardY + cardH - 12);
+        const bodyH = bodyBottomY - bodyTopY;
+
+        // Left Figure Box (44% width)
+        const figBoxX = cardX + 10;
+        const figBoxW = Math.max(140, Math.round(cardW * 0.44));
+        const figBoxY = bodyTopY;
+        const figBoxH = bodyH;
+
+        // Framed Diagram Canvas
+        ctx.fillStyle = isActuallyDark ? "rgba(15, 23, 42, 0.65)" : "rgba(248, 250, 252, 0.95)";
+        ctx.strokeStyle = isActuallyDark ? "rgba(51, 65, 85, 0.9)" : "#e2e8f0";
+        ctx.lineWidth = 1.2;
+        roundRect(ctx, figBoxX, figBoxY, figBoxW, figBoxH, 10);
+        ctx.fill();
+        ctx.stroke();
+
+        const figCX = figBoxX + figBoxW / 2;
+        const figCY = figBoxY + figBoxH / 2;
 
         if (typeof drawFigure === "function") {
           ctx.save();
-          drawFigure(figCX, figCY, figW, bottomY - topY - 20);
+          drawFigure(figCX, figCY, figBoxW, figBoxH);
           ctx.restore();
         }
 
-        const formX1 = divX + 12;
-        const formW = rightX - formX1 - 8;
-        const startFormY = topY + 16;
-        const rowCount = (formulaRows ? formulaRows.length : 0);
-        const rowH = Math.min(34, Math.max(22, (bottomY - 24 - startFormY) / Math.max(1, rowCount)));
+        // Right Formula Deck
+        const formDeckX = figBoxX + figBoxW + 12;
+        const formDeckW = (cardX + cardW - 10) - formDeckX;
+        const formDeckY = bodyTopY;
+        const formDeckH = bodyH;
 
-        if (formulaRows && Array.isArray(formulaRows)) {
+        if (formulaRows && Array.isArray(formulaRows) && formulaRows.length > 0) {
+          const rowCount = formulaRows.length;
+          const rowGap = Math.max(6, Math.min(10, Math.round(formDeckH * 0.03)));
+          const totalGaps = (rowCount - 1) * rowGap;
+          const rowH = Math.max(34, Math.min(52, Math.floor((formDeckH - totalGaps) / rowCount)));
+          const totalDeckH = rowCount * rowH + totalGaps;
+          const startY = formDeckY + Math.max(0, (formDeckH - totalDeckH) / 2);
+
+          // Compute uniform badge width for perfect vertical alignment across all rows
+          const tagFont = `bold ${Math.max(10, Math.min(12.5, Math.round(11 * sFactor)))}px "Plus Jakarta Sans", sans-serif`;
+          ctx.save();
+          ctx.font = tagFont;
+          let maxTagW = 80;
+          formulaRows.forEach(r => {
+            const m = ctx.measureText(r.tag || "");
+            if (m.width > maxTagW) maxTagW = m.width;
+          });
+          ctx.restore();
+          const badgeW = Math.max(95, Math.min(Math.round(formDeckW * 0.40), Math.round(maxTagW + 22)));
+
           formulaRows.forEach((row, idx) => {
-            const ry = startFormY + idx * (rowH + 5);
+            const ry = startY + idx * (rowH + rowGap);
 
-            ctx.fillStyle = row.bg || (isActuallyDark ? "rgba(56, 189, 248, 0.10)" : "rgba(2, 132, 199, 0.06)");
-            ctx.strokeStyle = row.border || borderCol;
-            ctx.lineWidth = 1;
-            roundRect(ctx, formX1, ry, formW, rowH, 6);
+            // Row Card Container
+            ctx.fillStyle = row.bg || (isActuallyDark ? "rgba(30, 41, 59, 0.85)" : "#ffffff");
+            ctx.strokeStyle = row.border || (isActuallyDark ? "#475569" : "#e2e8f0");
+            ctx.lineWidth = 1.2;
+            roundRect(ctx, formDeckX, ry, formDeckW, rowH, 8);
             ctx.fill();
             ctx.stroke();
 
-            const tagW = Math.max(50, Math.min(85, formW * 0.32));
-            drawLabel(row.tag, formX1 + 8, ry + rowH / 2, fontHeader, row.tagColor || primary, "left");
-            drawLabel(row.formula, formX1 + tagW + 4, ry + rowH / 2, `bold ${Math.max(10, Math.round(11 * sFactor))}px "Plus Jakarta Sans", monospace, sans-serif`, row.color || color, "left");
-          });
-        }
+            // Left Dedicated Tag Badge (uniform width, cannot overlap formula)
+            const badgeH = rowH - 8;
+            const badgeX = formDeckX + 4;
+            const badgeY = ry + 4;
 
-        if (notes) {
-          drawLabel(notes, cx, bottomY - 4, fontSmall, primary);
+            ctx.fillStyle = row.tagBg || (isActuallyDark ? "rgba(255,255,255,0.06)" : "rgba(241, 245, 249, 0.95)");
+            ctx.strokeStyle = row.tagColor || primary;
+            ctx.lineWidth = 1;
+            roundRect(ctx, badgeX, badgeY, badgeW, badgeH, 6);
+            ctx.fill();
+            ctx.stroke();
+
+            drawLabel(row.tag, badgeX + badgeW / 2, ry + rowH / 2, tagFont, row.tagColor || primary, "center", "middle", false);
+
+            // Right Formula Expression (starts strictly after gutter)
+            const formulaStartX = formDeckX + badgeW + 12;
+            const maxFormulaW = (formDeckX + formDeckW - 8) - formulaStartX;
+
+            let fSize = Math.max(11, Math.min(15, Math.round(13 * sFactor)));
+            let formFont = `700 ${fSize}px "Plus Jakarta Sans", "Courier New", monospace, sans-serif`;
+            ctx.font = formFont;
+            let textMetrics = ctx.measureText(row.formula);
+            if (textMetrics.width > maxFormulaW && maxFormulaW > 30) {
+              fSize = Math.max(9.5, Math.floor(fSize * (maxFormulaW / textMetrics.width)));
+              formFont = `700 ${fSize}px "Plus Jakarta Sans", "Courier New", monospace, sans-serif`;
+            }
+
+            const formulaTxtColor = row.color || (isActuallyDark ? "#f8fafc" : "#0f172a");
+            drawLabel(row.formula, formulaStartX, ry + rowH / 2, formFont, formulaTxtColor, "left", "middle", false);
+          });
         }
       }
 
@@ -771,44 +877,50 @@
         drawFormulaLayout({
           title: "Triangle: Perimeter & Area Formulas",
           subtitle: "NCERT Class 7–10 Mensuration",
-          drawFigure: (fcx, fcy) => {
-            const aX = fcx, aY = fcy - 38;
-            const bX = fcx - 48, bY = fcy + 34;
-            const cX = fcx + 48, cY = fcy + 34;
-            const dX = fcx, dY = cY;
+          drawFigure: (fcx, fcy, fw, fh) => {
+            const triW = Math.min(fw * 0.72, 195);
+            const triH = Math.min(fh * 0.60, 135);
+            const aX = fcx, aY = fcy - triH / 2 - 10;
+            const bX = fcx - triW / 2, bY = aY + triH;
+            const cX = fcx + triW / 2, cY = bY;
+            const dX = fcx, dY = bY;
 
-            ctx.fillStyle = isActuallyDark ? "rgba(56, 189, 248, 0.15)" : "rgba(2, 132, 199, 0.08)";
+            ctx.fillStyle = isActuallyDark ? "rgba(56, 189, 248, 0.18)" : "rgba(2, 132, 199, 0.10)";
             ctx.beginPath();
             ctx.moveTo(aX, aY); ctx.lineTo(bX, bY); ctx.lineTo(cX, cY); ctx.closePath();
             ctx.fill();
             ctx.strokeStyle = primary;
-            ctx.lineWidth = 2;
+            ctx.lineWidth = 2.2;
             ctx.stroke();
 
             ctx.save();
-            ctx.setLineDash([3, 3]);
+            ctx.setLineDash([4, 4]);
             ctx.strokeStyle = danger;
+            ctx.lineWidth = 1.8;
             ctx.beginPath(); ctx.moveTo(aX, aY); ctx.lineTo(dX, dY); ctx.stroke();
             ctx.restore();
 
+            const sq = Math.max(8, Math.round(10 * sFactor));
             ctx.strokeStyle = danger;
-            ctx.strokeRect(dX, dY - 8, 8, 8);
+            ctx.lineWidth = 1.5;
+            ctx.strokeRect(dX, dY - sq, sq, sq);
 
-            drawDoubleArrow(ctx, bX, bY + 12, cX, cY + 12, 5);
-            drawLabel("Base (b)", fcx, bY + 22, fontSmall, primary);
+            drawDoubleArrow(ctx, bX, bY + 14, cX, cY + 14, 6);
+            drawLabel("Base (b)", fcx, bY + 28, fontSmall, primary, "center", "middle", true);
 
-            drawLabel("A", aX, aY - 8, fontHeader, color);
-            drawLabel("B", bX - 8, bY + 4, fontHeader, color);
-            drawLabel("C", cX + 8, cY + 4, fontHeader, color);
-            drawLabel("h", dX - 10, fcy - 4, fontHeader, danger);
-            drawLabel("c", (aX + bX) / 2 - 10, (aY + bY) / 2, fontSmall, color);
-            drawLabel("b", (aX + cX) / 2 + 10, (aY + cY) / 2, fontSmall, color);
+            const nodeFont = `bold ${Math.max(12, Math.round(13 * sFactor))}px "Plus Jakarta Sans", sans-serif`;
+            drawLabel("A", aX, aY - 14, nodeFont, color, "center", "middle", true);
+            drawLabel("B", bX - 14, bY + 4, nodeFont, color, "center", "middle", true);
+            drawLabel("C", cX + 14, cY + 4, nodeFont, color, "center", "middle", true);
+            drawLabel("h", dX - 14, fcy - 4, nodeFont, danger, "center", "middle", true);
+            drawLabel("c", (aX + bX) / 2 - 14, (aY + bY) / 2, fontHeader, color, "center", "middle", true);
+            drawLabel("a", (aX + cX) / 2 + 14, (aY + cY) / 2, fontHeader, color, "center", "middle", true);
           },
           formulaRows: [
-            { tag: "Perimeter", formula: "P = a + b + c", tagColor: primary },
-            { tag: "Area", formula: "Area = ½ × b × h", tagColor: accent },
-            { tag: "Heron's", formula: "Area = √[s(s-a)(s-b)(s-c)]", tagColor: warn },
-            { tag: "Semi-P (s)", formula: "s = (a + b + c) / 2", tagColor: purple }
+            { tag: "Perimeter (P)", formula: "P = a + b + c", tagColor: primary },
+            { tag: "Area (A)", formula: "Area = ½ × b × h", tagColor: accent },
+            { tag: "Heron's Formula", formula: "Area = √[s(s-a)(s-b)(s-c)]", tagColor: warn },
+            { tag: "Semi-Perimeter", formula: "s = (a + b + c) / 2", tagColor: purple }
           ],
           notes: "Equilateral Triangle: Area = (√3 / 4) a²  |  Altitude = (√3 / 2) a"
         });
@@ -816,38 +928,44 @@
         drawFormulaLayout({
           title: "Right Triangle: Area & Pythagoras Theorem",
           subtitle: "NCERT Class 7–10 Geometry",
-          drawFigure: (fcx, fcy) => {
-            const aX = fcx - 36, aY = fcy - 40;
-            const bX = fcx - 36, bY = fcy + 36;
-            const cX = fcx + 48, cY = fcy + 36;
+          drawFigure: (fcx, fcy, fw, fh) => {
+            const rtW = Math.min(fw * 0.68, 175);
+            const rtH = Math.min(fh * 0.62, 140);
+            const bX = fcx - rtW / 2 + 10, bY = fcy + rtH / 2 - 8;
+            const aX = bX, aY = bY - rtH;
+            const cX = bX + rtW, cY = bY;
 
-            ctx.fillStyle = isActuallyDark ? "rgba(16, 185, 129, 0.15)" : "rgba(16, 185, 129, 0.08)";
+            ctx.fillStyle = isActuallyDark ? "rgba(16, 185, 129, 0.18)" : "rgba(16, 185, 129, 0.10)";
             ctx.beginPath();
             ctx.moveTo(aX, aY); ctx.lineTo(bX, bY); ctx.lineTo(cX, cY); ctx.closePath();
             ctx.fill();
             ctx.strokeStyle = accent;
-            ctx.lineWidth = 2;
+            ctx.lineWidth = 2.2;
             ctx.stroke();
 
+            const sq = Math.max(9, Math.round(11 * sFactor));
             ctx.strokeStyle = primary;
-            ctx.strokeRect(bX, bY - 10, 10, 10);
+            ctx.lineWidth = 1.5;
+            ctx.strokeRect(bX, bY - sq, sq, sq);
 
-            drawDoubleArrow(ctx, bX - 10, aY, bX - 10, bY, 5);
-            drawLabel("p", bX - 22, (aY + bY) / 2, fontHeader, primary);
+            drawDoubleArrow(ctx, bX - 14, aY, bX - 14, bY, 6);
+            drawLabel("p (height)", bX - 34, (aY + bY) / 2, fontSmall, primary, "center", "middle", true);
 
-            drawDoubleArrow(ctx, bX, bY + 12, cX, cY + 12, 5);
-            drawLabel("b (base)", (bX + cX) / 2, bY + 22, fontSmall, accent);
+            drawDoubleArrow(ctx, bX, bY + 14, cX, cY + 14, 6);
+            drawLabel("b (base)", (bX + cX) / 2, bY + 28, fontSmall, accent, "center", "middle", true);
 
-            drawLabel("h (hypotenuse)", (aX + cX) / 2 + 16, (aY + cY) / 2 - 8, fontSmall, purple);
-            drawLabel("A", aX - 6, aY - 6, fontHeader, color);
-            drawLabel("B", bX - 8, bY + 6, fontHeader, color);
-            drawLabel("C", cX + 8, cY + 6, fontHeader, color);
+            drawLabel("h (hypotenuse)", (aX + cX) / 2 + 22, (aY + cY) / 2 - 10, fontSmall, purple, "center", "middle", true);
+
+            const nodeFont = `bold ${Math.max(12, Math.round(13 * sFactor))}px "Plus Jakarta Sans", sans-serif`;
+            drawLabel("A", aX - 10, aY - 10, nodeFont, color, "center", "middle", true);
+            drawLabel("B", bX - 12, bY + 10, nodeFont, color, "center", "middle", true);
+            drawLabel("C", cX + 12, cY + 10, nodeFont, color, "center", "middle", true);
           },
           formulaRows: [
-            { tag: "Area", formula: "Area = ½ × b × p", tagColor: accent },
-            { tag: "Perimeter", formula: "P = b + p + h", tagColor: primary },
+            { tag: "Area (A)", formula: "Area = ½ × b × p", tagColor: accent },
+            { tag: "Perimeter (P)", formula: "P = b + p + h", tagColor: primary },
             { tag: "Pythagoras", formula: "h² = b² + p²  ⇒  h = √(b²+p²)", tagColor: purple },
-            { tag: "Altitude", formula: "p = √(h² - b²),  b = √(h² - p²)", tagColor: warn }
+            { tag: "Leg Relations", formula: "p = √(h² - b²),  b = √(h² - p²)", tagColor: warn }
           ],
           notes: "3-4-5, 5-12-13, 7-24-25, 8-15-17 are common Pythagorean triplets"
         });
@@ -855,44 +973,45 @@
         drawFormulaLayout({
           title: "Rectangle: Perimeter, Area & Diagonal",
           subtitle: "NCERT Class 6–9 Mensuration",
-          drawFigure: (fcx, fcy) => {
-            const rw = 100, rh = 62;
-            const rx = fcx - rw / 2, ry = fcy - rh / 2;
+          drawFigure: (fcx, fcy, fw, fh) => {
+            const rw = Math.min(fw * 0.72, 195);
+            const rh = Math.min(fh * 0.54, 115);
+            const rx = fcx - rw / 2, ry = fcy - rh / 2 - 6;
 
-            ctx.fillStyle = isActuallyDark ? "rgba(56, 189, 248, 0.15)" : "rgba(2, 132, 199, 0.08)";
+            ctx.fillStyle = isActuallyDark ? "rgba(56, 189, 248, 0.18)" : "rgba(2, 132, 199, 0.10)";
             ctx.fillRect(rx, ry, rw, rh);
             ctx.strokeStyle = primary;
-            ctx.lineWidth = 2;
+            ctx.lineWidth = 2.2;
             ctx.strokeRect(rx, ry, rw, rh);
 
-            // Dashed diagonal
             ctx.save();
-            ctx.setLineDash([3, 3]);
+            ctx.setLineDash([4, 4]);
             ctx.strokeStyle = purple;
+            ctx.lineWidth = 1.8;
             ctx.beginPath(); ctx.moveTo(rx, ry + rh); ctx.lineTo(rx + rw, ry); ctx.stroke();
             ctx.restore();
 
-            // Right-angle square markers
-            const sq = 7;
+            const sq = 8;
             ctx.strokeStyle = primary;
+            ctx.lineWidth = 1.2;
             ctx.strokeRect(rx, ry, sq, sq);
             ctx.strokeRect(rx + rw - sq, ry, sq, sq);
             ctx.strokeRect(rx, ry + rh - sq, sq, sq);
             ctx.strokeRect(rx + rw - sq, ry + rh - sq, sq, sq);
 
-            drawDoubleArrow(ctx, rx, ry + rh + 12, rx + rw, ry + rh + 12, 5);
-            drawLabel("Length (l)", fcx, ry + rh + 22, fontSmall, primary);
+            drawDoubleArrow(ctx, rx, ry + rh + 14, rx + rw, ry + rh + 14, 6);
+            drawLabel("Length (l)", fcx, ry + rh + 28, fontSmall, primary, "center", "middle", true);
 
-            drawDoubleArrow(ctx, rx + rw + 10, ry, rx + rw + 10, ry + rh, 5);
-            drawLabel("b", rx + rw + 18, fcy, fontHeader, accent);
+            drawDoubleArrow(ctx, rx + rw + 14, ry, rx + rw + 14, ry + rh, 6);
+            drawLabel("b", rx + rw + 28, fcy - 6, fontHeader, accent, "center", "middle", true);
 
-            drawLabel("d", fcx + 4, fcy - 6, fontHeader, purple);
+            drawLabel("d = √(l²+b²)", fcx - 8, fcy - 18, fontSmall, purple, "center", "middle", true);
           },
           formulaRows: [
-            { tag: "Perimeter", formula: "P = 2(l + b)", tagColor: primary },
-            { tag: "Area", formula: "Area = l × b", tagColor: accent },
-            { tag: "Diagonal", formula: "d = √(l² + b²)", tagColor: purple },
-            { tag: "Relation", formula: "l = Area / b,  b = Area / l", tagColor: warn }
+            { tag: "Perimeter (P)", formula: "P = 2(l + b)", tagColor: primary },
+            { tag: "Area (A)", formula: "Area = l × b", tagColor: accent },
+            { tag: "Diagonal (d)", formula: "d = √(l² + b²)", tagColor: purple },
+            { tag: "Side Relations", formula: "l = Area / b,  b = Area / l", tagColor: warn }
           ],
           notes: "Opposite sides are equal and all 4 interior angles are 90°"
         });
@@ -900,37 +1019,44 @@
         drawFormulaLayout({
           title: "Square: Perimeter, Area & Diagonal",
           subtitle: "NCERT Class 6–9 Mensuration",
-          drawFigure: (fcx, fcy) => {
-            const s = 68;
-            const sx = fcx - s / 2, sy = fcy - s / 2;
+          drawFigure: (fcx, fcy, fw, fh) => {
+            const s = Math.min(fw * 0.58, fh * 0.58, 125);
+            const sx = fcx - s / 2, sy = fcy - s / 2 - 6;
 
-            ctx.fillStyle = isActuallyDark ? "rgba(16, 185, 129, 0.15)" : "rgba(16, 185, 129, 0.08)";
+            ctx.fillStyle = isActuallyDark ? "rgba(16, 185, 129, 0.18)" : "rgba(16, 185, 129, 0.10)";
             ctx.fillRect(sx, sy, s, s);
             ctx.strokeStyle = accent;
-            ctx.lineWidth = 2;
+            ctx.lineWidth = 2.2;
             ctx.strokeRect(sx, sy, s, s);
 
-            // Tick marks on all 4 equal sides
-            drawTick(ctx, sx + s / 2, sy, 0, 5);
-            drawTick(ctx, sx + s / 2, sy + s, 0, 5);
-            drawTick(ctx, sx, sy + s / 2, Math.PI / 2, 5);
-            drawTick(ctx, sx + s, sy + s / 2, Math.PI / 2, 5);
+            const sq = 8;
+            ctx.strokeStyle = accent;
+            ctx.lineWidth = 1.2;
+            ctx.strokeRect(sx, sy, sq, sq);
+            ctx.strokeRect(sx + s - sq, sy, sq, sq);
+            ctx.strokeRect(sx, sy + s - sq, sq, sq);
+            ctx.strokeRect(sx + s - sq, sy + s - sq, sq, sq);
 
-            // Dashed diagonal
+            drawTick(ctx, sx + s / 2, sy, 0, 7);
+            drawTick(ctx, sx + s / 2, sy + s, 0, 7);
+            drawTick(ctx, sx, sy + s / 2, Math.PI / 2, 7);
+            drawTick(ctx, sx + s, sy + s / 2, Math.PI / 2, 7);
+
             ctx.save();
-            ctx.setLineDash([3, 3]);
+            ctx.setLineDash([4, 4]);
             ctx.strokeStyle = purple;
+            ctx.lineWidth = 1.8;
             ctx.beginPath(); ctx.moveTo(sx, sy + s); ctx.lineTo(sx + s, sy); ctx.stroke();
             ctx.restore();
 
-            drawDoubleArrow(ctx, sx, sy + s + 12, sx + s, sy + s + 12, 5);
-            drawLabel("Side (a)", fcx, sy + s + 22, fontSmall, accent);
-            drawLabel("d = a√2", fcx + 6, fcy - 6, fontSmall, purple);
+            drawDoubleArrow(ctx, sx, sy + s + 14, sx + s, sy + s + 14, 6);
+            drawLabel("Side (a)", fcx, sy + s + 28, fontSmall, accent, "center", "middle", true);
+            drawLabel("d = a√2", fcx + 12, fcy - 16, fontSmall, purple, "center", "middle", true);
           },
           formulaRows: [
-            { tag: "Perimeter", formula: "P = 4a", tagColor: primary },
-            { tag: "Area", formula: "Area = a² = ½ d²", tagColor: accent },
-            { tag: "Diagonal", formula: "d = a√2  ⇒  a = d / √2", tagColor: purple },
+            { tag: "Perimeter (P)", formula: "P = 4a", tagColor: primary },
+            { tag: "Area (A)", formula: "Area = a² = ½ d²", tagColor: accent },
+            { tag: "Diagonal (d)", formula: "d = a√2  ⇒  a = d / √2", tagColor: purple },
             { tag: "Side (a)", formula: "a = P / 4 = √Area", tagColor: warn }
           ],
           notes: "All 4 sides equal, all angles 90°, diagonals bisect at 90°"
@@ -939,46 +1065,42 @@
         drawFormulaLayout({
           title: "Circle & Sector: Circumference & Area",
           subtitle: "NCERT Class 7–10 Mensuration",
-          drawFigure: (fcx, fcy) => {
-            const r = 40;
+          drawFigure: (fcx, fcy, fw, fh) => {
+            const r = Math.min(fw * 0.34, fh * 0.34, 70);
 
-            // Shaded sector
-            ctx.fillStyle = isActuallyDark ? "rgba(245, 158, 11, 0.20)" : "rgba(245, 158, 11, 0.15)";
+            ctx.fillStyle = isActuallyDark ? "rgba(245, 158, 11, 0.25)" : "rgba(245, 158, 11, 0.18)";
             ctx.beginPath();
             ctx.moveTo(fcx, fcy);
             ctx.arc(fcx, fcy, r, -Math.PI / 6, Math.PI / 4);
             ctx.closePath();
             ctx.fill();
 
-            // Circle boundary
             ctx.strokeStyle = warn;
-            ctx.lineWidth = 2;
+            ctx.lineWidth = 2.2;
             ctx.beginPath(); ctx.arc(fcx, fcy, r, 0, Math.PI * 2); ctx.stroke();
 
-            // Center O
             ctx.fillStyle = color;
-            ctx.beginPath(); ctx.arc(fcx, fcy, 3, 0, Math.PI * 2); ctx.fill();
-            drawLabel("O", fcx - 8, fcy - 6, fontHeader, color);
+            ctx.beginPath(); ctx.arc(fcx, fcy, 4, 0, Math.PI * 2); ctx.fill();
+            drawLabel("O", fcx - 12, fcy - 8, fontHeader, color, "center", "middle", true);
 
-            // Radius line
             ctx.strokeStyle = primary;
-            ctx.lineWidth = 1.5;
+            ctx.lineWidth = 2;
             ctx.beginPath(); ctx.moveTo(fcx, fcy); ctx.lineTo(fcx + r * Math.cos(-Math.PI / 6), fcy + r * Math.sin(-Math.PI / 6)); ctx.stroke();
-            drawLabel("r", fcx + 22, fcy - 12, fontHeader, primary);
+            drawLabel("r", fcx + r * 0.6, fcy - 18, fontHeader, primary, "center", "middle", true);
 
-            // Diameter dashed line
             ctx.save();
-            ctx.setLineDash([3, 3]);
+            ctx.setLineDash([4, 4]);
             ctx.strokeStyle = purple;
-            ctx.beginPath(); ctx.moveTo(fcx - r, fcy + 8); ctx.lineTo(fcx + r, fcy + 8); ctx.stroke();
+            ctx.lineWidth = 1.6;
+            ctx.beginPath(); ctx.moveTo(fcx - r, fcy + 12); ctx.lineTo(fcx + r, fcy + 12); ctx.stroke();
             ctx.restore();
-            drawLabel("d = 2r", fcx, fcy + 18, fontSmall, purple);
+            drawLabel("d = 2r", fcx, fcy + 26, fontSmall, purple, "center", "middle", true);
 
-            drawLabel("θ", fcx + 14, fcy + 2, fontSmall, warn);
+            drawLabel("θ (sector)", fcx + 22, fcy + 4, fontSmall, warn, "center", "middle", true);
           },
           formulaRows: [
             { tag: "Circumference", formula: "C = 2πr = πd", tagColor: primary },
-            { tag: "Area", formula: "Area = πr² = ¼ πd²", tagColor: accent },
+            { tag: "Area (A)", formula: "Area = πr² = ¼ πd²", tagColor: accent },
             { tag: "Arc Length (L)", formula: "L = (θ / 360°) × 2πr", tagColor: warn },
             { tag: "Sector Area", formula: "Area = (θ / 360°) × πr²", tagColor: purple }
           ],
@@ -988,40 +1110,45 @@
         drawFormulaLayout({
           title: "Parallelogram & Rhombus Formulas",
           subtitle: "NCERT Class 7–9 Mensuration",
-          drawFigure: (fcx, fcy) => {
-            const bw = 80, bh = 54, slant = 24;
-            const x1 = fcx - bw / 2 - slant / 2, y1_ = fcy + bh / 2;
+          drawFigure: (fcx, fcy, fw, fh) => {
+            const bw = Math.min(fw * 0.60, 160);
+            const bh = Math.min(fh * 0.50, 95);
+            const slant = Math.round(bw * 0.28);
+            const x1 = fcx - bw / 2 - slant / 2, y1_ = fcy + bh / 2 - 4;
             const x2 = x1 + bw, y2_ = y1_;
             const x3 = x2 + slant, y3_ = y1_ - bh;
             const x4 = x1 + slant, y4_ = y3_;
 
-            ctx.fillStyle = isActuallyDark ? "rgba(192, 132, 252, 0.15)" : "rgba(126, 34, 206, 0.08)";
+            ctx.fillStyle = isActuallyDark ? "rgba(192, 132, 252, 0.18)" : "rgba(126, 34, 206, 0.10)";
             ctx.beginPath();
             ctx.moveTo(x1, y1_); ctx.lineTo(x2, y2_); ctx.lineTo(x3, y3_); ctx.lineTo(x4, y4_); ctx.closePath();
             ctx.fill();
             ctx.strokeStyle = purple;
-            ctx.lineWidth = 2;
+            ctx.lineWidth = 2.2;
             ctx.stroke();
 
-            // Dashed height
+            drawParallelArrow(ctx, (x1 + x2) / 2, y1_, 0, 7);
+            drawParallelArrow(ctx, (x4 + x3) / 2, y4_, 0, 7);
+
             ctx.save();
-            ctx.setLineDash([3, 3]);
+            ctx.setLineDash([4, 4]);
             ctx.strokeStyle = danger;
+            ctx.lineWidth = 1.6;
             ctx.beginPath(); ctx.moveTo(x4, y4_); ctx.lineTo(x4, y1_); ctx.stroke();
             ctx.restore();
             ctx.strokeStyle = danger;
-            ctx.strokeRect(x4, y1_ - 7, 7, 7);
+            ctx.strokeRect(x4, y1_ - 8, 8, 8);
 
-            drawDoubleArrow(ctx, x1, y1_ + 10, x2, y2_ + 10, 5);
-            drawLabel("Base (b)", (x1 + x2) / 2, y1_ + 18, fontSmall, purple);
-            drawLabel("h", x4 - 8, fcy, fontHeader, danger);
-            drawLabel("a", (x1 + x4) / 2 - 10, (y1_ + y4_) / 2, fontSmall, color);
+            drawDoubleArrow(ctx, x1, y1_ + 14, x2, y2_ + 14, 6);
+            drawLabel("Base (b)", (x1 + x2) / 2, y1_ + 26, fontSmall, purple, "center", "middle", true);
+            drawLabel("h", x4 - 12, fcy, fontHeader, danger, "center", "middle", true);
+            drawLabel("a", (x1 + x4) / 2 - 14, (y1_ + y4_) / 2, fontSmall, color, "center", "middle", true);
           },
           formulaRows: [
             { tag: "Parallelogram", formula: "Area = b × h,  P = 2(a + b)", tagColor: purple },
             { tag: "Rhombus Area", formula: "Area = ½ × d₁ × d₂", tagColor: accent },
             { tag: "Rhombus Side", formula: "a = ½ √(d₁² + d₂²),  P = 4a", tagColor: warn },
-            { tag: "Diagonals", formula: "Bisect each other at right angles", tagColor: primary }
+            { tag: "Diagonals", formula: "Bisect each other at right angles (90°)", tagColor: primary }
           ],
           notes: "Rhombus is an equilateral parallelogram with perpendicular diagonals"
         });
@@ -1029,46 +1156,48 @@
         drawFormulaLayout({
           title: "Trapezium: Perimeter & Area Formulas",
           subtitle: "NCERT Class 8–10 Mensuration",
-          drawFigure: (fcx, fcy) => {
-            const topW = 54, botW = 96, th = 56;
-            const topY_ = fcy - th / 2, botY_ = fcy + th / 2;
+          drawFigure: (fcx, fcy, fw, fh) => {
+            const topW = Math.min(fw * 0.40, 95);
+            const botW = Math.min(fw * 0.72, 175);
+            const th = Math.min(fh * 0.52, 110);
+            const topY_ = fcy - th / 2 - 6, botY_ = fcy + th / 2 - 6;
             const p1x = fcx - topW / 2, p1y = topY_;
             const p2x = fcx + topW / 2, p2y = topY_;
             const p3x = fcx + botW / 2, p3y = botY_;
             const p4x = fcx - botW / 2, p4y = botY_;
 
-            ctx.fillStyle = isActuallyDark ? "rgba(234, 88, 12, 0.15)" : "rgba(234, 88, 12, 0.08)";
+            ctx.fillStyle = isActuallyDark ? "rgba(234, 88, 12, 0.18)" : "rgba(234, 88, 12, 0.10)";
             ctx.beginPath();
             ctx.moveTo(p1x, p1y); ctx.lineTo(p2x, p2y); ctx.lineTo(p3x, p3y); ctx.lineTo(p4x, p4y); ctx.closePath();
             ctx.fill();
             ctx.strokeStyle = "#c2410c";
-            ctx.lineWidth = 2;
+            ctx.lineWidth = 2.2;
             ctx.stroke();
 
-            // Dashed altitude
             ctx.save();
-            ctx.setLineDash([3, 3]);
+            ctx.setLineDash([4, 4]);
             ctx.strokeStyle = danger;
+            ctx.lineWidth = 1.6;
             ctx.beginPath(); ctx.moveTo(p1x, p1y); ctx.lineTo(p1x, botY_); ctx.stroke();
             ctx.restore();
             ctx.strokeStyle = danger;
-            ctx.strokeRect(p1x, botY_ - 7, 7, 7);
+            ctx.strokeRect(p1x, botY_ - 8, 8, 8);
 
-            drawDoubleArrow(ctx, p1x, p1y - 8, p2x, p2y - 8, 4);
-            drawLabel("a (top)", fcx, p1y - 16, fontSmall, color);
+            drawDoubleArrow(ctx, p1x, p1y - 12, p2x, p2y - 12, 5);
+            drawLabel("a (top)", fcx, p1y - 24, fontSmall, color, "center", "middle", true);
 
-            drawDoubleArrow(ctx, p4x, botY_ + 10, p3x, botY_ + 10, 5);
-            drawLabel("b (base)", fcx, botY_ + 18, fontSmall, color);
+            drawDoubleArrow(ctx, p4x, botY_ + 14, p3x, botY_ + 14, 6);
+            drawLabel("b (base)", fcx, botY_ + 26, fontSmall, color, "center", "middle", true);
 
-            drawLabel("h", p1x - 8, fcy, fontHeader, danger);
-            drawLabel("c", (p1x + p4x) / 2 - 8, fcy, fontSmall, color);
-            drawLabel("d", (p2x + p3x) / 2 + 8, fcy, fontSmall, color);
+            drawLabel("h", p1x - 12, fcy - 6, fontHeader, danger, "center", "middle", true);
+            drawLabel("c", (p1x + p4x) / 2 - 12, fcy - 6, fontSmall, color, "center", "middle", true);
+            drawLabel("d", (p2x + p3x) / 2 + 12, fcy - 6, fontSmall, color, "center", "middle", true);
           },
           formulaRows: [
-            { tag: "Area", formula: "Area = ½(a + b) × h", tagColor: accent },
-            { tag: "Perimeter", formula: "P = a + b + c + d", tagColor: primary },
+            { tag: "Area (A)", formula: "Area = ½(a + b) × h", tagColor: accent },
+            { tag: "Perimeter (P)", formula: "P = a + b + c + d", tagColor: primary },
             { tag: "Median (m)", formula: "m = ½(a + b)  ⇒  Area = m × h", tagColor: warn },
-            { tag: "Parallel", formula: "Sides a ∥ b are parallel bases", tagColor: purple }
+            { tag: "Parallel Bases", formula: "Bases a ∥ b are parallel segments", tagColor: purple }
           ],
           notes: "Area equals the product of altitude and average of parallel sides"
         });
@@ -1076,47 +1205,46 @@
         drawFormulaLayout({
           title: "3D Cube: Surface Area & Volume",
           subtitle: "NCERT Class 8–10 Mensuration",
-          drawFigure: (fcx, fcy) => {
-            const s = 44, isoX = 22, isoY = 14;
-            const x0 = fcx - s / 2 - isoX / 2, y0 = fcy - s / 2 + isoY / 2;
+          drawFigure: (fcx, fcy, fw, fh) => {
+            const s = Math.min(fw * 0.40, fh * 0.45, 88);
+            const isoX = Math.round(s * 0.42), isoY = Math.round(s * 0.28);
+            const x0 = fcx - s / 2 - isoX / 2, y0 = fcy - s / 2 + isoY / 2 - 6;
 
-            // Front face
-            ctx.fillStyle = isActuallyDark ? "rgba(16, 185, 129, 0.20)" : "rgba(16, 185, 129, 0.12)";
+            ctx.fillStyle = isActuallyDark ? "rgba(16, 185, 129, 0.22)" : "rgba(16, 185, 129, 0.14)";
             ctx.fillRect(x0, y0, s, s);
             ctx.strokeStyle = accent;
-            ctx.lineWidth = 1.8;
+            ctx.lineWidth = 2;
             ctx.strokeRect(x0, y0, s, s);
 
-            // Top face
-            ctx.fillStyle = isActuallyDark ? "rgba(16, 185, 129, 0.35)" : "rgba(16, 185, 129, 0.22)";
+            ctx.fillStyle = isActuallyDark ? "rgba(16, 185, 129, 0.38)" : "rgba(16, 185, 129, 0.25)";
             ctx.beginPath();
             ctx.moveTo(x0, y0); ctx.lineTo(x0 + isoX, y0 - isoY); ctx.lineTo(x0 + s + isoX, y0 - isoY); ctx.lineTo(x0 + s, y0); ctx.closePath();
             ctx.fill(); ctx.stroke();
 
-            // Right side face
-            ctx.fillStyle = isActuallyDark ? "rgba(16, 185, 129, 0.28)" : "rgba(16, 185, 129, 0.16)";
+            ctx.fillStyle = isActuallyDark ? "rgba(16, 185, 129, 0.30)" : "rgba(16, 185, 129, 0.18)";
             ctx.beginPath();
             ctx.moveTo(x0 + s, y0); ctx.lineTo(x0 + s + isoX, y0 - isoY); ctx.lineTo(x0 + s + isoX, y0 + s - isoY); ctx.lineTo(x0 + s, y0 + s); ctx.closePath();
             ctx.fill(); ctx.stroke();
 
-            // Dashed hidden back edges
             ctx.save();
-            ctx.setLineDash([2.5, 2.5]);
-            ctx.strokeStyle = isActuallyDark ? "rgba(255,255,255,0.4)" : "rgba(0,0,0,0.3)";
+            ctx.setLineDash([3, 3]);
+            ctx.strokeStyle = isActuallyDark ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.35)";
+            ctx.lineWidth = 1.4;
             ctx.beginPath();
             ctx.moveTo(x0, y0 + s); ctx.lineTo(x0 + isoX, y0 + s - isoY); ctx.lineTo(x0 + s + isoX, y0 + s - isoY);
             ctx.moveTo(x0 + isoX, y0 + s - isoY); ctx.lineTo(x0 + isoX, y0 - isoY);
             ctx.stroke();
             ctx.restore();
 
-            drawDoubleArrow(ctx, x0, y0 + s + 10, x0 + s, y0 + s + 10, 4);
-            drawLabel("Edge (a)", x0 + s / 2, y0 + s + 18, fontSmall, accent);
+            drawDoubleArrow(ctx, x0, y0 + s + 14, x0 + s, y0 + s + 14, 5);
+            drawLabel("Edge (a)", x0 + s / 2, y0 + s + 26, fontSmall, accent, "center", "middle", true);
+            drawLabel("a", x0 - 12, y0 + s / 2, fontSmall, accent, "center", "middle", true);
           },
           formulaRows: [
-            { tag: "LSA (4 Faces)", formula: "LSA = 4a²", tagColor: primary },
+            { tag: "LSA (4 Walls)", formula: "LSA = 4a²", tagColor: primary },
             { tag: "TSA (6 Faces)", formula: "TSA = 6a²", tagColor: accent },
             { tag: "Volume (V)", formula: "V = a³", tagColor: warn },
-            { tag: "Space Diag", formula: "d = a√3  (Face Diag = a√2)", tagColor: purple }
+            { tag: "Space Diagonal", formula: "d = a√3  (Face Diag = a√2)", tagColor: purple }
           ],
           notes: "Cube has 6 equal square faces, 12 equal edges, and 8 vertices"
         });
@@ -1124,39 +1252,41 @@
         drawFormulaLayout({
           title: "3D Cuboid: Surface Area & Volume",
           subtitle: "NCERT Class 8–10 Mensuration",
-          drawFigure: (fcx, fcy) => {
-            const l = 60, h_ = 38, b_ = 20, isoX = 18, isoY = 12;
-            const x0 = fcx - l / 2 - isoX / 2, y0 = fcy - h_ / 2 + isoY / 2;
+          drawFigure: (fcx, fcy, fw, fh) => {
+            const l = Math.min(fw * 0.54, 130);
+            const h_ = Math.min(fh * 0.44, 82);
+            const isoX = Math.round(l * 0.28), isoY = Math.round(h_ * 0.28);
+            const x0 = fcx - l / 2 - isoX / 2, y0 = fcy - h_ / 2 + isoY / 2 - 6;
 
-            ctx.fillStyle = isActuallyDark ? "rgba(56, 189, 248, 0.20)" : "rgba(2, 132, 199, 0.12)";
+            ctx.fillStyle = isActuallyDark ? "rgba(56, 189, 248, 0.22)" : "rgba(2, 132, 199, 0.14)";
             ctx.fillRect(x0, y0, l, h_);
             ctx.strokeStyle = primary;
-            ctx.lineWidth = 1.8;
+            ctx.lineWidth = 2;
             ctx.strokeRect(x0, y0, l, h_);
 
-            ctx.fillStyle = isActuallyDark ? "rgba(56, 189, 248, 0.35)" : "rgba(2, 132, 199, 0.22)";
+            ctx.fillStyle = isActuallyDark ? "rgba(56, 189, 248, 0.38)" : "rgba(2, 132, 199, 0.25)";
             ctx.beginPath();
             ctx.moveTo(x0, y0); ctx.lineTo(x0 + isoX, y0 - isoY); ctx.lineTo(x0 + l + isoX, y0 - isoY); ctx.lineTo(x0 + l, y0); ctx.closePath();
             ctx.fill(); ctx.stroke();
 
-            ctx.fillStyle = isActuallyDark ? "rgba(56, 189, 248, 0.28)" : "rgba(2, 132, 199, 0.16)";
+            ctx.fillStyle = isActuallyDark ? "rgba(56, 189, 248, 0.30)" : "rgba(2, 132, 199, 0.18)";
             ctx.beginPath();
             ctx.moveTo(x0 + l, y0); ctx.lineTo(x0 + l + isoX, y0 - isoY); ctx.lineTo(x0 + l + isoX, y0 + h_ - isoY); ctx.lineTo(x0 + l, y0 + h_); ctx.closePath();
             ctx.fill(); ctx.stroke();
 
-            drawDoubleArrow(ctx, x0, y0 + h_ + 10, x0 + l, y0 + h_ + 10, 4);
-            drawLabel("l (length)", x0 + l / 2, y0 + h_ + 18, fontSmall, primary);
+            drawDoubleArrow(ctx, x0, y0 + h_ + 14, x0 + l, y0 + h_ + 14, 5);
+            drawLabel("l (length)", x0 + l / 2, y0 + h_ + 26, fontSmall, primary, "center", "middle", true);
 
-            drawDoubleArrow(ctx, x0 - 8, y0, x0 - 8, y0 + h_, 4);
-            drawLabel("h", x0 - 16, y0 + h_ / 2, fontSmall, primary);
+            drawDoubleArrow(ctx, x0 - 12, y0, x0 - 12, y0 + h_, 5);
+            drawLabel("h", x0 - 24, y0 + h_ / 2, fontSmall, primary, "center", "middle", true);
 
-            drawLabel("b", x0 + l + isoX / 2 + 8, y0 - isoY / 2 - 2, fontSmall, accent);
+            drawLabel("b (breadth)", x0 + l + isoX / 2 + 14, y0 - isoY / 2 - 4, fontSmall, accent, "center", "middle", true);
           },
           formulaRows: [
             { tag: "LSA (4 Walls)", formula: "LSA = 2h(l + b)", tagColor: primary },
-            { tag: "TSA", formula: "TSA = 2(lb + bh + hl)", tagColor: accent },
+            { tag: "TSA (Total)", formula: "TSA = 2(lb + bh + hl)", tagColor: accent },
             { tag: "Volume (V)", formula: "V = l × b × h", tagColor: warn },
-            { tag: "Diagonal (d)", formula: "d = √(l² + b² + h²)", tagColor: purple }
+            { tag: "Space Diagonal", formula: "d = √(l² + b² + h²)", tagColor: purple }
           ],
           notes: "Cuboid has 6 rectangular faces, opposite faces are identical"
         });
@@ -1164,11 +1294,12 @@
         drawFormulaLayout({
           title: "3D Cylinder: Surface Area & Volume",
           subtitle: "NCERT Class 8–10 Mensuration",
-          drawFigure: (fcx, fcy) => {
-            const rx = 36, ry = 11, ch = 68;
-            const topY_ = fcy - ch / 2, botY_ = fcy + ch / 2;
+          drawFigure: (fcx, fcy, fw, fh) => {
+            const rx = Math.min(fw * 0.28, 55), ry = Math.round(rx * 0.32);
+            const ch = Math.min(fh * 0.58, 120);
+            const topY_ = fcy - ch / 2 - 4, botY_ = fcy + ch / 2 - 4;
 
-            ctx.fillStyle = isActuallyDark ? "rgba(16, 185, 129, 0.16)" : "rgba(16, 185, 129, 0.10)";
+            ctx.fillStyle = isActuallyDark ? "rgba(16, 185, 129, 0.18)" : "rgba(16, 185, 129, 0.12)";
             ctx.beginPath();
             ctx.moveTo(fcx - rx, topY_);
             ctx.lineTo(fcx - rx, botY_);
@@ -1177,46 +1308,41 @@
             ctx.ellipse(fcx, topY_, rx, ry, 0, 0, Math.PI * 2);
             ctx.fill();
 
-            // Tangents
             ctx.strokeStyle = accent;
-            ctx.lineWidth = 1.8;
+            ctx.lineWidth = 2;
             ctx.beginPath();
             ctx.moveTo(fcx - rx, topY_); ctx.lineTo(fcx - rx, botY_);
             ctx.moveTo(fcx + rx, topY_); ctx.lineTo(fcx + rx, botY_);
             ctx.stroke();
 
-            // Top ellipse
             ctx.beginPath(); ctx.ellipse(fcx, topY_, rx, ry, 0, 0, Math.PI * 2); ctx.stroke();
-
-            // Bottom front half
             ctx.beginPath(); ctx.ellipse(fcx, botY_, rx, ry, 0, 0, Math.PI); ctx.stroke();
 
-            // Bottom rear dashed half
             ctx.save();
-            ctx.setLineDash([2.5, 2.5]);
+            ctx.setLineDash([3, 3]);
             ctx.beginPath(); ctx.ellipse(fcx, botY_, rx, ry, 0, Math.PI, Math.PI * 2); ctx.stroke();
             ctx.restore();
 
-            // Central axis
             ctx.save();
-            ctx.setLineDash([3, 3]);
+            ctx.setLineDash([4, 4]);
             ctx.strokeStyle = danger;
+            ctx.lineWidth = 1.5;
             ctx.beginPath(); ctx.moveTo(fcx, topY_); ctx.lineTo(fcx, botY_); ctx.stroke();
             ctx.restore();
 
-            // Radius on top
             ctx.strokeStyle = primary;
+            ctx.lineWidth = 1.8;
             ctx.beginPath(); ctx.moveTo(fcx, topY_); ctx.lineTo(fcx + rx, topY_); ctx.stroke();
-            drawLabel("r", fcx + rx / 2, topY_ - 8, fontHeader, primary);
+            drawLabel("Radius (r)", fcx + rx / 2, topY_ - 14, fontSmall, primary, "center", "middle", true);
 
-            drawDoubleArrow(ctx, fcx + rx + 12, topY_, fcx + rx + 12, botY_, 5);
-            drawLabel("h (height)", fcx + rx + 24, fcy, fontSmall, accent);
+            drawDoubleArrow(ctx, fcx + rx + 16, topY_, fcx + rx + 16, botY_, 6);
+            drawLabel("h (height)", fcx + rx + 32, fcy - 4, fontSmall, accent, "center", "middle", true);
           },
           formulaRows: [
             { tag: "CSA (Curved)", formula: "CSA = 2πrh", tagColor: primary },
             { tag: "TSA (Total)", formula: "TSA = 2πr(r + h)", tagColor: accent },
             { tag: "Volume (V)", formula: "V = πr²h", tagColor: warn },
-            { tag: "Bases Area", formula: "2 × (πr²) = 2πr²", tagColor: purple }
+            { tag: "Two Bases", formula: "Area = 2 × (πr²) = 2πr²", tagColor: purple }
           ],
           notes: "Hollow Cylinder: Volume = π(R² - r²)h,  TSA = 2π(R+r)h + 2π(R²-r²)"
         });
@@ -1224,11 +1350,12 @@
         drawFormulaLayout({
           title: "3D Cone: Surface Area & Volume",
           subtitle: "NCERT Class 9–10 Mensuration",
-          drawFigure: (fcx, fcy) => {
-            const rx = 36, ry = 10, ch = 70;
-            const topY_ = fcy - ch / 2, botY_ = fcy + ch / 2;
+          drawFigure: (fcx, fcy, fw, fh) => {
+            const rx = Math.min(fw * 0.30, 58), ry = Math.round(rx * 0.30);
+            const ch = Math.min(fh * 0.60, 125);
+            const topY_ = fcy - ch / 2 - 6, botY_ = fcy + ch / 2 - 6;
 
-            ctx.fillStyle = isActuallyDark ? "rgba(245, 158, 11, 0.16)" : "rgba(245, 158, 11, 0.10)";
+            ctx.fillStyle = isActuallyDark ? "rgba(245, 158, 11, 0.18)" : "rgba(245, 158, 11, 0.12)";
             ctx.beginPath();
             ctx.moveTo(fcx, topY_);
             ctx.lineTo(fcx - rx, botY_);
@@ -1238,7 +1365,7 @@
             ctx.fill();
 
             ctx.strokeStyle = warn;
-            ctx.lineWidth = 1.8;
+            ctx.lineWidth = 2;
             ctx.beginPath();
             ctx.moveTo(fcx, topY_); ctx.lineTo(fcx - rx, botY_);
             ctx.moveTo(fcx, topY_); ctx.lineTo(fcx + rx, botY_);
@@ -1247,30 +1374,30 @@
             ctx.beginPath(); ctx.ellipse(fcx, botY_, rx, ry, 0, 0, Math.PI); ctx.stroke();
 
             ctx.save();
-            ctx.setLineDash([2.5, 2.5]);
+            ctx.setLineDash([3, 3]);
             ctx.beginPath(); ctx.ellipse(fcx, botY_, rx, ry, 0, Math.PI, Math.PI * 2); ctx.stroke();
             ctx.restore();
 
-            // Height h
             ctx.save();
-            ctx.setLineDash([3, 3]);
+            ctx.setLineDash([4, 4]);
             ctx.strokeStyle = danger;
+            ctx.lineWidth = 1.5;
             ctx.beginPath(); ctx.moveTo(fcx, topY_); ctx.lineTo(fcx, botY_); ctx.stroke();
             ctx.restore();
             ctx.strokeStyle = danger;
-            ctx.strokeRect(fcx, botY_ - 6, 6, 6);
+            ctx.strokeRect(fcx, botY_ - 8, 8, 8);
 
-            // Radius r
             ctx.strokeStyle = primary;
+            ctx.lineWidth = 1.8;
             ctx.beginPath(); ctx.moveTo(fcx, botY_); ctx.lineTo(fcx + rx, botY_); ctx.stroke();
-            drawLabel("r", fcx + rx / 2, botY_ + 8, fontHeader, primary);
+            drawLabel("r", fcx + rx / 2, botY_ + 14, fontHeader, primary, "center", "middle", true);
 
-            drawLabel("h", fcx - 8, fcy, fontHeader, danger);
-            drawLabel("l (slant)", fcx + rx / 2 + 10, fcy - 6, fontSmall, purple);
-            drawLabel("Apex (V)", fcx, topY_ - 7, fontSmall, color);
+            drawLabel("h", fcx - 12, fcy, fontHeader, danger, "center", "middle", true);
+            drawLabel("l (slant)", fcx + rx / 2 + 16, fcy - 8, fontSmall, purple, "center", "middle", true);
+            drawLabel("Apex", fcx, topY_ - 12, fontSmall, color, "center", "middle", true);
           },
           formulaRows: [
-            { tag: "Slant Height", formula: "l = √(r² + h²)", tagColor: warn },
+            { tag: "Slant Height (l)", formula: "l = √(r² + h²)", tagColor: warn },
             { tag: "CSA (Curved)", formula: "CSA = πrl", tagColor: primary },
             { tag: "TSA (Total)", formula: "TSA = πr(r + l)", tagColor: accent },
             { tag: "Volume (V)", formula: "V = ⅓ πr²h", tagColor: purple }
@@ -1281,48 +1408,44 @@
         drawFormulaLayout({
           title: "Sphere & Hemisphere Formulas",
           subtitle: "NCERT Class 9–10 Mensuration",
-          drawFigure: (fcx, fcy) => {
-            const r = 36;
-            const sCX = fcx - 22;
+          drawFigure: (fcx, fcy, fw, fh) => {
+            const r = Math.min(fw * 0.26, fh * 0.28, 56);
+            const sCX = fcx - Math.round(fw * 0.14);
 
-            // Sphere circle
-            ctx.fillStyle = isActuallyDark ? "rgba(56, 189, 248, 0.16)" : "rgba(2, 132, 199, 0.10)";
+            ctx.fillStyle = isActuallyDark ? "rgba(56, 189, 248, 0.18)" : "rgba(2, 132, 199, 0.12)";
             ctx.beginPath(); ctx.arc(sCX, fcy, r, 0, Math.PI * 2); ctx.fill();
             ctx.strokeStyle = primary;
-            ctx.lineWidth = 1.8;
+            ctx.lineWidth = 2;
             ctx.beginPath(); ctx.arc(sCX, fcy, r, 0, Math.PI * 2); ctx.stroke();
 
-            // Equatorial front curve
-            ctx.beginPath(); ctx.ellipse(sCX, fcy, r, r * 0.32, 0, 0, Math.PI); ctx.stroke();
+            ctx.beginPath(); ctx.ellipse(sCX, fcy, r, r * 0.34, 0, 0, Math.PI); ctx.stroke();
 
-            // Equatorial rear dashed curve
             ctx.save();
-            ctx.setLineDash([2.5, 2.5]);
-            ctx.beginPath(); ctx.ellipse(sCX, fcy, r, r * 0.32, 0, Math.PI, Math.PI * 2); ctx.stroke();
+            ctx.setLineDash([3, 3]);
+            ctx.beginPath(); ctx.ellipse(sCX, fcy, r, r * 0.34, 0, Math.PI, Math.PI * 2); ctx.stroke();
             ctx.restore();
 
-            // Radius line
             ctx.beginPath(); ctx.moveTo(sCX, fcy); ctx.lineTo(sCX + r, fcy); ctx.stroke();
-            drawLabel("r", sCX + r / 2, fcy - 7, fontHeader, primary);
-            drawLabel("Sphere", sCX, fcy + r + 14, fontSmall, primary);
+            drawLabel("r", sCX + r / 2, fcy - 10, fontHeader, primary, "center", "middle", true);
+            drawLabel("Sphere", sCX, fcy + r + 18, fontHeader, primary, "center", "middle", true);
 
-            // Small hemisphere beside it
-            const hCX = fcx + 44, hR = 26;
-            ctx.fillStyle = isActuallyDark ? "rgba(16, 185, 129, 0.16)" : "rgba(16, 185, 129, 0.10)";
+            const hCX = fcx + Math.round(fw * 0.20), hR = Math.round(r * 0.72);
+            ctx.fillStyle = isActuallyDark ? "rgba(16, 185, 129, 0.18)" : "rgba(16, 185, 129, 0.12)";
             ctx.beginPath();
-            ctx.ellipse(hCX, fcy - 6, hR, hR * 0.35, 0, 0, Math.PI * 2);
-            ctx.arc(hCX, fcy - 6, hR, 0, Math.PI);
+            ctx.ellipse(hCX, fcy - 8, hR, hR * 0.36, 0, 0, Math.PI * 2);
+            ctx.arc(hCX, fcy - 8, hR, 0, Math.PI);
             ctx.closePath();
             ctx.fill();
 
             ctx.strokeStyle = accent;
-            ctx.beginPath(); ctx.ellipse(hCX, fcy - 6, hR, hR * 0.35, 0, 0, Math.PI * 2); ctx.stroke();
-            ctx.beginPath(); ctx.arc(hCX, fcy - 6, hR, 0, Math.PI); ctx.stroke();
-            drawLabel("Hemisphere", hCX, fcy + hR + 10, fontSmall, accent);
+            ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.ellipse(hCX, fcy - 8, hR, hR * 0.36, 0, 0, Math.PI * 2); ctx.stroke();
+            ctx.beginPath(); ctx.arc(hCX, fcy - 8, hR, 0, Math.PI); ctx.stroke();
+            drawLabel("Hemisphere", hCX, fcy + hR + 12, fontHeader, accent, "center", "middle", true);
           },
           formulaRows: [
             { tag: "Sphere SA", formula: "Surface Area = 4πr²", tagColor: primary },
-            { tag: "Sphere Vol", formula: "Volume = ⁴⁄₃ πr³", tagColor: warn },
+            { tag: "Sphere Vol (V)", formula: "Volume = ⁴⁄₃ πr³", tagColor: warn },
             { tag: "Hemi CSA", formula: "CSA = 2πr²", tagColor: accent },
             { tag: "Hemi TSA", formula: "TSA = 3πr²  (Vol = ⅔ πr³)", tagColor: purple }
           ],
@@ -1332,11 +1455,12 @@
         drawFormulaLayout({
           title: "Frustum of Cone: Area & Volume",
           subtitle: "NCERT Class 10 Mensuration",
-          drawFigure: (fcx, fcy) => {
-            const r1 = 20, r2 = 38, fh = 62;
-            const topY_ = fcy - fh / 2, botY_ = fcy + fh / 2;
+          drawFigure: (fcx, fcy, fw, fh) => {
+            const r1 = Math.min(fw * 0.18, 35), r2 = Math.min(fw * 0.30, 60);
+            const fh_ = Math.min(fh * 0.54, 115);
+            const topY_ = fcy - fh_ / 2 - 4, botY_ = fcy + fh_ / 2 - 4;
 
-            ctx.fillStyle = isActuallyDark ? "rgba(192, 132, 252, 0.16)" : "rgba(126, 34, 206, 0.10)";
+            ctx.fillStyle = isActuallyDark ? "rgba(192, 132, 252, 0.18)" : "rgba(126, 34, 206, 0.12)";
             ctx.beginPath();
             ctx.ellipse(fcx, topY_, r1, r1 * 0.35, 0, 0, Math.PI * 2);
             ctx.lineTo(fcx + r2, botY_);
@@ -1346,7 +1470,7 @@
             ctx.fill();
 
             ctx.strokeStyle = purple;
-            ctx.lineWidth = 1.8;
+            ctx.lineWidth = 2;
             ctx.beginPath();
             ctx.moveTo(fcx - r1, topY_); ctx.lineTo(fcx - r2, botY_);
             ctx.moveTo(fcx + r1, topY_); ctx.lineTo(fcx + r2, botY_);
@@ -1356,22 +1480,29 @@
             ctx.beginPath(); ctx.ellipse(fcx, botY_, r2, r2 * 0.35, 0, 0, Math.PI); ctx.stroke();
 
             ctx.save();
-            ctx.setLineDash([2.5, 2.5]);
+            ctx.setLineDash([3, 3]);
             ctx.beginPath(); ctx.ellipse(fcx, botY_, r2, r2 * 0.35, 0, Math.PI, Math.PI * 2); ctx.stroke();
             ctx.restore();
 
-            drawLabel("r₁", fcx + r1 / 2, topY_ - 6, fontSmall, primary);
-            drawLabel("r₂", fcx + r2 / 2, botY_ + 8, fontSmall, primary);
-            drawLabel("h", fcx - 8, fcy, fontHeader, danger);
-            drawLabel("l", fcx + (r1 + r2) / 2 + 10, fcy, fontSmall, purple);
+            ctx.save();
+            ctx.setLineDash([4, 4]);
+            ctx.strokeStyle = danger;
+            ctx.lineWidth = 1.5;
+            ctx.beginPath(); ctx.moveTo(fcx, topY_); ctx.lineTo(fcx, botY_); ctx.stroke();
+            ctx.restore();
+
+            drawLabel("r₁ (top)", fcx + r1 / 2, topY_ - 12, fontSmall, purple, "center", "middle", true);
+            drawLabel("r₂ (base)", fcx + r2 / 2, botY_ + 14, fontSmall, primary, "center", "middle", true);
+            drawLabel("h", fcx - 12, fcy - 4, fontHeader, danger, "center", "middle", true);
+            drawLabel("l (slant)", fcx + (r1 + r2) / 2 + 16, fcy - 4, fontSmall, warn, "center", "middle", true);
           },
           formulaRows: [
-            { tag: "Slant Height", formula: "l = √[h² + (r₂ - r₁)²]", tagColor: warn },
-            { tag: "CSA", formula: "CSA = πl(r₁ + r₂)", tagColor: primary },
-            { tag: "TSA", formula: "TSA = πl(r₁+r₂) + π(r₁²+r₂²)", tagColor: accent },
+            { tag: "Slant Height (l)", formula: "l = √[h² + (r₂ - r₁)²]", tagColor: warn },
+            { tag: "CSA (Curved)", formula: "CSA = πl(r₁ + r₂)", tagColor: primary },
+            { tag: "TSA (Total)", formula: "TSA = πl(r₁+r₂) + π(r₁² + r₂²)", tagColor: accent },
             { tag: "Volume (V)", formula: "V = ⅓πh(r₁² + r₂² + r₁r₂)", tagColor: purple }
           ],
-          notes: "Formed by slicing a right circular cone with a plane parallel to its base"
+          notes: "Formulas derived from similar cone subtraction: V = V_large - V_small"
         });
       } else if (geo === "formulas2D") {
         drawLabel("2D Plane Figures Master Reference Chart", cx, y1 + 22, fontTitle, color);
