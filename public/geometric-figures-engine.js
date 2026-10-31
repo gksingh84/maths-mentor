@@ -447,6 +447,13 @@
   function drawGeometricDiagramShape(ctx, shape, isDark) {
     if (!shape || !shape.start || !shape.end) return;
 
+    // Check if shape is an Advanced Edu Tool (Place Value, Formulas, Timelines, Maps)
+    if (window.EduAshramAdvancedTools && typeof window.EduAshramAdvancedTools.drawAdvancedEduShape === "function") {
+      if (window.EduAshramAdvancedTools.drawAdvancedEduShape(ctx, shape, isDark)) {
+        return;
+      }
+    }
+
     const x1 = Math.min(shape.start.x, shape.end.x);
     const x2 = Math.max(shape.start.x, shape.end.x);
     const y1 = Math.min(shape.start.y, shape.end.y);

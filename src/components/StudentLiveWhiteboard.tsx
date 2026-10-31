@@ -2994,7 +2994,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
         drawStudentVennDiagram(ctx, sh, strokeColor, lineWidth);
       } else if (type === 'fractionModel') {
         drawStudentFractionModel(ctx, sh, strokeColor, lineWidth);
-      } else if (type === 'geometricDiagram') {
+      } else if (type === 'geometricDiagram' || type === 'eduAdvancedDiagram') {
         drawStudentGeometricDiagram(ctx, sh, strokeColor, lineWidth);
       } else if (type === '3dSolid') {
         drawStudent3dSolid(ctx, sh, strokeColor, lineWidth);
