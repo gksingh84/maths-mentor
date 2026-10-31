@@ -8732,7 +8732,7 @@
         const presets = [
           { name: "📊 Grades", title: "Math Quiz Grades", x: "Grade", y: "Students", cat: "A, B, C, D, E", val: "12, 20, 28, 15, 6" },
           { name: "🍎 Fruits", title: "Favorite Fruits", x: "Fruit", y: "Votes", cat: "Apple, Banana, Orange, Mango, Grape", val: "14, 22, 18, 25, 9" },
-          { name: "🥧 Budget", title: "Monthly Budget", x: "", y: "", cat: "Rent, Food, Utilities, Savings, Misc", val: "35, 25, 15, 15, 10" },
+          { name: "🥧 Budget", title: "Monthly Budget", x: "Category", y: "Amount ($)", cat: "Rent, Food, Utilities, Savings, Misc", val: "35, 25, 15, 15, 10" },
           { name: "📅 Sales", title: "Weekly Sales", x: "Day", y: "Units", cat: "Mon, Tue, Wed, Thu, Fri", val: "35, 48, 62, 55, 78" }
         ];
 
@@ -8749,16 +8749,16 @@
           pb.style.color = "#334155";
           pb.style.cursor = "pointer";
           pb.addEventListener("click", () => {
-            chartSettings.title = p.title;
-            if (p.x) chartSettings.xAxisLabel = p.x;
-            if (p.y) chartSettings.yAxisLabel = p.y;
-            chartSettings.labelsStr = p.cat;
-            chartSettings.valuesStr = p.val;
-            if (titleInput) titleInput.value = p.title;
-            if (xInput && p.x) xInput.value = p.x;
-            if (yInput && p.y) yInput.value = p.y;
-            if (catInput) catInput.value = p.cat;
-            if (valInput) valInput.value = p.val;
+            chartSettings.title = p.title || "";
+            chartSettings.xAxisLabel = p.x || "";
+            chartSettings.yAxisLabel = p.y || "";
+            chartSettings.labelsStr = p.cat || "";
+            chartSettings.valuesStr = p.val || "";
+            if (titleInput) titleInput.value = chartSettings.title;
+            if (xInput) xInput.value = chartSettings.xAxisLabel;
+            if (yInput) yInput.value = chartSettings.yAxisLabel;
+            if (catInput) catInput.value = chartSettings.labelsStr;
+            if (valInput) valInput.value = chartSettings.valuesStr;
           });
           presetsRow.appendChild(pb);
         });
@@ -8942,6 +8942,8 @@
         const isPie = shape.type === "pieChart";
         const isPic = shape.type === "pictograph";
 
+        let titleInput, xInput, yInput, catInput, valInput;
+
         const card = document.createElement("div");
         card.style.background = "#f8fafc";
         card.style.border = "1.5px solid #38bdf8";
@@ -8985,6 +8987,50 @@
         header.appendChild(randBtn);
         card.appendChild(header);
 
+        // Quick Presets inside Selection Editor
+        const editPresetsRow = document.createElement("div");
+        editPresetsRow.style.display = "flex";
+        editPresetsRow.style.gap = "4px";
+        editPresetsRow.style.flexWrap = "wrap";
+        editPresetsRow.style.marginBottom = "8px";
+
+        [
+          { name: "📊 Grades", title: "Math Quiz Grades", x: "Grade", y: "Students", cat: ["A", "B", "C", "D", "E"], val: [12, 20, 28, 15, 6] },
+          { name: "🍎 Fruits", title: "Favorite Fruits", x: "Fruit", y: "Votes", cat: ["Apple", "Banana", "Orange", "Mango", "Grape"], val: [14, 22, 18, 25, 9] },
+          { name: "🥧 Budget", title: "Monthly Budget", x: "Category", y: "Amount ($)", cat: ["Rent", "Food", "Utilities", "Savings", "Misc"], val: [35, 25, 15, 15, 10] },
+          { name: "📅 Sales", title: "Weekly Sales", x: "Day", y: "Units", cat: ["Mon", "Tue", "Wed", "Thu", "Fri"], val: [35, 48, 62, 55, 78] }
+        ].forEach((p) => {
+          const pb = document.createElement("button");
+          pb.type = "button";
+          pb.textContent = p.name;
+          pb.style.padding = "2px 6px";
+          pb.style.fontSize = "0.70rem";
+          pb.style.fontWeight = "600";
+          pb.style.borderRadius = "4px";
+          pb.style.border = "1px solid #cbd5e1";
+          pb.style.background = "#ffffff";
+          pb.style.color = "#334155";
+          pb.style.cursor = "pointer";
+          pb.addEventListener("click", () => {
+            pushUndo();
+            shape.title = p.title;
+            shape.xAxisLabel = p.x;
+            shape.yAxisLabel = p.y;
+            shape.labels = [...p.cat];
+            shape.data = [...p.val];
+            if (titleInput) titleInput.value = p.title;
+            if (xInput) xInput.value = p.x;
+            if (yInput) yInput.value = p.y;
+            if (catInput) catInput.value = p.cat.join(", ");
+            if (valInput) valInput.value = p.val.join(", ");
+            updateBoardAppearance();
+            notifyParentPageUpdate(currentPageIndex, true);
+            scheduleNotifyParentPages(100);
+          });
+          editPresetsRow.appendChild(pb);
+        });
+        card.appendChild(editPresetsRow);
+
         // Chart Title Field
         const titleLbl = document.createElement("label");
         titleLbl.style.fontSize = "0.72rem";
@@ -8995,7 +9041,7 @@
         titleLbl.textContent = "Chart Title";
         card.appendChild(titleLbl);
 
-        const titleInput = document.createElement("input");
+        titleInput = document.createElement("input");
         titleInput.type = "text";
         titleInput.value = shape.title || "";
         titleInput.placeholder = "e.g. Favorite Fruits";
@@ -9031,7 +9077,7 @@
           xLbl.style.marginBottom = "2px";
           xLbl.textContent = "X-Axis Name";
           xCol.appendChild(xLbl);
-          const xInput = document.createElement("input");
+          xInput = document.createElement("input");
           xInput.type = "text";
           xInput.value = shape.xAxisLabel || "";
           xInput.placeholder = "e.g. Category";
@@ -9060,7 +9106,7 @@
           yLbl.style.marginBottom = "2px";
           yLbl.textContent = "Y-Axis Name";
           yCol.appendChild(yLbl);
-          const yInput = document.createElement("input");
+          yInput = document.createElement("input");
           yInput.type = "text";
           yInput.value = shape.yAxisLabel || "";
           yInput.placeholder = "e.g. Frequency";
@@ -9093,7 +9139,7 @@
         card.appendChild(catLbl);
 
         const curLabels = Array.isArray(shape.labels) ? shape.labels.join(", ") : (shape.categories ? shape.categories.join(", ") : "");
-        const catInput = document.createElement("input");
+        catInput = document.createElement("input");
         catInput.type = "text";
         catInput.value = curLabels;
         catInput.placeholder = "e.g. Apple, Banana, Orange, Mango";
@@ -9123,7 +9169,7 @@
         card.appendChild(valLbl);
 
         const curValues = Array.isArray(shape.data) ? shape.data.join(", ") : "";
-        const valInput = document.createElement("input");
+        valInput = document.createElement("input");
         valInput.type = "text";
         valInput.value = curValues;
         valInput.placeholder = "e.g. 15, 25, 20, 35";
