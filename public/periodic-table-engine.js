@@ -766,6 +766,8 @@
     headRight.style.alignItems = "center";
     headRight.style.gap = "8px";
 
+    let isSharedWithStudents = true;
+
     // Centralized closeModal function that informs students when closed
     function closeModal() {
       if (activeModalOverlay) {
@@ -774,6 +776,7 @@
       }
       activeModalCloseHandler = null;
       window.removeEventListener("keydown", onKeyDown);
+      isSharedWithStudents = false;
       notifyHostState("close");
     }
 
@@ -782,29 +785,40 @@
     if (!isStudent) {
       const shareBtn = document.createElement("button");
       shareBtn.type = "button";
-      shareBtn.innerHTML = "📡 Share with Students";
-      shareBtn.title = "Open this interactive Periodic Table for all students";
-      shareBtn.style.padding = "5px 10px";
+      shareBtn.style.padding = "5px 12px";
       shareBtn.style.fontSize = "0.76rem";
       shareBtn.style.fontWeight = "700";
-      shareBtn.style.background = "#eff6ff";
-      shareBtn.style.color = "#1d4ed8";
-      shareBtn.style.border = "1.5px solid #bfdbfe";
       shareBtn.style.borderRadius = "6px";
       shareBtn.style.cursor = "pointer";
-      shareBtn.addEventListener("click", () => {
-        notifyHostState("open", selectedZ);
-        shareBtn.innerHTML = "✓ Shared with Students!";
-        shareBtn.style.background = "#ecfdf5";
-        shareBtn.style.color = "#047857";
-        shareBtn.style.borderColor = "#a7f3d0";
-        setTimeout(() => {
+      shareBtn.style.transition = "all 0.15s ease-in-out";
+
+      function updateShareBtnUI() {
+        if (isSharedWithStudents) {
+          shareBtn.innerHTML = "🟢 Shared with Students (Live)";
+          shareBtn.title = "Broadcasting to students. Click to stop sharing.";
+          shareBtn.style.background = "#ecfdf5";
+          shareBtn.style.color = "#047857";
+          shareBtn.style.border = "1.5px solid #10b981";
+        } else {
           shareBtn.innerHTML = "📡 Share with Students";
+          shareBtn.title = "Click to share this interactive Periodic Table with students";
           shareBtn.style.background = "#eff6ff";
           shareBtn.style.color = "#1d4ed8";
-          shareBtn.style.borderColor = "#bfdbfe";
-        }, 2500);
+          shareBtn.style.border = "1.5px solid #bfdbfe";
+        }
+      }
+
+      shareBtn.addEventListener("click", () => {
+        isSharedWithStudents = !isSharedWithStudents;
+        if (isSharedWithStudents) {
+          notifyHostState("open", selectedZ);
+        } else {
+          notifyHostState("close");
+        }
+        updateShareBtnUI();
       });
+
+      updateShareBtnUI();
       headRight.appendChild(shareBtn);
     }
 

@@ -4206,6 +4206,14 @@ io.on('connection', (socket) => {
     if (session.role !== 'teacher' && session.role !== 'admin' && session.role !== 'superadmin') return;
     const grade = (data.grade || 'ALL').trim();
     const active = findTeacherSession(grade);
+    for (const sess of activeWhiteboardSessions.values()) {
+      if (sess.teacherId === session.id) {
+        sess.isPeriodicTableOpen = data.action === 'open';
+        if (typeof data.elementZ === 'number') {
+          sess.periodicTableElementZ = data.elementZ;
+        }
+      }
+    }
     if (active) {
       active.isPeriodicTableOpen = data.action === 'open';
       if (typeof data.elementZ === 'number') {

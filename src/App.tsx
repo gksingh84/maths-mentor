@@ -2637,14 +2637,26 @@ function TeacherWhiteboard({
         });
       }
     } else if (data.type === 'WHITEBOARD_BROADCAST_PERIODIC_TABLE' || data.type === 'WHITEBOARD_PERIODIC_TABLE_STATE') {
-      if (socketRef.current && isBroadcastingRef.current) {
+      const action = data.action || 'open';
+      const targetGrade = selectedGradeRef.current || 'ALL';
+      if (!isBroadcastingRef.current && action === 'open') {
+        // Teacher opened or shared Periodic Table while not yet live -> start live broadcast immediately!
+        startBroadcast();
+        setTimeout(() => {
+          if (socketRef.current) {
+            socketRef.current.emit('whiteboard:periodic_table_action', {
+              grade: targetGrade,
+              action: 'open',
+              elementZ: data.elementZ
+            });
+          }
+        }, 250);
+      } else if (socketRef.current) {
         socketRef.current.emit('whiteboard:periodic_table_action', {
-          grade: selectedGradeRef.current || 'ALL',
-          action: data.action || 'open',
+          grade: targetGrade,
+          action: action,
           elementZ: data.elementZ
         });
-      } else if (!isBroadcastingRef.current && data.action === 'open') {
-        setNotice('Notice: Whiteboard is currently offline. Click "Go Live" above to broadcast the Periodic Table to students.');
       }
     } else if (data.type === 'WHITEBOARD_VIDEO_ACTION') {
       if (isBroadcastingRef.current && socketRef.current) {
