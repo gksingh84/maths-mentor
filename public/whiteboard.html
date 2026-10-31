@@ -3537,6 +3537,100 @@
         }
       }
 
+      async function fetchUserStampsFromDB() {
+        try {
+          const res = await fetch("/api/whiteboard/images", { cache: "no-store" });
+          if (!res.ok) return;
+          const json = await res.json();
+          if (!json || !Array.isArray(json.images)) return;
+
+          const dbItems = json.images.map((img) => ({
+            id: img.id,
+            label: img.name || "Image",
+            dataUrl: img.dataUrl,
+            showNameOnBoard: img.showNameOnBoard !== false,
+          }));
+
+          // Local stamps pending initial sync to database
+          const pendingSync = userStamps.filter((s) => s.id && s.id.startsWith("stamp-"));
+
+          const merged = [...dbItems];
+          for (const s of pendingSync) {
+            const alreadyInDB = merged.some((m) => m.label === s.label && m.dataUrl === s.dataUrl);
+            if (!alreadyInDB) {
+              merged.push(s);
+              saveStampToDB(s);
+            }
+          }
+
+          userStamps = merged;
+          saveUserStamps();
+          if (currentTool === "stamps" && propertiesContent) {
+            const listC = document.getElementById("savedImagesListContainer");
+            if (listC && typeof renderStampList === "function") {
+              renderStampList();
+            } else {
+              handleToolSelection("stamps");
+            }
+          }
+        } catch (err) {
+          console.warn("Could not sync saved images from database:", err);
+        }
+      }
+
+      async function saveStampToDB(stamp) {
+        try {
+          const res = await fetch("/api/whiteboard/images", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              name: stamp.label,
+              dataUrl: stamp.dataUrl,
+              showNameOnBoard: stamp.showNameOnBoard !== false,
+            }),
+          });
+          if (res.ok) {
+            const json = await res.json();
+            if (json && json.image && json.image.id) {
+              stamp.id = json.image.id;
+              if (json.image.dataUrl) {
+                stamp.dataUrl = json.image.dataUrl;
+              }
+              saveUserStamps();
+            }
+          }
+        } catch (err) {
+          console.warn("Could not save image to database:", err);
+        }
+      }
+
+      async function updateStampInDB(stamp) {
+        if (!stamp || !stamp.id || stamp.id.startsWith("stamp-")) return;
+        try {
+          await fetch(`/api/whiteboard/images/${encodeURIComponent(stamp.id)}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              name: stamp.label,
+              showNameOnBoard: stamp.showNameOnBoard !== false,
+            }),
+          });
+        } catch (err) {
+          console.warn("Could not update image in database:", err);
+        }
+      }
+
+      async function deleteStampFromDB(stampId) {
+        if (!stampId || stampId.startsWith("stamp-")) return;
+        try {
+          await fetch(`/api/whiteboard/images/${encodeURIComponent(stampId)}`, {
+            method: "DELETE",
+          });
+        } catch (err) {
+          console.warn("Could not delete image from database:", err);
+        }
+      }
+
       let pendingSaveImageCallback = null;
 
       function openSaveImageModal(options) {
@@ -3657,13 +3751,15 @@
               saveBtnText: "Save to Library",
               onSave: (enteredName, showNameOnBoard) => {
                 const finalLabel = enteredName || cleanName || "Image";
-                userStamps.push({
+                const newStamp = {
                   id: "stamp-" + Date.now(),
                   label: finalLabel,
                   dataUrl,
                   showNameOnBoard: showNameOnBoard !== false,
-                });
+                };
+                userStamps.unshift(newStamp);
                 saveUserStamps();
+                saveStampToDB(newStamp);
                 if (currentTool === "stamps" && propertiesContent) {
                   handleToolSelection("stamps");
                 }
@@ -3677,6 +3773,7 @@
 
       userStamps = loadUserStamps();
       initSaveImageModalEvents();
+      fetchUserStampsFromDB();
 
       function getRandomChartData(chartType) {
         function rnd(min, max) {
@@ -7861,6 +7958,7 @@
           renderChartOptions();
         } else if (tool === "stamps") {
           renderStampOptions();
+          fetchUserStampsFromDB();
         } else if (tool === "video") {
           heading.textContent = "Video Player";
           renderVideoOptions();
@@ -8300,15 +8398,19 @@
               if (existingIdx >= 0) {
                 userStamps[existingIdx].label = label;
                 userStamps[existingIdx].showNameOnBoard = imgShape.showName !== false;
+                saveUserStamps();
+                updateStampInDB(userStamps[existingIdx]);
               } else {
-                userStamps.push({
+                const newStamp = {
                   id: "stamp-" + Date.now(),
                   label,
                   dataUrl: imgShape.dataUrl,
                   showNameOnBoard: imgShape.showName !== false,
-                });
+                };
+                userStamps.unshift(newStamp);
+                saveUserStamps();
+                saveStampToDB(newStamp);
               }
-              saveUserStamps();
               saveLibBtn.innerHTML = "✅ Saved to Image Library!";
               saveLibBtn.disabled = true;
             });
@@ -10708,6 +10810,7 @@
                   stamp.label = newName || stamp.label || "Image";
                   stamp.showNameOnBoard = showNameOnBoard !== false;
                   saveUserStamps();
+                  updateStampInDB(stamp);
                   renderStampList();
                 },
               });
@@ -10727,8 +10830,10 @@
             delBtn.style.color = "#dc2626";
             delBtn.addEventListener("click", (e) => {
               e.stopPropagation();
-              userStamps = userStamps.filter((s) => s.id !== stamp.id);
+              const deletedId = stamp.id;
+              userStamps = userStamps.filter((s) => s.id !== deletedId);
               saveUserStamps();
+              deleteStampFromDB(deletedId);
               renderStampList();
             });
 
@@ -14903,13 +15008,15 @@
                 page.shapes.push(newShape);
                 copyImageShapeToOtherPages(newShape);
                 if (!userStamps.some((s) => s.dataUrl === dataUrl)) {
-                  userStamps.push({
+                  const newStamp = {
                     id: "stamp-" + Date.now(),
                     label: finalLabel,
                     dataUrl,
                     showNameOnBoard: showNameOnBoard !== false,
-                  });
+                  };
+                  userStamps.unshift(newStamp);
                   saveUserStamps();
+                  saveStampToDB(newStamp);
                 }
                 currentTool = "select";
                 selectedShapes = [newShape];

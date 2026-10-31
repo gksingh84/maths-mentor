@@ -7613,6 +7613,133 @@ app.post('/api/whiteboard/upload-video', authenticate(['teacher', 'admin', 'supe
   }
 });
 
+// ==========================================
+// Whiteboard Saved Images Library (Database-backed)
+// ==========================================
+
+// Ensure WhiteboardSavedImage database table exists on AWS PostgreSQL
+async function ensureWhiteboardImageTable() {
+  try {
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "WhiteboardSavedImage" (
+        "id" TEXT PRIMARY KEY,
+        "name" TEXT NOT NULL,
+        "dataUrl" TEXT NOT NULL,
+        "showNameOnBoard" BOOLEAN NOT NULL DEFAULT true,
+        "teacherId" TEXT,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE INDEX IF NOT EXISTS "WhiteboardSavedImage_teacherId_idx" ON "WhiteboardSavedImage"("teacherId");
+      CREATE INDEX IF NOT EXISTS "WhiteboardSavedImage_createdAt_idx" ON "WhiteboardSavedImage"("createdAt");
+    `);
+    console.log('✅ WhiteboardSavedImage database table ready.');
+  } catch (err) {
+    console.warn('⚠️ WhiteboardSavedImage table check note:', err);
+  }
+}
+
+// Get all saved images from database
+app.get('/api/whiteboard/images', async (_req: Request, res: Response) => {
+  try {
+    const images = await (prisma as any).whiteboardSavedImage.findMany({
+      orderBy: { createdAt: 'desc' },
+    });
+    return res.json({ success: true, images });
+  } catch (err: any) {
+    console.error('Failed to fetch whiteboard images from database:', err);
+    return res.status(500).json({ error: 'Failed to load saved images from database.' });
+  }
+});
+
+// Save new image to database
+app.post('/api/whiteboard/images', express.json({ limit: '60mb' }), async (req: Request, res: Response) => {
+  try {
+    const { name, dataUrl, showNameOnBoard } = req.body;
+    if (!name || !dataUrl) {
+      return res.status(400).json({ error: 'Image name and data are required.' });
+    }
+
+    let savedUrl = dataUrl;
+    try {
+      const imagesDir = resolve('public/uploads/whiteboard-images');
+      if (!existsSync(imagesDir)) {
+        mkdirSync(imagesDir, { recursive: true });
+      }
+      const cleanName = String(name || 'image').replace(/[^a-zA-Z0-9._-]/g, '_');
+      const ext = dataUrl.includes('image/jpeg') ? '.jpg' : dataUrl.includes('image/svg') ? '.svg' : '.png';
+      const filename = `${Date.now()}_${cleanName}${cleanName.endsWith(ext) ? '' : ext}`;
+      const filePath = resolve(imagesDir, filename);
+
+      if (dataUrl.includes(';base64,')) {
+        const base64Data = dataUrl.split(';base64,')[1];
+        writeFileSync(filePath, Buffer.from(base64Data, 'base64'));
+        savedUrl = `/uploads/whiteboard-images/${filename}`;
+      }
+    } catch (fsErr) {
+      console.warn('Could not write image to file storage, storing dataUrl directly in database:', fsErr);
+    }
+
+    const newImage = await (prisma as any).whiteboardSavedImage.create({
+      data: {
+        name: String(name).trim(),
+        dataUrl: savedUrl,
+        showNameOnBoard: showNameOnBoard !== false,
+      },
+    });
+
+    return res.status(201).json({ success: true, image: newImage });
+  } catch (err: any) {
+    console.error('Failed to save whiteboard image to database:', err);
+    return res.status(500).json({ error: err.message || 'Failed to save image to database.' });
+  }
+});
+
+// Update image name or display settings in database
+app.put('/api/whiteboard/images/:id', express.json({ limit: '10mb' }), async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { name, showNameOnBoard } = req.body;
+
+    const updated = await (prisma as any).whiteboardSavedImage.update({
+      where: { id },
+      data: {
+        ...(name ? { name: String(name).trim() } : {}),
+        ...(typeof showNameOnBoard === 'boolean' ? { showNameOnBoard } : {}),
+      },
+    });
+
+    return res.json({ success: true, image: updated });
+  } catch (err: any) {
+    console.error('Failed to update whiteboard image in database:', err);
+    return res.status(500).json({ error: 'Failed to update image in database.' });
+  }
+});
+
+// Delete image from database
+app.delete('/api/whiteboard/images/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const deleted = await (prisma as any).whiteboardSavedImage.delete({
+      where: { id },
+    }).catch(() => null);
+
+    if (deleted && deleted.dataUrl && deleted.dataUrl.startsWith('/uploads/whiteboard-images/')) {
+      try {
+        const localPath = resolve('public', deleted.dataUrl.replace(/^\//, ''));
+        if (existsSync(localPath)) {
+          unlinkSync(localPath);
+        }
+      } catch (_) {}
+    }
+
+    return res.json({ success: true, id });
+  } catch (err: any) {
+    console.error('Failed to delete whiteboard image from database:', err);
+    return res.status(500).json({ error: 'Failed to delete image from database.' });
+  }
+});
+
 // Sync past attempts and graded worksheets to persistent score records on startup
 async function syncExistingScoreRecords() {
   try {
@@ -7716,6 +7843,7 @@ async function startServer() {
       create: { email, passwordHash: teacherPasswordHash },
     });
     console.log('✅ Super Admin & First Teacher account verified.');
+    void ensureWhiteboardImageTable().catch((err) => console.warn('⚠️ Whiteboard image table init note:', err));
   } catch (err) {
     console.error('⚠️ Account initialization check skipped:', err);
   }
