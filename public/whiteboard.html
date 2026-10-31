@@ -5754,8 +5754,10 @@
       }
 
       function drawGeometricDiagramShape(ctx, shape) {
+        const isDark = (typeof currentBoardType === "string" && (currentBoardType === "black" || currentBoardType === "green")) ||
+                       (pages[currentPageIndex]?.boardType === "black" || pages[currentPageIndex]?.boardType === "green");
         if (window.EduAshramGeometry && typeof window.EduAshramGeometry.drawGeometricDiagramShape === "function") {
-          window.EduAshramGeometry.drawGeometricDiagramShape(ctx, shape, isDarkMode);
+          window.EduAshramGeometry.drawGeometricDiagramShape(ctx, shape, isDark);
           return;
         }
         const { start, end } = shape;
@@ -17553,6 +17555,10 @@
             actionBtn.style.cursor = "pointer";
             actionBtn.style.flexShrink = "0";
             actionBtn.style.transition = "all 0.15s ease";
+            actionBtn.addEventListener("click", (e) => {
+              e.stopPropagation();
+              if (typeof onClick === "function") onClick(e);
+            });
             card.appendChild(actionBtn);
 
             card.addEventListener("mouseenter", () => {
@@ -18434,16 +18440,22 @@
                     subtitle: gp.subtitle,
                     onClick: () => {
                       const { x: cx, y: cy } = getVisibleBoardCenter();
+                      const isBoardDark = (typeof currentBoardType === "string" && (currentBoardType === "black" || currentBoardType === "green")) ||
+                                          (pages[currentPageIndex]?.boardType === "black" || pages[currentPageIndex]?.boardType === "green");
+                      const strokeColor = (isBoardDark && (!penSettings.color || penSettings.color === "#0f172a")) ? "#f8fafc" : (penSettings.color || "#0f172a");
                       insertDiagramHelper({
                         id: generateId(),
                         type: "geometricDiagram",
                         geoType: gp.type,
-                        color: penSettings.color || "#0f172a",
+                        color: strokeColor,
                         width: 2,
                         start: { x: cx - gp.w, y: cy - gp.h },
                         end: { x: cx + gp.w, y: cy + gp.h },
                         createdAt: Date.now()
                       });
+                      if (typeof showExportToast === "function") {
+                        showExportToast(gp.title + " added to board");
+                      }
                     }
                   });
                   cardsContainer.appendChild(card);

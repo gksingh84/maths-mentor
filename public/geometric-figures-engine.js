@@ -456,11 +456,13 @@
     const w = x2 - x1;
     const h = y2 - y1;
 
-    const color = shape.color || (isDark ? "#f8fafc" : "#0f172a");
-    const primary = "#0284c7";
-    const accent = "#10b981";
-    const warn = "#f59e0b";
-    const danger = "#ef4444";
+    const isActuallyDark = !!isDark;
+    const defaultStroke = isActuallyDark ? "#f8fafc" : "#0f172a";
+    const color = (isActuallyDark && (!shape.color || shape.color === "#0f172a")) ? "#f8fafc" : (shape.color || defaultStroke);
+    const primary = isActuallyDark ? "#38bdf8" : "#0284c7";
+    const accent = isActuallyDark ? "#34d399" : "#10b981";
+    const warn = isActuallyDark ? "#fbbf24" : "#f59e0b";
+    const danger = isActuallyDark ? "#f87171" : "#ef4444";
     const width = shape.width || 2;
     const geo = shape.geoType || "rightTriangle";
 
@@ -1518,3 +1520,4 @@
 
   console.log("EduAshram Geometric Figures Engine loaded successfully (" + GEO_PRESETS.length + " figures ready).");
 })();
+
