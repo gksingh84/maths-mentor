@@ -3112,93 +3112,472 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
         ctx.ellipse(cx, cy, r, r * 0.45, 0, 0, Math.PI * 2);
         ctx.stroke();
       } else if (type === 'barChart') {
-        const data = Array.isArray(sh.data) && sh.data.length ? sh.data : [40, 65, 50, 80, 55];
-        const padL = 36, padR = 16, padT = 20, padB = 30;
-        const chartW = Math.max(20, w - padL - padR);
-        const chartH = Math.max(20, h - padT - padB);
-        const maxVal = Math.max(...data, 1);
-        const n = data.length;
-        const barW = Math.max(8, (chartW / n) * 0.6);
-        const gap = (chartW - n * barW) / (n + 1);
-        ctx.strokeStyle = strokeColor;
-        ctx.strokeRect(x1 + padL, y1 + padT, chartW, chartH);
-        const barColors = ['#2563eb', '#16a34a', '#eab308', '#ea580c', '#7c3aed'];
-        for (let i = 0; i < n; i++) {
-          const barH = (data[i] / maxVal) * chartH;
-          const bx = x1 + padL + gap + i * (barW + gap);
-          const by = y1 + padT + chartH - barH;
-          ctx.fillStyle = barColors[i % barColors.length];
-          ctx.fillRect(bx, by, barW, barH);
-          ctx.strokeStyle = '#1e293b';
-          ctx.strokeRect(bx, by, barW, barH);
+        const rawData = Array.isArray(sh.data) && sh.data.length ? sh.data : [40, 65, 50, 80, 55];
+        const data = rawData.map((v: any) => Math.max(0, Number(v) || 0));
+        const labels = Array.isArray(sh.labels) && sh.labels.length ? sh.labels : (sh.categories || []);
+        const title = (sh.title || '').trim();
+        const xAxisLabel = (sh.xAxisLabel || '').trim();
+        const yAxisLabel = (sh.yAxisLabel || '').trim();
+        const showValues = sh.showValues !== false;
+        const showAxisLabels = sh.showAxisLabels !== false;
+
+        const hasTitle = Boolean(title);
+        const hasXLabel = Boolean(xAxisLabel && showAxisLabels);
+        const hasYLabel = Boolean(yAxisLabel && showAxisLabels);
+
+        const padL = Math.max(hasYLabel ? 56 : 42, Math.min(75, w * 0.16));
+        const padR = 20;
+        const padT = hasTitle ? Math.max(34, Math.min(50, h * 0.15)) : 22;
+        const padB = Math.max(hasXLabel ? 48 : 34, Math.min(65, h * 0.18));
+        const chartW = w - padL - padR;
+        const chartH = h - padT - padB;
+
+        if (chartW > 0 && chartH > 0) {
+          const getNiceMax = (val: number) => {
+            if (val <= 5) return 5;
+            if (val <= 10) return 10;
+            if (val <= 20) return 20;
+            if (val <= 25) return 25;
+            if (val <= 50) return 50;
+            if (val <= 100) return 100;
+            const p = Math.pow(10, Math.floor(Math.log10(val)));
+            const factor = val / p;
+            if (factor <= 2) return 2 * p;
+            if (factor <= 5) return 5 * p;
+            return 10 * p;
+          };
+
+          const maxVal = Math.max(...data, 1);
+          const tickMax = getNiceMax(maxVal);
+          const n = data.length;
+          const barW = Math.max(8, (chartW / n) * 0.58);
+          const gap = (chartW - n * barW) / (n + 1);
+
+          ctx.save();
+          ctx.strokeStyle = strokeColor;
+          ctx.lineWidth = 1;
+          ctx.strokeRect(x1 + padL, y1 + padT, chartW, chartH);
+
+          if (hasTitle) {
+            ctx.font = 'bold 13px "Segoe UI", sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'top';
+            ctx.fillStyle = '#111827';
+            ctx.fillText(title, x1 + w / 2, y1 + 8);
+          }
+
+          const numTicks = 4;
+          ctx.font = '10px "Segoe UI", sans-serif';
+          ctx.textAlign = 'right';
+          ctx.textBaseline = 'middle';
+          for (let t = 0; t <= numTicks; t++) {
+            const frac = t / numTicks;
+            const valNum = Math.round(tickMax * frac);
+            const gy = y1 + padT + chartH - frac * chartH;
+            ctx.beginPath();
+            ctx.strokeStyle = t === 0 ? strokeColor : 'rgba(156, 163, 175, 0.3)';
+            ctx.lineWidth = t === 0 ? 1.5 : 1;
+            ctx.moveTo(x1 + padL, gy);
+            ctx.lineTo(x1 + padL + chartW, gy);
+            ctx.stroke();
+
+            if (showAxisLabels) {
+              ctx.fillStyle = '#4b5563';
+              ctx.fillText(String(valNum), x1 + padL - 6, gy);
+            }
+          }
+
+          if (hasYLabel) {
+            ctx.save();
+            ctx.translate(x1 + 14, y1 + padT + chartH / 2);
+            ctx.rotate(-Math.PI / 2);
+            ctx.font = 'bold 11px "Segoe UI", sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillStyle = '#374151';
+            ctx.fillText(yAxisLabel, 0, 0);
+            ctx.restore();
+          }
+
+          const barColors = ['#2563eb', '#16a34a', '#eab308', '#ea580c', '#8b5cf6', '#06b6d4', '#ec4899'];
+          for (let i = 0; i < n; i++) {
+            const barH = (data[i] / tickMax) * chartH;
+            const bx = x1 + padL + gap + i * (barW + gap);
+            const by = y1 + padT + chartH - barH;
+
+            ctx.fillStyle = barColors[i % barColors.length];
+            ctx.fillRect(bx, by, barW, barH);
+            ctx.strokeStyle = '#1e293b';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(bx, by, barW, barH);
+
+            if (showValues) {
+              ctx.font = 'bold 11px "Segoe UI", sans-serif';
+              ctx.textAlign = 'center';
+              ctx.textBaseline = 'bottom';
+              ctx.fillStyle = '#1e293b';
+              ctx.fillText(String(data[i]), bx + barW / 2, by - 3);
+            }
+
+            const cat = (labels[i] !== undefined && labels[i] !== '') ? String(labels[i]) : String(i + 1);
+            ctx.font = '11px "Segoe UI", sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'top';
+            ctx.fillStyle = '#374151';
+            ctx.fillText(cat, bx + barW / 2, y1 + padT + chartH + 5);
+          }
+
+          if (hasXLabel) {
+            ctx.font = 'bold 11px "Segoe UI", sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'top';
+            ctx.fillStyle = '#374151';
+            ctx.fillText(xAxisLabel, x1 + padL + chartW / 2, y1 + padT + chartH + 22);
+          }
+
+          ctx.restore();
         }
       } else if (type === 'pieChart') {
-        const data = Array.isArray(sh.data) && sh.data.length ? sh.data : [30, 25, 20, 15, 10];
+        const rawData = Array.isArray(sh.data) && sh.data.length ? sh.data : [30, 25, 20, 15, 10];
+        const data = rawData.map((v: any) => Math.max(0, Number(v) || 0));
+        const labels = Array.isArray(sh.labels) && sh.labels.length ? sh.labels : (sh.categories || []);
+        const title = (sh.title || '').trim();
+        const showValues = sh.showValues !== false;
         const total = data.reduce((s: number, v: number) => s + v, 0) || 1;
-        const rad = Math.min(w, h) / 2 - 10;
+
+        const hasTitle = Boolean(title);
+        const topOffset = hasTitle ? 28 : 10;
+        const availableH = h - topOffset - 10;
+        const rad = Math.min(w - 24, availableH) / 2 - 8;
+
         if (rad > 0) {
-          const sliceColors = ['#2563eb', '#16a34a', '#eab308', '#ea580c', '#7c3aed'];
+          const pieCx = cx;
+          const pieCy = y1 + topOffset + availableH / 2;
+
+          ctx.save();
+          if (hasTitle) {
+            ctx.font = 'bold 13px "Segoe UI", sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'top';
+            ctx.fillStyle = '#111827';
+            ctx.fillText(title, cx, y1 + 8);
+          }
+
+          const sliceColors = ['#2563eb', '#16a34a', '#eab308', '#ea580c', '#8b5cf6', '#06b6d4', '#ec4899', '#10b981'];
           let startA = -Math.PI / 2;
+
           for (let i = 0; i < data.length; i++) {
             const sweep = (data[i] / total) * Math.PI * 2;
             const endA = startA + sweep;
+            const midA = startA + sweep / 2;
+
             ctx.beginPath();
-            ctx.moveTo(cx, cy);
-            ctx.arc(cx, cy, rad, startA, endA);
+            ctx.moveTo(pieCx, pieCy);
+            ctx.arc(pieCx, pieCy, rad, startA, endA);
             ctx.closePath();
             ctx.fillStyle = sliceColors[i % sliceColors.length];
             ctx.fill();
             ctx.strokeStyle = '#1e293b';
             ctx.lineWidth = 1;
             ctx.stroke();
+
+            const val = data[i];
+            const pct = Math.round((val / total) * 100);
+            const cat = (labels[i] !== undefined && labels[i] !== '') ? String(labels[i]) : ('Item ' + (i + 1));
+
+            let labelText = '';
+            if (showValues) {
+              labelText = cat ? (cat + ': ' + val + ' (' + pct + '%)') : (val + ' (' + pct + '%)');
+            } else {
+              labelText = cat ? (cat + ' (' + pct + '%)') : (pct + '%');
+            }
+
+            if (sweep >= 0.28) {
+              const textR = rad * 0.65;
+              const tx = pieCx + Math.cos(midA) * textR;
+              const ty = pieCy + Math.sin(midA) * textR;
+
+              ctx.save();
+              ctx.font = 'bold 11px "Segoe UI", sans-serif';
+              ctx.textAlign = 'center';
+              ctx.textBaseline = 'middle';
+              ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+              ctx.shadowBlur = 3;
+              ctx.fillStyle = '#ffffff';
+              const renderStr = sweep < 0.5 ? (pct + '%') : labelText;
+              ctx.fillText(renderStr, tx, ty);
+              ctx.restore();
+            } else if (sweep > 0.05) {
+              const lx1 = pieCx + Math.cos(midA) * rad;
+              const ly1 = pieCy + Math.sin(midA) * rad;
+              const lx2 = pieCx + Math.cos(midA) * (rad + 12);
+              const ly2 = pieCy + Math.sin(midA) * (rad + 12);
+
+              ctx.beginPath();
+              ctx.strokeStyle = '#4b5563';
+              ctx.lineWidth = 1;
+              ctx.moveTo(lx1, ly1);
+              ctx.lineTo(lx2, ly2);
+              ctx.stroke();
+
+              ctx.font = '10px "Segoe UI", sans-serif';
+              ctx.textAlign = Math.cos(midA) >= 0 ? 'left' : 'right';
+              ctx.textBaseline = 'middle';
+              ctx.fillStyle = '#1e293b';
+              ctx.fillText(pct + '%', lx2 + (Math.cos(midA) >= 0 ? 3 : -3), ly2);
+            }
+
             startA = endA;
           }
+
+          ctx.restore();
         }
       } else if (type === 'horizontalBarChart') {
-        const data = Array.isArray(sh.data) && sh.data.length ? sh.data : [40, 65, 50, 80, 55];
-        const padL = 25, padR = 20, padT = 25, padB = 35;
-        const chartW = Math.max(20, w - padL - padR);
-        const chartH = Math.max(20, h - padT - padB);
-        const maxVal = Math.max(...data, 1);
-        const n = data.length;
-        const barH = Math.max(6, (chartH / n) * 0.6);
-        const gap = (chartH - n * barH) / (n + 1);
-        ctx.strokeStyle = strokeColor;
-        ctx.strokeRect(x1 + padL, y1 + padT, chartW, chartH);
-        const barColors = ['#2563eb', '#16a34a', '#eab308', '#ea580c', '#7c3aed'];
-        for (let i = 0; i < n; i++) {
-          const bW = (data[i] / maxVal) * chartW;
-          const bx = x1 + padL;
-          const by = y1 + padT + gap + i * (barH + gap);
-          ctx.fillStyle = barColors[i % barColors.length];
-          ctx.fillRect(bx, by, bW, barH);
-          ctx.strokeStyle = '#1e293b';
-          ctx.strokeRect(bx, by, bW, barH);
+        const rawData = Array.isArray(sh.data) && sh.data.length ? sh.data : [40, 65, 50, 80, 55];
+        const data = rawData.map((v: any) => Math.max(0, Number(v) || 0));
+        const labels = Array.isArray(sh.labels) && sh.labels.length ? sh.labels : (sh.categories || []);
+        const title = (sh.title || '').trim();
+        const xAxisLabel = (sh.xAxisLabel || '').trim();
+        const yAxisLabel = (sh.yAxisLabel || '').trim();
+        const showValues = sh.showValues !== false;
+        const showAxisLabels = sh.showAxisLabels !== false;
+
+        const hasTitle = Boolean(title);
+        const hasXLabel = Boolean(xAxisLabel && showAxisLabels);
+        const hasYLabel = Boolean(yAxisLabel && showAxisLabels);
+
+        const padL = Math.max(hasYLabel ? 65 : 48, Math.min(85, w * 0.22));
+        const padR = showValues ? 38 : 20;
+        const padT = hasTitle ? Math.max(34, Math.min(50, h * 0.15)) : 22;
+        const padB = Math.max(hasXLabel ? 45 : 30, Math.min(60, h * 0.16));
+        const chartW = w - padL - padR;
+        const chartH = h - padT - padB;
+
+        if (chartW > 0 && chartH > 0) {
+          const getNiceMax = (val: number) => {
+            if (val <= 5) return 5;
+            if (val <= 10) return 10;
+            if (val <= 20) return 20;
+            if (val <= 25) return 25;
+            if (val <= 50) return 50;
+            if (val <= 100) return 100;
+            const p = Math.pow(10, Math.floor(Math.log10(val)));
+            const factor = val / p;
+            if (factor <= 2) return 2 * p;
+            if (factor <= 5) return 5 * p;
+            return 10 * p;
+          };
+
+          const maxVal = Math.max(...data, 1);
+          const tickMax = getNiceMax(maxVal);
+          const n = data.length;
+          const barH = Math.max(6, (chartH / n) * 0.58);
+          const gap = (chartH - n * barH) / (n + 1);
+
+          ctx.save();
+          ctx.strokeStyle = strokeColor;
+          ctx.lineWidth = 1;
+          ctx.strokeRect(x1 + padL, y1 + padT, chartW, chartH);
+
+          if (hasTitle) {
+            ctx.font = 'bold 13px "Segoe UI", sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'top';
+            ctx.fillStyle = '#111827';
+            ctx.fillText(title, x1 + w / 2, y1 + 8);
+          }
+
+          const numTicks = 4;
+          ctx.font = '10px "Segoe UI", sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'top';
+          for (let t = 0; t <= numTicks; t++) {
+            const frac = t / numTicks;
+            const valNum = Math.round(tickMax * frac);
+            const gx = x1 + padL + frac * chartW;
+
+            ctx.beginPath();
+            ctx.strokeStyle = t === 0 ? strokeColor : 'rgba(156, 163, 175, 0.3)';
+            ctx.lineWidth = t === 0 ? 1.5 : 1;
+            ctx.moveTo(gx, y1 + padT);
+            ctx.lineTo(gx, y1 + padT + chartH);
+            ctx.stroke();
+
+            if (showAxisLabels) {
+              ctx.fillStyle = '#4b5563';
+              ctx.fillText(String(valNum), gx, y1 + padT + chartH + 4);
+            }
+          }
+
+          if (hasYLabel) {
+            ctx.save();
+            ctx.translate(x1 + 14, y1 + padT + chartH / 2);
+            ctx.rotate(-Math.PI / 2);
+            ctx.font = 'bold 11px "Segoe UI", sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillStyle = '#374151';
+            ctx.fillText(yAxisLabel, 0, 0);
+            ctx.restore();
+          }
+
+          const barColors = ['#2563eb', '#16a34a', '#eab308', '#ea580c', '#8b5cf6', '#06b6d4', '#ec4899'];
+          for (let i = 0; i < n; i++) {
+            const barW = (data[i] / tickMax) * chartW;
+            const bx = x1 + padL;
+            const by = y1 + padT + gap + i * (barH + gap);
+
+            ctx.fillStyle = barColors[i % barColors.length];
+            ctx.fillRect(bx, by, barW, barH);
+            ctx.strokeStyle = '#1e293b';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(bx, by, barW, barH);
+
+            const cat = (labels[i] !== undefined && labels[i] !== '') ? String(labels[i]) : String(i + 1);
+            ctx.font = '11px "Segoe UI", sans-serif';
+            ctx.textAlign = 'right';
+            ctx.textBaseline = 'middle';
+            ctx.fillStyle = '#374151';
+            ctx.fillText(cat, bx - 6, by + barH / 2);
+
+            if (showValues) {
+              ctx.font = 'bold 11px "Segoe UI", sans-serif';
+              ctx.textAlign = 'left';
+              ctx.textBaseline = 'middle';
+              ctx.fillStyle = '#1e293b';
+              ctx.fillText(String(data[i]), bx + barW + 5, by + barH / 2);
+            }
+          }
+
+          if (hasXLabel) {
+            ctx.font = 'bold 11px "Segoe UI", sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'top';
+            ctx.fillStyle = '#374151';
+            ctx.fillText(xAxisLabel, x1 + padL + chartW / 2, y1 + padT + chartH + 18);
+          }
+
+          ctx.restore();
         }
       } else if (type === 'pictograph') {
-        const data = Array.isArray(sh.data) && sh.data.length ? sh.data : [3, 5, 2, 4, 3];
-        const padL = 25, padR = 15, padT = 15, padB = 20;
-        const chartW = Math.max(20, w - padL - padR);
-        const chartH = Math.max(20, h - padT - padB);
-        const n = data.length;
-        const rowH = chartH / n;
-        const maxCount = Math.max(...data, 1);
-        const symbolColors = ['#2563eb', '#16a34a', '#eab308', '#ea580c', '#7c3aed'];
-        ctx.strokeStyle = strokeColor;
-        ctx.strokeRect(x1 + padL, y1 + padT, chartW, chartH);
-        for (let i = 0; i < n; i++) {
-          const count = data[i];
-          const cellW = (chartW - 8) / Math.max(maxCount, count);
-          const symSize = Math.min(cellW * 0.75, rowH * 0.5, 24);
-          const sy = y1 + padT + (i + 0.5) * rowH;
-          ctx.fillStyle = symbolColors[i % symbolColors.length];
-          for (let j = 0; j < count; j++) {
-            const sx = x1 + padL + 4 + j * cellW + (cellW - symSize) / 2;
-            const cxS = sx + symSize / 2;
-            ctx.beginPath();
-            ctx.arc(cxS, sy, symSize / 2, 0, Math.PI * 2);
-            ctx.fill();
+        const rawData = Array.isArray(sh.data) && sh.data.length ? sh.data : [3, 5, 2, 4, 3];
+        const data = rawData.map((v: any) => Math.max(0, Math.round(Number(v) || 0)));
+        const labels = Array.isArray(sh.labels) && sh.labels.length ? sh.labels : (sh.categories || []);
+        const title = (sh.title || '').trim();
+        const showValues = sh.showValues !== false;
+
+        const hasTitle = Boolean(title);
+        const padL = 60;
+        const padR = showValues ? 34 : 16;
+        const padT = hasTitle ? 32 : 18;
+        const padB = 26;
+        const chartW = w - padL - padR;
+        const chartH = h - padT - padB;
+
+        if (chartW > 0 && chartH > 0) {
+          const n = data.length;
+          const rowH = chartH / n;
+          const maxCount = Math.max(...data, 1);
+          const symbolColors = ['#2563eb', '#16a34a', '#eab308', '#ea580c', '#8b5cf6', '#06b6d4', '#ec4899'];
+          const symbolShape = sh.symbolShape || 'circle';
+
+          ctx.save();
+          ctx.strokeStyle = strokeColor;
+          ctx.lineWidth = 1;
+          ctx.strokeRect(x1 + padL, y1 + padT, chartW, chartH);
+
+          if (hasTitle) {
+            ctx.font = 'bold 13px "Segoe UI", sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'top';
+            ctx.fillStyle = '#111827';
+            ctx.fillText(title, x1 + w / 2, y1 + 8);
           }
+
+          for (let i = 0; i < n; i++) {
+            const count = data[i];
+            const sy = y1 + padT + (i + 0.5) * rowH;
+
+            if (i > 0) {
+              ctx.beginPath();
+              ctx.strokeStyle = 'rgba(156, 163, 175, 0.25)';
+              ctx.lineWidth = 1;
+              ctx.moveTo(x1 + padL, y1 + padT + i * rowH);
+              ctx.lineTo(x1 + padL + chartW, y1 + padT + i * rowH);
+              ctx.stroke();
+            }
+
+            const cat = (labels[i] !== undefined && labels[i] !== '') ? String(labels[i]) : ('Item ' + (i + 1));
+            ctx.font = '11px "Segoe UI", sans-serif';
+            ctx.textAlign = 'right';
+            ctx.textBaseline = 'middle';
+            ctx.fillStyle = '#374151';
+            ctx.fillText(cat, x1 + padL - 8, sy);
+
+            const cellW = (chartW - 8) / Math.max(maxCount, count, 1);
+            const symSize = Math.min(cellW * 0.75, rowH * 0.52, 26);
+            ctx.fillStyle = symbolColors[i % symbolColors.length];
+
+            for (let j = 0; j < count; j++) {
+              const sx = x1 + padL + 4 + j * cellW + (cellW - symSize) / 2;
+              const cxS = sx + symSize / 2;
+              const r = symSize / 2;
+
+              ctx.beginPath();
+              if (symbolShape === 'circle') {
+                ctx.arc(cxS, sy, r, 0, Math.PI * 2);
+              } else if (symbolShape === 'square') {
+                ctx.rect(cxS - r, sy - r, symSize, symSize);
+              } else if (symbolShape === 'triangle') {
+                const th = r * Math.sqrt(3);
+                ctx.moveTo(cxS, sy - r);
+                ctx.lineTo(cxS - r, sy + th * 0.5);
+                ctx.lineTo(cxS + r, sy + th * 0.5);
+                ctx.closePath();
+              } else if (symbolShape === 'star') {
+                const spikes = 5;
+                const outer = r;
+                const inner = r * 0.4;
+                for (let k = 0; k < spikes * 2; k++) {
+                  const rad = k % 2 === 0 ? outer : inner;
+                  const angle = -Math.PI / 2 + (Math.PI * k) / spikes;
+                  const px = cxS + rad * Math.cos(angle);
+                  const py = sy + rad * Math.sin(angle);
+                  if (k === 0) ctx.moveTo(px, py);
+                  else ctx.lineTo(px, py);
+                }
+                ctx.closePath();
+              } else if (symbolShape === 'diamond') {
+                ctx.moveTo(cxS, sy - r);
+                ctx.lineTo(cxS + r, sy);
+                ctx.lineTo(cxS, sy + r);
+                ctx.lineTo(cxS - r, sy);
+                ctx.closePath();
+              } else {
+                ctx.arc(cxS, sy, r, 0, Math.PI * 2);
+              }
+              ctx.fill();
+              ctx.strokeStyle = '#1e293b';
+              ctx.lineWidth = 0.8;
+              ctx.stroke();
+            }
+
+            if (showValues) {
+              ctx.font = 'bold 11px "Segoe UI", sans-serif';
+              ctx.textAlign = 'left';
+              ctx.textBaseline = 'middle';
+              ctx.fillStyle = '#1e293b';
+              ctx.fillText(String(count), x1 + padL + chartW + 8, sy);
+            }
+          }
+
+          ctx.font = 'italic 10px "Segoe UI", sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'top';
+          ctx.fillStyle = '#6b7280';
+          ctx.fillText(sh.keyText || 'Key: 1 symbol = 1 item', x1 + padL + chartW / 2, y1 + padT + chartH + 7);
+
+          ctx.restore();
         }
       }
       ctx.restore();

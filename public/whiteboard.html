@@ -3158,6 +3158,13 @@
       };
       const chartSettings = {
         type: "barChart", // barChart | pieChart | horizontalBarChart | pictograph
+        title: "",
+        xAxisLabel: "Categories",
+        yAxisLabel: "Frequency",
+        labelsStr: "A, B, C, D, E",
+        valuesStr: "40, 65, 50, 80, 55",
+        showValues: true,
+        showAxisLabels: true,
       };
       const symbolSettings = {
         fontSize: 32,
@@ -6487,121 +6494,450 @@
           if (shape.fillMode === "solid") { ctx.save(); ctx.globalAlpha = fillOpacity; ctx.fill(); ctx.restore(); }
           ctx.stroke();
         } else if (type === "barChart") {
-          const data = shape.data || [40, 65, 50, 80, 55];
-          const padL = 40;
+          const rawData = Array.isArray(shape.data) && shape.data.length ? shape.data : [40, 65, 50, 80, 55];
+          const data = rawData.map(v => Math.max(0, Number(v) || 0));
+          const labels = Array.isArray(shape.labels) && shape.labels.length ? shape.labels : (shape.categories || []);
+          const title = (shape.title || "").trim();
+          const xAxisLabel = (shape.xAxisLabel || "").trim();
+          const yAxisLabel = (shape.yAxisLabel || "").trim();
+          const showValues = shape.showValues !== false;
+          const showAxisLabels = shape.showAxisLabels !== false;
+
+          const hasTitle = Boolean(title);
+          const hasXLabel = Boolean(xAxisLabel && showAxisLabels);
+          const hasYLabel = Boolean(yAxisLabel && showAxisLabels);
+
+          const padL = Math.max(hasYLabel ? 56 : 42, Math.min(75, w * 0.16));
           const padR = 20;
-          const padT = 25;
-          const padB = 35;
+          const padT = hasTitle ? Math.max(34, Math.min(50, h * 0.15)) : 22;
+          const padB = Math.max(hasXLabel ? 48 : 34, Math.min(65, h * 0.18));
           const chartW = w - padL - padR;
           const chartH = h - padT - padB;
           if (chartW <= 0 || chartH <= 0) { ctx.restore(); return; }
+
+          function getNiceMax(val) {
+            if (val <= 5) return 5;
+            if (val <= 10) return 10;
+            if (val <= 20) return 20;
+            if (val <= 25) return 25;
+            if (val <= 50) return 50;
+            if (val <= 100) return 100;
+            const p = Math.pow(10, Math.floor(Math.log10(val)));
+            const factor = val / p;
+            if (factor <= 2) return 2 * p;
+            if (factor <= 5) return 5 * p;
+            return 10 * p;
+          }
+
           const maxVal = Math.max(...data, 1);
+          const tickMax = getNiceMax(maxVal);
           const n = data.length;
-          const barW = Math.max(8, (chartW / n) * 0.6);
+          const barW = Math.max(8, (chartW / n) * 0.58);
           const gap = (chartW - n * barW) / (n + 1);
+
           ctx.save();
+
+          // Background frame
           ctx.strokeStyle = shape.color || "#374151";
-          ctx.fillStyle = shape.color || "#374151";
           ctx.lineWidth = 1;
           ctx.strokeRect(x1 + padL, y1 + padT, chartW, chartH);
-          const barColors = ["#2563eb", "#16a34a", "#eab308", "#ea580c", "#7c3aed"];
+
+          // Title
+          if (hasTitle) {
+            ctx.font = 'bold 13px "Segoe UI", sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'top';
+            ctx.fillStyle = '#111827';
+            ctx.fillText(title, x1 + w / 2, y1 + 8);
+          }
+
+          // Ticks and Grid lines
+          const numTicks = 4;
+          ctx.font = '10px "Segoe UI", sans-serif';
+          ctx.textAlign = 'right';
+          ctx.textBaseline = 'middle';
+          for (let t = 0; t <= numTicks; t++) {
+            const frac = t / numTicks;
+            const valNum = Math.round(tickMax * frac);
+            const gy = y1 + padT + chartH - frac * chartH;
+            ctx.beginPath();
+            ctx.strokeStyle = t === 0 ? (shape.color || "#374151") : "rgba(156, 163, 175, 0.3)";
+            ctx.lineWidth = t === 0 ? 1.5 : 1;
+            ctx.moveTo(x1 + padL, gy);
+            ctx.lineTo(x1 + padL + chartW, gy);
+            ctx.stroke();
+
+            if (showAxisLabels) {
+              ctx.fillStyle = '#4b5563';
+              ctx.fillText(String(valNum), x1 + padL - 6, gy);
+            }
+          }
+
+          // Y-axis label (rotated)
+          if (hasYLabel) {
+            ctx.save();
+            ctx.translate(x1 + 14, y1 + padT + chartH / 2);
+            ctx.rotate(-Math.PI / 2);
+            ctx.font = 'bold 11px "Segoe UI", sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillStyle = '#374151';
+            ctx.fillText(yAxisLabel, 0, 0);
+            ctx.restore();
+          }
+
+          // Bars and bar labels
+          const barColors = ["#2563eb", "#16a34a", "#eab308", "#ea580c", "#8b5cf6", "#06b6d4", "#ec4899"];
           for (let i = 0; i < n; i++) {
-            const barH = (data[i] / maxVal) * chartH;
+            const barH = (data[i] / tickMax) * chartH;
             const bx = x1 + padL + gap + i * (barW + gap);
             const by = y1 + padT + chartH - barH;
+
             ctx.fillStyle = barColors[i % barColors.length];
             ctx.fillRect(bx, by, barW, barH);
-            ctx.strokeStyle = "#1e293b";
+            ctx.strokeStyle = '#1e293b';
+            ctx.lineWidth = 1;
             ctx.strokeRect(bx, by, barW, barH);
+
+            // Value above bar
+            if (showValues) {
+              ctx.font = 'bold 11px "Segoe UI", sans-serif';
+              ctx.textAlign = 'center';
+              ctx.textBaseline = 'bottom';
+              ctx.fillStyle = '#1e293b';
+              ctx.fillText(String(data[i]), bx + barW / 2, by - 3);
+            }
+
+            // Category label below bar
+            const cat = (labels[i] !== undefined && labels[i] !== "") ? String(labels[i]) : String(i + 1);
+            ctx.font = '11px "Segoe UI", sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'top';
+            ctx.fillStyle = '#374151';
+            ctx.fillText(cat, bx + barW / 2, y1 + padT + chartH + 5);
           }
+
+          // X-axis label
+          if (hasXLabel) {
+            ctx.font = 'bold 11px "Segoe UI", sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'top';
+            ctx.fillStyle = '#374151';
+            ctx.fillText(xAxisLabel, x1 + padL + chartW / 2, y1 + padT + chartH + 22);
+          }
+
           ctx.restore();
         } else if (type === "pieChart") {
-          const data = shape.data || [30, 25, 20, 15, 10];
+          const rawData = Array.isArray(shape.data) && shape.data.length ? shape.data : [30, 25, 20, 15, 10];
+          const data = rawData.map(v => Math.max(0, Number(v) || 0));
+          const labels = Array.isArray(shape.labels) && shape.labels.length ? shape.labels : (shape.categories || []);
+          const title = (shape.title || "").trim();
+          const showValues = shape.showValues !== false;
           const total = data.reduce((s, v) => s + v, 0) || 1;
-          const rad = Math.min(w, h) / 2 - 10;
+
+          const hasTitle = Boolean(title);
+          const topOffset = hasTitle ? 28 : 10;
+          const availableH = h - topOffset - 10;
+          const rad = Math.min(w - 24, availableH) / 2 - 8;
           if (rad <= 0) { ctx.restore(); return; }
-          const sliceColors = ["#2563eb", "#16a34a", "#eab308", "#ea580c", "#7c3aed"];
-          let startA = -Math.PI / 2;
+
+          const pieCx = cx;
+          const pieCy = y1 + topOffset + availableH / 2;
+
           ctx.save();
+
+          if (hasTitle) {
+            ctx.font = 'bold 13px "Segoe UI", sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'top';
+            ctx.fillStyle = '#111827';
+            ctx.fillText(title, cx, y1 + 8);
+          }
+
+          const sliceColors = ["#2563eb", "#16a34a", "#eab308", "#ea580c", "#8b5cf6", "#06b6d4", "#ec4899", "#10b981"];
+          let startA = -Math.PI / 2;
+
           for (let i = 0; i < data.length; i++) {
             const sweep = (data[i] / total) * Math.PI * 2;
             const endA = startA + sweep;
+            const midA = startA + sweep / 2;
+
             ctx.beginPath();
-            ctx.moveTo(cx, cy);
-            ctx.arc(cx, cy, rad, startA, endA);
+            ctx.moveTo(pieCx, pieCy);
+            ctx.arc(pieCx, pieCy, rad, startA, endA);
             ctx.closePath();
             ctx.fillStyle = sliceColors[i % sliceColors.length];
             ctx.fill();
             ctx.strokeStyle = "#1e293b";
             ctx.lineWidth = 1;
             ctx.stroke();
+
+            const val = data[i];
+            const pct = Math.round((val / total) * 100);
+            const cat = (labels[i] !== undefined && labels[i] !== "") ? String(labels[i]) : ("Item " + (i + 1));
+
+            let labelText = "";
+            if (showValues) {
+              labelText = cat ? (cat + ": " + val + " (" + pct + "%)") : (val + " (" + pct + "%)");
+            } else {
+              labelText = cat ? (cat + " (" + pct + "%)") : (pct + "%");
+            }
+
+            if (sweep >= 0.28) {
+              const textR = rad * 0.65;
+              const tx = pieCx + Math.cos(midA) * textR;
+              const ty = pieCy + Math.sin(midA) * textR;
+
+              ctx.save();
+              ctx.font = 'bold 11px "Segoe UI", sans-serif';
+              ctx.textAlign = 'center';
+              ctx.textBaseline = 'middle';
+              ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+              ctx.shadowBlur = 3;
+              ctx.fillStyle = '#ffffff';
+              const renderStr = sweep < 0.5 ? (pct + "%") : labelText;
+              ctx.fillText(renderStr, tx, ty);
+              ctx.restore();
+            } else if (sweep > 0.05) {
+              const lx1 = pieCx + Math.cos(midA) * rad;
+              const ly1 = pieCy + Math.sin(midA) * rad;
+              const lx2 = pieCx + Math.cos(midA) * (rad + 12);
+              const ly2 = pieCy + Math.sin(midA) * (rad + 12);
+
+              ctx.beginPath();
+              ctx.strokeStyle = '#4b5563';
+              ctx.lineWidth = 1;
+              ctx.moveTo(lx1, ly1);
+              ctx.lineTo(lx2, ly2);
+              ctx.stroke();
+
+              ctx.font = '10px "Segoe UI", sans-serif';
+              ctx.textAlign = Math.cos(midA) >= 0 ? 'left' : 'right';
+              ctx.textBaseline = 'middle';
+              ctx.fillStyle = '#1e293b';
+              ctx.fillText(pct + "%", lx2 + (Math.cos(midA) >= 0 ? 3 : -3), ly2);
+            }
+
             startA = endA;
           }
+
           ctx.restore();
         } else if (type === "horizontalBarChart") {
-          const data = shape.data || [40, 65, 50, 80, 55];
-          const padL = 25;
-          const padR = 20;
-          const padT = 25;
-          const padB = 40;
+          const rawData = Array.isArray(shape.data) && shape.data.length ? shape.data : [40, 65, 50, 80, 55];
+          const data = rawData.map(v => Math.max(0, Number(v) || 0));
+          const labels = Array.isArray(shape.labels) && shape.labels.length ? shape.labels : (shape.categories || []);
+          const title = (shape.title || "").trim();
+          const xAxisLabel = (shape.xAxisLabel || "").trim();
+          const yAxisLabel = (shape.yAxisLabel || "").trim();
+          const showValues = shape.showValues !== false;
+          const showAxisLabels = shape.showAxisLabels !== false;
+
+          const hasTitle = Boolean(title);
+          const hasXLabel = Boolean(xAxisLabel && showAxisLabels);
+          const hasYLabel = Boolean(yAxisLabel && showAxisLabels);
+
+          const padL = Math.max(hasYLabel ? 65 : 48, Math.min(85, w * 0.22));
+          const padR = showValues ? 38 : 20;
+          const padT = hasTitle ? Math.max(34, Math.min(50, h * 0.15)) : 22;
+          const padB = Math.max(hasXLabel ? 45 : 30, Math.min(60, h * 0.16));
           const chartW = w - padL - padR;
           const chartH = h - padT - padB;
           if (chartW <= 0 || chartH <= 0) { ctx.restore(); return; }
+
+          function getNiceMax(val) {
+            if (val <= 5) return 5;
+            if (val <= 10) return 10;
+            if (val <= 20) return 20;
+            if (val <= 25) return 25;
+            if (val <= 50) return 50;
+            if (val <= 100) return 100;
+            const p = Math.pow(10, Math.floor(Math.log10(val)));
+            const factor = val / p;
+            if (factor <= 2) return 2 * p;
+            if (factor <= 5) return 5 * p;
+            return 10 * p;
+          }
+
           const maxVal = Math.max(...data, 1);
+          const tickMax = getNiceMax(maxVal);
           const n = data.length;
-          const barH = Math.max(6, (chartH / n) * 0.6);
+          const barH = Math.max(6, (chartH / n) * 0.58);
           const gap = (chartH - n * barH) / (n + 1);
+
           ctx.save();
+
+          // Background frame
           ctx.strokeStyle = shape.color || "#374151";
+          ctx.lineWidth = 1;
           ctx.strokeRect(x1 + padL, y1 + padT, chartW, chartH);
-          const barColors = ["#2563eb", "#16a34a", "#eab308", "#ea580c", "#7c3aed"];
+
+          // Title
+          if (hasTitle) {
+            ctx.font = 'bold 13px "Segoe UI", sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'top';
+            ctx.fillStyle = '#111827';
+            ctx.fillText(title, x1 + w / 2, y1 + 8);
+          }
+
+          // Ticks along X-axis
+          const numTicks = 4;
+          ctx.font = '10px "Segoe UI", sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'top';
+          for (let t = 0; t <= numTicks; t++) {
+            const frac = t / numTicks;
+            const valNum = Math.round(tickMax * frac);
+            const gx = x1 + padL + frac * chartW;
+
+            ctx.beginPath();
+            ctx.strokeStyle = t === 0 ? (shape.color || "#374151") : "rgba(156, 163, 175, 0.3)";
+            ctx.lineWidth = t === 0 ? 1.5 : 1;
+            ctx.moveTo(gx, y1 + padT);
+            ctx.lineTo(gx, y1 + padT + chartH);
+            ctx.stroke();
+
+            if (showAxisLabels) {
+              ctx.fillStyle = '#4b5563';
+              ctx.fillText(String(valNum), gx, y1 + padT + chartH + 4);
+            }
+          }
+
+          // Y-axis label (rotated)
+          if (hasYLabel) {
+            ctx.save();
+            ctx.translate(x1 + 14, y1 + padT + chartH / 2);
+            ctx.rotate(-Math.PI / 2);
+            ctx.font = 'bold 11px "Segoe UI", sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillStyle = '#374151';
+            ctx.fillText(yAxisLabel, 0, 0);
+            ctx.restore();
+          }
+
+          // Bars and categories
+          const barColors = ["#2563eb", "#16a34a", "#eab308", "#ea580c", "#8b5cf6", "#06b6d4", "#ec4899"];
           for (let i = 0; i < n; i++) {
-            const barW = (data[i] / maxVal) * chartW;
+            const barW = (data[i] / tickMax) * chartW;
             const bx = x1 + padL;
             const by = y1 + padT + gap + i * (barH + gap);
+
             ctx.fillStyle = barColors[i % barColors.length];
             ctx.fillRect(bx, by, barW, barH);
-            ctx.strokeStyle = "#1e293b";
+            ctx.strokeStyle = '#1e293b';
+            ctx.lineWidth = 1;
             ctx.strokeRect(bx, by, barW, barH);
+
+            // Category label on left
+            const cat = (labels[i] !== undefined && labels[i] !== "") ? String(labels[i]) : String(i + 1);
+            ctx.font = '11px "Segoe UI", sans-serif';
+            ctx.textAlign = 'right';
+            ctx.textBaseline = 'middle';
+            ctx.fillStyle = '#374151';
+            ctx.fillText(cat, bx - 6, by + barH / 2);
+
+            // Value at right end of bar
+            if (showValues) {
+              ctx.font = 'bold 11px "Segoe UI", sans-serif';
+              ctx.textAlign = 'left';
+              ctx.textBaseline = 'middle';
+              ctx.fillStyle = '#1e293b';
+              ctx.fillText(String(data[i]), bx + barW + 5, by + barH / 2);
+            }
           }
+
+          // X-axis label
+          if (hasXLabel) {
+            ctx.font = 'bold 11px "Segoe UI", sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'top';
+            ctx.fillStyle = '#374151';
+            ctx.fillText(xAxisLabel, x1 + padL + chartW / 2, y1 + padT + chartH + 18);
+          }
+
           ctx.restore();
         } else if (type === "pictograph") {
-          const data = shape.data || [3, 5, 2, 4, 3];
-          const padL = 30;
-          const padR = 20;
-          const padT = 20;
-          const padB = 25;
+          const rawData = Array.isArray(shape.data) && shape.data.length ? shape.data : [3, 5, 2, 4, 3];
+          const data = rawData.map(v => Math.max(0, Math.round(Number(v) || 0)));
+          const labels = Array.isArray(shape.labels) && shape.labels.length ? shape.labels : (shape.categories || []);
+          const title = (shape.title || "").trim();
+          const showValues = shape.showValues !== false;
+
+          const hasTitle = Boolean(title);
+          const padL = 60;
+          const padR = showValues ? 34 : 16;
+          const padT = hasTitle ? 32 : 18;
+          const padB = 26;
           const chartW = w - padL - padR;
           const chartH = h - padT - padB;
           if (chartW <= 0 || chartH <= 0) { ctx.restore(); return; }
+
           const n = data.length;
           const rowH = chartH / n;
           const maxCount = Math.max(...data, 1);
-          const symbolColors = ["#2563eb", "#16a34a", "#eab308", "#ea580c", "#7c3aed"];
+          const symbolColors = ["#2563eb", "#16a34a", "#eab308", "#ea580c", "#8b5cf6", "#06b6d4", "#ec4899"];
           const symbolShape = shape.symbolShape || "circle";
+
           ctx.save();
+
+          // Background frame
           ctx.strokeStyle = shape.color || "#374151";
+          ctx.lineWidth = 1;
           ctx.strokeRect(x1 + padL, y1 + padT, chartW, chartH);
+
+          // Title
+          if (hasTitle) {
+            ctx.font = 'bold 13px "Segoe UI", sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'top';
+            ctx.fillStyle = '#111827';
+            ctx.fillText(title, x1 + w / 2, y1 + 8);
+          }
+
+          // Draw rows
           for (let i = 0; i < n; i++) {
             const count = data[i];
-            const cellW = (chartW - 8) / Math.max(maxCount, count);
-            const symSize = Math.min(cellW * 0.75, rowH * 0.5, 28);
             const sy = y1 + padT + (i + 0.5) * rowH;
+
+            // Row divider
+            if (i > 0) {
+              ctx.beginPath();
+              ctx.strokeStyle = "rgba(156, 163, 175, 0.25)";
+              ctx.lineWidth = 1;
+              ctx.moveTo(x1 + padL, y1 + padT + i * rowH);
+              ctx.lineTo(x1 + padL + chartW, y1 + padT + i * rowH);
+              ctx.stroke();
+            }
+
+            // Category label on left
+            const cat = (labels[i] !== undefined && labels[i] !== "") ? String(labels[i]) : ("Item " + (i + 1));
+            ctx.font = '11px "Segoe UI", sans-serif';
+            ctx.textAlign = 'right';
+            ctx.textBaseline = 'middle';
+            ctx.fillStyle = '#374151';
+            ctx.fillText(cat, x1 + padL - 8, sy);
+
+            // Symbols
+            const cellW = (chartW - 8) / Math.max(maxCount, count, 1);
+            const symSize = Math.min(cellW * 0.75, rowH * 0.52, 26);
             ctx.fillStyle = symbolColors[i % symbolColors.length];
+
             for (let j = 0; j < count; j++) {
               const sx = x1 + padL + 4 + j * cellW + (cellW - symSize) / 2;
-              const cx = sx + symSize / 2;
+              const cxS = sx + symSize / 2;
               const r = symSize / 2;
+
               ctx.beginPath();
               if (symbolShape === "circle") {
-                ctx.arc(cx, sy, r, 0, Math.PI * 2);
+                ctx.arc(cxS, sy, r, 0, Math.PI * 2);
               } else if (symbolShape === "square") {
-                ctx.rect(cx - r, sy - r, symSize, symSize);
+                ctx.rect(cxS - r, sy - r, symSize, symSize);
               } else if (symbolShape === "triangle") {
-                const h = r * Math.sqrt(3);
-                ctx.moveTo(cx, sy - r);
-                ctx.lineTo(cx - r, sy + h * 0.5);
-                ctx.lineTo(cx + r, sy + h * 0.5);
+                const th = r * Math.sqrt(3);
+                ctx.moveTo(cxS, sy - r);
+                ctx.lineTo(cxS - r, sy + th * 0.5);
+                ctx.lineTo(cxS + r, sy + th * 0.5);
                 ctx.closePath();
               } else if (symbolShape === "star") {
                 const spikes = 5;
@@ -6610,27 +6946,44 @@
                 for (let k = 0; k < spikes * 2; k++) {
                   const rad = k % 2 === 0 ? outer : inner;
                   const angle = -Math.PI / 2 + (Math.PI * k) / spikes;
-                  const px = cx + rad * Math.cos(angle);
+                  const px = cxS + rad * Math.cos(angle);
                   const py = sy + rad * Math.sin(angle);
                   if (k === 0) ctx.moveTo(px, py);
                   else ctx.lineTo(px, py);
                 }
                 ctx.closePath();
               } else if (symbolShape === "diamond") {
-                ctx.moveTo(cx, sy - r);
-                ctx.lineTo(cx + r, sy);
-                ctx.lineTo(cx, sy + r);
-                ctx.lineTo(cx - r, sy);
+                ctx.moveTo(cxS, sy - r);
+                ctx.lineTo(cxS + r, sy);
+                ctx.lineTo(cxS, sy + r);
+                ctx.lineTo(cxS - r, sy);
                 ctx.closePath();
               } else {
-                ctx.arc(cx, sy, r, 0, Math.PI * 2);
+                ctx.arc(cxS, sy, r, 0, Math.PI * 2);
               }
               ctx.fill();
               ctx.strokeStyle = "#1e293b";
               ctx.lineWidth = 0.8;
               ctx.stroke();
             }
+
+            // Row count value on right
+            if (showValues) {
+              ctx.font = 'bold 11px "Segoe UI", sans-serif';
+              ctx.textAlign = 'left';
+              ctx.textBaseline = 'middle';
+              ctx.fillStyle = '#1e293b';
+              ctx.fillText(String(count), x1 + padL + chartW + 8, sy);
+            }
           }
+
+          // Key legend at bottom
+          ctx.font = 'italic 10px "Segoe UI", sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'top';
+          ctx.fillStyle = '#6b7280';
+          ctx.fillText(shape.keyText || "Key: 1 symbol = 1 item", x1 + padL + chartW / 2, y1 + padT + chartH + 7);
+
           ctx.restore();
         } else if ((type === "image" || type === "equation") && shape.dataUrl) {
           const img = getCachedImage(shape.dataUrl);
@@ -7301,6 +7654,9 @@
               handleToolSelection("edu-tools");
             });
             actionsRow.appendChild(editFracBtn);
+          }
+          if (selectedShapes.length === 1 && ["barChart", "horizontalBarChart", "pictograph", "pieChart"].includes(selectedShapes[0].type)) {
+            renderSelectedChartEditor(selectedShapes[0], wrap);
           }
           const delBtn = document.createElement("button");
           delBtn.type = "button";
@@ -8278,19 +8634,54 @@
       function renderChartOptions() {
         const group = document.createElement("div");
         group.className = "tool-options-group";
+
         const label = document.createElement("span");
         label.className = "tool-options-label";
-        label.textContent = "Chart type";
+        label.textContent = "Chart Type";
         group.appendChild(label);
+
         const row = document.createElement("div");
         row.className = "color-swatch-row";
         row.style.marginTop = "0.25rem";
-        [
+        row.style.marginBottom = "0.5rem";
+
+        const chartTypes = [
           { id: "barChart", title: "Bar chart (vertical)" },
           { id: "horizontalBarChart", title: "Horizontal bar chart" },
           { id: "pictograph", title: "Pictograph" },
           { id: "pieChart", title: "Pie chart" },
-        ].forEach((opt) => {
+        ];
+
+        let titleInput, xInput, yInput, catInput, valInput, axisRowContainer;
+
+        function updateFormForType(type) {
+          if (axisRowContainer) {
+            axisRowContainer.style.display = (type === "barChart" || type === "horizontalBarChart") ? "flex" : "none";
+          }
+          if (type === "pieChart") {
+            if (!chartSettings.title) chartSettings.title = "Distribution";
+            if (!chartSettings.labelsStr || chartSettings.labelsStr === "A, B, C, D, E") chartSettings.labelsStr = "Rent, Food, Utilities, Savings, Other";
+            if (!chartSettings.valuesStr || chartSettings.valuesStr === "40, 65, 50, 80, 55") chartSettings.valuesStr = "35, 25, 15, 15, 10";
+          } else if (type === "pictograph") {
+            if (!chartSettings.title) chartSettings.title = "Fruit Count";
+            if (!chartSettings.labelsStr || chartSettings.labelsStr === "A, B, C, D, E") chartSettings.labelsStr = "Apples, Bananas, Oranges, Pears, Grapes";
+            if (!chartSettings.valuesStr || chartSettings.valuesStr === "40, 65, 50, 80, 55") chartSettings.valuesStr = "8, 6, 2, 5, 7";
+          } else if (type === "horizontalBarChart") {
+            if (!chartSettings.xAxisLabel) chartSettings.xAxisLabel = "Amount";
+            if (!chartSettings.yAxisLabel) chartSettings.yAxisLabel = "Items";
+          } else {
+            if (!chartSettings.xAxisLabel) chartSettings.xAxisLabel = "Categories";
+            if (!chartSettings.yAxisLabel) chartSettings.yAxisLabel = "Frequency";
+          }
+
+          if (titleInput) titleInput.value = chartSettings.title || "";
+          if (xInput) xInput.value = chartSettings.xAxisLabel || "";
+          if (yInput) yInput.value = chartSettings.yAxisLabel || "";
+          if (catInput) catInput.value = chartSettings.labelsStr || "";
+          if (valInput) valInput.value = chartSettings.valuesStr || "";
+        }
+
+        chartTypes.forEach((opt) => {
           const btn = document.createElement("button");
           btn.type = "button";
           btn.className = "option-icon-btn";
@@ -8318,17 +8709,493 @@
             });
             btn.style.backgroundColor = "#22c55e";
             btn.style.color = "#020617";
+            updateFormForType(opt.id);
           });
           row.appendChild(btn);
         });
         group.appendChild(row);
+
+        // Presets
+        const presetLbl = document.createElement("span");
+        presetLbl.className = "tool-options-label";
+        presetLbl.style.fontSize = "0.72rem";
+        presetLbl.textContent = "Quick Presets:";
+        group.appendChild(presetLbl);
+
+        const presetsRow = document.createElement("div");
+        presetsRow.style.display = "flex";
+        presetsRow.style.gap = "4px";
+        presetsRow.style.flexWrap = "wrap";
+        presetsRow.style.marginTop = "3px";
+        presetsRow.style.marginBottom = "8px";
+
+        const presets = [
+          { name: "📊 Grades", title: "Math Quiz Grades", x: "Grade", y: "Students", cat: "A, B, C, D, E", val: "12, 20, 28, 15, 6" },
+          { name: "🍎 Fruits", title: "Favorite Fruits", x: "Fruit", y: "Votes", cat: "Apple, Banana, Orange, Mango, Grape", val: "14, 22, 18, 25, 9" },
+          { name: "🥧 Budget", title: "Monthly Budget", x: "", y: "", cat: "Rent, Food, Utilities, Savings, Misc", val: "35, 25, 15, 15, 10" },
+          { name: "📅 Sales", title: "Weekly Sales", x: "Day", y: "Units", cat: "Mon, Tue, Wed, Thu, Fri", val: "35, 48, 62, 55, 78" }
+        ];
+
+        presets.forEach((p) => {
+          const pb = document.createElement("button");
+          pb.type = "button";
+          pb.textContent = p.name;
+          pb.style.padding = "3px 6px";
+          pb.style.fontSize = "0.70rem";
+          pb.style.fontWeight = "600";
+          pb.style.borderRadius = "4px";
+          pb.style.border = "1px solid #cbd5e1";
+          pb.style.background = "#f1f5f9";
+          pb.style.color = "#334155";
+          pb.style.cursor = "pointer";
+          pb.addEventListener("click", () => {
+            chartSettings.title = p.title;
+            if (p.x) chartSettings.xAxisLabel = p.x;
+            if (p.y) chartSettings.yAxisLabel = p.y;
+            chartSettings.labelsStr = p.cat;
+            chartSettings.valuesStr = p.val;
+            if (titleInput) titleInput.value = p.title;
+            if (xInput && p.x) xInput.value = p.x;
+            if (yInput && p.y) yInput.value = p.y;
+            if (catInput) catInput.value = p.cat;
+            if (valInput) valInput.value = p.val;
+          });
+          presetsRow.appendChild(pb);
+        });
+        group.appendChild(presetsRow);
+
+        // Chart Title
+        const titleLbl = document.createElement("label");
+        titleLbl.className = "tool-options-label";
+        titleLbl.textContent = "Chart Title";
+        group.appendChild(titleLbl);
+
+        titleInput = document.createElement("input");
+        titleInput.type = "text";
+        titleInput.value = chartSettings.title || "";
+        titleInput.placeholder = "e.g. Favorite Fruits (optional)";
+        titleInput.style.width = "100%";
+        titleInput.style.padding = "4px 6px";
+        titleInput.style.fontSize = "0.78rem";
+        titleInput.style.borderRadius = "4px";
+        titleInput.style.border = "1px solid #cbd5e1";
+        titleInput.style.marginBottom = "6px";
+        titleInput.style.boxSizing = "border-box";
+        titleInput.addEventListener("input", (e) => {
+          chartSettings.title = e.target.value;
+        });
+        group.appendChild(titleInput);
+
+        // Axis Names (X and Y)
+        axisRowContainer = document.createElement("div");
+        axisRowContainer.style.display = (chartSettings.type === "barChart" || chartSettings.type === "horizontalBarChart") ? "flex" : "none";
+        axisRowContainer.style.gap = "6px";
+        axisRowContainer.style.marginBottom = "6px";
+
+        const xCol = document.createElement("div");
+        xCol.style.flex = "1";
+        const xLbl = document.createElement("label");
+        xLbl.className = "tool-options-label";
+        xLbl.textContent = "X-Axis Name";
+        xCol.appendChild(xLbl);
+        xInput = document.createElement("input");
+        xInput.type = "text";
+        xInput.value = chartSettings.xAxisLabel || "Categories";
+        xInput.placeholder = "e.g. Categories";
+        xInput.style.width = "100%";
+        xInput.style.padding = "4px 6px";
+        xInput.style.fontSize = "0.78rem";
+        xInput.style.borderRadius = "4px";
+        xInput.style.border = "1px solid #cbd5e1";
+        xInput.style.boxSizing = "border-box";
+        xInput.addEventListener("input", (e) => {
+          chartSettings.xAxisLabel = e.target.value;
+        });
+        xCol.appendChild(xInput);
+        axisRowContainer.appendChild(xCol);
+
+        const yCol = document.createElement("div");
+        yCol.style.flex = "1";
+        const yLbl = document.createElement("label");
+        yLbl.className = "tool-options-label";
+        yLbl.textContent = "Y-Axis Name";
+        yCol.appendChild(yLbl);
+        yInput = document.createElement("input");
+        yInput.type = "text";
+        yInput.value = chartSettings.yAxisLabel || "Frequency";
+        yInput.placeholder = "e.g. Frequency";
+        yInput.style.width = "100%";
+        yInput.style.padding = "4px 6px";
+        yInput.style.fontSize = "0.78rem";
+        yInput.style.borderRadius = "4px";
+        yInput.style.border = "1px solid #cbd5e1";
+        yInput.style.boxSizing = "border-box";
+        yInput.addEventListener("input", (e) => {
+          chartSettings.yAxisLabel = e.target.value;
+        });
+        yCol.appendChild(yInput);
+        axisRowContainer.appendChild(yCol);
+        group.appendChild(axisRowContainer);
+
+        // Categories / Items
+        const catLbl = document.createElement("label");
+        catLbl.className = "tool-options-label";
+        catLbl.textContent = "Categories / Items (comma-separated)";
+        group.appendChild(catLbl);
+
+        catInput = document.createElement("input");
+        catInput.type = "text";
+        catInput.value = chartSettings.labelsStr || "A, B, C, D, E";
+        catInput.placeholder = "e.g. Apple, Banana, Orange, Mango";
+        catInput.style.width = "100%";
+        catInput.style.padding = "4px 6px";
+        catInput.style.fontSize = "0.78rem";
+        catInput.style.borderRadius = "4px";
+        catInput.style.border = "1px solid #cbd5e1";
+        catInput.style.marginBottom = "6px";
+        catInput.style.boxSizing = "border-box";
+        catInput.addEventListener("input", (e) => {
+          chartSettings.labelsStr = e.target.value;
+        });
+        group.appendChild(catInput);
+
+        // Values
+        const valLbl = document.createElement("label");
+        valLbl.className = "tool-options-label";
+        valLbl.textContent = "Values (comma-separated)";
+        group.appendChild(valLbl);
+
+        valInput = document.createElement("input");
+        valInput.type = "text";
+        valInput.value = chartSettings.valuesStr || "40, 65, 50, 80, 55";
+        valInput.placeholder = "e.g. 40, 65, 50, 80, 55";
+        valInput.style.width = "100%";
+        valInput.style.padding = "4px 6px";
+        valInput.style.fontSize = "0.78rem";
+        valInput.style.borderRadius = "4px";
+        valInput.style.border = "1px solid #cbd5e1";
+        valInput.style.marginBottom = "6px";
+        valInput.style.boxSizing = "border-box";
+        valInput.addEventListener("input", (e) => {
+          chartSettings.valuesStr = e.target.value;
+        });
+        group.appendChild(valInput);
+
+        // Checkboxes Row
+        const checkRow = document.createElement("div");
+        checkRow.style.display = "flex";
+        checkRow.style.flexDirection = "column";
+        checkRow.style.gap = "4px";
+        checkRow.style.marginTop = "4px";
+        checkRow.style.marginBottom = "8px";
+
+        const valCheckLbl = document.createElement("label");
+        valCheckLbl.style.display = "flex";
+        valCheckLbl.style.alignItems = "center";
+        valCheckLbl.style.gap = "6px";
+        valCheckLbl.style.fontSize = "0.74rem";
+        valCheckLbl.style.color = "#334155";
+        valCheckLbl.style.cursor = "pointer";
+        const valCheck = document.createElement("input");
+        valCheck.type = "checkbox";
+        valCheck.checked = chartSettings.showValues !== false;
+        valCheck.addEventListener("change", (e) => {
+          chartSettings.showValues = e.target.checked;
+        });
+        valCheckLbl.appendChild(valCheck);
+        valCheckLbl.appendChild(document.createTextNode("Show values (bars, slices, rows)"));
+        checkRow.appendChild(valCheckLbl);
+
+        const axisCheckLbl = document.createElement("label");
+        axisCheckLbl.style.display = "flex";
+        axisCheckLbl.style.alignItems = "center";
+        axisCheckLbl.style.gap = "6px";
+        axisCheckLbl.style.fontSize = "0.74rem";
+        axisCheckLbl.style.color = "#334155";
+        axisCheckLbl.style.cursor = "pointer";
+        const axisCheck = document.createElement("input");
+        axisCheck.type = "checkbox";
+        axisCheck.checked = chartSettings.showAxisLabels !== false;
+        axisCheck.addEventListener("change", (e) => {
+          chartSettings.showAxisLabels = e.target.checked;
+        });
+        axisCheckLbl.appendChild(axisCheck);
+        axisCheckLbl.appendChild(document.createTextNode("Show axis names & tick numbers"));
+        checkRow.appendChild(axisCheckLbl);
+
+        group.appendChild(checkRow);
+
         const hint = document.createElement("p");
         hint.style.fontSize = "0.75rem";
         hint.style.color = "#9ca3af";
         hint.style.margin = "0.5rem 0 0 0";
-        hint.textContent = "Drag on the board to place the chart. Select and resize with Pointer tool.";
+        hint.textContent = "Drag on board to place the chart. Select any chart with the Pointer tool to edit its values & axis labels anytime.";
         group.appendChild(hint);
+
         propertiesContent.appendChild(group);
+      }
+
+      function renderSelectedChartEditor(shape, parentWrap) {
+        if (!shape || !["barChart", "horizontalBarChart", "pictograph", "pieChart"].includes(shape.type)) return;
+
+        const isBar = shape.type === "barChart" || shape.type === "horizontalBarChart";
+        const isPie = shape.type === "pieChart";
+        const isPic = shape.type === "pictograph";
+
+        const card = document.createElement("div");
+        card.style.background = "#f8fafc";
+        card.style.border = "1.5px solid #38bdf8";
+        card.style.borderRadius = "8px";
+        card.style.padding = "10px";
+        card.style.marginTop = "0.75rem";
+        card.style.marginBottom = "0.5rem";
+
+        const header = document.createElement("div");
+        header.style.display = "flex";
+        header.style.justifyContent = "space-between";
+        header.style.alignItems = "center";
+        header.style.marginBottom = "8px";
+
+        const titleText = document.createElement("span");
+        titleText.style.fontWeight = "700";
+        titleText.style.fontSize = "0.82rem";
+        titleText.style.color = "#0369a1";
+        titleText.textContent = "📊 Chart Data & Axes";
+        header.appendChild(titleText);
+
+        const randBtn = document.createElement("button");
+        randBtn.type = "button";
+        randBtn.textContent = "🎲 Randomize";
+        randBtn.title = "Generate new random values for class practice";
+        randBtn.style.padding = "2px 8px";
+        randBtn.style.fontSize = "0.72rem";
+        randBtn.style.borderRadius = "4px";
+        randBtn.style.border = "1px solid #0284c7";
+        randBtn.style.background = "#e0f2fe";
+        randBtn.style.color = "#0369a1";
+        randBtn.style.cursor = "pointer";
+        randBtn.addEventListener("click", () => {
+          pushUndo();
+          shape.data = getRandomChartData(shape.type);
+          if (valInput) valInput.value = shape.data.join(", ");
+          updateBoardAppearance();
+          notifyParentPageUpdate(currentPageIndex, true);
+          scheduleNotifyParentPages(100);
+        });
+        header.appendChild(randBtn);
+        card.appendChild(header);
+
+        // Chart Title Field
+        const titleLbl = document.createElement("label");
+        titleLbl.style.fontSize = "0.72rem";
+        titleLbl.style.fontWeight = "600";
+        titleLbl.style.color = "#475569";
+        titleLbl.style.display = "block";
+        titleLbl.style.marginBottom = "2px";
+        titleLbl.textContent = "Chart Title";
+        card.appendChild(titleLbl);
+
+        const titleInput = document.createElement("input");
+        titleInput.type = "text";
+        titleInput.value = shape.title || "";
+        titleInput.placeholder = "e.g. Favorite Fruits";
+        titleInput.style.width = "100%";
+        titleInput.style.padding = "4px 6px";
+        titleInput.style.fontSize = "0.78rem";
+        titleInput.style.borderRadius = "4px";
+        titleInput.style.border = "1px solid #cbd5e1";
+        titleInput.style.marginBottom = "6px";
+        titleInput.style.boxSizing = "border-box";
+        titleInput.addEventListener("input", (e) => {
+          shape.title = e.target.value;
+          updateBoardAppearance();
+          notifyParentPageUpdate(currentPageIndex, true);
+          scheduleNotifyParentPages(150);
+        });
+        card.appendChild(titleInput);
+
+        // Axis Names (for Bar & Horizontal Bar Charts)
+        if (isBar) {
+          const axisRow = document.createElement("div");
+          axisRow.style.display = "flex";
+          axisRow.style.gap = "6px";
+          axisRow.style.marginBottom = "6px";
+
+          const xCol = document.createElement("div");
+          xCol.style.flex = "1";
+          const xLbl = document.createElement("label");
+          xLbl.style.fontSize = "0.72rem";
+          xLbl.style.fontWeight = "600";
+          xLbl.style.color = "#475569";
+          xLbl.style.display = "block";
+          xLbl.style.marginBottom = "2px";
+          xLbl.textContent = "X-Axis Name";
+          xCol.appendChild(xLbl);
+          const xInput = document.createElement("input");
+          xInput.type = "text";
+          xInput.value = shape.xAxisLabel || "";
+          xInput.placeholder = "e.g. Category";
+          xInput.style.width = "100%";
+          xInput.style.padding = "4px 6px";
+          xInput.style.fontSize = "0.78rem";
+          xInput.style.borderRadius = "4px";
+          xInput.style.border = "1px solid #cbd5e1";
+          xInput.style.boxSizing = "border-box";
+          xInput.addEventListener("input", (e) => {
+            shape.xAxisLabel = e.target.value;
+            updateBoardAppearance();
+            notifyParentPageUpdate(currentPageIndex, true);
+            scheduleNotifyParentPages(150);
+          });
+          xCol.appendChild(xInput);
+          axisRow.appendChild(xCol);
+
+          const yCol = document.createElement("div");
+          yCol.style.flex = "1";
+          const yLbl = document.createElement("label");
+          yLbl.style.fontSize = "0.72rem";
+          yLbl.style.fontWeight = "600";
+          yLbl.style.color = "#475569";
+          yLbl.style.display = "block";
+          yLbl.style.marginBottom = "2px";
+          yLbl.textContent = "Y-Axis Name";
+          yCol.appendChild(yLbl);
+          const yInput = document.createElement("input");
+          yInput.type = "text";
+          yInput.value = shape.yAxisLabel || "";
+          yInput.placeholder = "e.g. Frequency";
+          yInput.style.width = "100%";
+          yInput.style.padding = "4px 6px";
+          yInput.style.fontSize = "0.78rem";
+          yInput.style.borderRadius = "4px";
+          yInput.style.border = "1px solid #cbd5e1";
+          yInput.style.boxSizing = "border-box";
+          yInput.addEventListener("input", (e) => {
+            shape.yAxisLabel = e.target.value;
+            updateBoardAppearance();
+            notifyParentPageUpdate(currentPageIndex, true);
+            scheduleNotifyParentPages(150);
+          });
+          yCol.appendChild(yInput);
+          axisRow.appendChild(yCol);
+
+          card.appendChild(axisRow);
+        }
+
+        // Categories / Items Input
+        const catLbl = document.createElement("label");
+        catLbl.style.fontSize = "0.72rem";
+        catLbl.style.fontWeight = "600";
+        catLbl.style.color = "#475569";
+        catLbl.style.display = "block";
+        catLbl.style.marginBottom = "2px";
+        catLbl.textContent = isPie ? "Slice Names (comma-separated)" : isPic ? "Item Rows (comma-separated)" : "Categories / Bars (comma-separated)";
+        card.appendChild(catLbl);
+
+        const curLabels = Array.isArray(shape.labels) ? shape.labels.join(", ") : (shape.categories ? shape.categories.join(", ") : "");
+        const catInput = document.createElement("input");
+        catInput.type = "text";
+        catInput.value = curLabels;
+        catInput.placeholder = "e.g. Apple, Banana, Orange, Mango";
+        catInput.style.width = "100%";
+        catInput.style.padding = "4px 6px";
+        catInput.style.fontSize = "0.78rem";
+        catInput.style.borderRadius = "4px";
+        catInput.style.border = "1px solid #cbd5e1";
+        catInput.style.marginBottom = "6px";
+        catInput.style.boxSizing = "border-box";
+        catInput.addEventListener("input", (e) => {
+          shape.labels = e.target.value.split(",").map(s => s.trim());
+          updateBoardAppearance();
+          notifyParentPageUpdate(currentPageIndex, true);
+          scheduleNotifyParentPages(150);
+        });
+        card.appendChild(catInput);
+
+        // Values Input
+        const valLbl = document.createElement("label");
+        valLbl.style.fontSize = "0.72rem";
+        valLbl.style.fontWeight = "600";
+        valLbl.style.color = "#475569";
+        valLbl.style.display = "block";
+        valLbl.style.marginBottom = "2px";
+        valLbl.textContent = isPic ? "Symbol Counts (comma-separated)" : isPie ? "Slice Values (comma-separated)" : "Bar Values (comma-separated)";
+        card.appendChild(valLbl);
+
+        const curValues = Array.isArray(shape.data) ? shape.data.join(", ") : "";
+        const valInput = document.createElement("input");
+        valInput.type = "text";
+        valInput.value = curValues;
+        valInput.placeholder = "e.g. 15, 25, 20, 35";
+        valInput.style.width = "100%";
+        valInput.style.padding = "4px 6px";
+        valInput.style.fontSize = "0.78rem";
+        valInput.style.borderRadius = "4px";
+        valInput.style.border = "1px solid #cbd5e1";
+        valInput.style.marginBottom = "6px";
+        valInput.style.boxSizing = "border-box";
+        valInput.addEventListener("input", (e) => {
+          const parsed = e.target.value.split(",").map(s => parseFloat(s.trim())).filter(n => !isNaN(n));
+          if (parsed.length > 0) {
+            shape.data = parsed;
+            updateBoardAppearance();
+            notifyParentPageUpdate(currentPageIndex, true);
+            scheduleNotifyParentPages(150);
+          }
+        });
+        card.appendChild(valInput);
+
+        // Checkboxes Row: Show Values & Show Axes
+        const checkRow = document.createElement("div");
+        checkRow.style.display = "flex";
+        checkRow.style.flexDirection = "column";
+        checkRow.style.gap = "4px";
+        checkRow.style.marginTop = "4px";
+
+        const valCheckLbl = document.createElement("label");
+        valCheckLbl.style.display = "flex";
+        valCheckLbl.style.alignItems = "center";
+        valCheckLbl.style.gap = "6px";
+        valCheckLbl.style.fontSize = "0.74rem";
+        valCheckLbl.style.color = "#334155";
+        valCheckLbl.style.cursor = "pointer";
+        const valCheck = document.createElement("input");
+        valCheck.type = "checkbox";
+        valCheck.checked = shape.showValues !== false;
+        valCheck.addEventListener("change", (e) => {
+          shape.showValues = e.target.checked;
+          updateBoardAppearance();
+          notifyParentPageUpdate(currentPageIndex, true);
+          scheduleNotifyParentPages(100);
+        });
+        valCheckLbl.appendChild(valCheck);
+        valCheckLbl.appendChild(document.createTextNode(isPie ? "Show slice values & percentages" : isPic ? "Show item count numbers" : "Show bar value numbers"));
+        checkRow.appendChild(valCheckLbl);
+
+        if (isBar) {
+          const axisCheckLbl = document.createElement("label");
+          axisCheckLbl.style.display = "flex";
+          axisCheckLbl.style.alignItems = "center";
+          axisCheckLbl.style.gap = "6px";
+          axisCheckLbl.style.fontSize = "0.74rem";
+          axisCheckLbl.style.color = "#334155";
+          axisCheckLbl.style.cursor = "pointer";
+          const axisCheck = document.createElement("input");
+          axisCheck.type = "checkbox";
+          axisCheck.checked = shape.showAxisLabels !== false;
+          axisCheck.addEventListener("change", (e) => {
+            shape.showAxisLabels = e.target.checked;
+            updateBoardAppearance();
+            notifyParentPageUpdate(currentPageIndex, true);
+            scheduleNotifyParentPages(100);
+          });
+          axisCheckLbl.appendChild(axisCheck);
+          axisCheckLbl.appendChild(document.createTextNode("Show axis names & tick values"));
+          checkRow.appendChild(axisCheckLbl);
+        }
+
+        card.appendChild(checkRow);
+        parentWrap.appendChild(card);
       }
 
       function renderPenOptions(tool) {
@@ -11936,6 +12803,16 @@
           const point = getCanvasPoint(evt);
           const chartType = chartSettings.type || "barChart";
           const pictographSymbols = ["circle", "square", "triangle", "star", "diamond"];
+
+          const rawLabels = (chartSettings.labelsStr || "").split(",").map(s => s.trim()).filter(Boolean);
+          const rawValues = (chartSettings.valuesStr || "").split(",").map(s => parseFloat(s.trim())).filter(n => !isNaN(n));
+          const chartData = rawValues.length > 0 ? rawValues : getRandomChartData(chartType);
+          const chartLabels = rawLabels.length > 0 ? rawLabels : (
+            chartType === "pieChart" ? ["A", "B", "C", "D", "E"].slice(0, chartData.length) :
+            chartType === "pictograph" ? ["Apples", "Bananas", "Oranges", "Grapes", "Berries"].slice(0, chartData.length) :
+            ["Cat 1", "Cat 2", "Cat 3", "Cat 4", "Cat 5"].slice(0, chartData.length)
+          );
+
           activeShape = {
             type: chartType,
             color: "#374151",
@@ -11943,8 +12820,14 @@
             fillMode: "hollow",
             start: point,
             end: point,
-            data: getRandomChartData(chartType),
-            symbolShape: chartType === "pictograph" ? pictographSymbols[Math.floor(Math.random() * pictographSymbols.length)] : undefined,
+            title: chartSettings.title || "",
+            xAxisLabel: chartSettings.xAxisLabel || "",
+            yAxisLabel: chartSettings.yAxisLabel || "",
+            labels: chartLabels,
+            data: chartData,
+            showValues: chartSettings.showValues !== false,
+            showAxisLabels: chartSettings.showAxisLabels !== false,
+            symbolShape: chartType === "pictograph" ? (chartSettings.symbolShape || pictographSymbols[Math.floor(Math.random() * pictographSymbols.length)]) : undefined,
           };
           updateBoardAppearance();
         } else if (currentTool === "select") {
