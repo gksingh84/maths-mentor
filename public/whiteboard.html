@@ -52,6 +52,7 @@
     };
   </script>
   <script src="vendor/mathjax-tex-svg.js"></script>
+  <script src="graph-plotter-engine.js"></script>
   <style>
     /* Initial Light Loading Screen */
     .whiteboard-initial-loader {
@@ -6358,6 +6359,10 @@
           drawGeometricDiagramShape(ctx, shape);
         } else if (type === "3dSolid") {
           draw3dSolidShape(ctx, shape);
+        } else if (type === "graphPlotter") {
+          if (window.EduAshramGraphPlotter && typeof window.EduAshramGraphPlotter.drawGraphPlotterShape === "function") {
+            window.EduAshramGraphPlotter.drawGraphPlotterShape(ctx, shape, isPreview);
+          }
         } else if (type === "angleArc" || type === "arc") {
           const vx = (shape.vertex && typeof shape.vertex.x === "number") ? shape.vertex.x : cx;
           const vy = (shape.vertex && typeof shape.vertex.y === "number") ? shape.vertex.y : cy;
@@ -7836,6 +7841,16 @@
           }
           if (selectedShapes.length === 1 && ["barChart", "horizontalBarChart", "pictograph", "pieChart"].includes(selectedShapes[0].type)) {
             renderSelectedChartEditor(selectedShapes[0], wrap);
+          }
+          if (selectedShapes.length === 1 && selectedShapes[0].type === "graphPlotter") {
+            if (window.EduAshramGraphPlotter && typeof window.EduAshramGraphPlotter.renderSelectedGraphPlotterEditor === "function") {
+              window.EduAshramGraphPlotter.renderSelectedGraphPlotterEditor(selectedShapes[0], wrap, () => {
+                pushUndo();
+                updateBoardAppearance();
+                notifyParentPageUpdate(currentPageIndex, true);
+                scheduleNotifyParentPages(100);
+              });
+            }
           }
           const delBtn = document.createElement("button");
           delBtn.type = "button";
@@ -17156,6 +17171,28 @@
         });
         instrumentsBox.appendChild(setSquareBtn);
 
+        // Graph Plotter Toggle Button (NCERT / CBSE Function Grapher)
+        const isGraphOpen = !!window._isGraphPlotterOpen;
+        const graphBtn = document.createElement("button");
+        graphBtn.type = "button";
+        graphBtn.innerHTML = "<span style='font-size:1.1rem;'>📈</span> " + (isGraphOpen ? "Hide Graph Plotter" : "Show Graph Plotter (Function Grapher)");
+        graphBtn.style.padding = "0.6rem 0.8rem";
+        graphBtn.style.borderRadius = "8px";
+        graphBtn.style.border = isGraphOpen ? "1.5px solid #4f46e5" : "1px solid #cbd5e1";
+        graphBtn.style.background = isGraphOpen ? "#e0e7ff" : "#ffffff";
+        graphBtn.style.color = isGraphOpen ? "#3730a3" : "#1e293b";
+        graphBtn.style.fontWeight = "700";
+        graphBtn.style.fontSize = "0.85rem";
+        graphBtn.style.cursor = "pointer";
+        graphBtn.style.display = "flex";
+        graphBtn.style.alignItems = "center";
+        graphBtn.style.gap = "8px";
+        graphBtn.addEventListener("click", () => {
+          window._isGraphPlotterOpen = !isGraphOpen;
+          renderEduToolsOptions();
+        });
+        instrumentsBox.appendChild(graphBtn);
+
         // 3. Educational Diagrams Toggle Button (matching Ruler and Protractor)
         const isDiagOpen = !!window._isEduDiagramsOpen;
         const diagBtn = document.createElement("button");
@@ -17179,6 +17216,26 @@
         instrumentsBox.appendChild(diagBtn);
 
         wrap.appendChild(instrumentsBox);
+
+        // Graph Plotter Panel (NCERT Class 6–10 Function Grapher)
+        if (isGraphOpen && window.EduAshramGraphPlotter && typeof window.EduAshramGraphPlotter.renderGraphPlotterEduToolsPanel === "function") {
+          window.EduAshramGraphPlotter.renderGraphPlotterEduToolsPanel(wrap, (newShape) => {
+            const scale = window.devicePixelRatio || 1;
+            const logicalW = boardCanvas.width / (scale * zoom);
+            const cx = logicalW / 2;
+            const container = boardCanvas.closest ? boardCanvas.closest(".canvas-container") : null;
+            const scrollTop = container ? container.scrollTop : 0;
+            const visibleTop = scrollTop / zoom;
+            const topY = Math.max(40, visibleTop + 50);
+
+            const shapeW = 500;
+            const shapeH = 380;
+            newShape.start = { x: cx - shapeW / 2, y: topY };
+            newShape.end = { x: cx + shapeW / 2, y: topY + shapeH };
+
+            insertDiagramHelper(newShape);
+          });
+        }
 
         // ==========================================
         // Educational Diagrams Library (Hierarchical)
