@@ -17288,68 +17288,56 @@
           card.style.display = "flex";
           card.style.alignItems = "center";
           card.style.justifyContent = "space-between";
-          card.style.gap = "10px";
+          card.style.gap = "8px";
           card.style.width = "100%";
-          card.style.padding = "9px 12px";
-          card.style.marginBottom = "8px";
+          card.style.padding = "7px 10px";
+          card.style.marginBottom = "6px";
           card.style.background = "#ffffff";
           card.style.border = "1.5px solid #e2e8f0";
-          card.style.borderRadius = "9px";
+          card.style.borderRadius = "8px";
           card.style.cursor = "pointer";
           card.style.transition = "all 0.16s cubic-bezier(0.4, 0, 0.2, 1)";
           card.style.boxShadow = "0 1px 2px rgba(0,0,0,0.03)";
 
           const leftStack = document.createElement("div");
           leftStack.style.display = "flex";
-          leftStack.style.flexDirection = "column";
-          leftStack.style.gap = "3px";
+          leftStack.style.alignItems = "center";
+          leftStack.style.gap = "8px";
           leftStack.style.minWidth = "0";
           leftStack.style.flex = "1";
 
-          const topRow = document.createElement("div");
-          topRow.style.display = "flex";
-          topRow.style.alignItems = "center";
-          topRow.style.gap = "8px";
-
-          const chipEl = document.createElement("span");
-          chipEl.style.fontSize = "0.76rem";
-          chipEl.style.fontWeight = "800";
-          chipEl.style.padding = "3px 8px";
-          chipEl.style.borderRadius = "5px";
-          chipEl.style.background = chipTheme?.bg || "#f1f5f9";
-          chipEl.style.color = chipTheme?.color || "#0369a1";
-          chipEl.style.border = "1px solid " + (chipTheme?.border || "#cbd5e1");
-          chipEl.style.whiteSpace = "nowrap";
-          chipEl.style.fontFamily = "ui-monospace, monospace, sans-serif";
-          chipEl.textContent = chip;
-          topRow.appendChild(chipEl);
+          if (chip) {
+            const chipEl = document.createElement("span");
+            chipEl.style.fontSize = "0.72rem";
+            chipEl.style.fontWeight = "800";
+            chipEl.style.padding = "2.5px 7px";
+            chipEl.style.borderRadius = "4px";
+            chipEl.style.background = chipTheme?.bg || "#f1f5f9";
+            chipEl.style.color = chipTheme?.color || "#0369a1";
+            chipEl.style.border = "1px solid " + (chipTheme?.border || "#cbd5e1");
+            chipEl.style.whiteSpace = "nowrap";
+            chipEl.style.flexShrink = "0";
+            chipEl.style.fontFamily = "ui-monospace, monospace, sans-serif";
+            chipEl.textContent = chip;
+            leftStack.appendChild(chipEl);
+          }
 
           const titleEl = document.createElement("span");
-          titleEl.style.fontSize = "0.86rem";
+          titleEl.style.fontSize = "0.83rem";
           titleEl.style.fontWeight = "700";
           titleEl.style.color = "#0f172a";
-          titleEl.style.whiteSpace = "nowrap";
-          titleEl.style.overflow = "hidden";
-          titleEl.style.textOverflow = "ellipsis";
+          titleEl.style.lineHeight = "1.25";
+          titleEl.style.wordBreak = "break-word";
           titleEl.textContent = title;
-          topRow.appendChild(titleEl);
-          leftStack.appendChild(topRow);
+          leftStack.appendChild(titleEl);
 
-          if (subtitle) {
-            const subEl = document.createElement("span");
-            subEl.style.fontSize = "0.76rem";
-            subEl.style.color = "#475569";
-            subEl.style.lineHeight = "1.35";
-            subEl.textContent = subtitle;
-            leftStack.appendChild(subEl);
-          }
           card.appendChild(leftStack);
 
           const actionBtn = document.createElement("button");
           actionBtn.type = "button";
           actionBtn.innerHTML = "+ Add";
-          actionBtn.style.padding = "5px 12px";
-          actionBtn.style.fontSize = "0.78rem";
+          actionBtn.style.padding = "5px 11px";
+          actionBtn.style.fontSize = "0.76rem";
           actionBtn.style.fontWeight = "700";
           actionBtn.style.color = "#0284c7";
           actionBtn.style.background = "#e0f2fe";
