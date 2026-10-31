@@ -523,7 +523,7 @@
       } else if (geo === "placeValueIndian") {
         drawPlaceValueCard({
           title: "Indian Place Value Chart",
-          subtitle: "Crores, Lakhs, Thousands, Ones Periods (NCERT Standard: 3, 2, 2 Rule)",
+          subtitle: "Crores, Lakhs, Thousands, Ones Periods (Standard: 3, 2, 2 Rule)",
           footerNote: "Example: 78,43,29,651 = 78 Crore 43 Lakh 29 Thousand 651  (Rule: 3 digits from right, then groups of 2)",
           renderTable: (tblX, tblY, tblW, tblH) => {
             const periods = [
@@ -708,8 +708,10 @@
         ctx.fill();
         ctx.stroke();
 
-        // 2. Dedicated Top Header Section (generous height, no overlap)
-        const headerH = Math.max(54, Math.min(68, Math.round(cardH * 0.16)));
+        // 2. Dedicated Top Header Section
+        const headerH = subtitle
+          ? Math.max(50, Math.min(62, Math.round(cardH * 0.15)))
+          : Math.max(38, Math.min(48, Math.round(cardH * 0.12)));
         const headerBottomY = cardY + headerH;
 
         // Subtle Header Banner
@@ -729,16 +731,17 @@
         ctx.lineTo(cardX + cardW, headerBottomY);
         ctx.stroke();
 
-        // Main Title (bold, comfortable margin from top)
-        const titleY = cardY + Math.round(headerH * 0.38);
-        const subY = cardY + Math.round(headerH * 0.74);
+        // Main Title (bold, comfortable margin from top or vertically centered if no subtitle)
         const cardTitleFont = `bold ${Math.max(14, Math.min(19, Math.round(15 * sFactor)))}px "Plus Jakarta Sans", sans-serif`;
-        const cardSubFont = `600 ${Math.max(10, Math.min(12.5, Math.round(10.5 * sFactor)))}px "Plus Jakarta Sans", sans-serif`;
-
-        drawLabel(title, cx, titleY, cardTitleFont, color, "center", "middle", false);
         if (subtitle) {
+          const titleY = cardY + Math.round(headerH * 0.38);
+          const subY = cardY + Math.round(headerH * 0.74);
+          const cardSubFont = `600 ${Math.max(10, Math.min(12.5, Math.round(10.5 * sFactor)))}px "Plus Jakarta Sans", sans-serif`;
           const subColor = isActuallyDark ? "#94a3b8" : "#64748b";
+          drawLabel(title, cx, titleY, cardTitleFont, color, "center", "middle", false);
           drawLabel(subtitle, cx, subY, cardSubFont, subColor, "center", "middle", false);
+        } else {
+          drawLabel(title, cx, cardY + headerH / 2, cardTitleFont, color, "center", "middle", false);
         }
 
         // 3. Footer Strip (Notes & key properties at bottom)
@@ -863,7 +866,6 @@
       if (geo === "formulaTriangle") {
         drawFormulaLayout({
           title: "Triangle: Perimeter & Area Formulas",
-          subtitle: "NCERT Class 7–10 Mensuration",
           drawFigure: (fcx, fcy, fw, fh) => {
             const triW = Math.min(fw * 0.72, 195);
             const triH = Math.min(fh * 0.60, 135);
@@ -914,7 +916,6 @@
       } else if (geo === "formulaRightTriangle") {
         drawFormulaLayout({
           title: "Right Triangle: Area & Pythagoras Theorem",
-          subtitle: "NCERT Class 7–10 Geometry",
           drawFigure: (fcx, fcy, fw, fh) => {
             const rtW = Math.min(fw * 0.68, 175);
             const rtH = Math.min(fh * 0.62, 140);
@@ -959,7 +960,6 @@
       } else if (geo === "formulaRectangle") {
         drawFormulaLayout({
           title: "Rectangle: Perimeter, Area & Diagonal",
-          subtitle: "NCERT Class 6–9 Mensuration",
           drawFigure: (fcx, fcy, fw, fh) => {
             const rw = Math.min(fw * 0.72, 195);
             const rh = Math.min(fh * 0.54, 115);
@@ -1005,7 +1005,6 @@
       } else if (geo === "formulaSquare") {
         drawFormulaLayout({
           title: "Square: Perimeter, Area & Diagonal",
-          subtitle: "NCERT Class 6–9 Mensuration",
           drawFigure: (fcx, fcy, fw, fh) => {
             const s = Math.min(fw * 0.58, fh * 0.58, 125);
             const sx = fcx - s / 2, sy = fcy - s / 2 - 6;
@@ -1051,7 +1050,6 @@
       } else if (geo === "formulaCircle") {
         drawFormulaLayout({
           title: "Circle & Sector: Circumference & Area",
-          subtitle: "NCERT Class 7–10 Mensuration",
           drawFigure: (fcx, fcy, fw, fh) => {
             const r = Math.min(fw * 0.34, fh * 0.34, 70);
 
@@ -1096,7 +1094,6 @@
       } else if (geo === "formulaParallelogram") {
         drawFormulaLayout({
           title: "Parallelogram & Rhombus Formulas",
-          subtitle: "NCERT Class 7–9 Mensuration",
           drawFigure: (fcx, fcy, fw, fh) => {
             const bw = Math.min(fw * 0.60, 160);
             const bh = Math.min(fh * 0.50, 95);
@@ -1144,7 +1141,6 @@
       } else if (geo === "formulaTrapezium") {
         drawFormulaLayout({
           title: "Trapezium: Perimeter & Area Formulas",
-          subtitle: "NCERT Class 8–10 Mensuration",
           drawFigure: (fcx, fcy, fw, fh) => {
             const topW = Math.min(fw * 0.40, 95);
             const botW = Math.min(fw * 0.72, 175);
@@ -1193,7 +1189,6 @@
       } else if (geo === "formulaCube") {
         drawFormulaLayout({
           title: "3D Cube: Surface Area & Volume",
-          subtitle: "NCERT Class 8–10 Mensuration",
           drawFigure: (fcx, fcy, fw, fh) => {
             const s = Math.min(fw * 0.40, fh * 0.45, 88);
             const isoX = Math.round(s * 0.42), isoY = Math.round(s * 0.28);
@@ -1240,7 +1235,6 @@
       } else if (geo === "formulaCuboid") {
         drawFormulaLayout({
           title: "3D Cuboid: Surface Area & Volume",
-          subtitle: "NCERT Class 8–10 Mensuration",
           drawFigure: (fcx, fcy, fw, fh) => {
             const l = Math.min(fw * 0.54, 130);
             const h_ = Math.min(fh * 0.44, 82);
@@ -1282,7 +1276,6 @@
       } else if (geo === "formulaCylinder") {
         drawFormulaLayout({
           title: "3D Cylinder: Surface Area & Volume",
-          subtitle: "NCERT Class 8–10 Mensuration",
           drawFigure: (fcx, fcy, fw, fh) => {
             const rx = Math.min(fw * 0.28, 55), ry = Math.round(rx * 0.32);
             const ch = Math.min(fh * 0.58, 120);
@@ -1338,7 +1331,6 @@
       } else if (geo === "formulaCone") {
         drawFormulaLayout({
           title: "3D Cone: Surface Area & Volume",
-          subtitle: "NCERT Class 9–10 Mensuration",
           drawFigure: (fcx, fcy, fw, fh) => {
             const rx = Math.min(fw * 0.30, 58), ry = Math.round(rx * 0.30);
             const ch = Math.min(fh * 0.60, 125);
@@ -1396,7 +1388,6 @@
       } else if (geo === "formulaSphere") {
         drawFormulaLayout({
           title: "Sphere & Hemisphere Formulas",
-          subtitle: "NCERT Class 9–10 Mensuration",
           drawFigure: (fcx, fcy, fw, fh) => {
             const r = Math.min(fw * 0.26, fh * 0.28, 56);
             const sCX = fcx - Math.round(fw * 0.14);
@@ -1443,7 +1434,6 @@
       } else if (geo === "formulaFrustum") {
         drawFormulaLayout({
           title: "Frustum of Cone: Area & Volume",
-          subtitle: "NCERT Class 10 Mensuration",
           drawFigure: (fcx, fcy, fw, fh) => {
             const r1 = Math.min(fw * 0.18, 35), r2 = Math.min(fw * 0.30, 60);
             const fh_ = Math.min(fh * 0.54, 115);
@@ -1677,7 +1667,7 @@
           drawLabel(txt, rightX - colW / 2, topY + 32 + idx * 20, fontBody, color);
         });
 
-        drawLabel("NCERT Mathematics Class 6-10 Complete Mensuration Guide", cx, bottomY - 4, fontSmall, primary);
+        drawLabel("2D Plane & 3D Solid Figures Complete Mensuration Guide", cx, bottomY - 4, fontSmall, primary);
       }
     }
 
