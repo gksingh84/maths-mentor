@@ -66,8 +66,7 @@
       subgroup: "2d",
       chip: "△ Triangle",
       chipTheme: { bg: "#eff6ff", color: "#1d4ed8", border: "#bfdbfe" },
-      title: "Triangle: Perimeter & Area",
-      subtitle: "Labeled base b, height h, sides a, b, c with P = a+b+c, A = ½bh, Heron's formula",
+      title: "Perimeter & Area",
       type: "formulaTriangle",
       w: 430,
       h: 240
@@ -75,10 +74,9 @@
     {
       group: "formulas",
       subgroup: "2d",
-      chip: "⊿ Rt Triangle",
+      chip: "⊿ Right Triangle",
       chipTheme: { bg: "#ecfdf5", color: "#047857", border: "#a7f3d0" },
-      title: "Right Triangle: Area & Pythagoras",
-      subtitle: "Labeled base b, altitude p, hypotenuse h with Area = ½bp, h² = b² + p²",
+      title: "Area & Pythagoras Theorem",
       type: "formulaRightTriangle",
       w: 430,
       h: 240
@@ -88,8 +86,7 @@
       subgroup: "2d",
       chip: "▭ Rectangle",
       chipTheme: { bg: "#eff6ff", color: "#1d4ed8", border: "#bfdbfe" },
-      title: "Rectangle: Perimeter, Area & Diagonal",
-      subtitle: "Labeled length l, breadth b, diagonal d with P = 2(l+b), A = lb, d = √(l²+b²)",
+      title: "Perimeter, Area & Diagonal",
       type: "formulaRectangle",
       w: 430,
       h: 240
@@ -99,8 +96,7 @@
       subgroup: "2d",
       chip: "□ Square",
       chipTheme: { bg: "#f0fdf4", color: "#15803d", border: "#bbf7d0" },
-      title: "Square: Perimeter, Area & Diagonal",
-      subtitle: "Labeled side a, equal ticks, diagonal d with P = 4a, A = a², d = a√2",
+      title: "Perimeter, Area & Diagonal",
       type: "formulaSquare",
       w: 420,
       h: 240
@@ -110,8 +106,7 @@
       subgroup: "2d",
       chip: "○ Circle",
       chipTheme: { bg: "#fffbeb", color: "#b45309", border: "#fde68a" },
-      title: "Circle & Sector: Circumference & Area",
-      subtitle: "Labeled radius r, diameter d, sector θ with C = 2πr, A = πr², Arc & Sector formulas",
+      title: "Circumference & Area",
       type: "formulaCircle",
       w: 450,
       h: 240
@@ -121,8 +116,7 @@
       subgroup: "2d",
       chip: "▱ Parallelogram",
       chipTheme: { bg: "#faf5ff", color: "#7e22ce", border: "#e9d5ff" },
-      title: "Parallelogram & Rhombus Formulas",
-      subtitle: "Labeled base b, height h, diagonals d₁, d₂ with A = bh, Rhombus A = ½d₁d₂",
+      title: "Perimeter & Area",
       type: "formulaParallelogram",
       w: 450,
       h: 240
@@ -132,8 +126,7 @@
       subgroup: "2d",
       chip: "⏢ Trapezium",
       chipTheme: { bg: "#fff7ed", color: "#c2410c", border: "#fed7aa" },
-      title: "Trapezium: Perimeter & Area",
-      subtitle: "Labeled parallel bases a ∥ b, height h, slant sides with Area = ½(a+b)h",
+      title: "Perimeter & Area",
       type: "formulaTrapezium",
       w: 430,
       h: 240
@@ -145,8 +138,7 @@
       subgroup: "3d",
       chip: "🧊 Cube",
       chipTheme: { bg: "#f0fdf4", color: "#15803d", border: "#bbf7d0" },
-      title: "3D Cube: Surface Area & Volume",
-      subtitle: "Isometric 3D cube with edge a with LSA = 4a², TSA = 6a², Volume = a³, Diagonal = a√3",
+      title: "Surface Area & Volume",
       type: "formulaCube",
       w: 440,
       h: 245
@@ -156,8 +148,7 @@
       subgroup: "3d",
       chip: "📦 Cuboid",
       chipTheme: { bg: "#f0fdf4", color: "#15803d", border: "#bbf7d0" },
-      title: "3D Cuboid: Surface Area & Volume",
-      subtitle: "Isometric 3D box with l, b, h with 4-Walls = 2h(l+b), TSA = 2(lb+bh+hl), V = lbh",
+      title: "Surface Area & Volume",
       type: "formulaCuboid",
       w: 450,
       h: 245
@@ -167,8 +158,7 @@
       subgroup: "3d",
       chip: "🛢️ Cylinder",
       chipTheme: { bg: "#ecfdf5", color: "#047857", border: "#a7f3d0" },
-      title: "3D Cylinder: Surface Area & Volume",
-      subtitle: "3D cylinder with radius r, height h with CSA = 2πrh, TSA = 2πr(r+h), V = πr²h",
+      title: "Surface Area & Volume",
       type: "formulaCylinder",
       w: 440,
       h: 245
@@ -178,8 +168,7 @@
       subgroup: "3d",
       chip: "🍦 Cone",
       chipTheme: { bg: "#fef3c7", color: "#b45309", border: "#fde68a" },
-      title: "3D Cone: Surface Area & Volume",
-      subtitle: "3D cone with radius r, height h, slant l with Slant l = √(r²+h²), CSA = πrl, V = ⅓πr²h",
+      title: "Surface Area & Volume",
       type: "formulaCone",
       w: 440,
       h: 245
@@ -189,8 +178,7 @@
       subgroup: "3d",
       chip: "⚽ Sphere",
       chipTheme: { bg: "#eff6ff", color: "#1d4ed8", border: "#bfdbfe" },
-      title: "Sphere & Hemisphere Formulas",
-      subtitle: "3D sphere with radius r with Sphere SA = 4πr², V = ⁴⁄₃πr³, Hemisphere CSA = 2πr², TSA = 3πr²",
+      title: "Surface Area & Volume",
       type: "formulaSphere",
       w: 460,
       h: 245
@@ -200,8 +188,7 @@
       subgroup: "3d",
       chip: "🥤 Frustum",
       chipTheme: { bg: "#fdf4ff", color: "#a21caf", border: "#f5d0fe" },
-      title: "Frustum of Cone: Area & Volume",
-      subtitle: "3D truncated cone with radii r₁, r₂, height h, slant l with CSA, TSA & Volume formulas",
+      title: "Area & Volume",
       type: "formulaFrustum",
       w: 450,
       h: 245
@@ -213,8 +200,7 @@
       subgroup: "master",
       chip: "2D Master",
       chipTheme: { bg: "#eff6ff", color: "#1d4ed8", border: "#bfdbfe" },
-      title: "2D Figures Master Chart (with Diagrams)",
-      subtitle: "Complete reference table with labeled diagrams for Triangle, Rectangle, Square, Rhombus, Circle",
+      title: "2D Figures Master Chart",
       type: "formulas2D",
       w: 440,
       h: 180
@@ -224,8 +210,7 @@
       subgroup: "master",
       chip: "3D Master",
       chipTheme: { bg: "#f0fdf4", color: "#15803d", border: "#bbf7d0" },
-      title: "3D Solids Master Chart (with Diagrams)",
-      subtitle: "Complete reference table with 3D diagrams for Cube, Cuboid, Cylinder, Cone, Sphere",
+      title: "3D Solids Master Chart",
       type: "formulas3D",
       w: 450,
       h: 185
@@ -235,8 +220,7 @@
       subgroup: "master",
       chip: "Master Sheet",
       chipTheme: { bg: "#fdf4ff", color: "#a21caf", border: "#f5d0fe" },
-      title: "Master Geometry Formula Sheet",
-      subtitle: "Combined 2D and 3D reference guide with metric conversion rules",
+      title: "Master Formula Sheet (2D & 3D)",
       type: "formulasMaster",
       w: 450,
       h: 185

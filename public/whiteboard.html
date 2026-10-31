@@ -17277,8 +17277,9 @@
             end: { x: cx + ap.w, y: cy + ap.h },
             createdAt: Date.now()
           });
+          const toastName = (ap.chip ? ap.chip + ": " : "") + ap.title;
           if (typeof showExportToast === "function") {
-            showExportToast(ap.title + " added to board");
+            showExportToast(toastName + " added to board");
           }
         }
 
@@ -17322,13 +17323,26 @@
             leftStack.appendChild(chipEl);
           }
 
+          // Don't repeat figure name in title if already shown in the colored chip badge
+          let displayTitle = title || "";
+          if (chip && displayTitle) {
+            const cleanChip = chip.replace(/[^\w\s]/g, "").trim().toLowerCase();
+            const colonIdx = displayTitle.indexOf(":");
+            if (colonIdx > 0) {
+              const prefix = displayTitle.substring(0, colonIdx).replace(/[^\w\s]/g, "").trim().toLowerCase();
+              if (cleanChip.includes(prefix) || prefix.includes(cleanChip) || prefix.replace(/\s+/g, "").includes(cleanChip.replace(/\s+/g, ""))) {
+                displayTitle = displayTitle.substring(colonIdx + 1).trim();
+              }
+            }
+          }
+
           const titleEl = document.createElement("span");
           titleEl.style.fontSize = "0.83rem";
           titleEl.style.fontWeight = "700";
           titleEl.style.color = "#0f172a";
           titleEl.style.lineHeight = "1.25";
           titleEl.style.wordBreak = "break-word";
-          titleEl.textContent = title;
+          titleEl.textContent = displayTitle;
           leftStack.appendChild(titleEl);
 
           card.appendChild(leftStack);
