@@ -15342,6 +15342,27 @@
         radius: 200
       };
 
+      const compassState = {
+        visible: false,
+        x: 350,
+        y: 260,
+        radiusCm: 5,
+        pxPerCm: 36,
+        angle: 45,
+        isLocked: false
+      };
+      window.compassState = compassState;
+
+      const setSquareState = {
+        visible: false,
+        x: 220,
+        y: 160,
+        angle: 0,
+        type: "30-60-90", // "30-60-90" or "45-45-90"
+        pxPerCm: 36
+      };
+      window.setSquareState = setSquareState;
+
       function updateProtractorScaleButton() {
         const btn = document.getElementById("eduProtractorToggleScaleBtn");
         if (!btn) return;
@@ -15403,9 +15424,48 @@
           protractorData = { visible: false };
         }
 
+        let compassData = null;
+        if (compassState.visible) {
+          let originPt = { x: compassState.x, y: compassState.y };
+          if (boardCanvas) {
+            originPt = getCanvasPointFromClient(compassState.x, compassState.y);
+          }
+          compassData = {
+            visible: true,
+            x: originPt.x,
+            y: originPt.y,
+            radiusCm: compassState.radiusCm,
+            radiusPx: (compassState.radiusCm * compassState.pxPerCm) / (zoom || 1),
+            angle: compassState.angle,
+            isLocked: !!compassState.isLocked
+          };
+        } else {
+          compassData = { visible: false };
+        }
+
+        let setSquareData = null;
+        if (setSquareState.visible) {
+          let originPt = { x: setSquareState.x, y: setSquareState.y };
+          if (boardCanvas) {
+            originPt = getCanvasPointFromClient(setSquareState.x, setSquareState.y);
+          }
+          setSquareData = {
+            visible: true,
+            x: originPt.x,
+            y: originPt.y,
+            angle: setSquareState.angle,
+            type: setSquareState.type,
+            pxPerCm: setSquareState.pxPerCm / (zoom || 1)
+          };
+        } else {
+          setSquareData = { visible: false };
+        }
+
         page.eduInstruments = {
           ruler: rulerData,
-          protractor: protractorData
+          protractor: protractorData,
+          compass: compassData,
+          setSquare: setSquareData
         };
 
         notifyParentPageUpdate(currentPageIndex, immediate);
@@ -17079,6 +17139,7 @@
         }
 
       }
+      window.renderEduToolsOptions = renderEduToolsOptions;
 
       function toggleRuler(show) {
         rulerState.visible = (show !== undefined) ? show : !rulerState.visible;
