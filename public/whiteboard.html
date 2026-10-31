@@ -17399,7 +17399,7 @@
         // Ruler Toggle Button
         const rulerBtn = document.createElement("button");
         rulerBtn.type = "button";
-        rulerBtn.innerHTML = "<span style='font-size:1.1rem;'>📏</span> " + (rulerState.visible ? "Hide Ruler (Scale)" : "Show Ruler (Scale)");
+        rulerBtn.innerHTML = "<span style='font-size:1.1rem; flex-shrink:0;'>📏</span> <span style='text-align:left; line-height:1.25; flex:1;'>" + (rulerState.visible ? "Hide Ruler (Scale)" : "Show Ruler (Scale)") + "</span>";
         rulerBtn.style.padding = "0.6rem 0.8rem";
         rulerBtn.style.borderRadius = "8px";
         rulerBtn.style.border = rulerState.visible ? "1.5px solid #0284c7" : "1px solid #cbd5e1";
@@ -17410,6 +17410,8 @@
         rulerBtn.style.cursor = "pointer";
         rulerBtn.style.display = "flex";
         rulerBtn.style.alignItems = "center";
+        rulerBtn.style.justifyContent = "flex-start";
+        rulerBtn.style.textAlign = "left";
         rulerBtn.style.gap = "8px";
         rulerBtn.addEventListener("click", () => {
           toggleRuler(!rulerState.visible);
@@ -17420,7 +17422,7 @@
         // Protractor Toggle Button
         const protractorBtn = document.createElement("button");
         protractorBtn.type = "button";
-        protractorBtn.innerHTML = "<span style='font-size:1.1rem;'>📐</span> " + (protractorState.visible ? "Hide Protractor" : "Show Protractor (180° / 360°)");
+        protractorBtn.innerHTML = "<span style='font-size:1.1rem; flex-shrink:0;'>📐</span> <span style='text-align:left; line-height:1.25; flex:1;'>" + (protractorState.visible ? "Hide Protractor" : "Show Protractor (180° / 360°)") + "</span>";
         protractorBtn.style.padding = "0.6rem 0.8rem";
         protractorBtn.style.borderRadius = "8px";
         protractorBtn.style.border = protractorState.visible ? "1.5px solid #ea580c" : "1px solid #cbd5e1";
@@ -17431,6 +17433,8 @@
         protractorBtn.style.cursor = "pointer";
         protractorBtn.style.display = "flex";
         protractorBtn.style.alignItems = "center";
+        protractorBtn.style.justifyContent = "flex-start";
+        protractorBtn.style.textAlign = "left";
         protractorBtn.style.gap = "8px";
         protractorBtn.addEventListener("click", () => {
           toggleProtractor(!protractorState.visible);
@@ -17441,7 +17445,7 @@
         // Compass Toggle Button
         const compassBtn = document.createElement("button");
         compassBtn.type = "button";
-        compassBtn.innerHTML = "<span style='font-size:1.1rem;'>🧭</span> " + (compassState.visible ? "Hide Compass" : "Show Compass (Geometric)");
+        compassBtn.innerHTML = "<span style='font-size:1.1rem; flex-shrink:0;'>🧭</span> <span style='text-align:left; line-height:1.25; flex:1;'>" + (compassState.visible ? "Hide Compass" : "Show Compass (Geometric)") + "</span>";
         compassBtn.style.padding = "0.6rem 0.8rem";
         compassBtn.style.borderRadius = "8px";
         compassBtn.style.border = compassState.visible ? "1.5px solid #0284c7" : "1px solid #cbd5e1";
@@ -17452,6 +17456,8 @@
         compassBtn.style.cursor = "pointer";
         compassBtn.style.display = "flex";
         compassBtn.style.alignItems = "center";
+        compassBtn.style.justifyContent = "flex-start";
+        compassBtn.style.textAlign = "left";
         compassBtn.style.gap = "8px";
         compassBtn.addEventListener("click", () => {
           toggleCompass(!compassState.visible);
@@ -17462,7 +17468,7 @@
         // Set Squares Toggle Button
         const setSquareBtn = document.createElement("button");
         setSquareBtn.type = "button";
-        setSquareBtn.innerHTML = "<span style='font-size:1.1rem;'>📐</span> " + (setSquareState.visible ? "Hide Set Squares" : "Show Set Squares (30°-60° & 45°)");
+        setSquareBtn.innerHTML = "<span style='font-size:1.1rem; flex-shrink:0;'>📐</span> <span style='text-align:left; line-height:1.25; flex:1;'>" + (setSquareState.visible ? "Hide Set Squares" : "Show Set Squares (30°-60° & 45°)") + "</span>";
         setSquareBtn.style.padding = "0.6rem 0.8rem";
         setSquareBtn.style.borderRadius = "8px";
         setSquareBtn.style.border = setSquareState.visible ? "1.5px solid #059669" : "1px solid #cbd5e1";
@@ -17473,6 +17479,8 @@
         setSquareBtn.style.cursor = "pointer";
         setSquareBtn.style.display = "flex";
         setSquareBtn.style.alignItems = "center";
+        setSquareBtn.style.justifyContent = "flex-start";
+        setSquareBtn.style.textAlign = "left";
         setSquareBtn.style.gap = "8px";
         setSquareBtn.addEventListener("click", () => {
           toggleSetSquare(!setSquareState.visible);
@@ -17484,7 +17492,7 @@
         const isGraphOpen = !!window._isGraphPlotterOpen;
         const graphBtn = document.createElement("button");
         graphBtn.type = "button";
-        graphBtn.innerHTML = "<span style='font-size:1.1rem;'>📈</span> " + (isGraphOpen ? "Hide Graph Plotter" : "Show Graph Plotter (Function Grapher)");
+        graphBtn.innerHTML = "<span style='font-size:1.1rem; flex-shrink:0;'>📈</span> <span style='text-align:left; line-height:1.25; flex:1;'>" + (isGraphOpen ? "Hide Graph Plotter" : "Show Graph Plotter (Function Grapher)") + "</span>";
         graphBtn.style.padding = "0.6rem 0.8rem";
         graphBtn.style.borderRadius = "8px";
         graphBtn.style.border = isGraphOpen ? "1.5px solid #4f46e5" : "1px solid #cbd5e1";
@@ -17495,6 +17503,8 @@
         graphBtn.style.cursor = "pointer";
         graphBtn.style.display = "flex";
         graphBtn.style.alignItems = "center";
+        graphBtn.style.justifyContent = "flex-start";
+        graphBtn.style.textAlign = "left";
         graphBtn.style.gap = "8px";
         graphBtn.addEventListener("click", () => {
           window._isGraphPlotterOpen = !isGraphOpen;
@@ -17505,7 +17515,7 @@
         // Periodic Table Modal Button (118 Elements & Bohr Atom Model)
         const periodicBtn = document.createElement("button");
         periodicBtn.type = "button";
-        periodicBtn.innerHTML = "<span style='font-size:1.1rem;'>🔬</span> Open Periodic Table (118 Elements)";
+        periodicBtn.innerHTML = "<span style='font-size:1.1rem; flex-shrink:0;'>🔬</span> <span style='text-align:left; line-height:1.25; flex:1;'>Open Periodic Table (118 Elements)</span>";
         periodicBtn.style.padding = "0.6rem 0.8rem";
         periodicBtn.style.borderRadius = "8px";
         periodicBtn.style.border = "1px solid #cbd5e1";
@@ -17516,6 +17526,8 @@
         periodicBtn.style.cursor = "pointer";
         periodicBtn.style.display = "flex";
         periodicBtn.style.alignItems = "center";
+        periodicBtn.style.justifyContent = "flex-start";
+        periodicBtn.style.textAlign = "left";
         periodicBtn.style.gap = "8px";
         periodicBtn.style.transition = "all 0.15s ease";
         periodicBtn.addEventListener("mouseenter", () => {
@@ -17579,7 +17591,7 @@
         const isDiagOpen = !!window._isEduDiagramsOpen;
         const diagBtn = document.createElement("button");
         diagBtn.type = "button";
-        diagBtn.innerHTML = "<span style='font-size:1.1rem;'>📊</span> " + (isDiagOpen ? "Hide Educational Diagrams" : "Show Educational Diagrams");
+        diagBtn.innerHTML = "<span style='font-size:1.1rem; flex-shrink:0;'>📊</span> <span style='text-align:left; line-height:1.25; flex:1;'>" + (isDiagOpen ? "Hide Educational Diagrams" : "Show Educational Diagrams") + "</span>";
         diagBtn.style.padding = "0.6rem 0.8rem";
         diagBtn.style.borderRadius = "8px";
         diagBtn.style.border = isDiagOpen ? "1.5px solid #7c3aed" : "1px solid #cbd5e1";
@@ -17590,6 +17602,8 @@
         diagBtn.style.cursor = "pointer";
         diagBtn.style.display = "flex";
         diagBtn.style.alignItems = "center";
+        diagBtn.style.justifyContent = "flex-start";
+        diagBtn.style.textAlign = "left";
         diagBtn.style.gap = "8px";
         diagBtn.addEventListener("click", () => {
           window._isEduDiagramsOpen = !isDiagOpen;
@@ -17601,7 +17615,7 @@
         const isFormulasActive = isDiagOpen && window._selectedEduDiagCategory === "formulas";
         const formulasBtn = document.createElement("button");
         formulasBtn.type = "button";
-        formulasBtn.innerHTML = "<span style='font-size:1.1rem;'>📐</span> " + (isFormulasActive ? "Hide Formulas & Dimensions" : "Formulas & Dimensions (2D & 3D)");
+        formulasBtn.innerHTML = "<span style='font-size:1.1rem; flex-shrink:0;'>📐</span> <span style='text-align:left; line-height:1.25; flex:1;'>" + (isFormulasActive ? "Hide Formulas & Dimensions" : "Formulas & Dimensions (2D & 3D)") + "</span>";
         formulasBtn.style.padding = "0.6rem 0.8rem";
         formulasBtn.style.borderRadius = "8px";
         formulasBtn.style.border = isFormulasActive ? "1.5px solid #7c3aed" : "1px solid #cbd5e1";
@@ -17612,6 +17626,8 @@
         formulasBtn.style.cursor = "pointer";
         formulasBtn.style.display = "flex";
         formulasBtn.style.alignItems = "center";
+        formulasBtn.style.justifyContent = "flex-start";
+        formulasBtn.style.textAlign = "left";
         formulasBtn.style.gap = "8px";
         formulasBtn.style.transition = "all 0.15s ease";
         formulasBtn.addEventListener("mouseenter", () => {
@@ -17647,7 +17663,7 @@
         const isPvcActive = isDiagOpen && window._selectedEduDiagCategory === "place_value";
         const pvcBtn = document.createElement("button");
         pvcBtn.type = "button";
-        pvcBtn.innerHTML = "<span style='font-size:1.1rem;'>🧮</span> " + (isPvcActive ? "Hide Place Value Charts" : "Place Value Charts (Indian, Intl, Decimal)");
+        pvcBtn.innerHTML = "<span style='font-size:1.1rem; flex-shrink:0;'>🧮</span> <span style='text-align:left; line-height:1.25; flex:1;'>" + (isPvcActive ? "Hide Place Value Charts" : "Place Value Charts (Indian, Intl, Decimal)") + "</span>";
         pvcBtn.style.padding = "0.6rem 0.8rem";
         pvcBtn.style.borderRadius = "8px";
         pvcBtn.style.border = isPvcActive ? "1.5px solid #059669" : "1px solid #cbd5e1";
@@ -17658,6 +17674,8 @@
         pvcBtn.style.cursor = "pointer";
         pvcBtn.style.display = "flex";
         pvcBtn.style.alignItems = "center";
+        pvcBtn.style.justifyContent = "flex-start";
+        pvcBtn.style.textAlign = "left";
         pvcBtn.style.gap = "8px";
         pvcBtn.style.transition = "all 0.15s ease";
         pvcBtn.addEventListener("mouseenter", () => {
