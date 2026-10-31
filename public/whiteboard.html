@@ -924,10 +924,40 @@
       align-self: center;
       box-sizing: border-box;
       transition: all 0.12s ease;
+      background-color: #ffffff;
+      color: #475569;
+      border: 1.5px solid #cbd5e1;
     }
 
     .option-icon-btn:hover {
+      background-color: #f1f5f9;
+      color: #0f172a;
+      border-color: #94a3b8;
       transform: translateY(-1px);
+    }
+
+    .properties-panel input[type="text"],
+    .properties-panel input[type="number"],
+    .properties-panel select {
+      background-color: #ffffff !important;
+      color: #0f172a !important;
+      border: 1px solid #cbd5e1 !important;
+      border-radius: 6px;
+      box-sizing: border-box;
+      outline: none;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .properties-panel input[type="text"]:focus,
+    .properties-panel input[type="number"]:focus,
+    .properties-panel select:focus {
+      border-color: #0284c7 !important;
+      box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.2) !important;
+    }
+
+    .properties-panel select option {
+      background-color: #ffffff;
+      color: #0f172a;
     }
 
     .color-swatch {
@@ -2668,12 +2698,12 @@
       <span id="heightInputSpan" style="display:none;align-items:center;gap:0.4rem">
         <span>Height (px):</span>
         <input type="number" id="customHeightInput" value="3000" min="1000" max="20000" step="500"
-          style="width:75px;background:#111827;color:#fff;border:1px solid #4b5563;border-radius:4px;padding:0.2rem 0.4rem;font-size:0.85rem" />
+          style="width:75px;background:#ffffff;color:#0f172a;border:1px solid #cbd5e1;border-radius:4px;padding:0.2rem 0.4rem;font-size:0.85rem" />
       </span>
       <label style="display:inline-flex;align-items:center;gap:0.4rem;font-size:0.85rem">
         <span>Board background:</span>
         <select id="settingsBoardTypeSelect"
-          style="background:#111827;color:#fff;border:1px solid #4b5563;border-radius:4px;padding:0.2rem 0.5rem;font-size:0.85rem;cursor:pointer">
+          style="background:#ffffff;color:#0f172a;border:1px solid #cbd5e1;border-radius:4px;padding:0.2rem 0.5rem;font-size:0.85rem;cursor:pointer">
           <option value="white">Whiteboard</option>
           <option value="black">Blackboard</option>
           <option value="green">Green board</option>
@@ -7481,7 +7511,7 @@
           wrap.className = "tool-options-group";
           const p = document.createElement("p");
           p.style.fontSize = "0.8rem";
-          p.style.color = "#9ca3af";
+          p.style.color = "#64748b";
           p.style.margin = "0";
           p.textContent = "Drag on the board to scroll and pan. (Shortcut: Hold Spacebar to pan temporarily)";
           wrap.appendChild(p);
@@ -7491,7 +7521,7 @@
           wrap.className = "tool-options-group";
           const p = document.createElement("p");
           p.style.fontSize = "0.8rem";
-          p.style.color = "#9ca3af";
+          p.style.color = "#64748b";
           p.style.margin = "0";
           p.textContent = "1cm×1cm grid. Click the Grid button to show; click it again to remove.";
           wrap.appendChild(p);
@@ -7503,7 +7533,7 @@
           wrap.className = "tool-options-group";
           const p = document.createElement("p");
           p.style.fontSize = "0.8rem";
-          p.style.color = "#9ca3af";
+          p.style.color = "#64748b";
           p.style.margin = "0";
           p.textContent = "Graphs tool shows a full-page graph with horizontal and vertical axes and four quadrants while this tool is active. Use Pen/Highlighter to draw on it.";
           wrap.appendChild(p);
@@ -7511,7 +7541,7 @@
         } else {
           const text = document.createElement("p");
           text.style.fontSize = "0.8rem";
-          text.style.color = "#9ca3af";
+          text.style.color = "#64748b";
           text.style.margin = "0";
           text.textContent =
             "Tool options will appear here as we add more controls.";
@@ -7676,7 +7706,7 @@
         wrap.className = "tool-options-group";
         const p = document.createElement("p");
         p.style.fontSize = "0.8rem";
-        p.style.color = "#9ca3af";
+        p.style.color = "#64748b";
         p.style.margin = "0 0 0.5rem 0";
         const totalSelected = selectedShapes.length + selectedTexts.length + selectedWidgets.length;
         if (totalSelected > 0) {
@@ -7754,9 +7784,9 @@
           backBtn.style.padding = "0.35rem 0.75rem";
           backBtn.style.minHeight = "32px";
           backBtn.style.borderRadius = "999px";
-          backBtn.style.border = "none";
-          backBtn.style.background = "#1e3a5f";
-          backBtn.style.color = "#e5e7eb";
+          backBtn.style.border = "1px solid #cbd5e1";
+          backBtn.style.background = "#f1f5f9";
+          backBtn.style.color = "#334155";
           backBtn.style.cursor = "pointer";
           backBtn.style.fontSize = "0.8rem";
           backBtn.style.display = "inline-flex";
@@ -7770,9 +7800,10 @@
           dupBtn.style.padding = "0.35rem 0.75rem";
           dupBtn.style.minHeight = "32px";
           dupBtn.style.borderRadius = "999px";
-          dupBtn.style.border = "none";
-          dupBtn.style.background = "#22c55e";
-          dupBtn.style.color = "#020617";
+          dupBtn.style.border = "1px solid #bbf7d0";
+          dupBtn.style.background = "#f0fdf4";
+          dupBtn.style.color = "#15803d";
+          dupBtn.style.fontWeight = "600";
           dupBtn.style.cursor = "pointer";
           dupBtn.style.fontSize = "0.8rem";
           dupBtn.style.display = "inline-flex";
@@ -7787,9 +7818,10 @@
           groupBtn.style.padding = "0.35rem 0.75rem";
           groupBtn.style.minHeight = "32px";
           groupBtn.style.borderRadius = "999px";
-          groupBtn.style.border = "none";
-          groupBtn.style.background = "#0ea5e9";
-          groupBtn.style.color = "#fff";
+          groupBtn.style.border = "1px solid #bae6fd";
+          groupBtn.style.background = "#e0f2fe";
+          groupBtn.style.color = "#0369a1";
+          groupBtn.style.fontWeight = "600";
           groupBtn.style.cursor = "pointer";
           groupBtn.style.fontSize = "0.8rem";
           groupBtn.style.display = "inline-flex";
@@ -7805,9 +7837,10 @@
           ungroupBtn.style.padding = "0.35rem 0.75rem";
           ungroupBtn.style.minHeight = "32px";
           ungroupBtn.style.borderRadius = "999px";
-          ungroupBtn.style.border = "none";
-          ungroupBtn.style.background = "#8b5cf6";
-          ungroupBtn.style.color = "#fff";
+          ungroupBtn.style.border = "1px solid #e9d5ff";
+          ungroupBtn.style.background = "#f3e8ff";
+          ungroupBtn.style.color = "#7e22ce";
+          ungroupBtn.style.fontWeight = "600";
           ungroupBtn.style.cursor = "pointer";
           ungroupBtn.style.fontSize = "0.8rem";
           ungroupBtn.style.display = "inline-flex";
@@ -7823,9 +7856,10 @@
           lockBtn.style.padding = "0.35rem 0.75rem";
           lockBtn.style.minHeight = "32px";
           lockBtn.style.borderRadius = "999px";
-          lockBtn.style.border = "none";
-          lockBtn.style.background = "#4b5563";
-          lockBtn.style.color = "#fff";
+          lockBtn.style.border = "1px solid #cbd5e1";
+          lockBtn.style.background = "#f1f5f9";
+          lockBtn.style.color = "#475569";
+          lockBtn.style.fontWeight = "600";
           lockBtn.style.cursor = "pointer";
           lockBtn.style.fontSize = "0.8rem";
           lockBtn.style.display = "inline-flex";
@@ -7841,9 +7875,10 @@
           unlockBtn.style.padding = "0.35rem 0.75rem";
           unlockBtn.style.minHeight = "32px";
           unlockBtn.style.borderRadius = "999px";
-          unlockBtn.style.border = "none";
-          unlockBtn.style.background = "#6b7280";
-          unlockBtn.style.color = "#fff";
+          unlockBtn.style.border = "1px solid #bae6fd";
+          unlockBtn.style.background = "#f8fafc";
+          unlockBtn.style.color = "#0284c7";
+          unlockBtn.style.fontWeight = "600";
           unlockBtn.style.cursor = "pointer";
           unlockBtn.style.fontSize = "0.8rem";
           unlockBtn.style.display = "inline-flex";
@@ -7860,9 +7895,10 @@
           copyStyleBtn.style.padding = "0.35rem 0.75rem";
           copyStyleBtn.style.minHeight = "32px";
           copyStyleBtn.style.borderRadius = "999px";
-          copyStyleBtn.style.border = "none";
-          copyStyleBtn.style.background = "#0ea5e9";
-          copyStyleBtn.style.color = "#020617";
+          copyStyleBtn.style.border = "1px solid #bae6fd";
+          copyStyleBtn.style.background = "#e0f2fe";
+          copyStyleBtn.style.color = "#0284c7";
+          copyStyleBtn.style.fontWeight = "600";
           copyStyleBtn.style.cursor = "pointer";
           copyStyleBtn.style.fontSize = "0.8rem";
           copyStyleBtn.style.display = "inline-flex";
@@ -7877,9 +7913,10 @@
           pasteStyleBtn.style.padding = "0.35rem 0.75rem";
           pasteStyleBtn.style.minHeight = "32px";
           pasteStyleBtn.style.borderRadius = "999px";
-          pasteStyleBtn.style.border = "none";
-          pasteStyleBtn.style.background = "#8b5cf6";
-          pasteStyleBtn.style.color = "#fff";
+          pasteStyleBtn.style.border = "1px solid #bae6fd";
+          pasteStyleBtn.style.background = "#e0f2fe";
+          pasteStyleBtn.style.color = "#0284c7";
+          pasteStyleBtn.style.fontWeight = "600";
           pasteStyleBtn.style.cursor = "pointer";
           pasteStyleBtn.style.fontSize = "0.8rem";
           pasteStyleBtn.style.display = "inline-flex";
@@ -8028,7 +8065,7 @@
             const shapeOpacityValue = document.createElement("span");
             shapeOpacityValue.style.minWidth = "2.5rem";
             shapeOpacityValue.style.fontSize = "0.8rem";
-            shapeOpacityValue.style.color = "#e5e7eb";
+            shapeOpacityValue.style.color = "#475569";
             shapeOpacityValue.textContent = Math.round(shapeOpacityVal * 100) + "%";
             let shapeOpacityUndone = false;
             shapeOpacitySlider.addEventListener("input", () => {
@@ -8144,11 +8181,11 @@
               const pollFontSelect = document.createElement("select");
               pollFontSelect.style.width = "100%";
               pollFontSelect.style.marginTop = "0.2rem";
-              pollFontSelect.style.padding = "0.3rem";
+              pollFontSelect.style.padding = "0.4rem 0.55rem";
               pollFontSelect.style.fontSize = "0.8rem";
-              pollFontSelect.style.backgroundColor = "#020617";
-              pollFontSelect.style.color = "#e5e7eb";
-              pollFontSelect.style.border = "1px solid #374151";
+              pollFontSelect.style.backgroundColor = "#ffffff";
+              pollFontSelect.style.color = "#0f172a";
+              pollFontSelect.style.border = "1px solid #cbd5e1";
               pollFontSelect.style.borderRadius = "6px";
               FONT_OPTIONS.forEach((f) => {
                 const opt = document.createElement("option");
@@ -8173,7 +8210,8 @@
                 row.style.flexWrap = "wrap";
                 const label = document.createElement("span");
                 label.style.fontSize = "0.8rem";
-                label.style.color = "#e5e7eb";
+                label.style.fontWeight = "500";
+                label.style.color = "#1e293b";
                 label.style.flex = "1";
                 label.style.minWidth = "80px";
                 label.textContent = (opt.text || "Option") + " — " + (opt.votes ?? 0) + " vote(s)";
@@ -8183,13 +8221,17 @@
                   minusBtn.type = "button";
                   minusBtn.textContent = "−";
                   minusBtn.style.width = "1.8rem";
-                  minusBtn.style.padding = "0.2rem";
+                  minusBtn.style.height = "1.8rem";
+                  minusBtn.style.padding = "0";
+                  minusBtn.style.display = "flex";
+                  minusBtn.style.alignItems = "center";
+                  minusBtn.style.justifyContent = "center";
                   minusBtn.style.fontSize = "1rem";
                   minusBtn.style.cursor = "pointer";
-                  minusBtn.style.background = "#374151";
-                  minusBtn.style.color = "#e5e7eb";
-                  minusBtn.style.border = "none";
-                  minusBtn.style.borderRadius = "4px";
+                  minusBtn.style.background = "#f1f5f9";
+                  minusBtn.style.color = "#334155";
+                  minusBtn.style.border = "1px solid #cbd5e1";
+                  minusBtn.style.borderRadius = "6px";
                   minusBtn.addEventListener("click", () => {
                     opt.votes = Math.max(0, (opt.votes ?? 0) - 1);
                     updateBoardAppearance();
@@ -8199,13 +8241,17 @@
                   plusBtn.type = "button";
                   plusBtn.textContent = "+";
                   plusBtn.style.width = "1.8rem";
-                  plusBtn.style.padding = "0.2rem";
+                  plusBtn.style.height = "1.8rem";
+                  plusBtn.style.padding = "0";
+                  plusBtn.style.display = "flex";
+                  plusBtn.style.alignItems = "center";
+                  plusBtn.style.justifyContent = "center";
                   plusBtn.style.fontSize = "1rem";
                   plusBtn.style.cursor = "pointer";
-                  plusBtn.style.background = "#374151";
-                  plusBtn.style.color = "#e5e7eb";
-                  plusBtn.style.border = "none";
-                  plusBtn.style.borderRadius = "4px";
+                  plusBtn.style.background = "#f1f5f9";
+                  plusBtn.style.color = "#334155";
+                  plusBtn.style.border = "1px solid #cbd5e1";
+                  plusBtn.style.borderRadius = "6px";
                   plusBtn.addEventListener("click", () => {
                     opt.votes = (opt.votes ?? 0) + 1;
                     updateBoardAppearance();
@@ -8241,12 +8287,12 @@
                 resultLabel.textContent = "Final results";
                 resultLabel.style.marginTop = "0.5rem";
                 resultLabel.style.display = "block";
-                resultLabel.style.color = "#94a3b8";
+                resultLabel.style.color = "#64748b";
                 wrap.appendChild(resultLabel);
                 const total = options.reduce((sum, o) => sum + (o.votes ?? 0), 0);
                 const resultText = document.createElement("p");
                 resultText.style.fontSize = "0.8rem";
-                resultText.style.color = "#e5e7eb";
+                resultText.style.color = "#0f172a";
                 resultText.style.margin = "0.25rem 0 0 0";
                 resultText.textContent = options.map((o) => (o.text || "Option") + ": " + (o.votes ?? 0) + " vote(s)").join(" · Total: " + total);
                 wrap.appendChild(resultText);
@@ -8259,7 +8305,7 @@
             const fmtTitle = document.createElement("h3");
             fmtTitle.style.fontSize = "0.85rem";
             fmtTitle.style.margin = "0.75rem 0 0.35rem 0";
-            fmtTitle.style.color = "#e5e7eb";
+            fmtTitle.style.color = "#1e293b";
             fmtTitle.textContent = "Format text";
             wrap.appendChild(fmtTitle);
 
@@ -8269,11 +8315,11 @@
             wrap.appendChild(fontLabel);
             const fontSelect = document.createElement("select");
             fontSelect.style.width = "100%";
-            fontSelect.style.padding = "0.3rem";
+            fontSelect.style.padding = "0.4rem 0.55rem";
             fontSelect.style.fontSize = "0.8rem";
-            fontSelect.style.background = "#020617";
-            fontSelect.style.color = "#e5e7eb";
-            fontSelect.style.border = "1px solid #111827";
+            fontSelect.style.background = "#ffffff";
+            fontSelect.style.color = "#0f172a";
+            fontSelect.style.border = "1px solid #cbd5e1";
             fontSelect.style.borderRadius = "6px";
             FONT_OPTIONS.forEach((f) => {
               const opt = document.createElement("option");
@@ -8293,9 +8339,10 @@
             editBtn.textContent = "Edit text content";
             editBtn.style.padding = "0.35rem 0.75rem";
             editBtn.style.borderRadius = "999px";
-            editBtn.style.border = "none";
-            editBtn.style.background = "#38bdf8";
-            editBtn.style.color = "#020617";
+            editBtn.style.border = "1px solid #bae6fd";
+            editBtn.style.background = "#e0f2fe";
+            editBtn.style.color = "#0284c7";
+            editBtn.style.fontWeight = "600";
             editBtn.style.cursor = "pointer";
             editBtn.style.fontSize = "0.8rem";
             editBtn.addEventListener("click", () => {
@@ -8317,16 +8364,18 @@
               btn.type = "button";
               btn.textContent = label;
               btn.title = title;
-              Object.assign(btn.style, { width: "32px", height: "28px", padding: "0", borderRadius: "6px", border: "none", cursor: "pointer", fontSize: "0.9rem" }, style(!!first[key]));
               const val = !!first[key];
-              btn.style.backgroundColor = val ? "#22c55e" : "#020617";
-              btn.style.color = val ? "#020617" : "#e5e7eb";
+              Object.assign(btn.style, { width: "32px", height: "28px", padding: "0", borderRadius: "6px", cursor: "pointer", fontSize: "0.9rem" }, style(val));
+              btn.style.backgroundColor = val ? "#0284c7" : "#ffffff";
+              btn.style.color = val ? "#ffffff" : "#334155";
+              btn.style.border = val ? "1.5px solid #0284c7" : "1px solid #cbd5e1";
               btn.addEventListener("click", () => {
                 const newVal = !selectedTexts[0][key];
                 applyFormatToSelectedTexts(key, newVal);
                 Object.assign(btn.style, style(newVal));
-                btn.style.backgroundColor = newVal ? "#22c55e" : "#020617";
-                btn.style.color = newVal ? "#020617" : "#e5e7eb";
+                btn.style.backgroundColor = newVal ? "#0284c7" : "#ffffff";
+                btn.style.color = newVal ? "#ffffff" : "#334155";
+                btn.style.border = newVal ? "1.5px solid #0284c7" : "1px solid #cbd5e1";
               });
               styleRow.appendChild(btn);
             });
@@ -8339,9 +8388,10 @@
               btn.type = "button";
               btn.textContent = label;
               btn.title = title;
-              Object.assign(btn.style, { width: "32px", height: "28px", padding: "0", borderRadius: "6px", border: "none", cursor: "pointer", fontSize: "0.9rem" });
-              btn.style.backgroundColor = "#020617";
-              btn.style.color = "#e5e7eb";
+              Object.assign(btn.style, { width: "32px", height: "28px", padding: "0", borderRadius: "6px", cursor: "pointer", fontSize: "0.9rem" });
+              btn.style.backgroundColor = "#ffffff";
+              btn.style.color = "#334155";
+              btn.style.border = "1px solid #cbd5e1";
               btn.addEventListener("mousedown", (e) => {
                 e.preventDefault();
                 if (currentTextEdit && currentTextEdit.input && document.activeElement === currentTextEdit.input) {
@@ -8427,14 +8477,14 @@
                 swatch.style.borderRadius = "6px";
                 swatch.style.cursor = "pointer";
                 swatch.title = color;
-                if (firstStickyColor === color) swatch.style.border = "2px solid #e5e7eb";
-                else swatch.style.border = "1px solid #374151";
+                if (firstStickyColor === color) swatch.style.border = "2px solid #0284c7";
+                else swatch.style.border = "1px solid #cbd5e1";
                 swatch.addEventListener("click", () => {
                   selectedTexts.forEach((t) => {
                     if (t.sticky) t.stickyColor = color;
                   });
                   stickyColorRow.querySelectorAll("button").forEach((b) => {
-                    b.style.border = (b === swatch) ? "2px solid #e5e7eb" : "1px solid #374151";
+                    b.style.border = (b === swatch) ? "2px solid #0284c7" : "1px solid #cbd5e1";
                   });
                   updateBoardAppearance();
                 });
@@ -8463,7 +8513,7 @@
               const stickyOpacityValue = document.createElement("span");
               stickyOpacityValue.style.minWidth = "2.5rem";
               stickyOpacityValue.style.fontSize = "0.8rem";
-              stickyOpacityValue.style.color = "#e5e7eb";
+              stickyOpacityValue.style.color = "#475569";
               stickyOpacityValue.textContent = Math.round(firstStickyOpacity * 100) + "%";
               let stickyOpacityUndone = false;
               stickyOpacitySlider.addEventListener("input", () => {
@@ -8519,16 +8569,16 @@
               rotInput.step = "1";
               rotInput.value = String(first.rotation ?? 0);
               rotInput.style.width = "3.5rem";
-              rotInput.style.padding = "0.25rem 0.35rem";
-              rotInput.style.fontSize = "0.8rem";
-              rotInput.style.background = "#1f2937";
-              rotInput.style.color = "#e5e7eb";
-              rotInput.style.border = "1px solid #374151";
+              rotInput.style.padding = "0.3rem 0.45rem";
+              rotInput.style.fontSize = "0.82rem";
+              rotInput.style.background = "#ffffff";
+              rotInput.style.color = "#0f172a";
+              rotInput.style.border = "1px solid #cbd5e1";
               rotInput.style.borderRadius = "6px";
               rotInput.style.textAlign = "right";
               const rotDegSpan = document.createElement("span");
               rotDegSpan.style.fontSize = "0.8rem";
-              rotDegSpan.style.color = "#e5e7eb";
+              rotDegSpan.style.color = "#475569";
               rotDegSpan.textContent = "°";
               function applyRotation(v) {
                 const n = Math.max(-180, Math.min(180, Number(v)));
@@ -8775,16 +8825,19 @@
           btn.style.alignItems = "center";
           btn.style.justifyContent = "center";
           btn.style.flexShrink = "0";
-          btn.style.backgroundColor = chartSettings.type === opt.id ? "#22c55e" : "#020617";
-          btn.style.color = chartSettings.type === opt.id ? "#020617" : "#e5e7eb";
+          btn.style.backgroundColor = chartSettings.type === opt.id ? "#0284c7" : "#ffffff";
+          btn.style.color = chartSettings.type === opt.id ? "#ffffff" : "#475569";
+          btn.style.border = chartSettings.type === opt.id ? "1.5px solid #0284c7" : "1px solid #cbd5e1";
           btn.addEventListener("click", () => {
             chartSettings.type = opt.id;
             row.querySelectorAll("button").forEach((b) => {
-              b.style.backgroundColor = "#020617";
-              b.style.color = "#e5e7eb";
+              b.style.backgroundColor = "#ffffff";
+              b.style.color = "#475569";
+              b.style.border = "1px solid #cbd5e1";
             });
-            btn.style.backgroundColor = "#22c55e";
-            btn.style.color = "#020617";
+            btn.style.backgroundColor = "#0284c7";
+            btn.style.color = "#ffffff";
+            btn.style.border = "1.5px solid #0284c7";
             updateFormForType(opt.id);
           });
           row.appendChild(btn);
@@ -9447,8 +9500,8 @@
           addBtn.style.borderRadius = "999px";
           addBtn.style.border = "none";
           addBtn.style.cursor = "pointer";
-          addBtn.style.backgroundColor = "#22c55e";
-          addBtn.style.color = "#020617";
+          addBtn.style.backgroundColor = "#0284c7";
+          addBtn.style.color = "#ffffff";
           addBtn.addEventListener("click", () => {
             ensureImageFileInput();
             if (imageFileInput) {
@@ -9465,10 +9518,10 @@
             removeBtn.style.fontSize = "0.75rem";
             removeBtn.style.padding = "0.3rem 0.7rem";
             removeBtn.style.borderRadius = "999px";
-            removeBtn.style.border = "none";
+            removeBtn.style.border = "1px solid #fecaca";
             removeBtn.style.cursor = "pointer";
-            removeBtn.style.backgroundColor = "#111827";
-            removeBtn.style.color = "#e5e7eb";
+            removeBtn.style.backgroundColor = "#fee2e2";
+            removeBtn.style.color = "#dc2626";
             removeBtn.addEventListener("click", () => {
               const p = pages[currentPageIndex];
               if (!p) return;
@@ -9498,10 +9551,11 @@
           stampBtn.style.fontSize = "0.75rem";
           stampBtn.style.padding = "0.3rem 0.7rem";
           stampBtn.style.borderRadius = "999px";
-          stampBtn.style.border = "none";
+          stampBtn.style.border = "1px solid #bae6fd";
           stampBtn.style.cursor = "pointer";
-          stampBtn.style.backgroundColor = "#38bdf8";
-          stampBtn.style.color = "#020617";
+          stampBtn.style.backgroundColor = "#0284c7";
+          stampBtn.style.color = "#ffffff";
+          stampBtn.style.fontWeight = "600";
           stampBtn.addEventListener("click", () => {
             ensureShapeImageFileInput();
             if (shapeImageFileInput) {
@@ -9591,18 +9645,22 @@
           btn.style.justifyContent = "center";
           btn.style.flexShrink = "0";
           btn.style.backgroundColor =
-            shapeSettings.type === option.id ? "#22c55e" : "#020617";
+            shapeSettings.type === option.id ? "#0284c7" : "#ffffff";
           btn.style.color =
-            shapeSettings.type === option.id ? "#020617" : "#e5e7eb";
+            shapeSettings.type === option.id ? "#ffffff" : "#475569";
+          btn.style.border =
+            shapeSettings.type === option.id ? "1.5px solid #0284c7" : "1px solid #cbd5e1";
 
           btn.addEventListener("click", () => {
             shapeSettings.type = option.id;
             Array.from(typeRow.children).forEach((child) => {
-              child.style.backgroundColor = "#020617";
-              child.style.color = "#e5e7eb";
+              child.style.backgroundColor = "#ffffff";
+              child.style.color = "#475569";
+              child.style.border = "1px solid #cbd5e1";
             });
-            btn.style.backgroundColor = "#22c55e";
-            btn.style.color = "#020617";
+            btn.style.backgroundColor = "#0284c7";
+            btn.style.color = "#ffffff";
+            btn.style.border = "1.5px solid #0284c7";
             if (orthoRow) orthoRow.style.display = ["line", "ray", "arrow"].includes(option.id) ? "block" : "none";
           });
 
@@ -9629,13 +9687,16 @@
           btn.style.borderRadius = "999px";
           btn.style.border = "none";
           btn.style.cursor = "pointer";
-          btn.style.background = shapeSettings.ortho === (mode === "On") ? "#22c55e" : "#020617";
-          btn.style.color = shapeSettings.ortho === (mode === "On") ? "#020617" : "#e5e7eb";
+          btn.style.background = shapeSettings.ortho === (mode === "On") ? "#0284c7" : "#ffffff";
+          btn.style.color = shapeSettings.ortho === (mode === "On") ? "#ffffff" : "#475569";
+          btn.style.border = shapeSettings.ortho === (mode === "On") ? "1px solid #0284c7" : "1px solid #cbd5e1";
           btn.addEventListener("click", () => {
             shapeSettings.ortho = mode === "On";
             orthoWrap.querySelectorAll("button").forEach((b, i) => {
-              b.style.background = (mode === "On" ? i === 1 : i === 0) ? "#22c55e" : "#020617";
-              b.style.color = (mode === "On" ? i === 1 : i === 0) ? "#020617" : "#e5e7eb";
+              const active = (mode === "On" ? i === 1 : i === 0);
+              b.style.background = active ? "#0284c7" : "#ffffff";
+              b.style.color = active ? "#ffffff" : "#475569";
+              b.style.border = active ? "1px solid #0284c7" : "1px solid #cbd5e1";
             });
           });
           orthoWrap.appendChild(btn);
@@ -9690,18 +9751,22 @@
           btn.style.border = "none";
           btn.style.cursor = "pointer";
           btn.style.backgroundColor =
-            shapeSettings.fillMode === mode ? "#22c55e" : "#020617";
+            shapeSettings.fillMode === mode ? "#0284c7" : "#ffffff";
           btn.style.color =
-            shapeSettings.fillMode === mode ? "#020617" : "#e5e7eb";
+            shapeSettings.fillMode === mode ? "#ffffff" : "#475569";
+          btn.style.border =
+            shapeSettings.fillMode === mode ? "1px solid #0284c7" : "1px solid #cbd5e1";
 
           btn.addEventListener("click", () => {
             shapeSettings.fillMode = mode;
             Array.from(fillRow.children).forEach((child) => {
-              child.style.backgroundColor = "#020617";
-              child.style.color = "#e5e7eb";
+              child.style.backgroundColor = "#ffffff";
+              child.style.color = "#475569";
+              child.style.border = "1px solid #cbd5e1";
             });
-            btn.style.backgroundColor = "#22c55e";
-            btn.style.color = "#020617";
+            btn.style.backgroundColor = "#0284c7";
+            btn.style.color = "#ffffff";
+            btn.style.border = "1px solid #0284c7";
           });
 
           fillRow.appendChild(btn);
@@ -9730,7 +9795,7 @@
         const fillOpacityValue = document.createElement("span");
         fillOpacityValue.style.minWidth = "2.5rem";
         fillOpacityValue.style.fontSize = "0.8rem";
-        fillOpacityValue.style.color = "#e5e7eb";
+        fillOpacityValue.style.color = "#475569";
         fillOpacityValue.textContent = Math.round((shapeSettings.fillOpacity ?? 1) * 100) + "%";
         fillOpacitySlider.addEventListener("input", () => {
           shapeSettings.fillOpacity = Number(fillOpacitySlider.value) / 100;
@@ -9767,12 +9832,13 @@
         addBtn.type = "button";
         addBtn.textContent = "Add image to library...";
         addBtn.style.fontSize = "0.8rem";
+        addBtn.style.fontWeight = "600";
         addBtn.style.padding = "0.35rem 0.8rem";
         addBtn.style.borderRadius = "999px";
-        addBtn.style.border = "none";
+        addBtn.style.border = "1px solid #bae6fd";
         addBtn.style.cursor = "pointer";
-        addBtn.style.backgroundColor = "#22c55e";
-        addBtn.style.color = "#020617";
+        addBtn.style.backgroundColor = "#0284c7";
+        addBtn.style.color = "#ffffff";
         addBtn.addEventListener("click", () => {
           ensureUserStampFileInput();
           userStampFileInput?.click();
@@ -9806,9 +9872,10 @@
             placeBtn.style.justifyContent = "center";
             placeBtn.style.padding = "0.25rem";
             placeBtn.style.borderRadius = "0.75rem";
-            placeBtn.style.border = "1px solid #111827";
+            placeBtn.style.border = "1.5px solid #cbd5e1";
             placeBtn.style.cursor = "pointer";
-            placeBtn.style.backgroundColor = "#020617";
+            placeBtn.style.backgroundColor = "#ffffff";
+            placeBtn.style.boxShadow = "0 1px 2px rgba(0, 0, 0, 0.05)";
             const thumb = document.createElement("img");
             thumb.src = stamp.dataUrl;
             thumb.alt = stamp.label || "Image";
@@ -9870,14 +9937,14 @@
 
             const delBtn = document.createElement("button");
             delBtn.type = "button";
-            delBtn.textContent = "X";
+            delBtn.textContent = "✕";
             delBtn.style.fontSize = "0.75rem";
-            delBtn.style.padding = "0.1rem 0.45rem";
+            delBtn.style.padding = "0.15rem 0.5rem";
             delBtn.style.borderRadius = "999px";
-            delBtn.style.border = "none";
+            delBtn.style.border = "1px solid #fecaca";
             delBtn.style.cursor = "pointer";
-            delBtn.style.backgroundColor = "#4b5563";
-            delBtn.style.color = "#f9fafb";
+            delBtn.style.backgroundColor = "#fee2e2";
+            delBtn.style.color = "#dc2626";
             delBtn.addEventListener("click", () => {
               userStamps = userStamps.filter((s) => s.id !== stamp.id);
               saveUserStamps();
@@ -9896,7 +9963,7 @@
         const googleSection = document.createElement("div");
         googleSection.style.marginTop = "0.85rem";
         googleSection.style.paddingTop = "0.75rem";
-        googleSection.style.borderTop = "1px solid #374151";
+        googleSection.style.borderTop = "1px solid #e2e8f0";
 
         const googleLabel = document.createElement("span");
         googleLabel.className = "tool-options-label";
@@ -9915,24 +9982,24 @@
         searchInput.placeholder = "e.g. India map, diagram, classroom";
         searchInput.style.width = "100%";
         searchInput.style.boxSizing = "border-box";
-        searchInput.style.padding = "0.35rem 0.5rem";
-        searchInput.style.fontSize = "0.8rem";
-        searchInput.style.background = "#1f2937";
-        searchInput.style.color = "#e5e7eb";
-        searchInput.style.border = "1px solid #374151";
+        searchInput.style.padding = "0.4rem 0.55rem";
+        searchInput.style.fontSize = "0.82rem";
+        searchInput.style.background = "#ffffff";
+        searchInput.style.color = "#0f172a";
+        searchInput.style.border = "1px solid #cbd5e1";
         searchInput.style.borderRadius = "6px";
 
         const googleImagesBtn = document.createElement("button");
         googleImagesBtn.type = "button";
-        googleImagesBtn.textContent = "Google Images";
+        googleImagesBtn.textContent = "Search Google Images";
         googleImagesBtn.title = "Open Google Images in a new tab (best for maps, diagrams, specific images)";
-        googleImagesBtn.style.padding = "0.4rem 0.75rem";
+        googleImagesBtn.style.padding = "0.45rem 0.75rem";
         googleImagesBtn.style.fontSize = "0.8rem";
-        googleImagesBtn.style.borderRadius = "999px";
-        googleImagesBtn.style.border = "none";
+        googleImagesBtn.style.borderRadius = "6px";
+        googleImagesBtn.style.border = "1px solid #0284c7";
         googleImagesBtn.style.cursor = "pointer";
-        googleImagesBtn.style.backgroundColor = "#22c55e";
-        googleImagesBtn.style.color = "#020617";
+        googleImagesBtn.style.backgroundColor = "#0284c7";
+        googleImagesBtn.style.color = "#ffffff";
         googleImagesBtn.style.fontWeight = "600";
         googleImagesBtn.style.width = "100%";
         googleImagesBtn.style.display = "flex";
@@ -9955,7 +10022,7 @@
 
         const googleHint = document.createElement("p");
         googleHint.style.fontSize = "0.72rem";
-        googleHint.style.color = "#9ca3af";
+        googleHint.style.color = "#64748b";
         googleHint.style.margin = "0.35rem 0 0 0";
         googleHint.style.lineHeight = "1.4";
         googleHint.textContent = "Use Google Images for maps & diagrams. Right-click an image there to save, then \"Add image to library...\" above to add it.";
@@ -9975,11 +10042,11 @@
         group.appendChild(fontLabel);
         const fontSelect = document.createElement("select");
         fontSelect.style.width = "100%";
-        fontSelect.style.padding = "0.3rem";
-        fontSelect.style.fontSize = "0.8rem";
-        fontSelect.style.background = "#020617";
-        fontSelect.style.color = "#e5e7eb";
-        fontSelect.style.border = "1px solid #111827";
+        fontSelect.style.padding = "0.4rem 0.55rem";
+        fontSelect.style.fontSize = "0.85rem";
+        fontSelect.style.background = "#ffffff";
+        fontSelect.style.color = "#0f172a";
+        fontSelect.style.border = "1px solid #cbd5e1";
         fontSelect.style.borderRadius = "6px";
         FONT_OPTIONS.forEach((f) => {
           const opt = document.createElement("option");
@@ -10003,14 +10070,18 @@
           btn.type = "button";
           btn.textContent = label;
           btn.title = title;
-          Object.assign(btn.style, { width: "32px", height: "28px", padding: "0", borderRadius: "6px", border: "none", cursor: "pointer", fontSize: "0.9rem" }, style(!!textSettings[key]));
-          btn.style.backgroundColor = textSettings[key] ? "#22c55e" : "#020617";
-          btn.style.color = textSettings[key] ? "#020617" : "#e5e7eb";
+          const val = !!textSettings[key];
+          Object.assign(btn.style, { width: "32px", height: "28px", padding: "0", borderRadius: "6px", cursor: "pointer", fontSize: "0.9rem" }, style(val));
+          btn.style.backgroundColor = val ? "#0284c7" : "#ffffff";
+          btn.style.color = val ? "#ffffff" : "#334155";
+          btn.style.border = val ? "1.5px solid #0284c7" : "1px solid #cbd5e1";
           btn.addEventListener("click", () => {
             textSettings[key] = !textSettings[key];
-            Object.assign(btn.style, style(textSettings[key]));
-            btn.style.backgroundColor = textSettings[key] ? "#22c55e" : "#020617";
-            btn.style.color = textSettings[key] ? "#020617" : "#e5e7eb";
+            const newVal = !!textSettings[key];
+            Object.assign(btn.style, style(newVal));
+            btn.style.backgroundColor = newVal ? "#0284c7" : "#ffffff";
+            btn.style.color = newVal ? "#ffffff" : "#334155";
+            btn.style.border = newVal ? "1.5px solid #0284c7" : "1px solid #cbd5e1";
           });
           styleRow.appendChild(btn);
         });
@@ -10051,7 +10122,7 @@
         group.appendChild(slider);
         const hint = document.createElement("p");
         hint.style.fontSize = "0.75rem";
-        hint.style.color = "#9ca3af";
+        hint.style.color = "#64748b";
         hint.style.margin = "0.5rem 0 0 0";
         hint.textContent = "Click on the board to add a text box.";
         group.appendChild(hint);
@@ -10064,7 +10135,7 @@
         wrap.className = "tool-options-group";
         const p = document.createElement("p");
         p.style.fontSize = "0.8rem";
-        p.style.color = "#9ca3af";
+        p.style.color = "#64748b";
         p.style.margin = "0 0 0.5rem 0";
         p.textContent = "Click on the board to add a sticky note. Choose a color below.";
         wrap.appendChild(p);
@@ -10091,7 +10162,7 @@
           swatch.type = "button";
           swatch.className = "color-swatch";
           swatch.style.backgroundColor = color;
-          swatch.style.border = (stickyNotesSettings.color === color) ? "2px solid #e5e7eb" : "1px solid #374151";
+          swatch.style.border = (stickyNotesSettings.color === color) ? "2px solid #0284c7" : "1px solid #cbd5e1";
           swatch.style.width = "28px";
           swatch.style.height = "28px";
           swatch.style.borderRadius = "6px";
@@ -10100,7 +10171,7 @@
           swatch.addEventListener("click", () => {
             stickyNotesSettings.color = color;
             colorRow.querySelectorAll("button").forEach((b) => {
-              b.style.border = (b === swatch) ? "2px solid #e5e7eb" : "1px solid #374151";
+              b.style.border = (b === swatch) ? "2px solid #0284c7" : "1px solid #cbd5e1";
             });
           });
           colorRow.appendChild(swatch);
@@ -10127,7 +10198,7 @@
         const opacityValue = document.createElement("span");
         opacityValue.style.minWidth = "2.5rem";
         opacityValue.style.fontSize = "0.8rem";
-        opacityValue.style.color = "#e5e7eb";
+        opacityValue.style.color = "#475569";
         opacityValue.textContent = Math.round((stickyNotesSettings.fillOpacity ?? 1) * 100) + "%";
         opacitySlider.addEventListener("input", () => {
           stickyNotesSettings.fillOpacity = Number(opacitySlider.value) / 100;
@@ -10378,11 +10449,11 @@
         qInput.value = pollSettings.question || "New Poll";
         qInput.style.width = "100%";
         qInput.style.marginTop = "0.25rem";
-        qInput.style.padding = "0.4rem";
-        qInput.style.fontSize = "0.9rem";
-        qInput.style.backgroundColor = "#020617";
-        qInput.style.color = "#e5e7eb";
-        qInput.style.border = "1px solid #374151";
+        qInput.style.padding = "0.45rem 0.6rem";
+        qInput.style.fontSize = "0.88rem";
+        qInput.style.backgroundColor = "#ffffff";
+        qInput.style.color = "#0f172a";
+        qInput.style.border = "1px solid #cbd5e1";
         qInput.style.borderRadius = "6px";
         qInput.addEventListener("input", () => { pollSettings.question = qInput.value; });
         qInput.addEventListener("change", () => { pollSettings.question = qInput.value; });
@@ -10401,32 +10472,36 @@
           (pollSettings.options || ["Option 1", "Option 2"]).forEach((_, i) => {
             const row = document.createElement("div");
             row.style.display = "flex";
-            row.style.gap = "0.25rem";
-            row.style.marginBottom = "0.25rem";
+            row.style.gap = "0.35rem";
+            row.style.marginBottom = "0.35rem";
             row.style.alignItems = "center";
             const inp = document.createElement("input");
             inp.type = "text";
             inp.value = pollSettings.options[i];
             inp.style.flex = "1";
-            inp.style.padding = "0.3rem";
+            inp.style.padding = "0.4rem 0.55rem";
             inp.style.fontSize = "0.85rem";
-            inp.style.backgroundColor = "#020617";
-            inp.style.color = "#e5e7eb";
-            inp.style.border = "1px solid #374151";
+            inp.style.backgroundColor = "#ffffff";
+            inp.style.color = "#0f172a";
+            inp.style.border = "1px solid #cbd5e1";
             inp.style.borderRadius = "6px";
             inp.addEventListener("input", () => { pollSettings.options[i] = inp.value; });
             inp.addEventListener("change", () => { pollSettings.options[i] = inp.value; });
             const delBtn = document.createElement("button");
             delBtn.type = "button";
             delBtn.textContent = "−";
-            delBtn.style.width = "1.8rem";
-            delBtn.style.padding = "0.2rem";
-            delBtn.style.fontSize = "1rem";
+            delBtn.title = "Delete option";
+            delBtn.style.width = "2rem";
+            delBtn.style.height = "2rem";
+            delBtn.style.display = "flex";
+            delBtn.style.alignItems = "center";
+            delBtn.style.justifyContent = "center";
+            delBtn.style.fontSize = "1.1rem";
             delBtn.style.cursor = "pointer";
-            delBtn.style.background = "#374151";
-            delBtn.style.color = "#e5e7eb";
-            delBtn.style.border = "none";
-            delBtn.style.borderRadius = "4px";
+            delBtn.style.backgroundColor = "#fef2f2";
+            delBtn.style.color = "#dc2626";
+            delBtn.style.border = "1px solid #fecaca";
+            delBtn.style.borderRadius = "6px";
             delBtn.addEventListener("click", () => {
               if (pollSettings.options.length <= 1) return;
               pollSettings.options.splice(i, 1);
@@ -10441,13 +10516,14 @@
         const addOptBtn = document.createElement("button");
         addOptBtn.type = "button";
         addOptBtn.textContent = "+ Add option";
-        addOptBtn.style.marginTop = "0.25rem";
+        addOptBtn.style.marginTop = "0.35rem";
         addOptBtn.style.fontSize = "0.8rem";
-        addOptBtn.style.padding = "0.3rem 0.6rem";
+        addOptBtn.style.fontWeight = "600";
+        addOptBtn.style.padding = "0.35rem 0.75rem";
         addOptBtn.style.cursor = "pointer";
-        addOptBtn.style.background = "#374151";
-        addOptBtn.style.color = "#e5e7eb";
-        addOptBtn.style.border = "none";
+        addOptBtn.style.backgroundColor = "#f0fdf4";
+        addOptBtn.style.color = "#15803d";
+        addOptBtn.style.border = "1px solid #bbf7d0";
         addOptBtn.style.borderRadius = "6px";
         addOptBtn.addEventListener("click", () => {
           pollSettings.options = pollSettings.options || [];
@@ -10465,11 +10541,11 @@
         const fontSelect = document.createElement("select");
         fontSelect.style.width = "100%";
         fontSelect.style.marginTop = "0.25rem";
-        fontSelect.style.padding = "0.4rem";
+        fontSelect.style.padding = "0.45rem 0.6rem";
         fontSelect.style.fontSize = "0.85rem";
-        fontSelect.style.backgroundColor = "#020617";
-        fontSelect.style.color = "#e5e7eb";
-        fontSelect.style.border = "1px solid #374151";
+        fontSelect.style.backgroundColor = "#ffffff";
+        fontSelect.style.color = "#0f172a";
+        fontSelect.style.border = "1px solid #cbd5e1";
         fontSelect.style.borderRadius = "6px";
         FONT_OPTIONS.forEach((f) => {
           const opt = document.createElement("option");
@@ -10506,7 +10582,7 @@
         wrap.appendChild(colorRow);
         const hint = document.createElement("p");
         hint.style.fontSize = "0.8rem";
-        hint.style.color = "#9ca3af";
+        hint.style.color = "#64748b";
         hint.style.margin = "0.5rem 0 0 0";
         hint.textContent = "Click on the board to place. Use Pointer tool to change votes and end poll.";
         wrap.appendChild(hint);
@@ -10539,14 +10615,18 @@
           btn.style.borderRadius = "999px";
           btn.style.border = "none";
           btn.style.cursor = "pointer";
-          btn.style.background = (listSettings.type || "bullet") === opt.id ? "#22c55e" : "#020617";
-          btn.style.color = (listSettings.type || "bullet") === opt.id ? "#020617" : "#e5e7eb";
+          const isListActive = (listSettings.type || "bullet") === opt.id;
+          btn.style.background = isListActive ? "#0284c7" : "#ffffff";
+          btn.style.color = isListActive ? "#ffffff" : "#475569";
+          btn.style.border = isListActive ? "1px solid #0284c7" : "1px solid #cbd5e1";
           btn.addEventListener("click", () => {
             listSettings.type = opt.id;
             typeRow.querySelectorAll("button").forEach((b, i) => {
               const o = [{ id: "bullet", label: "Bullet points" }, { id: "number", label: "Numbering" }, { id: "multilevel", label: "Multilevel list" }][i];
-              b.style.background = listSettings.type === o.id ? "#22c55e" : "#020617";
-              b.style.color = listSettings.type === o.id ? "#020617" : "#e5e7eb";
+              const active = listSettings.type === o.id;
+              b.style.background = active ? "#0284c7" : "#ffffff";
+              b.style.color = active ? "#ffffff" : "#475569";
+              b.style.border = active ? "1px solid #0284c7" : "1px solid #cbd5e1";
             });
           });
           typeRow.appendChild(btn);
@@ -10573,7 +10653,7 @@
         const sizeValue = document.createElement("span");
         sizeValue.style.minWidth = "2rem";
         sizeValue.style.fontSize = "0.8rem";
-        sizeValue.style.color = "#e5e7eb";
+        sizeValue.style.color = "#475569";
         sizeValue.textContent = listSettings.fontSize ?? 24;
         sizeSlider.addEventListener("input", () => {
           listSettings.fontSize = Number(sizeSlider.value);
@@ -10584,7 +10664,7 @@
         wrap.appendChild(sizeRow);
         const hint = document.createElement("p");
         hint.style.fontSize = "0.8rem";
-        hint.style.color = "#9ca3af";
+        hint.style.color = "#64748b";
         hint.style.margin = "0.5rem 0 0 0";
         hint.textContent = "Click on the board to place the list. Use Pointer to edit.";
         wrap.appendChild(hint);
@@ -10612,14 +10692,18 @@
           btn.style.borderRadius = "999px";
           btn.style.border = "none";
           btn.style.cursor = "pointer";
-          btn.style.background = timeToolSettings.mode === mode ? "#22c55e" : "#020617";
-          btn.style.color = timeToolSettings.mode === mode ? "#020617" : "#e5e7eb";
+          const isTimeActive = timeToolSettings.mode === mode;
+          btn.style.background = isTimeActive ? "#0284c7" : "#ffffff";
+          btn.style.color = isTimeActive ? "#ffffff" : "#475569";
+          btn.style.border = isTimeActive ? "1px solid #0284c7" : "1px solid #cbd5e1";
           btn.addEventListener("click", () => {
             timeToolSettings.mode = mode;
             modeRow.querySelectorAll("button").forEach((b, i) => {
               const m = ["clock", "timer", "stopwatch"][i];
-              b.style.background = timeToolSettings.mode === m ? "#22c55e" : "#020617";
-              b.style.color = timeToolSettings.mode === m ? "#020617" : "#e5e7eb";
+              const active = timeToolSettings.mode === m;
+              b.style.background = active ? "#0284c7" : "#ffffff";
+              b.style.color = active ? "#ffffff" : "#475569";
+              b.style.border = active ? "1px solid #0284c7" : "1px solid #cbd5e1";
             });
             if (timerRow) timerRow.style.display = mode === "timer" ? "block" : "none";
           });
@@ -10671,7 +10755,8 @@
           wrap.style.gap = "0.25rem";
           const lab = document.createElement("span");
           lab.style.fontSize = "0.75rem";
-          lab.style.color = "#9ca3af";
+          lab.style.fontWeight = "600";
+          lab.style.color = "#475569";
           lab.textContent = label;
           const inp = document.createElement("input");
           inp.type = "number";
@@ -10679,11 +10764,11 @@
           inp.max = String(max);
           inp.value = String(value);
           inp.style.width = "3.5rem";
-          inp.style.padding = "0.3rem";
+          inp.style.padding = "0.35rem 0.5rem";
           inp.style.fontSize = "0.9rem";
-          inp.style.backgroundColor = "#020617";
-          inp.style.color = "#e5e7eb";
-          inp.style.border = "1px solid #374151";
+          inp.style.backgroundColor = "#ffffff";
+          inp.style.color = "#0f172a";
+          inp.style.border = "1px solid #cbd5e1";
           inp.style.borderRadius = "6px";
           wrap.appendChild(lab);
           wrap.appendChild(inp);
@@ -10713,7 +10798,7 @@
         wrap.appendChild(timerRow);
         const hint = document.createElement("p");
         hint.style.fontSize = "0.8rem";
-        hint.style.color = "#9ca3af";
+        hint.style.color = "#64748b";
         hint.style.margin = "0.5rem 0 0 0";
         hint.textContent = "Click on the board to place. Use Pointer tool to select and delete.";
         wrap.appendChild(hint);
