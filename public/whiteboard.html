@@ -3318,6 +3318,8 @@
       let activeShape = null;
       let selectedShapes = [];
       let isDraggingShape = false;
+      let isRotatingShape = false;
+      let rotateShapeState = null;
       let dragShapeStartPoint = null;
       let dragShapeOriginals = null;
       let dragGroupChildrenOriginals = null;
@@ -6111,6 +6113,13 @@
         const h = y2 - y1 || 1;
         const r = Math.min(w, h) / 2;
 
+        if (shape.rotation && typeof shape.rotation === "number" && shape.rotation !== 0) {
+          const rotRad = (shape.rotation * Math.PI) / 180;
+          ctx.translate(cx, cy);
+          ctx.rotate(rotRad);
+          ctx.translate(-cx, -cy);
+        }
+
         if (type === "line" || type === "ray" || type === "arrow") {
           const dx = end.x - start.x;
           const dy = end.y - start.y;
@@ -6694,6 +6703,40 @@
               ctx.fillRect(h.x - s / 2, h.y - s / 2, s, s);
             });
             shape._resizeHandles = handles;
+
+            // Rotation Handle above top-center
+            const rotStemLen = 22;
+            const midTopX = boxX + boxW / 2;
+            const midTopY = boxY;
+            const rotHandleCX = midTopX;
+            const rotHandleCY = boxY - rotStemLen;
+
+            // Draw stem line
+            ctx.setLineDash([2, 2]);
+            ctx.strokeStyle = "#0284c7";
+            ctx.lineWidth = 1.2;
+            ctx.beginPath();
+            ctx.moveTo(midTopX, midTopY);
+            ctx.lineTo(rotHandleCX, rotHandleCY);
+            ctx.stroke();
+
+            // Draw circular rotate handle
+            ctx.setLineDash([]);
+            ctx.fillStyle = "#ffffff";
+            ctx.strokeStyle = "#0284c7";
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.arc(rotHandleCX, rotHandleCY, 8, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+
+            ctx.fillStyle = "#0284c7";
+            ctx.font = "bold 10px sans-serif";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText("↻", rotHandleCX, rotHandleCY);
+
+            shape._rotateHandle = { cx: rotHandleCX, cy: rotHandleCY, r: 8 };
 
             const plusSize = 14;
             const plusPad = 4;
@@ -7343,6 +7386,107 @@
 
           wrap.appendChild(p);
           wrap.appendChild(actionsRow);
+
+          // Rotation slider & quick preset chips for all selected shapes
+          if (selectedShapes.length > 0) {
+            const rotLabel = document.createElement("label");
+            rotLabel.className = "tool-options-label";
+            rotLabel.textContent = "Rotation";
+            rotLabel.style.marginTop = "0.5rem";
+            rotLabel.style.display = "block";
+            wrap.appendChild(rotLabel);
+
+            const firstShape = selectedShapes[0];
+            const curRot = typeof firstShape.rotation === "number" ? firstShape.rotation : 0;
+
+            const rotRow = document.createElement("div");
+            rotRow.style.display = "flex";
+            rotRow.style.alignItems = "center";
+            rotRow.style.gap = "0.5rem";
+            rotRow.style.marginTop = "0.25rem";
+
+            const rotSlider = document.createElement("input");
+            rotSlider.id = "selectShapeRotSlider";
+            rotSlider.type = "range";
+            rotSlider.min = "-180";
+            rotSlider.max = "180";
+            rotSlider.value = String(curRot);
+            rotSlider.className = "slider-input";
+            rotSlider.style.flex = "1";
+
+            const rotInput = document.createElement("input");
+            rotInput.id = "selectShapeRotInput";
+            rotInput.type = "number";
+            rotInput.min = "-180";
+            rotInput.max = "180";
+            rotInput.step = "1";
+            rotInput.value = String(curRot);
+            rotInput.style.width = "3.4rem";
+            rotInput.style.padding = "0.2rem 0.3rem";
+            rotInput.style.fontSize = "0.8rem";
+            rotInput.style.border = "1px solid #cbd5e1";
+            rotInput.style.borderRadius = "4px";
+            rotInput.style.textAlign = "right";
+
+            const rotUnit = document.createElement("span");
+            rotUnit.style.fontSize = "0.8rem";
+            rotUnit.style.color = "#64748b";
+            rotUnit.textContent = "°";
+
+            function applyShapeRotation(deg) {
+              const v = Math.max(-180, Math.min(180, Math.round(Number(deg) || 0)));
+              selectedShapes.forEach((s) => {
+                s.rotation = v;
+              });
+              rotSlider.value = String(v);
+              rotInput.value = String(v);
+              updateBoardAppearance();
+              notifyParentPageUpdate(currentPageIndex, true);
+            }
+
+            let rotUndone = false;
+            rotSlider.addEventListener("input", () => {
+              if (!rotUndone) { pushUndo(); rotUndone = true; }
+              applyShapeRotation(rotSlider.value);
+            });
+            rotInput.addEventListener("change", () => {
+              pushUndo();
+              applyShapeRotation(rotInput.value);
+            });
+
+            rotRow.appendChild(rotSlider);
+            rotRow.appendChild(rotInput);
+            rotRow.appendChild(rotUnit);
+            wrap.appendChild(rotRow);
+
+            const presetsRow = document.createElement("div");
+            presetsRow.style.display = "flex";
+            presetsRow.style.gap = "4px";
+            presetsRow.style.marginTop = "0.35rem";
+            presetsRow.style.flexWrap = "wrap";
+
+            [0, 30, 45, 60, 90, 180, 270].forEach((ang) => {
+              const normAng = ang > 180 ? ang - 360 : ang;
+              const pBtn = document.createElement("button");
+              pBtn.type = "button";
+              pBtn.textContent = ang + "°";
+              pBtn.style.padding = "2px 6px";
+              pBtn.style.fontSize = "0.70rem";
+              pBtn.style.fontWeight = "600";
+              pBtn.style.borderRadius = "4px";
+              pBtn.style.border = "1px solid #cbd5e1";
+              pBtn.style.background = (curRot === normAng) ? "#0284c7" : "#ffffff";
+              pBtn.style.color = (curRot === normAng) ? "#ffffff" : "#475569";
+              pBtn.style.cursor = "pointer";
+              pBtn.addEventListener("click", () => {
+                pushUndo();
+                applyShapeRotation(normAng);
+                if (propertiesContent && currentTool === "select") handleToolSelection("select");
+              });
+              presetsRow.appendChild(pBtn);
+            });
+            wrap.appendChild(presetsRow);
+          }
 
           const hasSolidShape = selectedShapes.some((s) => s.fillMode === "solid");
           if (selectedShapes.length > 0 && hasSolidShape) {
@@ -11153,6 +11297,26 @@
         ctx.restore();
       }
 
+      function boardPointToShapeLocal(px, py, shape) {
+        const rot = (shape && typeof shape.rotation === "number") ? shape.rotation : 0;
+        if (rot === 0 || !shape || !shape.start || !shape.end) return { x: px, y: py };
+        const sx1 = Math.min(shape.start.x, shape.end.x);
+        const sy1 = Math.min(shape.start.y, shape.end.y);
+        const sx2 = Math.max(shape.start.x, shape.end.x);
+        const sy2 = Math.max(shape.start.y, shape.end.y);
+        const cx = (sx1 + sx2) / 2;
+        const cy = (sy1 + sy2) / 2;
+        const dx = px - cx;
+        const dy = py - cy;
+        const rad = (-rot * Math.PI) / 180;
+        const cos = Math.cos(rad);
+        const sin = Math.sin(rad);
+        return {
+          x: cx + dx * cos - dy * sin,
+          y: cy + dx * sin + dy * cos
+        };
+      }
+
       function hitTestShape(point) {
         const page = pages[currentPageIndex];
         if (!page || !page.shapes) return null;
@@ -11165,8 +11329,18 @@
           const y1 = Math.min(start.y, end.y) - padding;
           const x2 = Math.max(start.x, end.x) + padding;
           const y2 = Math.max(start.y, end.y) + padding;
-          if (point.x >= x1 && point.x <= x2 && point.y >= y1 && point.y <= y2) {
-            return { shape, index: i };
+          const cx = (x1 + x2) / 2;
+          const cy = (y1 + y2) / 2;
+          const w = (x2 - x1);
+          const h = (y2 - y1);
+          if (shape.rotation && typeof shape.rotation === "number" && shape.rotation !== 0) {
+            if (pointInRotatedRect(point.x, point.y, cx, cy, w, h, shape.rotation)) {
+              return { shape, index: i };
+            }
+          } else {
+            if (point.x >= x1 && point.x <= x2 && point.y >= y1 && point.y <= y2) {
+              return { shape, index: i };
+            }
           }
         }
         return null;
@@ -11747,17 +11921,53 @@
             }
           }
 
-          // check resize handles first (shapes, then texts)
+          // Check shape rotation handle first
           const page = pages[currentPageIndex];
+          if (page && page.shapes && page.shapes.length) {
+            for (let i = page.shapes.length - 1; i >= 0; i--) {
+              const sh = page.shapes[i];
+              if (!sh || sh.locked || !sh._rotateHandle) continue;
+              const localPt = boardPointToShapeLocal(point.x, point.y, sh);
+              const rh = sh._rotateHandle;
+              const rdx = localPt.x - rh.cx;
+              const rdy = localPt.y - rh.cy;
+              if (Math.hypot(rdx, rdy) <= 15) {
+                pushUndo();
+                const sx1 = Math.min(sh.start.x, sh.end.x);
+                const sy1 = Math.min(sh.start.y, sh.end.y);
+                const sx2 = Math.max(sh.start.x, sh.end.x);
+                const sy2 = Math.max(sh.start.y, sh.end.y);
+                const cx = (sx1 + sx2) / 2;
+                const cy = (sy1 + sy2) / 2;
+                rotateShapeState = {
+                  shape: sh,
+                  centerX: cx,
+                  centerY: cy,
+                  startAngle: sh.rotation || 0
+                };
+                isRotatingShape = true;
+                isDrawing = true;
+                isDraggingShape = false;
+                dragShapeStartPoint = null;
+                dragShapeOriginals = null;
+                dragGroupChildrenOriginals = null;
+                dragTextOriginals = null;
+                return;
+              }
+            }
+          }
+
+          // check resize handles (shapes, then texts)
           const radius = 12;
           if (page) {
             if (page.shapes && page.shapes.length) {
               for (let i = page.shapes.length - 1; i >= 0; i--) {
                 const sh = page.shapes[i];
                 if (!sh || sh.locked || sh.type === "group" || !sh._resizeHandles || !Array.isArray(sh._resizeHandles)) continue;
+                const localPt = boardPointToShapeLocal(point.x, point.y, sh);
                 for (const h of sh._resizeHandles) {
-                  const dx = point.x - h.x;
-                  const dy = point.y - h.y;
+                  const dx = localPt.x - h.x;
+                  const dy = localPt.y - h.y;
                   if (Math.sqrt(dx * dx + dy * dy) <= radius) {
                     pushUndo();
                     resizeState = {
@@ -12003,6 +12213,25 @@
         }
         if (!isDrawing) return;
         if (typeof evt.preventDefault === "function") evt.preventDefault();
+        if (isRotatingShape && rotateShapeState && currentTool === "select") {
+          const point = getCanvasPoint(evt);
+          const currentPointerAngle = Math.atan2(point.y - rotateShapeState.centerY, point.x - rotateShapeState.centerX) * (180 / Math.PI);
+          let newAngle = currentPointerAngle + 90;
+          while (newAngle > 180) newAngle -= 360;
+          while (newAngle < -180) newAngle += 360;
+          if (evt.shiftKey) {
+            newAngle = Math.round(newAngle / 15) * 15;
+          } else {
+            newAngle = Math.round(newAngle);
+          }
+          rotateShapeState.shape.rotation = newAngle;
+          updateBoardAppearance();
+          const rotSlider = document.getElementById("selectShapeRotSlider");
+          const rotInput = document.getElementById("selectShapeRotInput");
+          if (rotSlider) rotSlider.value = String(newAngle);
+          if (rotInput) rotInput.value = String(newAngle);
+          return;
+        }
         if (resizeState && currentTool === "select") {
           const point = getCanvasPoint(evt);
           const { kind } = resizeState;
@@ -12377,6 +12606,12 @@
           selectedWidgets = widgetsInBox(activeSelectionBox);
           activeSelectionBox = null;
           if (propertiesContent) handleToolSelection("select");
+        }
+        if (isRotatingShape) {
+          isRotatingShape = false;
+          rotateShapeState = null;
+          notifyParentPageUpdate(currentPageIndex, true);
+          if (propertiesContent && currentTool === "select") handleToolSelection("select");
         }
         const hadDrag = isDraggingShape || isDraggingWidget;
         isDrawing = false;
@@ -15426,16 +15661,13 @@
 
         let compassData = null;
         if (compassState.visible) {
-          let originPt = { x: compassState.x, y: compassState.y };
-          if (boardCanvas) {
-            originPt = getCanvasPointFromClient(compassState.x, compassState.y);
-          }
+          const { centerPt, radiusCanvas } = getCompassNeedleAndPencilPoints();
           compassData = {
             visible: true,
-            x: originPt.x,
-            y: originPt.y,
+            x: centerPt.x,
+            y: centerPt.y,
             radiusCm: compassState.radiusCm,
-            radiusPx: (compassState.radiusCm * compassState.pxPerCm) / (zoom || 1),
+            radiusPx: radiusCanvas,
             angle: compassState.angle,
             isLocked: !!compassState.isLocked
           };
@@ -17697,14 +17929,44 @@
         svg.innerHTML = svgContent;
       }
 
+      function getCompassNeedleAndPencilPoints() {
+        const pin = document.getElementById("eduCompassNeedlePin");
+        const knob = document.getElementById("eduCompassPencilKnob");
+        const overlay = document.getElementById("eduCompassOverlay");
+        let centerPt = { x: compassState.x, y: compassState.y };
+        let pencilPt = null;
+
+        if (pin && boardCanvas) {
+          const pRect = pin.getBoundingClientRect();
+          centerPt = getCanvasPointFromClient(pRect.left + pRect.width / 2, pRect.top + pRect.height / 2);
+        } else if (overlay && boardCanvas) {
+          const oRect = overlay.getBoundingClientRect();
+          centerPt = getCanvasPointFromClient(oRect.left + 200, oRect.top + 200);
+        }
+
+        if (knob && boardCanvas) {
+          const kRect = knob.getBoundingClientRect();
+          pencilPt = getCanvasPointFromClient(kRect.left + kRect.width / 2, kRect.top + kRect.height / 2);
+        } else {
+          const rPx = (compassState.radiusCm * compassState.pxPerCm) / (zoom || 1);
+          const rad = (compassState.angle * Math.PI) / 180;
+          pencilPt = {
+            x: centerPt.x + rPx * Math.cos(rad),
+            y: centerPt.y + rPx * Math.sin(rad)
+          };
+        }
+
+        const radiusCanvas = Math.hypot(pencilPt.x - centerPt.x, pencilPt.y - centerPt.y);
+        return { centerPt, pencilPt, radiusCanvas };
+      }
+
       function drawCompassCircle() {
         const page = pages[currentPageIndex];
         if (!page) return;
         if (!page.shapes) page.shapes = [];
         pushUndo();
 
-        const pt = getCanvasPointFromClient(compassState.x, compassState.y);
-        const radiusCanvas = (compassState.radiusCm * compassState.pxPerCm) / zoom;
+        const { centerPt, pencilPt } = getCompassNeedleAndPencilPoints();
 
         const circleShape = {
           id: generateId(),
@@ -17712,8 +17974,8 @@
           color: penSettings.color || "#0284c7",
           width: penSettings.width || 2,
           fillMode: "none",
-          start: { x: pt.x, y: pt.y },
-          end: { x: pt.x + radiusCanvas, y: pt.y },
+          start: { x: centerPt.x, y: centerPt.y },
+          end: { x: pencilPt.x, y: pencilPt.y },
           createdAt: Date.now()
         };
 
@@ -17735,8 +17997,7 @@
         if (!page.shapes) page.shapes = [];
         pushUndo();
 
-        const pt = getCanvasPointFromClient(compassState.x, compassState.y);
-        const radiusCanvas = (compassState.radiusCm * compassState.pxPerCm) / zoom;
+        const { centerPt, radiusCanvas } = getCompassNeedleAndPencilPoints();
         const sRad = (compassState.angle * Math.PI) / 180;
         const eRad = sRad + ((spanDeg * Math.PI) / 180);
 
@@ -17745,7 +18006,7 @@
           type: "angleArc",
           color: penSettings.color || "#0284c7",
           width: penSettings.width || 2,
-          vertex: { x: pt.x, y: pt.y },
+          vertex: { x: centerPt.x, y: centerPt.y },
           radius: radiusCanvas,
           startAngle: sRad,
           endAngle: eRad,
@@ -18391,8 +18652,12 @@
 
           compassPencilKnob.addEventListener("pointermove", (e) => {
             if (!isAdjusting) return;
-            const dx = e.clientX - compassState.x;
-            const dy = e.clientY - compassState.y;
+            const pin = document.getElementById("eduCompassNeedlePin");
+            const pinRect = pin ? pin.getBoundingClientRect() : null;
+            const pinCX = pinRect ? (pinRect.left + pinRect.width / 2) : compassState.x;
+            const pinCY = pinRect ? (pinRect.top + pinRect.height / 2) : compassState.y;
+            const dx = e.clientX - pinCX;
+            const dy = e.clientY - pinCY;
 
             let angleDeg = Math.atan2(dy, dx) * (180 / Math.PI);
             if (angleDeg < 0) angleDeg += 360;

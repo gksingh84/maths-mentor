@@ -2842,6 +2842,13 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
 
+      if (sh.rotation && typeof sh.rotation === 'number' && sh.rotation !== 0) {
+        const rotRad = (sh.rotation * Math.PI) / 180;
+        ctx.translate(cx, cy);
+        ctx.rotate(rotRad);
+        ctx.translate(-cx, -cy);
+      }
+
       if (type === 'line' || type === 'ray' || type === 'arrow') {
         ctx.beginPath();
         ctx.moveTo(start.x, start.y);
