@@ -203,23 +203,27 @@
       ctx.stroke();
       ctx.setLineDash([]);
 
-      // Shell label badge (K, L, M, N)
+      // Shell label badge (K, L, M, N) positioned at 35 degrees to never overlap electrons at 12 o'clock
       const sName = SHELL_NAMES[sIdx] || ("S" + (sIdx + 1));
+      const badgeAngle = -Math.PI / 2 + 0.65; // ~37 degrees clockwise from top
+      const bx = cx + r * Math.cos(badgeAngle);
+      const by = cy + r * Math.sin(badgeAngle);
+
       ctx.save();
       ctx.font = "bold 9px system-ui, -apple-system, sans-serif";
-      const lblW = ctx.measureText(sName).width + 8;
+      const lblW = ctx.measureText(sName).width + 6;
       ctx.fillStyle = isDark ? "#1e293b" : "#ffffff";
-      ctx.strokeStyle = isDark ? "#475569" : "#cbd5e1";
+      ctx.strokeStyle = isDark ? "#475569" : "#bae6fd";
       ctx.lineWidth = 1;
       ctx.beginPath();
-      ctx.roundRect ? ctx.roundRect(cx - lblW / 2, cy - r - 6, lblW, 12, 3) : ctx.rect(cx - lblW / 2, cy - r - 6, lblW, 12);
+      ctx.roundRect ? ctx.roundRect(bx - lblW / 2, by - 6, lblW, 12, 3) : ctx.rect(bx - lblW / 2, by - 6, lblW, 12);
       ctx.fill();
       ctx.stroke();
 
       ctx.fillStyle = isDark ? "#38bdf8" : "#0284c7";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillText(sName, cx, cy - r);
+      ctx.fillText(sName, bx, by);
       ctx.restore();
 
       // Electron dots around orbit
@@ -297,7 +301,7 @@
     const w = x2 - x1;
     const h = y2 - y1;
 
-    if (w < 40 || h < 40) return;
+    if (w < 60 || h < 60) return;
 
     ctx.save();
 
@@ -306,118 +310,210 @@
       isDark = true;
     }
 
-    const el = elements.find((e) => e.z === shape.atomicNumber) || elements[10]; // Default to Sodium
+    const el = elements.find((e) => e.z === shape.atomicNumber) || elements[10];
     const cat = CATEGORIES[el.category] || CATEGORIES.alkali;
 
-    // Card background
-    const radius = 10;
+    // 1. Outer Card Background
+    const radius = 12;
     ctx.beginPath();
     ctx.roundRect ? ctx.roundRect(x1, y1, w, h, radius) : ctx.rect(x1, y1, w, h);
-    ctx.fillStyle = isDark ? "rgba(15, 23, 42, 0.95)" : "rgba(255, 255, 255, 0.96)";
+    ctx.fillStyle = isDark ? "rgba(15, 23, 42, 0.97)" : "#ffffff";
     ctx.fill();
     ctx.strokeStyle = isDark ? "#38bdf8" : cat.border;
     ctx.lineWidth = 2;
     ctx.stroke();
 
-    // Top Category Header Banner
+    // 2. Top Header Banner
+    const headerH = Math.max(34, Math.min(42, Math.round(h * 0.085)));
     ctx.beginPath();
-    ctx.roundRect ? ctx.roundRect(x1, y1, w, 28, [radius, radius, 0, 0]) : ctx.rect(x1, y1, w, 28);
-    ctx.fillStyle = cat.bg;
+    ctx.roundRect ? ctx.roundRect(x1, y1, w, headerH, [radius, radius, 0, 0]) : ctx.rect(x1, y1, w, headerH);
+    ctx.fillStyle = isDark ? "rgba(30, 41, 59, 0.95)" : cat.bg;
     ctx.fill();
     ctx.strokeStyle = cat.border;
     ctx.lineWidth = 1;
     ctx.stroke();
 
-    ctx.font = "bold 11px system-ui, -apple-system, sans-serif";
+    // Category Label on Left
+    ctx.font = "bold 13px system-ui, -apple-system, sans-serif";
     ctx.fillStyle = cat.text;
     ctx.textAlign = "left";
     ctx.textBaseline = "middle";
-    ctx.fillText(cat.label + " · Period " + el.period + (el.group ? " · Group " + el.group : ""), x1 + 10, y1 + 14);
+    const headerTitle = cat.label + " · Period " + el.period + (el.group ? " · Group " + el.group : "");
+    ctx.fillText(headerTitle, x1 + 12, y1 + headerH / 2);
 
-    ctx.textAlign = "right";
-    ctx.fillText("Z = " + el.z, x2 - 10, y1 + 14);
+    // Z Pill on Right
+    const zPillText = "Z = " + el.z;
+    ctx.font = "bold 12px system-ui, -apple-system, sans-serif";
+    const zPillW = ctx.measureText(zPillText).width + 12;
+    const zPillH = 20;
+    const zPillX = x2 - zPillW - 10;
+    const zPillY = y1 + (headerH - zPillH) / 2;
 
-    // Main Element Tile in Upper Half
-    const tileW = Math.min(100, w * 0.35);
+    ctx.fillStyle = isDark ? "#0f172a" : "#ffffff";
+    ctx.strokeStyle = cat.border;
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.roundRect ? ctx.roundRect(zPillX, zPillY, zPillW, zPillH, 4) : ctx.rect(zPillX, zPillY, zPillW, zPillH);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = cat.text;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(zPillText, zPillX + zPillW / 2, zPillY + zPillH / 2);
+
+    // 3. Upper Left: Large Element Tile
+    const tileW = Math.max(90, Math.min(125, Math.round(w * 0.35)));
     const tileH = tileW;
     const tileX = x1 + 14;
-    const tileY = y1 + 38;
+    const tileY = y1 + headerH + 12;
 
     ctx.beginPath();
-    ctx.roundRect ? ctx.roundRect(tileX, tileY, tileW, tileH, 8) : ctx.rect(tileX, tileY, tileW, tileH);
+    ctx.roundRect ? ctx.roundRect(tileX, tileY, tileW, tileH, 9) : ctx.rect(tileX, tileY, tileW, tileH);
     ctx.fillStyle = isDark ? "rgba(30, 41, 59, 0.9)" : cat.bg;
     ctx.fill();
     ctx.strokeStyle = cat.border;
-    ctx.lineWidth = 1.5;
+    ctx.lineWidth = 2;
     ctx.stroke();
 
-    // Atomic Mass top right
-    ctx.font = "9px system-ui, -apple-system, sans-serif";
-    ctx.fillStyle = isDark ? "#cbd5e1" : "#64748b";
-    ctx.textAlign = "right";
-    ctx.textBaseline = "top";
-    ctx.fillText(el.mass.toString(), tileX + tileW - 6, tileY + 6);
-
-    // Atomic Number top left
+    // Atomic Number (top-left of tile)
+    ctx.font = "bold 12px system-ui, -apple-system, sans-serif";
+    ctx.fillStyle = isDark ? "#94a3b8" : "#64748b";
     ctx.textAlign = "left";
-    ctx.fillText(el.z.toString(), tileX + 6, tileY + 6);
+    ctx.textBaseline = "top";
+    ctx.fillText(el.z.toString(), tileX + 7, tileY + 6);
 
-    // Big Chemical Symbol
-    ctx.font = "bold " + Math.round(tileW * 0.44) + "px system-ui, -apple-system, sans-serif";
+    // Atomic Mass (top-right of tile)
+    ctx.font = "bold 11px system-ui, -apple-system, sans-serif";
+    ctx.textAlign = "right";
+    ctx.fillText(el.mass + " u", tileX + tileW - 7, tileY + 6);
+
+    // Large Chemical Symbol
+    const symFontSize = Math.max(34, Math.min(52, Math.round(tileW * 0.45)));
+    ctx.font = "bold " + symFontSize + "px system-ui, -apple-system, sans-serif";
     ctx.fillStyle = isDark ? "#f8fafc" : cat.text;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText(el.symbol, tileX + tileW / 2, tileY + tileH * 0.52);
 
-    // Name below symbol
-    ctx.font = "bold 10px system-ui, -apple-system, sans-serif";
-    ctx.fillStyle = isDark ? "#94a3b8" : "#475569";
-    ctx.fillText(el.name, tileX + tileW / 2, tileY + tileH - 8);
+    // Element Name (bottom of tile)
+    ctx.font = "bold 13px system-ui, -apple-system, sans-serif";
+    ctx.fillStyle = isDark ? "#cbd5e1" : "#334155";
+    ctx.fillText(el.name, tileX + tileW / 2, tileY + tileH - 10);
 
-    // Upper Right: Key NCERT Properties
+    // 4. Upper Right: Prominent Properties
     const propX = tileX + tileW + 16;
-    let propY = y1 + 44;
-    const propLineH = 17;
+    const propW = x2 - propX - 14;
+    let propY = tileY + 6;
+    const propLineH = Math.max(26, Math.round(tileH / 3.2));
 
-    function drawPropLine(label, val, valCol) {
-      ctx.font = "bold 11px system-ui, -apple-system, sans-serif";
+    function drawProperty(label, val, valCol, isPill) {
+      ctx.font = "bold 13px system-ui, -apple-system, sans-serif";
       ctx.fillStyle = isDark ? "#94a3b8" : "#64748b";
       ctx.textAlign = "left";
       ctx.textBaseline = "middle";
-      ctx.fillText(label + ":", propX, propY);
+      ctx.fillText(label, propX, propY);
 
-      ctx.fillStyle = valCol || (isDark ? "#f8fafc" : "#0f172a");
-      ctx.fillText(val, propX + 90, propY);
+      if (isPill) {
+        ctx.font = "bold 12px system-ui, -apple-system, sans-serif";
+        const pText = val;
+        const pW = ctx.measureText(pText).width + 12;
+        const pH = 20;
+        const pX = propX + 85;
+        const pY = propY - pH / 2;
+
+        ctx.fillStyle = isDark ? "rgba(30, 41, 59, 0.9)" : "#f0fdf4";
+        ctx.strokeStyle = "#86efac";
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.roundRect ? ctx.roundRect(pX, pY, pW, pH, 4) : ctx.rect(pX, pY, pW, pH);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = valCol || "#16a34a";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(pText, pX + pW / 2, propY);
+      } else {
+        ctx.font = "bold 14px system-ui, -apple-system, sans-serif";
+        ctx.fillStyle = valCol || (isDark ? "#f8fafc" : "#0f172a");
+        ctx.textAlign = "left";
+        ctx.textBaseline = "middle";
+        ctx.fillText(val, propX + 85, propY);
+      }
       propY += propLineH;
     }
 
-    drawPropLine("Valency", el.valency.toString(), "#16a34a");
+    drawProperty("Valency:", el.valency.toString(), "#16a34a", true);
+    drawProperty("State:", el.phase.toUpperCase(), el.phase === "gas" ? "#0284c7" : el.phase === "liquid" ? "#d97706" : "#475569", true);
     
-    drawPropLine("Shells (e⁻)", (el.shells || []).join(", "));
-    drawPropLine("State at STP", el.phase.toUpperCase());
+    // Shells distribution
+    ctx.font = "bold 12px system-ui, -apple-system, sans-serif";
+    ctx.fillStyle = isDark ? "#94a3b8" : "#64748b";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "middle";
+    ctx.fillText("Shells (e⁻):", propX, propY);
 
-    // Middle/Lower Half: Bohr Atom Canvas
-    const bohrBoxY = y1 + 38 + tileH + 12;
-    const bohrBoxH = y2 - bohrBoxY - 32;
+    ctx.font = "bold 12px system-ui, -apple-system, sans-serif";
+    ctx.fillStyle = isDark ? "#38bdf8" : "#0284c7";
+    ctx.fillText((el.shells || []).join(", "), propX + 85, propY);
 
-    if (bohrBoxH > 70) {
+    // 5. Middle/Lower Section: Dedicated Framed Bohr Model Box
+    const bohrBoxY = tileY + tileH + 12;
+    const summaryH = 34;
+    const bohrBoxH = y2 - bohrBoxY - summaryH - 12;
+
+    if (bohrBoxH > 80) {
+      // Sub-card container
+      ctx.beginPath();
+      ctx.roundRect ? ctx.roundRect(x1 + 14, bohrBoxY, w - 28, bohrBoxH, 8) : ctx.rect(x1 + 14, bohrBoxY, w - 28, bohrBoxH);
+      ctx.fillStyle = isDark ? "rgba(30, 41, 59, 0.45)" : "#f8fafc";
+      ctx.fill();
+      ctx.strokeStyle = isDark ? "#334155" : "#e2e8f0";
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+
+      // Bohr Model Sub-Header
+      ctx.font = "bold 12px system-ui, -apple-system, sans-serif";
+      ctx.fillStyle = isDark ? "#38bdf8" : "#0369a1";
+      ctx.textAlign = "left";
+      ctx.textBaseline = "top";
+      ctx.fillText("⚛️ Bohr Electron Shells", x1 + 24, bohrBoxY + 8);
+
+      const totalElectrons = (el.shells || []).reduce((a, b) => a + b, 0);
+      ctx.textAlign = "right";
+      ctx.font = "bold 11px system-ui, -apple-system, sans-serif";
+      ctx.fillStyle = isDark ? "#94a3b8" : "#64748b";
+      ctx.fillText(el.shells.length + " Shells · " + totalElectrons + " e⁻ Total", x2 - 24, bohrBoxY + 8);
+
+      // Render Bohr Atom on Canvas
       const atomCanvas = document.createElement("canvas");
-      const atomDim = Math.min(w - 28, bohrBoxH);
+      const atomDim = Math.min(w - 44, bohrBoxH - 26);
       atomCanvas.width = atomDim;
       atomCanvas.height = atomDim;
 
       renderBohrAtom(atomCanvas, el.shells, el.symbol, el.z, isDark);
 
       const atomDrawX = x1 + (w - atomDim) / 2;
-      ctx.drawImage(atomCanvas, atomDrawX, bohrBoxY);
+      ctx.drawImage(atomCanvas, atomDrawX, bohrBoxY + 22);
     }
 
-    // Bottom Summary Banner
-    ctx.font = "italic 10px system-ui, -apple-system, sans-serif";
-    ctx.fillStyle = isDark ? "#cbd5e1" : "#475569";
+    // 6. Bottom Summary Banner Callout
+    const bannerY = y2 - summaryH - 8;
+    ctx.beginPath();
+    ctx.roundRect ? ctx.roundRect(x1 + 14, bannerY, w - 28, summaryH, 6) : ctx.rect(x1 + 14, bannerY, w - 28, summaryH);
+    ctx.fillStyle = isDark ? "rgba(30, 41, 59, 0.75)" : "#eff6ff";
+    ctx.fill();
+    ctx.strokeStyle = isDark ? "#475569" : "#bfdbfe";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    ctx.font = "500 12px system-ui, -apple-system, sans-serif";
+    ctx.fillStyle = isDark ? "#93c5fd" : "#1e40af";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText(el.summary || (el.name + " (" + el.symbol + ")"), x1 + w / 2, y2 - 14);
+    const summaryText = el.summary || (el.name + " (" + el.symbol + ")");
+    ctx.fillText("💡 " + summaryText, x1 + w / 2, bannerY + summaryH / 2);
 
     ctx.restore();
   }
