@@ -216,8 +216,8 @@
       title: "2D Figures Master Chart (with Diagrams)",
       subtitle: "Complete reference table with labeled diagrams for Triangle, Rectangle, Square, Rhombus, Circle",
       type: "formulas2D",
-      w: 450,
-      h: 270
+      w: 440,
+      h: 180
     },
     {
       group: "formulas",
@@ -228,7 +228,7 @@
       subtitle: "Complete reference table with 3D diagrams for Cube, Cuboid, Cylinder, Cone, Sphere",
       type: "formulas3D",
       w: 450,
-      h: 270
+      h: 185
     },
     {
       group: "formulas",
@@ -238,8 +238,8 @@
       title: "Master Geometry Formula Sheet",
       subtitle: "Combined 2D and 3D reference guide with metric conversion rules",
       type: "formulasMaster",
-      w: 460,
-      h: 280
+      w: 450,
+      h: 185
     }
   ];
 
@@ -1483,191 +1483,544 @@
           ],
           notes: "Formulas derived from similar cone subtraction: V = V_large - V_small"
         });
-      } else if (geo === "formulas2D") {
-        drawLabel("2D Plane Figures Master Reference Chart", cx, y1 + 22, fontTitle, color);
+      }
 
-        const items = [
-          { name: "Triangle", p: "P = a + b + c", a: "Area = ½ × b × h", h: "Heron: √[s(s-a)(s-b)(s-c)]" },
-          { name: "Rectangle", p: "P = 2(l + b)", a: "Area = l × b", h: "Diagonal = √(l² + b²)" },
-          { name: "Square", p: "P = 4a", a: "Area = a²", h: "Diagonal = a√2" },
-          { name: "Parallelogram", p: "P = 2(a + b)", a: "Area = b × h", h: "Opposite sides equal" },
-          { name: "Rhombus", p: "P = 4a", a: "Area = ½ × d₁ × d₂", h: "Side = ½ √(d₁² + d₂²)" },
-          { name: "Trapezium", p: "P = a + b + c + d", a: "Area = ½(a + b)h", h: "Bases a ∥ b" },
-          { name: "Circle", p: "C = 2πr", a: "Area = πr²", h: "d = 2r, Sector = (θ/360)πr²" }
-        ];
-
-        const tY = topY + 6;
-        const rowH = Math.min(26, (contentH - 22) / (items.length + 1));
-        const c1W = contentW * 0.28;
-        const c2W = contentW * 0.26;
-        const c3W = contentW * 0.26;
-        const c4W = contentW * 0.20;
-
-        ctx.fillStyle = primary;
-        ctx.globalAlpha = isActuallyDark ? 0.25 : 0.15;
-        ctx.fillRect(leftX, tY, contentW, rowH);
-        ctx.globalAlpha = 1.0;
-        ctx.strokeStyle = primary;
-        ctx.strokeRect(leftX, tY, contentW, rowH);
-        drawLabel("Figure & Diagram", leftX + c1W / 2, tY + rowH / 2, fontHeader, primary);
-        drawLabel("Perimeter", leftX + c1W + c2W / 2, tY + rowH / 2, fontHeader, primary);
-        drawLabel("Area", leftX + c1W + c2W + c3W / 2, tY + rowH / 2, fontHeader, accent);
-        drawLabel("Key Relation", rightX - c4W / 2, tY + rowH / 2, fontHeader, warn);
-
-        items.forEach((item, idx) => {
-          const ry = tY + rowH * (idx + 1);
-          ctx.strokeStyle = borderCol;
-          ctx.strokeRect(leftX, ry, c1W, rowH);
-          ctx.strokeRect(leftX + c1W, ry, c2W, rowH);
-          ctx.strokeRect(leftX + c1W + c2W, ry, c3W, rowH);
-          ctx.strokeRect(leftX + c1W + c2W + c3W, ry, c4W, rowH);
-
-          // Draw small icon badge
-          const iconX = leftX + 16, iconY = ry + rowH / 2;
-          ctx.save();
-          ctx.strokeStyle = primary;
-          ctx.lineWidth = 1.2;
-          if (idx === 0) { // Triangle
-            ctx.beginPath(); ctx.moveTo(iconX, iconY - 6); ctx.lineTo(iconX - 7, iconY + 6); ctx.lineTo(iconX + 7, iconY + 6); ctx.closePath(); ctx.stroke();
-          } else if (idx === 1) { // Rectangle
-            ctx.strokeRect(iconX - 8, iconY - 5, 16, 10);
-          } else if (idx === 2) { // Square
-            ctx.strokeRect(iconX - 6, iconY - 6, 12, 12);
-          } else if (idx === 3) { // Parallelogram
-            ctx.beginPath(); ctx.moveTo(iconX - 6, iconY + 5); ctx.lineTo(iconX + 4, iconY + 5); ctx.lineTo(iconX + 8, iconY - 5); ctx.lineTo(iconX - 2, iconY - 5); ctx.closePath(); ctx.stroke();
-          } else if (idx === 4) { // Rhombus
-            ctx.beginPath(); ctx.moveTo(iconX, iconY - 7); ctx.lineTo(iconX + 6, iconY); ctx.lineTo(iconX, iconY + 7); ctx.lineTo(iconX - 6, iconY); ctx.closePath(); ctx.stroke();
-          } else if (idx === 5) { // Trapezium
-            ctx.beginPath(); ctx.moveTo(iconX - 4, iconY - 5); ctx.lineTo(iconX + 4, iconY - 5); ctx.lineTo(iconX + 8, iconY + 5); ctx.lineTo(iconX - 8, iconY + 5); ctx.closePath(); ctx.stroke();
-          } else { // Circle
-            ctx.beginPath(); ctx.arc(iconX, iconY, 6, 0, Math.PI * 2); ctx.stroke();
+      function drawCellText(txt, cellX, cellY, maxW, fontStr, textColor, align = "center") {
+        if (txt === undefined || txt === null || txt === "") return;
+        ctx.font = fontStr;
+        const metrics = ctx.measureText(txt);
+        if (metrics.width > maxW && maxW > 20) {
+          const scale = Math.max(0.68, (maxW - 4) / metrics.width);
+          const m = fontStr.match(/(\d+(?:\.\d+)?)px/);
+          if (m) {
+            const origSize = parseFloat(m[1]);
+            const newSize = Math.max(8, Math.floor(origSize * scale * 10) / 10);
+            const scaledFont = fontStr.replace(/\d+(?:\.\d+)?px/, `${newSize}px`);
+            drawLabel(txt, cellX, cellY, scaledFont, textColor, align, "middle", false);
+            return;
           }
-          ctx.restore();
+        }
+        drawLabel(txt, cellX, cellY, fontStr, textColor, align, "middle", false);
+      }
 
-          drawLabel(item.name, leftX + 32, ry + rowH / 2, fontHeader, color, "left");
-          drawLabel(item.p, leftX + c1W + c2W / 2, ry + rowH / 2, fontBody, color);
-          drawLabel(item.a, leftX + c1W + c2W + c3W / 2, ry + rowH / 2, fontBody, accent);
-          drawLabel(item.h, rightX - c4W / 2, ry + rowH / 2, fontSmall, warn);
-        });
-
-        drawLabel("Sector Area = (θ/360°) × πr²  |  Arc Length = (θ/360°) × 2πr", cx, bottomY - 4, fontSmall, primary);
-      } else if (geo === "formulas3D") {
-        drawLabel("3D Solid Figures Master Reference Chart", cx, y1 + 22, fontTitle, color);
-
-        const items = [
-          { name: "Cube", lsa: "4a²", tsa: "6a²", v: "a³", diag: "a√3" },
-          { name: "Cuboid", lsa: "2h(l + b)", tsa: "2(lb + bh + hl)", v: "l × b × h", diag: "√(l²+b²+h²)" },
-          { name: "Cylinder", lsa: "2πrh", tsa: "2πr(r + h)", v: "πr²h", diag: "r = rad, h = ht" },
-          { name: "Cone", lsa: "πrl", tsa: "πr(r + l)", v: "⅓ πr²h", diag: "l = √(r²+h²)" },
-          { name: "Sphere", lsa: "4πr²", tsa: "4πr²", v: "⁴⁄₃ πr³", diag: "Uniform radius r" },
-          { name: "Hemisphere", lsa: "2πr²", tsa: "3πr²", v: "⅔ πr³", diag: "Half sphere" },
-          { name: "Frustum", lsa: "πl(r₁+r₂)", tsa: "πl(r₁+r₂)+π(r₁²+r₂²)", v: "⅓πh(r₁²+r₂²+r₁r₂)", diag: "l = √[h²+(r₂-r₁)²]" }
-        ];
-
-        const tY = topY + 6;
-        const rowH = Math.min(26, (contentH - 22) / (items.length + 1));
-        const c1W = contentW * 0.24;
-        const c2W = contentW * 0.18;
-        const c3W = contentW * 0.26;
-        const c4W = contentW * 0.16;
-        const c5W = contentW * 0.16;
-
-        ctx.fillStyle = primary;
-        ctx.globalAlpha = isActuallyDark ? 0.25 : 0.15;
-        ctx.fillRect(leftX, tY, contentW, rowH);
-        ctx.globalAlpha = 1.0;
+      function drawMini2DIcon(type, cx_, cy_, size) {
+        ctx.save();
         ctx.strokeStyle = primary;
-        ctx.strokeRect(leftX, tY, contentW, rowH);
-        drawLabel("3D Solid", leftX + c1W / 2, tY + rowH / 2, fontHeader, primary);
-        drawLabel("CSA / LSA", leftX + c1W + c2W / 2, tY + rowH / 2, fontHeader, primary);
-        drawLabel("Total Surface Area", leftX + c1W + c2W + c3W / 2, tY + rowH / 2, fontHeader, accent);
-        drawLabel("Volume", leftX + c1W + c2W + c3W + c4W / 2, tY + rowH / 2, fontHeader, warn);
-        drawLabel("Key Relation", rightX - c5W / 2, tY + rowH / 2, fontHeader, purple);
+        ctx.fillStyle = isActuallyDark ? "rgba(56, 189, 248, 0.20)" : "rgba(2, 132, 199, 0.12)";
+        ctx.lineWidth = 1.3;
+        const hs = size / 2;
 
-        items.forEach((item, idx) => {
-          const ry = tY + rowH * (idx + 1);
-          ctx.strokeStyle = borderCol;
-          ctx.strokeRect(leftX, ry, c1W, rowH);
-          ctx.strokeRect(leftX + c1W, ry, c2W, rowH);
-          ctx.strokeRect(leftX + c1W + c2W, ry, c3W, rowH);
-          ctx.strokeRect(leftX + c1W + c2W + c3W, ry, c4W, rowH);
-          ctx.strokeRect(leftX + c1W + c2W + c3W + c4W, ry, c5W, rowH);
+        if (type === "triangle") {
+          ctx.beginPath();
+          ctx.moveTo(cx_, cy_ - hs);
+          ctx.lineTo(cx_ - hs, cy_ + hs);
+          ctx.lineTo(cx_ + hs, cy_ + hs);
+          ctx.closePath();
+          ctx.fill();
+          ctx.stroke();
+        } else if (type === "rectangle") {
+          ctx.fillRect(cx_ - hs, cy_ - hs * 0.6, size, size * 0.6);
+          ctx.strokeRect(cx_ - hs, cy_ - hs * 0.6, size, size * 0.6);
+        } else if (type === "square") {
+          ctx.fillRect(cx_ - hs * 0.8, cy_ - hs * 0.8, size * 0.8, size * 0.8);
+          ctx.strokeRect(cx_ - hs * 0.8, cy_ - hs * 0.8, size * 0.8, size * 0.8);
+        } else if (type === "parallelogram") {
+          const sl = hs * 0.4;
+          ctx.beginPath();
+          ctx.moveTo(cx_ - hs + sl, cy_ - hs * 0.6);
+          ctx.lineTo(cx_ + hs, cy_ - hs * 0.6);
+          ctx.lineTo(cx_ + hs - sl, cy_ + hs * 0.6);
+          ctx.lineTo(cx_ - hs, cy_ + hs * 0.6);
+          ctx.closePath();
+          ctx.fill();
+          ctx.stroke();
+        } else if (type === "rhombus") {
+          ctx.beginPath();
+          ctx.moveTo(cx_, cy_ - hs);
+          ctx.lineTo(cx_ + hs * 0.8, cy_);
+          ctx.lineTo(cx_, cy_ + hs);
+          ctx.lineTo(cx_ - hs * 0.8, cy_);
+          ctx.closePath();
+          ctx.fill();
+          ctx.stroke();
+        } else if (type === "trapezium") {
+          ctx.beginPath();
+          ctx.moveTo(cx_ - hs * 0.5, cy_ - hs * 0.6);
+          ctx.lineTo(cx_ + hs * 0.5, cy_ - hs * 0.6);
+          ctx.lineTo(cx_ + hs, cy_ + hs * 0.6);
+          ctx.lineTo(cx_ - hs, cy_ + hs * 0.6);
+          ctx.closePath();
+          ctx.fill();
+          ctx.stroke();
+        } else if (type === "circle") {
+          ctx.beginPath();
+          ctx.arc(cx_, cy_, hs * 0.8, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+        }
+        ctx.restore();
+      }
 
-          // Miniature 3D icon
-          const iconX = leftX + 16, iconY = ry + rowH / 2;
-          ctx.save();
-          ctx.strokeStyle = accent;
-          ctx.lineWidth = 1.2;
-          if (idx === 0) { // Cube
-            ctx.strokeRect(iconX - 5, iconY - 3, 8, 8);
-            ctx.beginPath(); ctx.moveTo(iconX + 3, iconY - 3); ctx.lineTo(iconX + 6, iconY - 6); ctx.lineTo(iconX - 2, iconY - 6); ctx.lineTo(iconX - 5, iconY - 3); ctx.stroke();
-          } else if (idx === 1) { // Cuboid
-            ctx.strokeRect(iconX - 7, iconY - 3, 11, 7);
-          } else if (idx === 2) { // Cylinder
-            ctx.beginPath(); ctx.ellipse(iconX, iconY - 5, 5, 2, 0, 0, Math.PI * 2); ctx.stroke();
-            ctx.beginPath(); ctx.moveTo(iconX - 5, iconY - 5); ctx.lineTo(iconX - 5, iconY + 5); ctx.moveTo(iconX + 5, iconY - 5); ctx.lineTo(iconX + 5, iconY + 5); ctx.stroke();
-            ctx.beginPath(); ctx.ellipse(iconX, iconY + 5, 5, 2, 0, 0, Math.PI); ctx.stroke();
-          } else if (idx === 3) { // Cone
-            ctx.beginPath(); ctx.moveTo(iconX, iconY - 6); ctx.lineTo(iconX - 5, iconY + 5); ctx.lineTo(iconX + 5, iconY + 5); ctx.closePath(); ctx.stroke();
-            ctx.beginPath(); ctx.ellipse(iconX, iconY + 5, 5, 2, 0, 0, Math.PI); ctx.stroke();
-          } else if (idx === 4) { // Sphere
-            ctx.beginPath(); ctx.arc(iconX, iconY, 6, 0, Math.PI * 2); ctx.stroke();
-            ctx.beginPath(); ctx.ellipse(iconX, iconY, 6, 2, 0, 0, Math.PI); ctx.stroke();
-          } else if (idx === 5) { // Hemisphere
-            ctx.beginPath(); ctx.arc(iconX, iconY, 5, 0, Math.PI); ctx.stroke();
-            ctx.beginPath(); ctx.ellipse(iconX, iconY, 5, 2, 0, 0, Math.PI * 2); ctx.stroke();
-          } else { // Frustum
-            ctx.beginPath(); ctx.moveTo(iconX - 3, iconY - 5); ctx.lineTo(iconX + 3, iconY - 5); ctx.lineTo(iconX + 6, iconY + 5); ctx.lineTo(iconX - 6, iconY + 5); ctx.closePath(); ctx.stroke();
-          }
-          ctx.restore();
+      function drawMini3DIcon(type, cx_, cy_, size) {
+        ctx.save();
+        ctx.strokeStyle = primary;
+        ctx.fillStyle = isActuallyDark ? "rgba(56, 189, 248, 0.22)" : "rgba(2, 132, 199, 0.12)";
+        ctx.lineWidth = 1.2;
 
-          drawLabel(item.name, leftX + 30, ry + rowH / 2, fontHeader, color, "left");
-          drawLabel(item.lsa, leftX + c1W + c2W / 2, ry + rowH / 2, fontBody, color);
-          drawLabel(item.tsa, leftX + c1W + c2W + c3W / 2, ry + rowH / 2, fontBody, accent);
-          drawLabel(item.v, leftX + c1W + c2W + c3W + c4W / 2, ry + rowH / 2, fontBody, warn);
-          drawLabel(item.diag, rightX - c5W / 2, ry + rowH / 2, fontSmall, purple);
-        });
+        if (type === "cube") {
+          const s = size * 0.62;
+          const iso = s * 0.35;
+          const x0 = cx_ - s / 2 - iso / 2, y0 = cy_ - s / 2 + iso / 2;
+          ctx.fillRect(x0, y0, s, s);
+          ctx.strokeRect(x0, y0, s, s);
+          ctx.beginPath();
+          ctx.moveTo(x0, y0); ctx.lineTo(x0 + iso, y0 - iso); ctx.lineTo(x0 + s + iso, y0 - iso); ctx.lineTo(x0 + s, y0);
+          ctx.moveTo(x0 + s, y0); ctx.lineTo(x0 + s + iso, y0 - iso); ctx.lineTo(x0 + s + iso, y0 + s - iso); ctx.lineTo(x0 + s, y0 + s);
+          ctx.stroke();
+        } else if (type === "cuboid") {
+          const w_ = size * 0.76, h_ = size * 0.44;
+          const iso = w_ * 0.25;
+          const x0 = cx_ - w_ / 2 - iso / 2, y0 = cy_ - h_ / 2 + iso / 2;
+          ctx.fillRect(x0, y0, w_, h_);
+          ctx.strokeRect(x0, y0, w_, h_);
+          ctx.beginPath();
+          ctx.moveTo(x0, y0); ctx.lineTo(x0 + iso, y0 - iso); ctx.lineTo(x0 + w_ + iso, y0 - iso); ctx.lineTo(x0 + w_, y0);
+          ctx.moveTo(x0 + w_, y0); ctx.lineTo(x0 + w_ + iso, y0 - iso); ctx.lineTo(x0 + w_ + iso, y0 + h_ - iso); ctx.lineTo(x0 + w_, y0 + h_);
+          ctx.stroke();
+        } else if (type === "cylinder") {
+          const rx_ = size * 0.34, ry_ = rx_ * 0.34;
+          const h_ = size * 0.58;
+          ctx.beginPath();
+          ctx.moveTo(cx_ - rx_, cy_ - h_ / 2);
+          ctx.lineTo(cx_ - rx_, cy_ + h_ / 2);
+          ctx.ellipse(cx_, cy_ + h_ / 2, rx_, ry_, 0, Math.PI, 0, true);
+          ctx.lineTo(cx_ + rx_, cy_ - h_ / 2);
+          ctx.ellipse(cx_, cy_ - h_ / 2, rx_, ry_, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.beginPath(); ctx.ellipse(cx_, cy_ - h_ / 2, rx_, ry_, 0, 0, Math.PI * 2); ctx.stroke();
+          ctx.beginPath(); ctx.ellipse(cx_, cy_ + h_ / 2, rx_, ry_, 0, 0, Math.PI); ctx.stroke();
+          ctx.beginPath();
+          ctx.moveTo(cx_ - rx_, cy_ - h_ / 2); ctx.lineTo(cx_ - rx_, cy_ + h_ / 2);
+          ctx.moveTo(cx_ + rx_, cy_ - h_ / 2); ctx.lineTo(cx_ + rx_, cy_ + h_ / 2);
+          ctx.stroke();
+        } else if (type === "cone") {
+          const rx_ = size * 0.36, ry_ = rx_ * 0.30;
+          const topY_ = cy_ - size * 0.42, botY_ = cy_ + size * 0.35;
+          ctx.beginPath();
+          ctx.moveTo(cx_, topY_);
+          ctx.lineTo(cx_ - rx_, botY_);
+          ctx.ellipse(cx_, botY_, rx_, ry_, 0, Math.PI, 0, true);
+          ctx.lineTo(cx_, topY_);
+          ctx.fill();
+          ctx.stroke();
+          ctx.beginPath(); ctx.ellipse(cx_, botY_, rx_, ry_, 0, 0, Math.PI); ctx.stroke();
+        } else if (type === "sphere") {
+          const r_ = size * 0.40;
+          ctx.beginPath(); ctx.arc(cx_, cy_, r_, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+          ctx.beginPath(); ctx.ellipse(cx_, cy_, r_, r_ * 0.32, 0, 0, Math.PI); ctx.stroke();
+        } else if (type === "hemisphere") {
+          const r_ = size * 0.40;
+          ctx.beginPath();
+          ctx.ellipse(cx_, cy_ - 2, r_, r_ * 0.35, 0, 0, Math.PI * 2);
+          ctx.arc(cx_, cy_ - 2, r_, 0, Math.PI);
+          ctx.fill(); ctx.stroke();
+        } else if (type === "frustum") {
+          const r1_ = size * 0.20, r2_ = size * 0.40;
+          const topY_ = cy_ - size * 0.35, botY_ = cy_ + size * 0.35;
+          ctx.beginPath();
+          ctx.ellipse(cx_, topY_, r1_, r1_ * 0.35, 0, 0, Math.PI * 2);
+          ctx.lineTo(cx_ + r2_, botY_);
+          ctx.ellipse(cx_, botY_, r2_, r2_ * 0.35, 0, 0, Math.PI);
+          ctx.lineTo(cx_ - r1_, topY_);
+          ctx.fill();
+          ctx.beginPath(); ctx.ellipse(cx_, topY_, r1_, r1_ * 0.35, 0, 0, Math.PI * 2); ctx.stroke();
+          ctx.beginPath(); ctx.ellipse(cx_, botY_, r2_, r2_ * 0.35, 0, 0, Math.PI); ctx.stroke();
+          ctx.beginPath();
+          ctx.moveTo(cx_ - r1_, topY_); ctx.lineTo(cx_ - r2_, botY_);
+          ctx.moveTo(cx_ + r1_, topY_); ctx.lineTo(cx_ + r2_, botY_);
+          ctx.stroke();
+        }
+        ctx.restore();
+      }
 
-        drawLabel("1 m³ = 1000 Litres  |  1 Litre = 1000 cm³  |  1 m² = 10,000 cm²", cx, bottomY - 4, fontSmall, primary);
-      } else if (geo === "formulasMaster" || geo === "formulas") {
-        // Master Sheet: Combined 2D & 3D summary
-        drawLabel("Master Geometry Formula Sheet (2D & 3D)", cx, y1 + 22, fontTitle, color);
+      function drawMasterChartCard({ title, subtitle, footerNote, renderContent }) {
+        const cardX = leftX;
+        const cardY = y1 + 4;
+        const cardW = contentW;
+        const cardH = h - 8;
+        const cardR = 14;
 
-        const colMid = leftX + contentW * 0.49;
-        const colW = contentW * 0.48;
+        // 1. Outer Card Container
+        ctx.fillStyle = cardBg;
+        ctx.strokeStyle = borderCol;
+        ctx.lineWidth = 1.5;
+        roundRect(ctx, cardX, cardY, cardW, cardH, cardR);
+        ctx.fill();
+        ctx.stroke();
 
-        drawLabel("2D Plane Figures", leftX + colW / 2, topY + 12, fontHeader, primary);
-        const f2d = [
-          "Square: P = 4a, Area = a²",
-          "Rectangle: P = 2(l+b), Area = l×b",
-          "Triangle: P = a+b+c, Area = ½bh",
-          "Circle: C = 2πr, Area = πr²",
-          "Parallelogram: Area = b×h",
-          "Rhombus: Area = ½ × d₁ × d₂",
-          "Trapezium: Area = ½(a+b)h"
-        ];
-        f2d.forEach((txt, idx) => {
-          drawLabel(txt, leftX + colW / 2, topY + 32 + idx * 20, fontBody, color);
-        });
+        // 2. Top Header Banner
+        const headerH = subtitle
+          ? Math.max(48, Math.min(58, Math.round(cardH * 0.15)))
+          : Math.max(38, Math.min(46, Math.round(cardH * 0.12)));
+        const headerBottomY = cardY + headerH;
+
+        ctx.save();
+        ctx.beginPath();
+        roundRect(ctx, cardX, cardY, cardW, headerH, cardR);
+        ctx.clip();
+        ctx.fillStyle = isActuallyDark ? "rgba(30, 41, 59, 0.95)" : "rgba(241, 245, 249, 0.92)";
+        ctx.fillRect(cardX, cardY, cardW, headerH);
+        ctx.restore();
 
         ctx.strokeStyle = borderCol;
-        ctx.beginPath(); ctx.moveTo(colMid, topY + 8); ctx.lineTo(colMid, bottomY - 14); ctx.stroke();
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(cardX, headerBottomY);
+        ctx.lineTo(cardX + cardW, headerBottomY);
+        ctx.stroke();
 
-        drawLabel("3D Solid Figures", rightX - colW / 2, topY + 12, fontHeader, accent);
-        const f3d = [
-          "Cube: V = a³, TSA = 6a²",
-          "Cuboid: V = lbh, TSA = 2(lb+bh+hl)",
-          "Cylinder: V = πr²h, CSA = 2πrh",
-          "Cone: V = ⅓πr²h, CSA = πrl",
-          "Sphere: V = ⁴⁄₃πr³, SA = 4πr²",
-          "Hemisphere: V = ⅔πr³, TSA = 3πr²",
-          "Frustum: V = ⅓πh(r₁²+r₂²+r₁r₂)"
-        ];
-        f3d.forEach((txt, idx) => {
-          drawLabel(txt, rightX - colW / 2, topY + 32 + idx * 20, fontBody, color);
+        const cardTitleFont = `bold ${Math.max(13, Math.min(18, Math.round(14.5 * sFactor)))}px "Plus Jakarta Sans", sans-serif`;
+        if (subtitle) {
+          const titleY = cardY + Math.round(headerH * 0.38);
+          const subY = cardY + Math.round(headerH * 0.74);
+          const cardSubFont = `600 ${Math.max(9.5, Math.min(12, Math.round(10 * sFactor)))}px "Plus Jakarta Sans", sans-serif`;
+          const subColor = isActuallyDark ? "#94a3b8" : "#64748b";
+          drawLabel(title, cx, titleY, cardTitleFont, color, "center", "middle", false);
+          drawLabel(subtitle, cx, subY, cardSubFont, subColor, "center", "middle", false);
+        } else {
+          drawLabel(title, cx, cardY + headerH / 2, cardTitleFont, color, "center", "middle", false);
+        }
+
+        // 3. Footer Strip (Notes / Conversions)
+        const footerH = footerNote ? Math.max(26, Math.min(32, Math.round(cardH * 0.10))) : 0;
+        const footerY = cardY + cardH - footerH - 6;
+
+        if (footerNote) {
+          const footPillX = cardX + 12;
+          const footPillW = cardW - 24;
+
+          ctx.fillStyle = isActuallyDark ? "rgba(56, 189, 248, 0.08)" : "rgba(2, 132, 199, 0.05)";
+          ctx.strokeStyle = isActuallyDark ? "rgba(56, 189, 248, 0.25)" : "rgba(2, 132, 199, 0.18)";
+          ctx.lineWidth = 1;
+          roundRect(ctx, footPillX, footerY, footPillW, footerH, 6);
+          ctx.fill();
+          ctx.stroke();
+
+          const noteFont = `600 ${Math.max(9, Math.min(11.5, Math.round(9.5 * sFactor)))}px "Plus Jakarta Sans", sans-serif`;
+          drawLabel(footerNote, cx, footerY + footerH / 2, noteFont, primary, "center", "middle", false);
+        }
+
+        // 4. Content Area
+        const bodyTop = headerBottomY + 8;
+        const bodyBottom = footerNote ? (footerY - 8) : (cardY + cardH - 8);
+        const bodyH = Math.max(60, bodyBottom - bodyTop);
+
+        if (typeof renderContent === "function") {
+          renderContent(cardX + 10, bodyTop, cardW - 20, bodyH);
+        }
+      }
+
+      if (geo === "formulas2D") {
+        drawMasterChartCard({
+          title: "2D Plane Figures Master Reference Chart",
+          footerNote: "💡 Arc Length L = (θ / 360°) × 2πr  |  Semicircle Area = ½ πr²  |  Ring Area = π(R² - r²)",
+          renderContent: (tblX, tblY, tblW, tblH) => {
+            const items = [
+              { name: "Triangle", icon: "triangle", p: "P = a + b + c", a: "Area = ½ × b × h", h: "Heron: √[s(s-a)(s-b)(s-c)]" },
+              { name: "Rectangle", icon: "rectangle", p: "P = 2(l + b)", a: "Area = l × b", h: "Diagonal d = √(l² + b²)" },
+              { name: "Square", icon: "square", p: "P = 4a", a: "Area = a² = ½ d²", h: "Diagonal d = a√2" },
+              { name: "Parallelogram", icon: "parallelogram", p: "P = 2(a + b)", a: "Area = b × h", h: "Opposite sides equal & ∥" },
+              { name: "Rhombus", icon: "rhombus", p: "P = 4a", a: "Area = ½ × d₁ × d₂", h: "Diagonals ⊥ bisect" },
+              { name: "Trapezium", icon: "trapezium", p: "P = a + b + c + d", a: "Area = ½(a + b) × h", h: "Parallel bases a ∥ b" },
+              { name: "Circle", icon: "circle", p: "C = 2πr = πd", a: "Area = πr²", h: "Sector = (θ/360°) × πr²" }
+            ];
+
+            const totalRows = items.length + 1;
+            const rowH = Math.max(22, Math.min(36, Math.floor(tblH / totalRows)));
+            const actualH = totalRows * rowH;
+            const startY = tblY + Math.max(0, Math.floor((tblH - actualH) / 2));
+
+            const c1W = Math.round(tblW * 0.22);
+            const c2W = Math.round(tblW * 0.24);
+            const c3W = Math.round(tblW * 0.26);
+            const c4W = tblW - (c1W + c2W + c3W);
+
+            const c1X = tblX;
+            const c2X = c1X + c1W;
+            const c3X = c2X + c2W;
+            const c4X = c3X + c3W;
+
+            // 1. Table Header Row
+            ctx.fillStyle = isActuallyDark ? "rgba(56, 189, 248, 0.16)" : "rgba(2, 132, 199, 0.09)";
+            ctx.fillRect(tblX, startY, tblW, rowH);
+            ctx.strokeStyle = primary;
+            ctx.lineWidth = 1.2;
+            ctx.strokeRect(tblX, startY, tblW, rowH);
+
+            const thFont = `bold ${Math.max(10, Math.min(13, Math.round(11 * sFactor)))}px "Plus Jakarta Sans", sans-serif`;
+            drawLabel("2D Plane Figure", c1X + c1W / 2, startY + rowH / 2, thFont, primary, "center", "middle", false);
+            drawLabel("Perimeter (P)", c2X + c2W / 2, startY + rowH / 2, thFont, primary, "center", "middle", false);
+            drawLabel("Area (A)", c3X + c3W / 2, startY + rowH / 2, thFont, accent, "center", "middle", false);
+            drawLabel("Key Relation", c4X + c4W / 2, startY + rowH / 2, thFont, warn, "center", "middle", false);
+
+            ctx.beginPath();
+            ctx.moveTo(c2X, startY); ctx.lineTo(c2X, startY + rowH);
+            ctx.moveTo(c3X, startY); ctx.lineTo(c3X, startY + rowH);
+            ctx.moveTo(c4X, startY); ctx.lineTo(c4X, startY + rowH);
+            ctx.stroke();
+
+            // 2. Data Rows
+            const nameFont = `bold ${Math.max(10, Math.min(13, Math.round(11 * sFactor)))}px "Plus Jakarta Sans", sans-serif`;
+            const formFont = `700 ${Math.max(9.5, Math.min(12.5, Math.round(11 * sFactor)))}px "Plus Jakarta Sans", monospace, sans-serif`;
+            const relFont = `600 ${Math.max(9, Math.min(11.5, Math.round(10 * sFactor)))}px "Plus Jakarta Sans", sans-serif`;
+
+            items.forEach((item, idx) => {
+              const ry = startY + rowH * (idx + 1);
+
+              const isEven = idx % 2 === 0;
+              ctx.fillStyle = isEven
+                ? (isActuallyDark ? "rgba(255, 255, 255, 0.02)" : "rgba(248, 250, 252, 0.7)")
+                : (isActuallyDark ? "rgba(255, 255, 255, 0.05)" : "rgba(241, 245, 249, 0.45)");
+              ctx.fillRect(tblX, ry, tblW, rowH);
+
+              ctx.strokeStyle = isActuallyDark ? "rgba(148, 163, 184, 0.22)" : "rgba(203, 213, 225, 0.85)";
+              ctx.lineWidth = 1;
+              ctx.strokeRect(c1X, ry, c1W, rowH);
+              ctx.strokeRect(c2X, ry, c2W, rowH);
+              ctx.strokeRect(c3X, ry, c3W, rowH);
+              ctx.strokeRect(c4X, ry, c4W, rowH);
+
+              // Col 1: Icon Badge + Name
+              const badgeSize = Math.max(16, Math.min(22, rowH - 6));
+              const badgeX = c1X + 6;
+              const badgeY = ry + (rowH - badgeSize) / 2;
+
+              ctx.fillStyle = isActuallyDark ? "rgba(56, 189, 248, 0.14)" : "rgba(2, 132, 199, 0.08)";
+              roundRect(ctx, badgeX, badgeY, badgeSize, badgeSize, 4);
+              ctx.fill();
+
+              drawMini2DIcon(item.icon, badgeX + badgeSize / 2, badgeY + badgeSize / 2, badgeSize * 0.75);
+
+              const textStartX = badgeX + badgeSize + 6;
+              const maxNameW = c1W - (badgeSize + 14);
+              drawCellText(item.name, textStartX, ry + rowH / 2, maxNameW, nameFont, color, "left");
+
+              // Col 2: Perimeter
+              drawCellText(item.p, c2X + c2W / 2, ry + rowH / 2, c2W - 8, formFont, color);
+
+              // Col 3: Area
+              drawCellText(item.a, c3X + c3W / 2, ry + rowH / 2, c3W - 8, formFont, accent);
+
+              // Col 4: Key Relation
+              drawCellText(item.h, c4X + c4W / 2, ry + rowH / 2, c4W - 8, relFont, warn);
+            });
+          }
         });
+      } else if (geo === "formulas3D") {
+        drawMasterChartCard({
+          title: "3D Solid Figures Master Reference Chart",
+          footerNote: "💡 1 m³ = 1000 Litres  |  1 Litre = 1000 cm³  |  1 m² = 10,000 cm²",
+          renderContent: (tblX, tblY, tblW, tblH) => {
+            const items = [
+              { name: "Cube", icon: "cube", lsa: "4a²", tsa: "6a²", v: "a³", diag: "d = a√3" },
+              { name: "Cuboid", icon: "cuboid", lsa: "2h(l + b)", tsa: "2(lb + bh + hl)", v: "l × b × h", diag: "d = √(l²+b²+h²)" },
+              { name: "Cylinder", icon: "cylinder", lsa: "2πrh", tsa: "2πr(r + h)", v: "πr²h", diag: "Two Bases = 2πr²" },
+              { name: "Cone", icon: "cone", lsa: "πrl", tsa: "πr(r + l)", v: "⅓ πr²h", diag: "l = √(r² + h²)" },
+              { name: "Sphere", icon: "sphere", lsa: "4πr²", tsa: "4πr²", v: "⁴⁄₃ πr³", diag: "Diameter d = 2r" },
+              { name: "Hemisphere", icon: "hemisphere", lsa: "2πr²", tsa: "3πr²", v: "⅔ πr³", diag: "Base Area = πr²" },
+              { name: "Frustum", icon: "frustum", lsa: "πl(r₁ + r₂)", tsa: "π[l(r₁+r₂) + r₁² + r₂²]", v: "⅓πh(r₁² + r₂² + r₁r₂)", diag: "l = √[h²+(r₂-r₁)²]" }
+            ];
 
-        drawLabel("2D Plane & 3D Solid Figures Complete Mensuration Guide", cx, bottomY - 4, fontSmall, primary);
+            const totalRows = items.length + 1;
+            const rowH = Math.max(22, Math.min(36, Math.floor(tblH / totalRows)));
+            const actualH = totalRows * rowH;
+            const startY = tblY + Math.max(0, Math.floor((tblH - actualH) / 2));
+
+            const c1W = Math.round(tblW * 0.18);
+            const c2W = Math.round(tblW * 0.17);
+            const c3W = Math.round(tblW * 0.28);
+            const c4W = Math.round(tblW * 0.19);
+            const c5W = tblW - (c1W + c2W + c3W + c4W);
+
+            const c1X = tblX;
+            const c2X = c1X + c1W;
+            const c3X = c2X + c2W;
+            const c4X = c3X + c3W;
+            const c5X = c4X + c4W;
+
+            // 1. Table Header Row
+            ctx.fillStyle = isActuallyDark ? "rgba(56, 189, 248, 0.16)" : "rgba(2, 132, 199, 0.09)";
+            ctx.fillRect(tblX, startY, tblW, rowH);
+            ctx.strokeStyle = primary;
+            ctx.lineWidth = 1.2;
+            ctx.strokeRect(tblX, startY, tblW, rowH);
+
+            const thFont = `bold ${Math.max(10, Math.min(13, Math.round(11 * sFactor)))}px "Plus Jakarta Sans", sans-serif`;
+            drawLabel("3D Solid", c1X + c1W / 2, startY + rowH / 2, thFont, primary, "center", "middle", false);
+            drawLabel("CSA / LSA", c2X + c2W / 2, startY + rowH / 2, thFont, primary, "center", "middle", false);
+            drawLabel("Total Surface Area", c3X + c3W / 2, startY + rowH / 2, thFont, accent, "center", "middle", false);
+            drawLabel("Volume (V)", c4X + c4W / 2, startY + rowH / 2, thFont, warn, "center", "middle", false);
+            drawLabel("Key Relation", c5X + c5W / 2, startY + rowH / 2, thFont, purple, "center", "middle", false);
+
+            ctx.beginPath();
+            ctx.moveTo(c2X, startY); ctx.lineTo(c2X, startY + rowH);
+            ctx.moveTo(c3X, startY); ctx.lineTo(c3X, startY + rowH);
+            ctx.moveTo(c4X, startY); ctx.lineTo(c4X, startY + rowH);
+            ctx.moveTo(c5X, startY); ctx.lineTo(c5X, startY + rowH);
+            ctx.stroke();
+
+            // 2. Data Rows
+            const nameFont = `bold ${Math.max(10, Math.min(13, Math.round(11 * sFactor)))}px "Plus Jakarta Sans", sans-serif`;
+            const formFont = `700 ${Math.max(9.5, Math.min(12.5, Math.round(11 * sFactor)))}px "Plus Jakarta Sans", monospace, sans-serif`;
+            const relFont = `600 ${Math.max(9, Math.min(11.5, Math.round(10 * sFactor)))}px "Plus Jakarta Sans", sans-serif`;
+
+            items.forEach((item, idx) => {
+              const ry = startY + rowH * (idx + 1);
+
+              const isEven = idx % 2 === 0;
+              ctx.fillStyle = isEven
+                ? (isActuallyDark ? "rgba(255, 255, 255, 0.02)" : "rgba(248, 250, 252, 0.7)")
+                : (isActuallyDark ? "rgba(255, 255, 255, 0.05)" : "rgba(241, 245, 249, 0.45)");
+              ctx.fillRect(tblX, ry, tblW, rowH);
+
+              ctx.strokeStyle = isActuallyDark ? "rgba(148, 163, 184, 0.22)" : "rgba(203, 213, 225, 0.85)";
+              ctx.lineWidth = 1;
+              ctx.strokeRect(c1X, ry, c1W, rowH);
+              ctx.strokeRect(c2X, ry, c2W, rowH);
+              ctx.strokeRect(c3X, ry, c3W, rowH);
+              ctx.strokeRect(c4X, ry, c4W, rowH);
+              ctx.strokeRect(c5X, ry, c5W, rowH);
+
+              // Col 1: Icon Badge + Name
+              const badgeSize = Math.max(16, Math.min(22, rowH - 6));
+              const badgeX = c1X + 6;
+              const badgeY = ry + (rowH - badgeSize) / 2;
+
+              ctx.fillStyle = isActuallyDark ? "rgba(56, 189, 248, 0.14)" : "rgba(2, 132, 199, 0.08)";
+              roundRect(ctx, badgeX, badgeY, badgeSize, badgeSize, 4);
+              ctx.fill();
+
+              drawMini3DIcon(item.icon, badgeX + badgeSize / 2, badgeY + badgeSize / 2, badgeSize * 0.75);
+
+              const textStartX = badgeX + badgeSize + 6;
+              const maxNameW = c1W - (badgeSize + 14);
+              drawCellText(item.name, textStartX, ry + rowH / 2, maxNameW, nameFont, color, "left");
+
+              // Col 2: CSA / LSA
+              drawCellText(item.lsa, c2X + c2W / 2, ry + rowH / 2, c2W - 8, formFont, color);
+
+              // Col 3: TSA
+              drawCellText(item.tsa, c3X + c3W / 2, ry + rowH / 2, c3W - 8, formFont, accent);
+
+              // Col 4: Volume
+              drawCellText(item.v, c4X + c4W / 2, ry + rowH / 2, c4W - 8, formFont, warn);
+
+              // Col 5: Key Relation
+              drawCellText(item.diag, c5X + c5W / 2, ry + rowH / 2, c5W - 8, relFont, purple);
+            });
+          }
+        });
+      } else if (geo === "formulasMaster" || geo === "formulas") {
+        drawMasterChartCard({
+          title: "Master Geometry Formula Sheet (2D & 3D)",
+          footerNote: "💡 1 m³ = 1000 Litres  |  1 Litre = 1000 cm³  |  1 m² = 10,000 cm²  |  1 hectare = 10,000 m²",
+          renderContent: (tblX, tblY, tblW, tblH) => {
+            const gap = 12;
+            const colW = (tblW - gap) / 2;
+            const leftPanelX = tblX;
+            const rightPanelX = tblX + colW + gap;
+
+            const f2d = [
+              { name: "Square", f: "P = 4a,  Area = a²" },
+              { name: "Rectangle", f: "P = 2(l+b),  Area = l × b" },
+              { name: "Triangle", f: "P = a+b+c,  Area = ½ b h" },
+              { name: "Circle", f: "C = 2πr,  Area = πr²" },
+              { name: "Parallelogram", f: "P = 2(a+b),  Area = b × h" },
+              { name: "Rhombus", f: "Area = ½ × d₁ × d₂" },
+              { name: "Trapezium", f: "Area = ½(a+b) × h" }
+            ];
+
+            const f3d = [
+              { name: "Cube", f: "V = a³,  TSA = 6a²" },
+              { name: "Cuboid", f: "V = l b h,  TSA = 2(lb+bh+hl)" },
+              { name: "Cylinder", f: "V = πr²h,  CSA = 2πrh" },
+              { name: "Cone", f: "V = ⅓πr²h,  CSA = πrl" },
+              { name: "Sphere", f: "V = ⁴⁄₃πr³,  SA = 4πr²" },
+              { name: "Hemisphere", f: "V = ⅔πr³,  TSA = 3πr²" },
+              { name: "Frustum", f: "V = ⅓πh(r₁²+r₂²+r₁r₂)" }
+            ];
+
+            const cardH_ = tblH;
+            const headH = Math.max(26, Math.min(32, Math.round(cardH_ * 0.14)));
+            const rowH = Math.max(22, Math.min(30, Math.floor((cardH_ - headH - 8) / 7)));
+
+            // Left Panel: 2D Figures
+            ctx.fillStyle = isActuallyDark ? "rgba(56, 189, 248, 0.05)" : "rgba(2, 132, 199, 0.03)";
+            ctx.strokeStyle = isActuallyDark ? "rgba(56, 189, 248, 0.25)" : "rgba(2, 132, 199, 0.18)";
+            ctx.lineWidth = 1;
+            roundRect(ctx, leftPanelX, tblY, colW, cardH_, 8);
+            ctx.fill();
+            ctx.stroke();
+
+            // Left Panel Header
+            ctx.save();
+            roundRect(ctx, leftPanelX, tblY, colW, cardH_, 8);
+            ctx.clip();
+            ctx.fillStyle = isActuallyDark ? "rgba(56, 189, 248, 0.15)" : "rgba(2, 132, 199, 0.08)";
+            ctx.fillRect(leftPanelX, tblY, colW, headH);
+            ctx.strokeStyle = isActuallyDark ? "rgba(56, 189, 248, 0.3)" : "rgba(2, 132, 199, 0.2)";
+            ctx.beginPath(); ctx.moveTo(leftPanelX, tblY + headH); ctx.lineTo(leftPanelX + colW, tblY + headH); ctx.stroke();
+            ctx.restore();
+
+            const pHeadFont = `bold ${Math.max(10.5, Math.min(13, Math.round(11.5 * sFactor)))}px "Plus Jakarta Sans", sans-serif`;
+            drawLabel("📐 2D Plane Figures", leftPanelX + colW / 2, tblY + headH / 2, pHeadFont, primary, "center", "middle", false);
+
+            const fNameFont = `bold ${Math.max(9.5, Math.min(12, Math.round(10.5 * sFactor)))}px "Plus Jakarta Sans", sans-serif`;
+            const fFormFont = `700 ${Math.max(9, Math.min(11.5, Math.round(10 * sFactor)))}px "Plus Jakarta Sans", monospace, sans-serif`;
+
+            f2d.forEach((item, idx) => {
+              const ry = tblY + headH + 4 + idx * rowH;
+              const isEven = idx % 2 === 0;
+              if (isEven) {
+                ctx.fillStyle = isActuallyDark ? "rgba(255,255,255,0.02)" : "rgba(241, 245, 249, 0.5)";
+                ctx.fillRect(leftPanelX + 4, ry, colW - 8, rowH);
+              }
+              drawCellText(item.name, leftPanelX + 12, ry + rowH / 2, colW * 0.35, fNameFont, color, "left");
+              drawCellText(item.f, leftPanelX + colW * 0.38, ry + rowH / 2, colW * 0.58, fFormFont, accent, "left");
+            });
+
+            // Right Panel: 3D Solids
+            ctx.fillStyle = isActuallyDark ? "rgba(16, 185, 129, 0.05)" : "rgba(16, 185, 129, 0.03)";
+            ctx.strokeStyle = isActuallyDark ? "rgba(16, 185, 129, 0.25)" : "rgba(16, 185, 129, 0.18)";
+            ctx.lineWidth = 1;
+            roundRect(ctx, rightPanelX, tblY, colW, cardH_, 8);
+            ctx.fill();
+            ctx.stroke();
+
+            // Right Panel Header
+            ctx.save();
+            roundRect(ctx, rightPanelX, tblY, colW, cardH_, 8);
+            ctx.clip();
+            ctx.fillStyle = isActuallyDark ? "rgba(16, 185, 129, 0.15)" : "rgba(16, 185, 129, 0.08)";
+            ctx.fillRect(rightPanelX, tblY, colW, headH);
+            ctx.strokeStyle = isActuallyDark ? "rgba(16, 185, 129, 0.3)" : "rgba(2, 132, 199, 0.2)";
+            ctx.beginPath(); ctx.moveTo(rightPanelX, tblY + headH); ctx.lineTo(rightPanelX + colW, tblY + headH); ctx.stroke();
+            ctx.restore();
+
+            drawLabel("📦 3D Solid Figures", rightPanelX + colW / 2, tblY + headH / 2, pHeadFont, accent, "center", "middle", false);
+
+            f3d.forEach((item, idx) => {
+              const ry = tblY + headH + 4 + idx * rowH;
+              const isEven = idx % 2 === 0;
+              if (isEven) {
+                ctx.fillStyle = isActuallyDark ? "rgba(255,255,255,0.02)" : "rgba(241, 245, 249, 0.5)";
+                ctx.fillRect(rightPanelX + 4, ry, colW - 8, rowH);
+              }
+              drawCellText(item.name, rightPanelX + 12, ry + rowH / 2, colW * 0.35, fNameFont, color, "left");
+              drawCellText(item.f, rightPanelX + colW * 0.38, ry + rowH / 2, colW * 0.58, fFormFont, warn, "left");
+            });
+          }
+        });
       }
     }
 
