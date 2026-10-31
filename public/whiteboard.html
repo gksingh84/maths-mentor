@@ -53,6 +53,73 @@
   </script>
   <script src="vendor/mathjax-tex-svg.js"></script>
   <style>
+    /* Initial Light Loading Screen */
+    .whiteboard-initial-loader {
+      position: fixed;
+      inset: 0;
+      background: #f8fafc;
+      z-index: 999999;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: #0f172a;
+      transition: opacity 0.25s ease, visibility 0.25s ease;
+    }
+
+    .whiteboard-initial-loader.is-hidden {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+
+    .wb-loader-spinner-wrap {
+      position: relative;
+      width: 52px;
+      height: 52px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .wb-loader-spinner {
+      position: absolute;
+      inset: 0;
+      border: 3.5px solid #e2e8f0;
+      border-top-color: #0284c7;
+      border-radius: 50%;
+      animation: wbLoaderSpin 0.8s linear infinite;
+    }
+
+    .wb-loader-icon {
+      font-size: 1.35rem;
+      animation: wbLoaderPulse 1.6s ease-in-out infinite;
+    }
+
+    .wb-loader-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: #0f172a;
+      letter-spacing: -0.01em;
+    }
+
+    .wb-loader-subtitle {
+      font-size: 0.84rem;
+      color: #64748b;
+      font-weight: 500;
+    }
+
+    @keyframes wbLoaderSpin {
+      to { transform: rotate(360deg); }
+    }
+
+    @keyframes wbLoaderPulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.12); }
+    }
+
     *,
     *::before,
     *::after {
@@ -2591,6 +2658,14 @@
 </head>
 
 <body>
+  <div id="whiteboardInitialLoader" class="whiteboard-initial-loader">
+    <div class="wb-loader-spinner-wrap">
+      <div class="wb-loader-spinner"></div>
+      <span class="wb-loader-icon">✏️</span>
+    </div>
+    <div class="wb-loader-title">Whiteboard Is Loading...</div>
+    <div class="wb-loader-subtitle">Preparing interactive canvas & tools</div>
+  </div>
   <div id="app-root" class="app-root">
     <header class="top-bar">
       <div class="top-bar__title-wrap">
@@ -20427,7 +20502,19 @@
         if (typeof updateInfiniteToggleBtn === "function") updateInfiniteToggleBtn();
         handleToolSelection("select");
         notifyParentFullPages();
+        const initialLoader = document.getElementById("whiteboardInitialLoader");
+        if (initialLoader) {
+          initialLoader.classList.add("is-hidden");
+          setTimeout(() => initialLoader.remove(), 350);
+        }
       });
+      setTimeout(() => {
+        const initialLoader = document.getElementById("whiteboardInitialLoader");
+        if (initialLoader) {
+          initialLoader.classList.add("is-hidden");
+          setTimeout(() => initialLoader.remove(), 350);
+        }
+      }, 2500);
     })();
 
 

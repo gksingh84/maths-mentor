@@ -2065,6 +2065,7 @@ function TeacherWhiteboard({
 }) {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [iframeKey, setIframeKey] = useState(0);
+  const [isWhiteboardLoading, setIsWhiteboardLoading] = useState(true);
   const [selectedGrade, setSelectedGrade] = useState<string>(() => {
     try {
       const saved = localStorage.getItem('teacher_broadcast_grade');
@@ -2861,6 +2862,7 @@ function TeacherWhiteboard({
               type="button"
               className="button button-secondary whiteboard-action-btn"
               onClick={() => {
+                setIsWhiteboardLoading(true);
                 setIframeKey((k) => k + 1);
                 setNotice('Whiteboard canvas reloaded.');
               }}
@@ -3013,6 +3015,7 @@ function TeacherWhiteboard({
               className="button button-secondary"
               style={{ background: '#1e293b', color: '#fff', borderColor: '#334155', minHeight: '32px', padding: '4px 12px' }}
               onClick={() => {
+                setIsWhiteboardLoading(true);
                 setIframeKey((k) => k + 1);
                 setNotice('Canvas reloaded.');
               }}
@@ -3024,6 +3027,16 @@ function TeacherWhiteboard({
       )}
 
       <div className={`whiteboard-frame-container ${isFullscreen ? 'whiteboard-frame-container--fullscreen' : ''}`}>
+        {isWhiteboardLoading && (
+          <div className="whiteboard-loading-overlay">
+            <div className="whiteboard-loading-spinner-wrap">
+              <div className="whiteboard-loading-spinner" />
+              <PenTool className="whiteboard-loading-icon" size={24} />
+            </div>
+            <div className="whiteboard-loading-text">Whiteboard Is Loading...</div>
+            <div className="whiteboard-loading-subtext">Preparing interactive canvas & tools</div>
+          </div>
+        )}
         <iframe
           key={iframeKey}
           id="teacher-whiteboard-iframe"
@@ -3031,6 +3044,7 @@ function TeacherWhiteboard({
           src="/whiteboard.html"
           className="whiteboard-iframe"
           allow="clipboard-read; clipboard-write; fullscreen; autoplay; encrypted-media; picture-in-picture"
+          onLoad={() => setIsWhiteboardLoading(false)}
         />
       </div>
 
