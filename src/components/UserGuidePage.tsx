@@ -767,22 +767,31 @@ Teacher: Gaurav Kumar Singh`;
               {/* 2.13 Online Whiteboard & Live Broadcasting */}
               <div className="guide-card" id="teacher-whiteboard">
                 <h3><span className="step-num">2.13</span> Online Teaching Whiteboard & Live Class Broadcasting</h3>
-                <p>An infinite vertical digital canvas equipped for mathematical and scientific instruction:</p>
+                <p>An infinite vertical digital canvas equipped for mathematical, scientific, and flowchart logic instruction:</p>
                 <ul>
                   <li><strong>Canvas Backgrounds</strong>: Switch between Ruled Notebook, Square Grid (algebra/geometry), Dot Grid, Dark Chalkboard, or Cartesian Graph with custom intervals.</li>
-                  <li><strong>Geometry Tools</strong>: Virtual Ruler, Compass, 180°/360° Protractor, and Set Squares for accurate on-screen diagrams.</li>
-                  <li><strong>Drawing & Notes</strong>: Freehand pens, highlighters, geometric shape auto-detection, sticky notes, LaTeX math formulas, and image insertion.</li>
+                  <li><strong>Desktop Keyboard Shortcuts</strong>: Press <code>Ctrl + Z</code> to Undo, <code>Ctrl + Y</code> or <code>Ctrl + Shift + Z</code> to Redo, and hold <code>Spacebar + Drag</code> to pan the canvas smoothly.</li>
+                  <li><strong>Interactive Flowcharts & Flexible Connectors Studio</strong>:
+                    <ul>
+                      <li><strong>8 Flowchart Symbols</strong>: Process (Rectangle), Decision (Diamond), Start/End (Terminal capsule), Data (Input/Output parallelogram), Document (wavy base), Database (cylinder), Subroutine (predefined double-border), and Junction (circle node).</li>
+                      <li><strong>Smart Text Wrapping</strong>: Typed text wraps inside node boundaries with character-break and dynamic font scaling so text never spills outside the shape. Double-click any shape to edit text inline.</li>
+                      <li><strong>Flexible Connector Arrows</strong>: Choose from Step / Elbow (90° orthogonal), Curved Arc (smooth Bezier), and Straight routing. Move the Green Start handle, Amber Diamond Mid handle, or Blue End handle to adjust paths and bend lines. Arrows stay permanently connected to shapes when shapes are moved or resized.</li>
+                      <li><strong>Branch Labels & Templates</strong>: Add branch labels (e.g. <em>Yes</em>, <em>No</em>) and insert 1-click <em>Process Flow</em> or <em>Decision Tree</em> templates.</li>
+                    </ul>
+                  </li>
+                  <li><strong>Full Shape Styling (Select Tool)</strong>: Select any shape on the canvas to customize Outline Color, Stroke Width (1px to 6px), Fill Mode (Solid / Hollow), Fill Color with soft pastels, and Fill Opacity slider (0% to 100% transparency), plus rotation angles.</li>
+                  <li><strong>Geometry & Drawing Instruments</strong>: Virtual Ruler with millimeter/inch scales, angle lock, and instant Trace Line (controls positioned above the ruler to never hide text), Compass with radius lock, 180°/360° Protractor, and Set Squares.</li>
+                  <li><strong>Instant Math Shorthand</strong>: Quickly convert handwritten math notations into clean LaTeX equations with the ergonomically placed conversion button below the text.</li>
                   <li><strong>Single-Page Infinite Canvas for PDF & PPT Imports</strong>: Import multi-page PDF worksheets, question papers, or PowerPoint presentations (PPT/PPTX). All slides and pages are automatically placed and vertically stacked on a <em>Single Continuous Page with Infinite Scroll enabled</em>, allowing you to scroll down smoothly and annotate without switching tabs.</li>
                   <li><strong>Synchronized Educational Video Widgets</strong>: Embed YouTube, Vimeo, or MP4 video files directly on the board. The teacher retains exclusive playback control (Play, Pause, Scrub timeline, 16:9 lock, Resize, Minimize, Remove).</li>
                   <li><strong>Sub-Second Real-Time Playback Synchronization</strong>: When playing or pausing a video, student screens sync in real time with sub-second accuracy. Pausing freezes student screens on the exact same frame, and any drift over 1.2s is automatically corrected.</li>
-                  <li><strong>Live Broadcasting</strong>: Select your target grade or <em>All Grades</em> and click <strong>"Go Live"</strong>. Your strokes, pages, background grid changes, and vertical scroll coordinates broadcast in real time to connected students.</li>
+                  <li><strong>Live Broadcasting</strong>: Select your target grade or <em>All Grades</em> and click <strong>"Go Live"</strong>. Your strokes, flowcharts, connectors, pages, background grid changes, and vertical scroll coordinates broadcast in real time to connected students.</li>
                   <li><strong>Universal Anytime Student Join</strong>: Any number of students can join the live broadcast at any point during class; the server instantly delivers the active board state, scroll position, and synchronized video playback with zero delay.</li>
                   <li><strong>Background Session Persistence</strong>: Switching tabs to check calendar, quizzes, or students does not stop your broadcast. A floating banner displays with a quick <em>Return to Whiteboard</em> button.</li>
                   <li><strong>Standalone Pop-Out Window</strong>: Click <em>Open in Window</em> to snap the whiteboard alongside Zoom, reference books, or presentation windows.</li>
                 </ul>
               </div>
 
-              {/* 2.14 Study Materials & AI Image Studio */}
               <div className="guide-card" id="teacher-materials">
                 <h3><span className="step-num">2.14</span> Public Study Materials Hub & AI Article Image Studio</h3>
                 <ul>
@@ -884,14 +893,14 @@ Teacher: Gaurav Kumar Singh`;
               {/* 3.7 Student Live Whiteboard */}
               <div className="guide-card" id="student-whiteboard">
                 <h3><span className="step-num">3.7</span> Live Whiteboard, Video Streaming & Notes PDF Export</h3>
-                <p>Follow along with your teacher's digital chalkboard in real time during live lectures:</p>
+                <p>Follow along with your teacher's live explanations from any phone, tablet, or computer:</p>
                 <ul>
-                  <li><strong>Join Live Stream</strong>: When class starts, click the red <em>"Join Live Board →"</em> banner on your dashboard or the <em>Live Whiteboard</em> tab in the sidebar.</li>
-                  <li><strong>Universal Anytime Join</strong>: Join at any moment during the lecture. All previous teacher drawings, geometry shapes, textbook slide annotations, and active video timestamps appear on your screen immediately.</li>
-                  <li><strong>Real-Time Notes</strong>: Teacher's strokes, diagrams, formulas, background grid switches, and infinite page scrolling appear on your screen instantly.</li>
-                  <li><strong>Follow Teacher Mode</strong>: By default, the screen auto-scrolls to where the teacher is writing. You can disable this to review previous pages and click <em>"Jump to Teacher"</em> when ready.</li>
-                  <li><strong>Synchronized Educational Video Viewing</strong>: When the teacher plays a video lesson, it plays on your screen in real time. Video playback is teacher-managed to prevent accidental skipping. Students have an accessible <strong>Mute / Unmute</strong> button and volume slider to adjust audio on their own device.</li>
-                  <li><strong>Download PDF</strong>: Click <strong>"Download PDF"</strong> anytime to save all whiteboard pages as an offline study guide on your device.</li>
+                  <li><strong>Join Live Stream</strong>: When class starts, click the green <em>"Live Class in Progress"</em> banner on your dashboard or the <em>Live Whiteboard</em> tab in the sidebar.</li>
+                  <li><strong>Universal Device Support</strong>: Works smoothly on mobile touchscreens, tablets, Chromebooks, iPads, and desktop computers.</li>
+                  <li><strong>Live Flowcharts & Diagrams</strong>: Follow step-by-step math problem solving, science diagrams, flowchart trees, and LaTeX formulas synchronized in real-time.</li>
+                  <li><strong>Synchronized Video Lessons</strong>: Educational videos played by your teacher stream in lockstep on your screen, complete with personal earphone volume and mute controls.</li>
+                  <li><strong>Follow Teacher & Free Scrolling</strong>: Your screen tracks the teacher's pen by default. You can pause following to inspect previous formulas, then click <em>"Jump to Teacher"</em> to re-sync.</li>
+                  <li><strong>One-Click PDF Export</strong>: Click <strong>"Download PDF"</strong> anytime to save all whiteboard pages, diagrams, and lecture notes as a crisp offline study guide on your device.</li>
                 </ul>
               </div>
             </section>
@@ -911,6 +920,16 @@ Teacher: Gaurav Kumar Singh`;
                 <div className="faq-card">
                   <h4>Q: What if a teacher forgets their password?</h4>
                   <p><strong>A:</strong> Click "Teacher Sign In" and click "Forgot Password?". Enter your registered email address to receive an instant 6-digit OTP verification code via SMTP email (valid for 15 minutes). Type the code and your new password to regain access immediately. School SuperAdmins can also reset teacher credentials directly in the SuperAdmin Console.</p>
+                </div>
+
+                <div className="faq-card">
+                  <h4>Q: How do Flowcharts and Flexible Connector Arrows work on the Whiteboard?</h4>
+                  <p><strong>A:</strong> Select the Flowchart tool to place standard symbols (Process, Decision, Start/End, Data, Document, Database) with automatic text wrapping. Choose Step/Elbow, Curved, or Straight connector arrows. You can drag the green start handle or blue end handle to snap to connection ports, or drag the amber diamond handle to bend the arrow path. Connected arrows stay locked to shapes when shapes move.</p>
+                </div>
+
+                <div className="faq-card">
+                  <h4>Q: What keyboard shortcuts are supported on the Whiteboard?</h4>
+                  <p><strong>A:</strong> On desktop, press <code>Ctrl + Z</code> to Undo, <code>Ctrl + Y</code> or <code>Ctrl + Shift + Z</code> to Redo, and hold the Spacebar while dragging the mouse to pan across the infinite canvas smoothly.</p>
                 </div>
 
                 <div className="faq-card">

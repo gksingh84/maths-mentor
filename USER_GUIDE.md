@@ -358,17 +358,46 @@ When a quiz or question paper is completed:
 
 ## 2.13 Online Teaching Whiteboard & Live Class Broadcasting
 
-The built-in **EduAshram Whiteboard** is a modern, infinite vertical digital canvas designed specifically for mathematics and science instruction.
+The built-in **EduAshram Whiteboard** is a modern, infinite vertical digital canvas designed specifically for mathematics, science, engineering, and logic instruction.
 
 ### Core Canvas Features:
 - **Infinite Vertical Scrolling**: Expand the page downwards without running out of writing room.
 - **Board Backgrounds**: Toggle between **Ruled Notebook** (standard lined paper), **Square Grid** (for geometry & algebra), **Dot Grid**, **Dark Blackboard** (chalkboard aesthetic), and **Coordinate Cartesian Graph** with customizable intervals.
+- **Desktop Keyboard Shortcuts (Undo & Redo)**:
+  - **`Ctrl + Z`**: Instantly undo the last stroke, shape addition, or edit on desktop.
+  - **`Ctrl + Y`** or **`Ctrl + Shift + Z`**: Redo previously undone actions.
+  - **`Spacebar + Drag`**: Pan and scroll smoothly across the infinite canvas.
 - **Geometry & Drawing Instruments**:
-  - Virtual Ruler with millimeter/inch markings and Lock/Unlock on screen.
-  - Compass for accurate circle drawing with radius lock.
-  - 180° / 360° Protractor for angle measurement with Lock/Unlock on screen.
-  - 45° and 60° Set Squares with Lock/Unlock on screen.
-- **Drawing Tools**: Pressure-sensitive pens, multi-color highlighters, geometric shape auto-detection, text boxes, sticky notes, LaTeX equation insertion, and image upload.
+  - **Virtual Ruler**: Features millimeter and inch markings, rotation control, 0° reset, angle lock, and an instant **Trace Line** button. The controls toolbar is positioned above the top edge so measurements and annotations underneath are never obstructed.
+  - **Compass**: Draw precise circles with exact radius readouts and radius locking.
+  - **180° / 360° Protractor**: Measure angles accurately with interactive needle rotation, dual scales, and angle locking.
+  - **45° and 60° Set Squares**: Draw exact right-angle and standard geometric triangles with screen locking.
+- **Interactive Flowcharts & Flexible Connectors Studio**:
+  - **8 Standard Flowchart Symbols**: Choose from Process (Action box), Decision (Diamond branch), Start/End (Terminal capsule), Data (Input/Output parallelogram), Document (wavy base), Database (cylinder store), Subroutine (predefined double-border box), and Junction (circle connector node).
+  - **Smart Word & Character-Break Text Wrapping**: Typed text automatically wraps inside node boundaries. Long unbroken strings wrap cleanly across multiple lines, dynamic font scaling automatically sizes text to fit node height, and boundary clipping prevents text from overflowing.
+  - **Double-Click Inline Editing**: Double-click any flowchart symbol or connector arrow to edit its text/label immediately.
+  - **Flexible Auto-Connecting Arrows**:
+    - **3 Routing Types**: **Step / Elbow (90° Orthogonal)**, **Curved Arc (Smooth Bezier)**, and **Straight Line**.
+    - **Moveable Start, Mid, and End Handles**:
+      - **Start Handle (Green Circle)**: Drag to reposition the arrow origin; snaps automatically to the nearest connection port on any shape or floats freely.
+      - **Mid Handle (Amber Diamond)**: Drag to flex and adjust the curvature or elbow point of the connector arrow without losing contact with the shapes.
+      - **End Handle (Blue Circle)**: Drag to reposition the arrowhead tip; snaps automatically to connection ports on destination shapes.
+    - **Persistent Contact Invariance**: Connected arrows stay firmly locked to their start and destination shapes. When shapes are moved, resized, or repositioned, the connector arrows dynamically track them in real time without detaching.
+    - **Branch Labels**: Add conditional labels (e.g. *"Yes"*, *"No"*, *"OK"*) displayed in high-contrast badges along the line.
+    - **Quick 1-Click Templates**: Insert complete pre-connected **Process Flow (Start → Step → End)** or **Decision Tree (Start → Branch → Yes/No → End)** templates with a single click.
+    - **Auto-Connect Selected Shapes**: Select any two or more shapes and click *"Auto-Connect"* to link them sequentially.
+    - **Endpoint & Flow Controls**: Quick buttons in the Select panel to `🔄 Flip Flow` (reverse direction) and `⮌ Reset Bend` (restore geometric path).
+- **Comprehensive Shape Styling (Select Tool)**:
+  - When any shape or diagram element is selected on the canvas, the right-hand panel provides full creative controls:
+    - **Outline Color**: Quick color swatches plus full HTML5 color picker.
+    - **Stroke Width**: 1px, 2px, 3px, 4px, 6px options.
+    - **Fill Mode**: Toggle between **Solid** fill and **Hollow** (transparent).
+    - **Fill Color**: Preset soft pastels (White, Ice Blue, Mint Green, Pale Yellow, Pink) plus custom color picker.
+    - **Fill Opacity**: Slider adjusting transparency from 0% (fully transparent) to 100% (fully solid).
+    - **Rotation**: Angle slider and 1-click angle presets (0°, 30°, 45°, 60°, 90°, 180°, 270°).
+    - **Arrangement & Clipboard**: Duplicate, Delete, Lock/Unlock, Move to Back, and Copy/Paste styles.
+- **Instant Math Shorthand**:
+  - Quickly converts handwritten mathematical shorthand and equations into clean, publication-quality LaTeX formatting with a conveniently positioned conversion button below the text.
 - **Single-Page Infinite Canvas for PDF & PPT Imports**:
   - When importing multi-page documents (PDF worksheets, exam papers, textbooks) or PowerPoint presentations (PPT / PPTX slides), all pages and slides are automatically imported onto a **Single Continuous Page with Infinite Scroll enabled**.
   - Pages and slides are arranged and stacked vertically in sequential order. You can smoothly scroll down the whiteboard, annotate problems, and solve equations right alongside the slide content without having to switch tabs.
@@ -382,7 +411,7 @@ The built-in **EduAshram Whiteboard** is a modern, infinite vertical digital can
    - Specific grade level (e.g., *Grade 6*, *Grade 10*), or
    - **All Grades**.
 2. Click **Go Live** (green button):
-   - Real-time vector strokes, eraser actions, page transitions, background grid changes, and vertical scroll positions are broadcast immediately to connected students.
+   - Real-time vector strokes, flowchart nodes, flexible connector arrows, shape fills/opacity, eraser actions, page transitions, background grid changes, and vertical scroll positions are broadcast immediately to connected students.
    - A live viewer counter shows how many students are currently tuned into your board.
 3. **Synchronized Video Playback with Sub-Second Precision**:
    - When the teacher plays, pauses, or seeks a video on the whiteboard, all student whiteboards follow in real-time.
@@ -391,7 +420,7 @@ The built-in **EduAshram Whiteboard** is a modern, infinite vertical digital can
    - **Automated Drift Correction**: High-frequency timestamp delivery and 1-second broadcast cycles automatically correct any playback drift over 1.2 seconds, ensuring all students watch in tight sync.
 4. **Universal Anytime Student Join**:
    - Any number of students can join the live broadcast at any point during the lecture (even mid-class or during video playback).
-   - The server instantly transmits the complete active board state (drawings, geometry figures, scroll position, and current video playback timestamp) so newly joined students catch up with zero delay.
+   - The server instantly transmits the complete active board state (drawings, flowcharts, geometry figures, scroll position, and current video playback timestamp) so newly joined students catch up with zero delay.
 5. **Background Session Persistence**:
    - If you need to switch tabs to check an attendance record, view a quiz submission, or check the calendar, the live whiteboard **continues broadcasting in the background**.
    - A green banner across other teacher tabs reminds you: *"Your Live Whiteboard is broadcasting to students in the background"* with an instant **"Return to Whiteboard"** button.
