@@ -2885,6 +2885,240 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
       return color;
     };
 
+    const getShapePorts = (s: any) => {
+      let { start, end } = s;
+      if (!start || !end) return { top: { x: 0, y: 0, name: "top" }, right: { x: 0, y: 0, name: "right" }, bottom: { x: 0, y: 0, name: "bottom" }, left: { x: 0, y: 0, name: "left" } };
+      const minX = Math.min(start.x, end.x);
+      const minY = Math.min(start.y, end.y);
+      const maxX = Math.max(start.x, end.x);
+      const maxY = Math.max(start.y, end.y);
+      const cx = (minX + maxX) / 2;
+      const cy = (minY + maxY) / 2;
+      return {
+        top: { x: cx, y: minY, name: "top" },
+        right: { x: maxX, y: cy, name: "right" },
+        bottom: { x: cx, y: maxY, name: "bottom" },
+        left: { x: minX, y: cy, name: "left" }
+      };
+    };
+
+    const updateAttachedConnectors = (page: any) => {
+      if (!page || !Array.isArray(page.shapes)) return;
+      const shapeMap = new Map();
+      page.shapes.forEach((s: any) => {
+        if (s && s.id && s.type !== "connector") shapeMap.set(s.id, s);
+      });
+      page.shapes.forEach((s: any) => {
+        if (s && s.type === "connector") {
+          const startShape = s.startShapeId ? shapeMap.get(s.startShapeId) : null;
+          const endShape = s.endShapeId ? shapeMap.get(s.endShapeId) : null;
+          if (startShape) {
+            const ports: any = getShapePorts(startShape);
+            const p = ports[s.startPort] || ports.right || ports.bottom;
+            if (p) s.start = { x: p.x, y: p.y };
+          }
+          if (endShape) {
+            const ports: any = getShapePorts(endShape);
+            const p = ports[s.endPort] || ports.left || ports.top;
+            if (p) s.end = { x: p.x, y: p.y };
+          }
+        }
+      });
+    };
+
+    const drawNodeText = (text: string, cx: number, cy: number, maxW: number, maxH: number, color: string) => {
+      if (!text) return;
+      const availableW = Math.max(24, maxW - 8);
+      const availableH = Math.max(16, maxH - 6);
+
+      ctx.save();
+      ctx.fillStyle = getContrastColor(color, '#ffffff', '#0f172a');
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+
+      ctx.beginPath();
+      ctx.rect(cx - availableW / 2 - 2, cy - availableH / 2 - 2, availableW + 4, availableH + 4);
+      ctx.clip();
+
+      const wrapLines = (fontSize: number) => {
+        ctx.font = `600 ${fontSize}px Inter, -apple-system, sans-serif`;
+        const paragraphs = String(text).split(/\r?\n/);
+        const lines: string[] = [];
+
+        for (const p of paragraphs) {
+          if (p.trim() === '') {
+            lines.push('');
+            continue;
+          }
+          const words = p.split(/\s+/);
+          let cur = '';
+          for (let i = 0; i < words.length; i++) {
+            const w = words[i];
+            if (!w) continue;
+            const test = cur ? `${cur} ${w}` : w;
+            if (ctx.measureText(test).width <= availableW) {
+              cur = test;
+            } else {
+              if (cur) {
+                lines.push(cur);
+                cur = '';
+              }
+              if (ctx.measureText(w).width > availableW) {
+                let chunk = '';
+                for (const ch of w) {
+                  if (ctx.measureText(chunk + ch).width <= availableW) {
+                    chunk += ch;
+                  } else {
+                    if (chunk) lines.push(chunk);
+                    chunk = ch;
+                  }
+                }
+                cur = chunk;
+              } else {
+                cur = w;
+              }
+            }
+          }
+          if (cur) lines.push(cur);
+        }
+        return lines;
+      };
+
+      let fs = Math.min(14, Math.max(9, Math.floor(availableH * 0.35)));
+      let lines = wrapLines(fs);
+      let lineHeight = Math.round(fs * 1.25);
+      while (lines.length * lineHeight > availableH && fs > 8) {
+        fs--;
+        lines = wrapLines(fs);
+        lineHeight = Math.round(fs * 1.25);
+      }
+
+      ctx.font = `600 ${fs}px Inter, -apple-system, sans-serif`;
+      const totalH = lines.length * lineHeight;
+      const startY = cy - totalH / 2 + lineHeight / 2;
+      lines.forEach((line, idx) => {
+        ctx.fillText(line, cx, startY + idx * lineHeight);
+      });
+      ctx.restore();
+    };
+
+    const drawConnectorShape = (s: any) => {
+      const start = s.start;
+      const end = s.end;
+      if (!start || !end) return;
+      const color = getContrastColor(s.color, '#ffffff', '#0f172a');
+      const lineWidth = s.width || 2;
+      const routing = s.routing || 'orthogonal';
+
+      ctx.save();
+      ctx.strokeStyle = color;
+      ctx.fillStyle = color;
+      ctx.lineWidth = lineWidth;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      if (s.lineDash && Array.isArray(s.lineDash) && s.lineDash.length > 0) {
+        ctx.setLineDash(s.lineDash);
+      } else {
+        ctx.setLineDash([]);
+      }
+
+      const dx = end.x - start.x;
+      const dy = end.y - start.y;
+      let midPoint = { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 };
+      let endAngle = Math.atan2(dy, dx);
+
+      ctx.beginPath();
+      if (routing === 'curved') {
+        let cp = s.controlPoint;
+        if (!cp) {
+          const dist = Math.hypot(dx, dy);
+          const perpX = -dy / (dist || 1);
+          const perpY = dx / (dist || 1);
+          const arch = Math.min(60, Math.max(22, dist * 0.22)) * (s.bendOffset || 1);
+          cp = { x: (start.x + end.x) / 2 + perpX * arch, y: (start.y + end.y) / 2 + perpY * arch };
+        }
+        midPoint = cp;
+        ctx.moveTo(start.x, start.y);
+        ctx.quadraticCurveTo(cp.x, cp.y, end.x, end.y);
+        ctx.stroke();
+        endAngle = Math.atan2(end.y - cp.y, end.x - cp.x);
+      } else if (routing === 'straight') {
+        if (s.controlPoint) {
+          midPoint = s.controlPoint;
+          ctx.moveTo(start.x, start.y);
+          ctx.lineTo(s.controlPoint.x, s.controlPoint.y);
+          ctx.lineTo(end.x, end.y);
+          ctx.stroke();
+          endAngle = Math.atan2(end.y - s.controlPoint.y, end.x - s.controlPoint.x);
+        } else {
+          ctx.moveTo(start.x, start.y);
+          ctx.lineTo(end.x, end.y);
+          ctx.stroke();
+          endAngle = Math.atan2(dy, dx);
+        }
+      } else {
+        // Orthogonal
+        const isHorizontal = Math.abs(dx) >= Math.abs(dy);
+        let pts = [];
+        if (s.controlPoint) {
+          pts = [start, { x: s.controlPoint.x, y: start.y }, { x: s.controlPoint.x, y: end.y }, end];
+          midPoint = s.controlPoint;
+        } else {
+          const offset = s.bendOffset || 0;
+          if (isHorizontal) {
+            const midX = start.x + dx / 2 + offset;
+            pts = [start, { x: midX, y: start.y }, { x: midX, y: end.y }, end];
+            midPoint = { x: midX, y: (start.y + end.y) / 2 };
+          } else {
+            const midY = start.y + dy / 2 + offset;
+            pts = [start, { x: start.x, y: midY }, { x: end.x, y: midY }, end];
+            midPoint = { x: (start.x + end.x) / 2, y: midY };
+          }
+        }
+        ctx.moveTo(pts[0].x, pts[0].y);
+        for (let k = 1; k < pts.length; k++) {
+          ctx.lineTo(pts[k].x, pts[k].y);
+        }
+        ctx.stroke();
+        const pLast = pts[pts.length - 1];
+        const pPrev = pts[pts.length - 2];
+        endAngle = Math.atan2(pLast.y - pPrev.y, pLast.x - pPrev.x);
+      }
+
+      // Arrowheads
+      ctx.setLineDash([]);
+      const arrowLen = Math.max(10, lineWidth * 3.5);
+      if (s.arrowEnd !== false) {
+        ctx.beginPath();
+        ctx.moveTo(end.x, end.y);
+        ctx.lineTo(end.x - arrowLen * Math.cos(endAngle - Math.PI / 6), end.y - arrowLen * Math.sin(endAngle - Math.PI / 6));
+        ctx.lineTo(end.x - arrowLen * Math.cos(endAngle + Math.PI / 6), end.y - arrowLen * Math.sin(endAngle + Math.PI / 6));
+        ctx.closePath();
+        ctx.fill();
+      }
+
+      if (s.label) {
+        ctx.save();
+        ctx.font = 'bold 12px Inter, sans-serif';
+        const txtW = ctx.measureText(s.label).width;
+        ctx.fillStyle = isDark ? '#1e293b' : '#ffffff';
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        if ((ctx as any).roundRect) (ctx as any).roundRect(midPoint.x - txtW / 2 - 5, midPoint.y - 10, txtW + 10, 20, 4);
+        else ctx.rect(midPoint.x - txtW / 2 - 5, midPoint.y - 10, txtW + 10, 20);
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = color;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(s.label, midPoint.x, midPoint.y);
+        ctx.restore();
+      }
+
+      ctx.restore();
+    };
+
     // Helper to render any whiteboard shape or chart
     const renderShape = (sh: any) => {
       let { start, end } = sh;
@@ -2918,6 +3152,11 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
       const lineWidth = sh.width || 2;
       const isSolid = sh.fillMode === 'solid';
       const fillOpacity = sh.fillOpacity ?? 1;
+
+      if (type === 'connector') {
+        drawConnectorShape(sh);
+        return;
+      }
 
       if (type === 'group' && sh.children) {
         (sh.children.shapes || []).forEach((cSh: any) => renderShape(cSh));
@@ -3139,6 +3378,112 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
         if (engine && typeof engine.drawPeriodicTableShape === 'function') {
           engine.drawPeriodicTableShape(ctx, sh, false);
         }
+      } else if (type === 'fc-terminal') {
+        const pillR = Math.min(w, h) / 2;
+        ctx.beginPath();
+        if ((ctx as any).roundRect) (ctx as any).roundRect(x1, y1, w, h, pillR);
+        else ctx.rect(x1, y1, w, h);
+        if (isSolid) { ctx.save(); ctx.globalAlpha = fillOpacity; ctx.fillStyle = sh.fillColor || sh.color; ctx.fill(); ctx.restore(); }
+        ctx.strokeStyle = strokeColor;
+        ctx.lineWidth = lineWidth;
+        ctx.stroke();
+        if (sh.text) drawNodeText(sh.text, cx, cy, w - 16, h - 10, sh.textColor || strokeColor);
+        return;
+      } else if (type === 'fc-process') {
+        ctx.beginPath();
+        ctx.rect(x1, y1, w, h);
+        if (isSolid) { ctx.save(); ctx.globalAlpha = fillOpacity; ctx.fillStyle = sh.fillColor || sh.color; ctx.fill(); ctx.restore(); }
+        ctx.strokeStyle = strokeColor;
+        ctx.lineWidth = lineWidth;
+        ctx.stroke();
+        if (sh.text) drawNodeText(sh.text, cx, cy, w - 16, h - 10, sh.textColor || strokeColor);
+        return;
+      } else if (type === 'fc-decision') {
+        ctx.beginPath();
+        ctx.moveTo(cx, y1);
+        ctx.lineTo(x2, cy);
+        ctx.lineTo(cx, y2);
+        ctx.lineTo(x1, cy);
+        ctx.closePath();
+        if (isSolid) { ctx.save(); ctx.globalAlpha = fillOpacity; ctx.fillStyle = sh.fillColor || sh.color; ctx.fill(); ctx.restore(); }
+        ctx.strokeStyle = strokeColor;
+        ctx.lineWidth = lineWidth;
+        ctx.stroke();
+        if (sh.text) drawNodeText(sh.text, cx, cy, w * 0.65, h * 0.65, sh.textColor || strokeColor);
+        return;
+      } else if (type === 'fc-io') {
+        const slant = Math.min(w * 0.2, 28);
+        ctx.beginPath();
+        ctx.moveTo(x1 + slant, y1);
+        ctx.lineTo(x2, y1);
+        ctx.lineTo(x2 - slant, y2);
+        ctx.lineTo(x1, y2);
+        ctx.closePath();
+        if (isSolid) { ctx.save(); ctx.globalAlpha = fillOpacity; ctx.fillStyle = sh.fillColor || sh.color; ctx.fill(); ctx.restore(); }
+        ctx.strokeStyle = strokeColor;
+        ctx.lineWidth = lineWidth;
+        ctx.stroke();
+        if (sh.text) drawNodeText(sh.text, cx, cy, w - slant * 2 - 10, h - 10, sh.textColor || strokeColor);
+        return;
+      } else if (type === 'fc-document') {
+        const waveH = Math.min(14, h * 0.2);
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y1);
+        ctx.lineTo(x2, y2 - waveH);
+        ctx.quadraticCurveTo(x1 + w * 0.75, y2 + waveH, cx, y2 - waveH * 0.4);
+        ctx.quadraticCurveTo(x1 + w * 0.25, y2 - waveH * 1.8, x1, y2 - waveH * 0.5);
+        ctx.closePath();
+        if (isSolid) { ctx.save(); ctx.globalAlpha = fillOpacity; ctx.fillStyle = sh.fillColor || sh.color; ctx.fill(); ctx.restore(); }
+        ctx.strokeStyle = strokeColor;
+        ctx.lineWidth = lineWidth;
+        ctx.stroke();
+        if (sh.text) drawNodeText(sh.text, cx, cy - waveH * 0.3, w - 16, h - waveH - 10, sh.textColor || strokeColor);
+        return;
+      } else if (type === 'fc-database') {
+        const ellipseH = Math.min(18, h * 0.25);
+        ctx.beginPath();
+        ctx.moveTo(x1, y1 + ellipseH);
+        ctx.lineTo(x1, y2 - ellipseH);
+        ctx.bezierCurveTo(x1, y2, x2, y2, x2, y2 - ellipseH);
+        ctx.lineTo(x2, y1 + ellipseH);
+        ctx.bezierCurveTo(x2, y1 - ellipseH * 0.3, x1, y1 - ellipseH * 0.3, x1, y1 + ellipseH);
+        ctx.closePath();
+        if (isSolid) { ctx.save(); ctx.globalAlpha = fillOpacity; ctx.fillStyle = sh.fillColor || sh.color; ctx.fill(); ctx.restore(); }
+        ctx.strokeStyle = strokeColor;
+        ctx.lineWidth = lineWidth;
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.ellipse(cx, y1 + ellipseH, w / 2, ellipseH, 0, 0, Math.PI * 2);
+        ctx.stroke();
+        if (sh.text) drawNodeText(sh.text, cx, cy + ellipseH * 0.5, w - 16, h - ellipseH * 2, sh.textColor || strokeColor);
+        return;
+      } else if (type === 'fc-subroutine') {
+        ctx.beginPath();
+        ctx.rect(x1, y1, w, h);
+        if (isSolid) { ctx.save(); ctx.globalAlpha = fillOpacity; ctx.fillStyle = sh.fillColor || sh.color; ctx.fill(); ctx.restore(); }
+        ctx.strokeStyle = strokeColor;
+        ctx.lineWidth = lineWidth;
+        ctx.stroke();
+        const barInset = Math.min(16, w * 0.15);
+        ctx.beginPath();
+        ctx.moveTo(x1 + barInset, y1);
+        ctx.lineTo(x1 + barInset, y2);
+        ctx.moveTo(x2 - barInset, y1);
+        ctx.lineTo(x2 - barInset, y2);
+        ctx.stroke();
+        if (sh.text) drawNodeText(sh.text, cx, cy, w - barInset * 2 - 12, h - 10, sh.textColor || strokeColor);
+        return;
+      } else if (type === 'fc-connector-node') {
+        const rNode = Math.min(w, h) / 2;
+        ctx.beginPath();
+        ctx.arc(cx, cy, rNode, 0, Math.PI * 2);
+        if (isSolid) { ctx.save(); ctx.globalAlpha = fillOpacity; ctx.fillStyle = sh.fillColor || sh.color; ctx.fill(); ctx.restore(); }
+        ctx.strokeStyle = strokeColor;
+        ctx.lineWidth = lineWidth;
+        ctx.stroke();
+        if (sh.text) drawNodeText(sh.text, cx, cy, rNode * 1.5, rNode * 1.5, sh.textColor || strokeColor);
+        return;
       } else if (type === 'rectangle' || type === 'rect') {
         if (isSolid) {
           ctx.save();
@@ -3903,6 +4248,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
 
     // 1. Draw shapes & charts
     if (page.shapes && Array.isArray(page.shapes)) {
+      updateAttachedConnectors(page);
       page.shapes.forEach((sh: any) => {
         try {
           renderShape(sh);

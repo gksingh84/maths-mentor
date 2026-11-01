@@ -673,6 +673,10 @@
       background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23475569' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 3v18h18'/%3E%3Cpath d='m19 9-5 5-4-4-3 3'/%3E%3C/svg%3E");
     }
 
+    [data-tool="flowchart"]::before {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23475569' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='3' width='6' height='5' rx='1'/%3E%3Crect x='15' y='16' width='6' height='5' rx='1'/%3E%3Cpath d='M6 8v5a2 2 0 0 0 2 2h7'/%3E%3Cpolyline points='12 12 15 15 12 18'/%3E%3C/svg%3E");
+    }
+
     [data-tool="stamps"]::before {
       background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23475569' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect width='18' height='18' x='3' y='3' rx='2' ry='2'/%3E%3Ccircle cx='9' cy='9' r='2'/%3E%3Cpath d='m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21'/%3E%3C/svg%3E");
     }
@@ -3031,6 +3035,7 @@
         <button class="tool-button" data-tool="math" title="Maths Equation Editor">Equation</button>
         <button class="tool-button" data-tool="edu-tools" title="Educational Tools (Ruler & Protractor)">Edu Tools</button>
         <button class="tool-button" data-tool="charts">Charts</button>
+        <button class="tool-button" data-tool="flowchart" title="Flowchart & Flexible Connectors">Flowchart</button>
         <button class="tool-button" data-tool="stamps">Images</button>
         <button class="tool-button" data-tool="video">Video</button>
         <button class="tool-button" data-tool="time">Clock</button>
@@ -3538,6 +3543,23 @@
       const timeToolSettings = { mode: "clock", timerHours: 0, timerMinutes: 1, timerSeconds: 0, color: "#0f172a" };
       const pollSettings = { question: "New Poll", options: ["Option 1", "Option 2"], color: "#0f172a", fontFamily: "Arial" };
       const listSettings = { type: "bullet", fontSize: 24 };
+      const flowchartSettings = {
+        nodeType: "fc-process",
+        routing: "orthogonal", // "orthogonal", "curved", "straight"
+        color: "#0f172a",
+        width: 2,
+        fillMode: "solid",
+        fillColor: "#f0fdf4",
+        fillOpacity: 1,
+        activeMode: "nodes", // "nodes" | "connector"
+        arrowEnd: true,
+        arrowStart: false,
+        lineDash: []
+      };
+      let activeConnectorDraft = null;
+      let isDraggingConnectorBend = false;
+      let activeBendConnector = null;
+      let hoveredShapePort = null;
       let selectedWidgets = [];
       let isDraggingWidget = false;
       let dragWidgetOriginals = null;
@@ -5842,6 +5864,17 @@
           });
         }
 
+        if (activeConnectorDraft) {
+          drawConnectorShape(ctx, activeConnectorDraft, true);
+        }
+
+        if ((currentTool === "flowchart" || activeConnectorDraft) && hoveredShapePort && page.shapes) {
+          const hoveredSh = page.shapes.find((s) => s.id === hoveredShapePort.shapeId);
+          if (hoveredSh) {
+            drawShapePorts(ctx, hoveredSh, hoveredShapePort.portName);
+          }
+        }
+
         if (page.texts && page.texts.length) {
           page.texts.forEach((item) => {
             drawTextItem(ctx, item, selectedTexts.includes(item));
@@ -6886,6 +6919,761 @@
         ctx.restore();
       }
 
+      /* ==========================================================================
+         Flowchart & Flexible Connector System
+         ========================================================================== */
+      function getShapePorts(s) {
+        if (!s || !s.start || !s.end) {
+          const zero = { x: 0, y: 0 };
+          return { top: zero, right: zero, bottom: zero, left: zero, center: zero };
+        }
+        const x1 = Math.min(s.start.x, s.end.x);
+        const y1 = Math.min(s.start.y, s.end.y);
+        const x2 = Math.max(s.start.x, s.end.x);
+        const y2 = Math.max(s.start.y, s.end.y);
+        const cx = (x1 + x2) / 2;
+        const cy = (y1 + y2) / 2;
+
+        let ports = {
+          top: { x: cx, y: y1, name: "top" },
+          right: { x: x2, y: cy, name: "right" },
+          bottom: { x: cx, y: y2, name: "bottom" },
+          left: { x: x1, y: cy, name: "left" },
+          center: { x: cx, y: cy, name: "center" }
+        };
+
+        if (s.rotation && typeof s.rotation === "number" && s.rotation !== 0) {
+          const rad = (s.rotation * Math.PI) / 180;
+          const cos = Math.cos(rad);
+          const sin = Math.sin(rad);
+          const rotatePt = (p) => {
+            const dx = p.x - cx;
+            const dy = p.y - cy;
+            return {
+              x: cx + dx * cos - dy * sin,
+              y: cy + dx * sin + dy * cos,
+              name: p.name
+            };
+          };
+          ports = {
+            top: rotatePt(ports.top),
+            right: rotatePt(ports.right),
+            bottom: rotatePt(ports.bottom),
+            left: rotatePt(ports.left),
+            center: { x: cx, y: cy, name: "center" }
+          };
+        }
+        return ports;
+      }
+
+      function getClosestPortToPoint(ports, pt) {
+        let bestPort = ports.right;
+        let minDist = Infinity;
+        ["top", "right", "bottom", "left"].forEach((key) => {
+          const p = ports[key];
+          if (!p) return;
+          const d = Math.hypot(p.x - pt.x, p.y - pt.y);
+          if (d < minDist) {
+            minDist = d;
+            bestPort = p;
+          }
+        });
+        return bestPort;
+      }
+
+      function getBestPorts(sA, sB) {
+        if (!sA || !sB) return { fromPort: "right", toPort: "left" };
+        const portsA = getShapePorts(sA);
+        const portsB = getShapePorts(sB);
+        let bestDist = Infinity;
+        let bestA = "right";
+        let bestB = "left";
+        const keys = ["top", "right", "bottom", "left"];
+        keys.forEach((kA) => {
+          keys.forEach((kB) => {
+            const pA = portsA[kA];
+            const pB = portsB[kB];
+            const d = Math.hypot(pB.x - pA.x, pB.y - pA.y);
+            if (d < bestDist) {
+              bestDist = d;
+              bestA = kA;
+              bestB = kB;
+            }
+          });
+        });
+        return { fromPort: bestA, toPort: bestB };
+      }
+
+      function updateAttachedConnectors(page) {
+        if (!page || !Array.isArray(page.shapes)) return;
+        const shapesById = new Map();
+        page.shapes.forEach((s) => {
+          if (s && s.id) shapesById.set(s.id, s);
+        });
+
+        page.shapes.forEach((s) => {
+          if (s && s.type === "connector") {
+            const startShape = s.startShapeId ? shapesById.get(s.startShapeId) : null;
+            const endShape = s.endShapeId ? shapesById.get(s.endShapeId) : null;
+
+            if (startShape) {
+              const ports = getShapePorts(startShape);
+              const portKey = s.startPort && ports[s.startPort] 
+                ? s.startPort 
+                : (endShape ? getBestPorts(startShape, endShape).fromPort : "right");
+              s.start = { x: ports[portKey].x, y: ports[portKey].y };
+              s.startPort = portKey;
+            }
+            if (endShape) {
+              const ports = getShapePorts(endShape);
+              const portKey = s.endPort && ports[s.endPort] 
+                ? s.endPort 
+                : (startShape ? getBestPorts(startShape, endShape).toPort : "left");
+              s.end = { x: ports[portKey].x, y: ports[portKey].y };
+              s.endPort = portKey;
+            }
+          }
+        });
+      }
+
+      function getConnectorWaypoints(shape) {
+        const start = shape.start || { x: 0, y: 0 };
+        const end = shape.end || { x: 0, y: 0 };
+        const routing = shape.routing || "orthogonal";
+        const dx = end.x - start.x;
+        const dy = end.y - start.y;
+
+        if (routing === "curved") {
+          let cp = shape.controlPoint;
+          if (!cp) {
+            const dist = Math.hypot(dx, dy);
+            const perpX = -dy / (dist || 1);
+            const perpY = dx / (dist || 1);
+            const arch = Math.min(60, Math.max(22, dist * 0.22)) * (shape.bendOffset || 1);
+            cp = { x: (start.x + end.x) / 2 + perpX * arch, y: (start.y + end.y) / 2 + perpY * arch };
+          }
+          const pts = [];
+          for (let step = 0; step <= 10; step++) {
+            const t = step / 10;
+            const invT = 1 - t;
+            const x = invT * invT * start.x + 2 * invT * t * cp.x + t * t * end.x;
+            const y = invT * invT * start.y + 2 * invT * t * cp.y + t * t * end.y;
+            pts.push({ x, y });
+          }
+          return pts;
+        }
+
+        if (routing === "straight") {
+          if (shape.controlPoint) {
+            return [start, shape.controlPoint, end];
+          }
+          return [start, end];
+        }
+
+        // Orthogonal (Step / Elbow)
+        if (shape.controlPoint) {
+          return [
+            start,
+            { x: shape.controlPoint.x, y: start.y },
+            { x: shape.controlPoint.x, y: end.y },
+            end
+          ];
+        }
+
+        const isHorizontal = Math.abs(dx) >= Math.abs(dy);
+        const offset = shape.bendOffset || 0;
+        if (isHorizontal) {
+          const midX = start.x + dx / 2 + offset;
+          return [
+            start,
+            { x: midX, y: start.y },
+            { x: midX, y: end.y },
+            end
+          ];
+        } else {
+          const midY = start.y + dy / 2 + offset;
+          return [
+            start,
+            { x: start.x, y: midY },
+            { x: end.x, y: midY },
+            end
+          ];
+        }
+      }
+
+      function distToConnector(point, shape) {
+        const pts = getConnectorWaypoints(shape);
+        if (pts.length < 2) return Infinity;
+        let minDistSq = Infinity;
+        for (let k = 0; k < pts.length - 1; k++) {
+          const dSq = pointToSegmentDistSq(point.x, point.y, pts[k].x, pts[k].y, pts[k + 1].x, pts[k + 1].y);
+          if (dSq < minDistSq) minDistSq = dSq;
+        }
+        return Math.sqrt(minDistSq);
+      }
+
+      function getConnectorMidpoint(shape) {
+        if (shape.controlPoint) {
+          return { x: shape.controlPoint.x, y: shape.controlPoint.y };
+        }
+        const pts = getConnectorWaypoints(shape);
+        if (!pts || pts.length === 0) {
+          const s = shape.start || { x: 0, y: 0 };
+          const e = shape.end || { x: 0, y: 0 };
+          return { x: (s.x + e.x) / 2, y: (s.y + e.y) / 2 };
+        }
+        if (shape.routing === "curved") {
+          return pts[5] || pts[Math.floor(pts.length / 2)];
+        }
+        if (pts.length === 4) {
+          return { x: (pts[1].x + pts[2].x) / 2, y: (pts[1].y + pts[2].y) / 2 };
+        }
+        const midIdx = Math.floor(pts.length / 2);
+        return pts[midIdx];
+      }
+
+      function drawArrowhead(ctx, tipX, tipY, angle, lineWidth, color) {
+        const headLen = Math.max(10, 10 + lineWidth * 1.5);
+        ctx.save();
+        ctx.fillStyle = color;
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 1;
+        ctx.setLineDash([]);
+        ctx.beginPath();
+        ctx.moveTo(tipX, tipY);
+        ctx.lineTo(
+          tipX - headLen * Math.cos(angle - 0.42),
+          tipY - headLen * Math.sin(angle - 0.42)
+        );
+        ctx.lineTo(
+          tipX - headLen * 0.7 * Math.cos(angle),
+          tipY - headLen * 0.7 * Math.sin(angle)
+        );
+        ctx.lineTo(
+          tipX - headLen * Math.cos(angle + 0.42),
+          tipY - headLen * Math.sin(angle + 0.42)
+        );
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      function drawConnectorLabel(ctx, label, x, y, color) {
+        if (!label) return;
+        ctx.save();
+        ctx.font = "bold 12px Arial, sans-serif";
+        const metrics = ctx.measureText(label);
+        const padX = 8;
+        const padY = 3;
+        const w = metrics.width + padX * 2;
+        const h = 20;
+
+        ctx.fillStyle = "#ffffff";
+        ctx.strokeStyle = "#cbd5e1";
+        ctx.lineWidth = 1;
+        ctx.setLineDash([]);
+        ctx.beginPath();
+        if (ctx.roundRect) ctx.roundRect(x - w / 2, y - h / 2, w, h, 6);
+        else ctx.rect(x - w / 2, y - h / 2, w, h);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = color || "#0f172a";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(label, x, y);
+        ctx.restore();
+      }
+
+      function drawNodeText(ctx, text, cx, cy, maxW, maxH, color) {
+        if (!text) return;
+        const availableW = Math.max(24, maxW - 8);
+        const availableH = Math.max(16, maxH - 6);
+
+        ctx.save();
+        ctx.fillStyle = color || "#0f172a";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+
+        // Clip strictly inside the node box so no text ever spills over the boundary
+        ctx.beginPath();
+        ctx.rect(cx - availableW / 2 - 2, cy - availableH / 2 - 2, availableW + 4, availableH + 4);
+        ctx.clip();
+
+        // Helper to wrap lines with word-break and character-breaking for long strings
+        function wrapLines(fontSize) {
+          ctx.font = "600 " + fontSize + "px system-ui, -apple-system, sans-serif";
+          const paragraphs = String(text).split(/\r?\n/);
+          const lines = [];
+
+          for (const p of paragraphs) {
+            if (p.trim() === "") {
+              lines.push("");
+              continue;
+            }
+            const words = p.split(/\s+/);
+            let cur = "";
+            for (let i = 0; i < words.length; i++) {
+              const w = words[i];
+              if (!w) continue;
+              const test = cur ? cur + " " + w : w;
+              if (ctx.measureText(test).width <= availableW) {
+                cur = test;
+              } else {
+                if (cur) {
+                  lines.push(cur);
+                  cur = "";
+                }
+                if (ctx.measureText(w).width > availableW) {
+                  let chunk = "";
+                  for (let ch of w) {
+                    if (ctx.measureText(chunk + ch).width <= availableW) {
+                      chunk += ch;
+                    } else {
+                      if (chunk) lines.push(chunk);
+                      chunk = ch;
+                    }
+                  }
+                  cur = chunk;
+                } else {
+                  cur = w;
+                }
+              }
+            }
+            if (cur) lines.push(cur);
+          }
+          return lines;
+        }
+
+        // Dynamically scale font size if needed so all lines fit inside availableH
+        let fs = Math.min(14, Math.max(9, Math.floor(availableH * 0.35)));
+        let lines = wrapLines(fs);
+        let lineHeight = Math.round(fs * 1.25);
+        while (lines.length * lineHeight > availableH && fs > 8) {
+          fs--;
+          lines = wrapLines(fs);
+          lineHeight = Math.round(fs * 1.25);
+        }
+
+        ctx.font = "600 " + fs + "px system-ui, -apple-system, sans-serif";
+        const totalH = lines.length * lineHeight;
+        const startY = cy - totalH / 2 + lineHeight / 2;
+        lines.forEach((line, idx) => {
+          ctx.fillText(line, cx, startY + idx * lineHeight);
+        });
+        ctx.restore();
+      }
+
+      function drawConnectorShape(ctx, shape, isPreview) {
+        let start = shape.start;
+        let end = shape.end;
+        if (!start || !end) return;
+
+        const color = shape.color || "#0f172a";
+        const lineWidth = shape.width || 2;
+        const routing = shape.routing || "orthogonal";
+
+        ctx.save();
+        ctx.strokeStyle = color;
+        ctx.fillStyle = color;
+        ctx.lineWidth = lineWidth;
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        if (shape.lineDash && Array.isArray(shape.lineDash) && shape.lineDash.length > 0) {
+          ctx.setLineDash(shape.lineDash);
+        } else if (isPreview) {
+          ctx.setLineDash([6, 4]);
+        } else {
+          ctx.setLineDash([]);
+        }
+
+        const dx = end.x - start.x;
+        const dy = end.y - start.y;
+        let midPoint = { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 };
+        let endAngle = Math.atan2(dy, dx);
+
+        ctx.beginPath();
+        if (routing === "curved") {
+          let cp = shape.controlPoint;
+          if (!cp) {
+            const dist = Math.hypot(dx, dy);
+            const perpX = -dy / (dist || 1);
+            const perpY = dx / (dist || 1);
+            const arch = Math.min(60, Math.max(22, dist * 0.22)) * (shape.bendOffset || 1);
+            cp = { x: (start.x + end.x) / 2 + perpX * arch, y: (start.y + end.y) / 2 + perpY * arch };
+          }
+          midPoint = cp;
+          ctx.moveTo(start.x, start.y);
+          ctx.quadraticCurveTo(cp.x, cp.y, end.x, end.y);
+          ctx.stroke();
+          endAngle = Math.atan2(end.y - cp.y, end.x - cp.x);
+        } else if (routing === "straight") {
+          if (shape.controlPoint) {
+            midPoint = shape.controlPoint;
+            ctx.moveTo(start.x, start.y);
+            ctx.lineTo(shape.controlPoint.x, shape.controlPoint.y);
+            ctx.lineTo(end.x, end.y);
+            ctx.stroke();
+            endAngle = Math.atan2(end.y - shape.controlPoint.y, end.x - shape.controlPoint.x);
+          } else {
+            ctx.moveTo(start.x, start.y);
+            ctx.lineTo(end.x, end.y);
+            ctx.stroke();
+            endAngle = Math.atan2(dy, dx);
+          }
+        } else {
+          // Orthogonal (Step / Elbow)
+          const isHorizontal = Math.abs(dx) >= Math.abs(dy);
+          let pts = [];
+          if (shape.controlPoint) {
+            pts = [
+              start,
+              { x: shape.controlPoint.x, y: start.y },
+              { x: shape.controlPoint.x, y: end.y },
+              end
+            ];
+            midPoint = shape.controlPoint;
+          } else {
+            const offset = shape.bendOffset || 0;
+            if (isHorizontal) {
+              const midX = start.x + dx / 2 + offset;
+              pts = [
+                start,
+                { x: midX, y: start.y },
+                { x: midX, y: end.y },
+                end
+              ];
+              midPoint = { x: midX, y: (start.y + end.y) / 2 };
+            } else {
+              const midY = start.y + dy / 2 + offset;
+              pts = [
+                start,
+                { x: start.x, y: midY },
+                { x: end.x, y: midY },
+                end
+              ];
+              midPoint = { x: (start.x + end.x) / 2, y: midY };
+            }
+          }
+
+          const cornerRadius = Math.min(10, Math.hypot(dx, dy) * 0.15);
+          ctx.moveTo(pts[0].x, pts[0].y);
+          for (let k = 1; k < pts.length - 1; k++) {
+            const pCur = pts[k];
+            const pNext = pts[k + 1];
+            ctx.arcTo(pCur.x, pCur.y, pNext.x, pNext.y, cornerRadius);
+          }
+          ctx.lineTo(pts[pts.length - 1].x, pts[pts.length - 1].y);
+          ctx.stroke();
+
+          const last = pts[pts.length - 1];
+          const prev = pts[pts.length - 2];
+          endAngle = Math.atan2(last.y - prev.y, last.x - prev.x);
+        }
+
+        if (shape.arrowEnd !== false) {
+          drawArrowhead(ctx, end.x, end.y, endAngle, lineWidth, color);
+        }
+        if (shape.arrowStart) {
+          const startAngle = (routing === "curved" && shape.controlPoint) 
+            ? Math.atan2(start.y - shape.controlPoint.y, start.x - shape.controlPoint.x)
+            : endAngle + Math.PI;
+          drawArrowhead(ctx, start.x, start.y, startAngle, lineWidth, color);
+        }
+
+        if (shape.label) {
+          drawConnectorLabel(ctx, shape.label, midPoint.x, midPoint.y, color);
+        }
+
+        shape._midPoint = midPoint;
+        ctx.restore();
+      }
+
+      function drawShapePorts(ctx, shape, highlightPortName = null) {
+        if (!shape || !shape.start || !shape.end) return;
+        const ports = getShapePorts(shape);
+        const keys = ["top", "right", "bottom", "left"];
+        ctx.save();
+        keys.forEach((k) => {
+          const p = ports[k];
+          if (!p) return;
+          const isHighlighted = highlightPortName === k;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, isHighlighted ? 6 : 4, 0, Math.PI * 2);
+          ctx.fillStyle = isHighlighted ? "#22c55e" : "#0284c7";
+          ctx.fill();
+          ctx.lineWidth = 1.5;
+          ctx.strokeStyle = "#ffffff";
+          ctx.stroke();
+        });
+        ctx.restore();
+      }
+
+      function addFlowchartNode(type, customText) {
+        const page = pages[currentPageIndex];
+        if (!page) return null;
+        pushUndo();
+
+        const container = boardCanvas ? boardCanvas.closest(".canvas-container") : null;
+        const scrollTop = container ? container.scrollTop : 0;
+        const scrollLeft = container ? container.scrollLeft : 0;
+        const viewH = container ? container.clientHeight : 600;
+        const viewW = container ? container.clientWidth : 800;
+
+        const cx = Math.round(((scrollLeft + viewW / 2) / zoom));
+        const cy = Math.round(((scrollTop + viewH / 2) / zoom));
+
+        let w = 140, h = 60;
+        let defaultText = "Process";
+        let color = "#16a34a";
+        let fillColor = "#f0fdf4";
+
+        if (type === "fc-terminal") {
+          w = 140; h = 50; defaultText = "Start"; color = "#0284c7"; fillColor = "#e0f2fe";
+        } else if (type === "fc-process") {
+          w = 140; h = 60; defaultText = "Process"; color = "#16a34a"; fillColor = "#f0fdf4";
+        } else if (type === "fc-decision") {
+          w = 140; h = 80; defaultText = "Decision?"; color = "#d97706"; fillColor = "#fef3c7";
+        } else if (type === "fc-io") {
+          w = 140; h = 55; defaultText = "Input / Output"; color = "#7c3aed"; fillColor = "#f3e8ff";
+        } else if (type === "fc-document") {
+          w = 140; h = 65; defaultText = "Document"; color = "#ea580c"; fillColor = "#ffedd5";
+        } else if (type === "fc-database") {
+          w = 110; h = 80; defaultText = "Database"; color = "#475569"; fillColor = "#f1f5f9";
+        } else if (type === "fc-subroutine") {
+          w = 150; h = 60; defaultText = "Subroutine"; color = "#0891b2"; fillColor = "#ecfeff";
+        } else if (type === "fc-connector-node") {
+          w = 44; h = 44; defaultText = "A"; color = "#0f172a"; fillColor = "#ffffff";
+        }
+
+        const newShape = {
+          id: generateId(),
+          type,
+          start: { x: Math.round(cx - w / 2), y: Math.round(cy - h / 2) },
+          end: { x: Math.round(cx + w / 2), y: Math.round(cy + h / 2) },
+          text: customText || defaultText,
+          color,
+          width: 2,
+          fillMode: "solid",
+          fillColor,
+          fillOpacity: 1,
+          textColor: "#0f172a"
+        };
+
+        if (!page.shapes) page.shapes = [];
+        page.shapes.push(newShape);
+        selectedShapes = [newShape];
+        selectedTexts = [];
+        selectedWidgets = [];
+        updateBoardAppearance();
+        notifyParentPageUpdate(currentPageIndex, true);
+        scheduleNotifyParentPages(100);
+        if (propertiesContent && currentTool === "select") handleToolSelection("select");
+        return newShape;
+      }
+
+      function addConnectorBetween(shapeA, shapeB, routing = "orthogonal", label = "") {
+        const page = pages[currentPageIndex];
+        if (!page || !shapeA || !shapeB) return null;
+
+        const portsA = getShapePorts(shapeA);
+        const portsB = getShapePorts(shapeB);
+        const best = getBestPorts(shapeA, shapeB);
+
+        const connector = {
+          id: generateId(),
+          type: "connector",
+          startShapeId: shapeA.id,
+          startPort: best.fromPort,
+          endShapeId: shapeB.id,
+          endPort: best.toPort,
+          start: { x: portsA[best.fromPort].x, y: portsA[best.fromPort].y },
+          end: { x: portsB[best.toPort].x, y: portsB[best.toPort].y },
+          routing: routing || "orthogonal",
+          controlPoint: null,
+          bendOffset: 0,
+          color: "#0f172a",
+          width: 2,
+          arrowEnd: true,
+          arrowStart: false,
+          lineDash: [],
+          label: label || ""
+        };
+
+        if (!page.shapes) page.shapes = [];
+        page.shapes.push(connector);
+        updateAttachedConnectors(page);
+        return connector;
+      }
+
+      function insertProcessFlowchartTemplate() {
+        const page = pages[currentPageIndex];
+        if (!page) return;
+        pushUndo();
+        const container = boardCanvas ? boardCanvas.closest(".canvas-container") : null;
+        const cx = Math.round(((container ? container.scrollLeft : 0) + (container ? container.clientWidth : 800) / 2) / zoom);
+        const cy = Math.round(((container ? container.scrollTop : 0) + (container ? container.clientHeight : 600) / 2) / zoom);
+
+        const startY = cy - 140;
+        const n1 = { id: generateId(), type: "fc-terminal", start: { x: cx - 70, y: startY }, end: { x: cx + 70, y: startY + 50 }, text: "Start", color: "#0284c7", width: 2, fillMode: "solid", fillColor: "#e0f2fe", fillOpacity: 1 };
+        const n2 = { id: generateId(), type: "fc-process", start: { x: cx - 75, y: startY + 110 }, end: { x: cx + 75, y: startY + 170 }, text: "Execute Task", color: "#16a34a", width: 2, fillMode: "solid", fillColor: "#f0fdf4", fillOpacity: 1 };
+        const n3 = { id: generateId(), type: "fc-terminal", start: { x: cx - 70, y: startY + 230 }, end: { x: cx + 70, y: startY + 280 }, text: "End", color: "#0284c7", width: 2, fillMode: "solid", fillColor: "#e0f2fe", fillOpacity: 1 };
+
+        if (!page.shapes) page.shapes = [];
+        page.shapes.push(n1, n2, n3);
+        addConnectorBetween(n1, n2, "orthogonal");
+        addConnectorBetween(n2, n3, "orthogonal");
+        selectedShapes = [n1, n2, n3];
+        updateBoardAppearance();
+        notifyParentPageUpdate(currentPageIndex, true);
+        scheduleNotifyParentPages(100);
+      }
+
+      function insertDecisionFlowchartTemplate() {
+        const page = pages[currentPageIndex];
+        if (!page) return;
+        pushUndo();
+        const container = boardCanvas ? boardCanvas.closest(".canvas-container") : null;
+        const cx = Math.round(((container ? container.scrollLeft : 0) + (container ? container.clientWidth : 800) / 2) / zoom);
+        const cy = Math.round(((container ? container.scrollTop : 0) + (container ? container.clientHeight : 600) / 2) / zoom);
+
+        const startY = cy - 160;
+        const nStart = { id: generateId(), type: "fc-terminal", start: { x: cx - 65, y: startY }, end: { x: cx + 65, y: startY + 45 }, text: "Start", color: "#0284c7", width: 2, fillMode: "solid", fillColor: "#e0f2fe", fillOpacity: 1 };
+        const nDec = { id: generateId(), type: "fc-decision", start: { x: cx - 75, y: startY + 95 }, end: { x: cx + 75, y: startY + 175 }, text: "Is Valid?", color: "#d97706", width: 2, fillMode: "solid", fillColor: "#fef3c7", fillOpacity: 1 };
+        const nProc = { id: generateId(), type: "fc-process", start: { x: cx + 130, y: startY + 105 }, end: { x: cx + 270, y: startY + 165 }, text: "Process", color: "#16a34a", width: 2, fillMode: "solid", fillColor: "#f0fdf4", fillOpacity: 1 };
+        const nEnd = { id: generateId(), type: "fc-terminal", start: { x: cx - 65, y: startY + 235 }, end: { x: cx + 65, y: startY + 280 }, text: "End", color: "#0284c7", width: 2, fillMode: "solid", fillColor: "#e0f2fe", fillOpacity: 1 };
+
+        if (!page.shapes) page.shapes = [];
+        page.shapes.push(nStart, nDec, nProc, nEnd);
+        addConnectorBetween(nStart, nDec, "orthogonal");
+        addConnectorBetween(nDec, nProc, "orthogonal", "Yes");
+        addConnectorBetween(nDec, nEnd, "orthogonal", "No");
+        addConnectorBetween(nProc, nEnd, "orthogonal");
+        selectedShapes = [nStart, nDec, nProc, nEnd];
+        updateBoardAppearance();
+        notifyParentPageUpdate(currentPageIndex, true);
+        scheduleNotifyParentPages(100);
+      }
+
+      function openFlowchartNodeTextEditor(shape) {
+        if (!shape) return;
+        const currentText = shape.text || "";
+        const newText = prompt("Enter flowchart node text:", currentText);
+        if (newText !== null && newText !== currentText) {
+          pushUndo();
+          shape.text = newText;
+          updateBoardAppearance();
+          notifyParentPageUpdate(currentPageIndex, true);
+          scheduleNotifyParentPages(100);
+          if (propertiesContent && currentTool === "select") handleToolSelection("select");
+        }
+      }
+
+      function openConnectorLabelEditor(shape) {
+        if (!shape) return;
+        const currentLabel = shape.label || "";
+        const newLabel = prompt("Enter connector branch label (e.g. Yes, No, True, False):", currentLabel);
+        if (newLabel !== null && newLabel !== currentLabel) {
+          pushUndo();
+          shape.label = newLabel;
+          updateBoardAppearance();
+          notifyParentPageUpdate(currentPageIndex, true);
+          scheduleNotifyParentPages(100);
+          if (propertiesContent && currentTool === "select") handleToolSelection("select");
+        }
+      }
+
+      function drawConnectorSelectionOverlay(ctx, shape) {
+        if (!shape || !shape.start || !shape.end) return;
+        const midPoint = getConnectorMidpoint(shape);
+        ctx.save();
+        ctx.setLineDash([]);
+
+        // Start handle (Green anchor)
+        ctx.beginPath();
+        ctx.fillStyle = "#10b981";
+        ctx.strokeStyle = "#ffffff";
+        ctx.lineWidth = 2;
+        ctx.arc(shape.start.x, shape.start.y, 6, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+
+        // End handle (Blue anchor)
+        ctx.beginPath();
+        ctx.fillStyle = "#0284c7";
+        ctx.strokeStyle = "#ffffff";
+        ctx.lineWidth = 2;
+        ctx.arc(shape.end.x, shape.end.y, 6, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+
+        // Bend handle (Amber diamond) - user drags this to adjust/flex the arrow's bend!
+        const bSize = 7;
+        ctx.beginPath();
+        ctx.fillStyle = "#f59e0b";
+        ctx.strokeStyle = "#ffffff";
+        ctx.lineWidth = 2;
+        ctx.moveTo(midPoint.x, midPoint.y - bSize);
+        ctx.lineTo(midPoint.x + bSize, midPoint.y);
+        ctx.lineTo(midPoint.x, midPoint.y + bSize);
+        ctx.lineTo(midPoint.x - bSize, midPoint.y);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+
+        // Save handle positions for pointer hit testing
+        shape._connectorStartHandle = { x: shape.start.x, y: shape.start.y, r: 8 };
+        shape._connectorEndHandle = { x: shape.end.x, y: shape.end.y, r: 8 };
+        shape._connectorBendHandle = { x: midPoint.x, y: midPoint.y, r: 10 };
+
+        // Duplicate and Delete mini-buttons near midpoint
+        const btnY = midPoint.y - 28;
+        const btnX = midPoint.x + 10;
+        const btnSize = 14;
+
+        // Duplicate button (+)
+        ctx.fillStyle = "#22c55e";
+        ctx.strokeStyle = "#14532d";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        if (ctx.roundRect) ctx.roundRect(btnX, btnY, btnSize, btnSize, 3);
+        else ctx.rect(btnX, btnY, btnSize, btnSize);
+        ctx.fill();
+        ctx.stroke();
+        ctx.strokeStyle = "#ffffff";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(btnX + 3, btnY + btnSize / 2);
+        ctx.lineTo(btnX + btnSize - 3, btnY + btnSize / 2);
+        ctx.moveTo(btnX + btnSize / 2, btnY + 3);
+        ctx.lineTo(btnX + btnSize / 2, btnY + btnSize - 3);
+        ctx.stroke();
+        shape._duplicateHandle = { x: btnX, y: btnY, w: btnSize, h: btnSize };
+
+        // Delete button (x)
+        const delX = btnX + btnSize + 4;
+        ctx.fillStyle = "#dc2626";
+        ctx.strokeStyle = "#7f1d1d";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        if (ctx.roundRect) ctx.roundRect(delX, btnY, btnSize, btnSize, 3);
+        else ctx.rect(delX, btnY, btnSize, btnSize);
+        ctx.fill();
+        ctx.stroke();
+        ctx.strokeStyle = "#ffffff";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(delX + 3.5, btnY + 3.5);
+        ctx.lineTo(delX + btnSize - 3.5, btnY + btnSize - 3.5);
+        ctx.moveTo(delX + btnSize - 3.5, btnY + 3.5);
+        ctx.lineTo(delX + 3.5, btnY + btnSize - 3.5);
+        ctx.stroke();
+        shape._deleteHandle = { x: delX, y: btnY, w: btnSize, h: btnSize };
+
+        ctx.restore();
+      }
+
       function drawShape(ctx, shape, isPreview) {
         let { start, end } = shape;
         if ((!start || !end) && Array.isArray(shape.points) && shape.points.length >= 2) {
@@ -6904,6 +7692,13 @@
         if (!start || !end) return;
 
         const type = shape.type;
+        if (type === "connector") {
+          drawConnectorShape(ctx, shape, isPreview);
+          if (!isPreview && selectedShapes && selectedShapes.includes(shape)) {
+            drawConnectorSelectionOverlay(ctx, shape);
+          }
+          return;
+        }
         if (type === "group") {
           if (shape.children) {
             (shape.children.shapes || []).forEach((s) => drawShape(ctx, s, false));
@@ -7030,6 +7825,104 @@
           ctx.beginPath();
           ctx.arc(vx, vy, arcR, sAngle, eAngle, anticlockwise);
           ctx.stroke();
+        } else if (type === "fc-terminal") {
+          const pillR = Math.min(w, h) / 2;
+          ctx.beginPath();
+          if (ctx.roundRect) ctx.roundRect(x1, y1, w, h, pillR);
+          else ctx.rect(x1, y1, w, h);
+          if (shape.fillMode === "solid") { ctx.save(); ctx.globalAlpha = fillOpacity; ctx.fill(); ctx.restore(); }
+          ctx.stroke();
+          if (shape.text) {
+            drawNodeText(ctx, shape.text, cx, cy, w - 16, h - 10, shape.textColor || shape.color);
+          }
+        } else if (type === "fc-process") {
+          ctx.beginPath();
+          ctx.rect(x1, y1, w, h);
+          if (shape.fillMode === "solid") { ctx.save(); ctx.globalAlpha = fillOpacity; ctx.fill(); ctx.restore(); }
+          ctx.stroke();
+          if (shape.text) {
+            drawNodeText(ctx, shape.text, cx, cy, w - 16, h - 10, shape.textColor || shape.color);
+          }
+        } else if (type === "fc-decision") {
+          ctx.beginPath();
+          ctx.moveTo(cx, y1);
+          ctx.lineTo(x2, cy);
+          ctx.lineTo(cx, y2);
+          ctx.lineTo(x1, cy);
+          ctx.closePath();
+          if (shape.fillMode === "solid") { ctx.save(); ctx.globalAlpha = fillOpacity; ctx.fill(); ctx.restore(); }
+          ctx.stroke();
+          if (shape.text) {
+            drawNodeText(ctx, shape.text, cx, cy, w * 0.65, h * 0.65, shape.textColor || shape.color);
+          }
+        } else if (type === "fc-io") {
+          const slant = Math.min(w * 0.2, 28);
+          ctx.beginPath();
+          ctx.moveTo(x1 + slant, y1);
+          ctx.lineTo(x2, y1);
+          ctx.lineTo(x2 - slant, y2);
+          ctx.lineTo(x1, y2);
+          ctx.closePath();
+          if (shape.fillMode === "solid") { ctx.save(); ctx.globalAlpha = fillOpacity; ctx.fill(); ctx.restore(); }
+          ctx.stroke();
+          if (shape.text) {
+            drawNodeText(ctx, shape.text, cx, cy, w - slant * 2 - 10, h - 10, shape.textColor || shape.color);
+          }
+        } else if (type === "fc-document") {
+          const waveH = Math.min(14, h * 0.2);
+          ctx.beginPath();
+          ctx.moveTo(x1, y1);
+          ctx.lineTo(x2, y1);
+          ctx.lineTo(x2, y2 - waveH);
+          ctx.quadraticCurveTo(x1 + w * 0.75, y2 + waveH, cx, y2 - waveH * 0.4);
+          ctx.quadraticCurveTo(x1 + w * 0.25, y2 - waveH * 1.8, x1, y2 - waveH * 0.5);
+          ctx.closePath();
+          if (shape.fillMode === "solid") { ctx.save(); ctx.globalAlpha = fillOpacity; ctx.fill(); ctx.restore(); }
+          ctx.stroke();
+          if (shape.text) {
+            drawNodeText(ctx, shape.text, cx, cy - waveH * 0.3, w - 16, h - waveH - 10, shape.textColor || shape.color);
+          }
+        } else if (type === "fc-database") {
+          const ellipseH = Math.min(18, h * 0.25);
+          ctx.beginPath();
+          ctx.moveTo(x1, y1 + ellipseH);
+          ctx.lineTo(x1, y2 - ellipseH);
+          ctx.bezierCurveTo(x1, y2, x2, y2, x2, y2 - ellipseH);
+          ctx.lineTo(x2, y1 + ellipseH);
+          ctx.bezierCurveTo(x2, y1 - ellipseH * 0.3, x1, y1 - ellipseH * 0.3, x1, y1 + ellipseH);
+          ctx.closePath();
+          if (shape.fillMode === "solid") { ctx.save(); ctx.globalAlpha = fillOpacity; ctx.fill(); ctx.restore(); }
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.ellipse(cx, y1 + ellipseH, w / 2, ellipseH, 0, 0, Math.PI * 2);
+          ctx.stroke();
+          if (shape.text) {
+            drawNodeText(ctx, shape.text, cx, cy + ellipseH * 0.5, w - 16, h - ellipseH * 2, shape.textColor || shape.color);
+          }
+        } else if (type === "fc-subroutine") {
+          ctx.beginPath();
+          ctx.rect(x1, y1, w, h);
+          if (shape.fillMode === "solid") { ctx.save(); ctx.globalAlpha = fillOpacity; ctx.fill(); ctx.restore(); }
+          ctx.stroke();
+          const barInset = Math.min(16, w * 0.15);
+          ctx.beginPath();
+          ctx.moveTo(x1 + barInset, y1);
+          ctx.lineTo(x1 + barInset, y2);
+          ctx.moveTo(x2 - barInset, y1);
+          ctx.lineTo(x2 - barInset, y2);
+          ctx.stroke();
+          if (shape.text) {
+            drawNodeText(ctx, shape.text, cx, cy, w - barInset * 2 - 12, h - 10, shape.textColor || shape.color);
+          }
+        } else if (type === "fc-connector-node") {
+          const rNode = Math.min(w, h) / 2;
+          ctx.beginPath();
+          ctx.arc(cx, cy, rNode, 0, Math.PI * 2);
+          if (shape.fillMode === "solid") { ctx.save(); ctx.globalAlpha = fillOpacity; ctx.fill(); ctx.restore(); }
+          ctx.stroke();
+          if (shape.text) {
+            drawNodeText(ctx, shape.text, cx, cy, rNode * 1.5, rNode * 1.5, shape.textColor || shape.color);
+          }
         } else if (type === "rectangle") {
           ctx.rect(x1, y1, w, h);
           if (shape.fillMode === "solid") { ctx.save(); ctx.globalAlpha = fillOpacity; ctx.fill(); ctx.restore(); }
@@ -8273,6 +9166,9 @@
           renderSelectOptions();
         } else if (tool === "charts") {
           renderChartOptions();
+        } else if (tool === "flowchart") {
+          heading.textContent = "Flowchart";
+          renderFlowchartOptions();
         } else if (tool === "stamps") {
           renderStampOptions();
           fetchUserStampsFromDB();
@@ -8482,6 +9378,292 @@
         if (currentTool === "select") handleToolSelection("select");
       }
 
+      function renderFlowchartOptions() {
+        if (!propertiesContent) return;
+        propertiesContent.innerHTML = "";
+
+        const modeGroup = document.createElement("div");
+        modeGroup.className = "tool-options-group";
+
+        const modeLabel = document.createElement("span");
+        modeLabel.className = "tool-options-label";
+        modeLabel.textContent = "Flowchart Mode";
+        modeGroup.appendChild(modeLabel);
+
+        const modeRow = document.createElement("div");
+        modeRow.style.display = "grid";
+        modeRow.style.gridTemplateColumns = "1fr 1fr";
+        modeRow.style.gap = "0.5rem";
+        modeRow.style.marginTop = "0.25rem";
+        modeRow.style.marginBottom = "0.75rem";
+
+        const btnNodes = document.createElement("button");
+        btnNodes.type = "button";
+        btnNodes.className = flowchartSettings.activeMode === "nodes" ? "tool-options-button tool-options-button--active" : "tool-options-button";
+        btnNodes.innerHTML = "🔲 <b>Node Shapes</b>";
+        btnNodes.style.padding = "0.4rem 0.5rem";
+        btnNodes.style.fontSize = "0.78rem";
+        btnNodes.addEventListener("click", () => {
+          flowchartSettings.activeMode = "nodes";
+          renderFlowchartOptions();
+        });
+        modeRow.appendChild(btnNodes);
+
+        const btnConnector = document.createElement("button");
+        btnConnector.type = "button";
+        btnConnector.className = flowchartSettings.activeMode === "connector" ? "tool-options-button tool-options-button--active" : "tool-options-button";
+        btnConnector.innerHTML = "➡️ <b>Connector</b>";
+        btnConnector.style.padding = "0.4rem 0.5rem";
+        btnConnector.style.fontSize = "0.78rem";
+        btnConnector.title = "Drag between shapes to connect with a flexible arrow";
+        btnConnector.addEventListener("click", () => {
+          flowchartSettings.activeMode = "connector";
+          renderFlowchartOptions();
+        });
+        modeRow.appendChild(btnConnector);
+        modeGroup.appendChild(modeRow);
+
+        if (flowchartSettings.activeMode === "nodes") {
+          const shapesLabel = document.createElement("span");
+          shapesLabel.className = "tool-options-label";
+          shapesLabel.textContent = "Choose Symbol";
+          modeGroup.appendChild(shapesLabel);
+
+          const nodeTypes = [
+            { type: "fc-process", label: "Process", desc: "Action / Step", icon: "▭" },
+            { type: "fc-decision", label: "Decision", desc: "Question / Branch", icon: "◇" },
+            { type: "fc-terminal", label: "Start / End", desc: "Terminal capsule", icon: "▢" },
+            { type: "fc-io", label: "Data (I/O)", desc: "Input / Output", icon: "▱" },
+            { type: "fc-document", label: "Document", desc: "Report / Page", icon: "📄" },
+            { type: "fc-database", label: "Database", desc: "Data store", icon: "🗄️" },
+            { type: "fc-subroutine", label: "Subroutine", desc: "Predefined", icon: "⫽" },
+            { type: "fc-connector-node", label: "Junction", desc: "Circular node", icon: "○" }
+          ];
+
+          const grid = document.createElement("div");
+          grid.style.display = "grid";
+          grid.style.gridTemplateColumns = "repeat(2, 1fr)";
+          grid.style.gap = "0.35rem";
+          grid.style.marginTop = "0.25rem";
+          grid.style.marginBottom = "0.75rem";
+
+          nodeTypes.forEach((nt) => {
+            const btn = document.createElement("button");
+            btn.type = "button";
+            btn.className = flowchartSettings.nodeType === nt.type ? "tool-options-button tool-options-button--active" : "tool-options-button";
+            btn.style.display = "flex";
+            btn.style.alignItems = "center";
+            btn.style.gap = "0.35rem";
+            btn.style.padding = "0.4rem 0.5rem";
+            btn.style.textAlign = "left";
+            btn.title = nt.desc;
+            btn.innerHTML = "<span style='font-size:1.1rem;line-height:1;'>" + nt.icon + "</span> <span style='font-size:0.75rem;font-weight:600;'>" + nt.label + "</span>";
+            btn.addEventListener("click", () => {
+              flowchartSettings.nodeType = nt.type;
+              renderFlowchartOptions();
+            });
+            grid.appendChild(btn);
+          });
+          modeGroup.appendChild(grid);
+
+          const insertBtn = document.createElement("button");
+          insertBtn.type = "button";
+          insertBtn.className = "tool-options-button";
+          insertBtn.style.width = "100%";
+          insertBtn.style.padding = "0.45rem";
+          insertBtn.style.fontWeight = "600";
+          insertBtn.style.backgroundColor = "#eff6ff";
+          insertBtn.style.borderColor = "#93c5fd";
+          insertBtn.style.color = "#1d4ed8";
+          insertBtn.style.marginBottom = "0.75rem";
+          insertBtn.innerHTML = "➕ Insert Selected Node";
+          insertBtn.addEventListener("click", () => {
+            addFlowchartNode(flowchartSettings.nodeType);
+          });
+          modeGroup.appendChild(insertBtn);
+        }
+
+        const routingLabel = document.createElement("span");
+        routingLabel.className = "tool-options-label";
+        routingLabel.textContent = "Connector Routing";
+        modeGroup.appendChild(routingLabel);
+
+        const routingRow = document.createElement("div");
+        routingRow.style.display = "grid";
+        routingRow.style.gridTemplateColumns = "repeat(3, 1fr)";
+        routingRow.style.gap = "0.35rem";
+        routingRow.style.marginTop = "0.25rem";
+        routingRow.style.marginBottom = "0.75rem";
+
+        const routings = [
+          { key: "orthogonal", label: "Step / Elbow", icon: "⬎" },
+          { key: "curved", label: "Curved", icon: "⌒" },
+          { key: "straight", label: "Straight", icon: "╱" }
+        ];
+
+        routings.forEach((r) => {
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = (flowchartSettings.routing || "orthogonal") === r.key ? "tool-options-button tool-options-button--active" : "tool-options-button";
+          btn.style.padding = "0.35rem 0.25rem";
+          btn.style.fontSize = "0.72rem";
+          btn.style.textAlign = "center";
+          btn.innerHTML = "<div style='font-size:1rem;line-height:1;'>" + r.icon + "</div><div>" + r.label + "</div>";
+          btn.addEventListener("click", () => {
+            flowchartSettings.routing = r.key;
+            flowchartSettings.activeMode = "connector";
+            if (selectedShapes && selectedShapes.length) {
+              selectedShapes.forEach((s) => {
+                if (s.type === "connector") {
+                  s.routing = r.key;
+                  s.controlPoint = null;
+                  s.bendOffset = 0;
+                }
+              });
+              updateAttachedConnectors(pages[currentPageIndex]);
+              updateBoardAppearance();
+              notifyParentPageUpdate(currentPageIndex, true);
+            }
+            renderFlowchartOptions();
+          });
+          routingRow.appendChild(btn);
+        });
+        modeGroup.appendChild(routingRow);
+
+        const arrowLabel = document.createElement("span");
+        arrowLabel.className = "tool-options-label";
+        arrowLabel.textContent = "Arrowhead";
+        modeGroup.appendChild(arrowLabel);
+
+        const arrowRow = document.createElement("div");
+        arrowRow.style.display = "grid";
+        arrowRow.style.gridTemplateColumns = "repeat(3, 1fr)";
+        arrowRow.style.gap = "0.35rem";
+        arrowRow.style.marginTop = "0.25rem";
+        arrowRow.style.marginBottom = "0.75rem";
+
+        const arrowOptions = [
+          { key: "end", label: "End (➔)", arrowEnd: true, arrowStart: false },
+          { key: "both", label: "Both (↔)", arrowEnd: true, arrowStart: true },
+          { key: "none", label: "Plain (—)", arrowEnd: false, arrowStart: false }
+        ];
+
+        arrowOptions.forEach((ao) => {
+          const btn = document.createElement("button");
+          btn.type = "button";
+          const isActive = (ao.key === "end" && flowchartSettings.arrowEnd && !flowchartSettings.arrowStart) ||
+                           (ao.key === "both" && flowchartSettings.arrowEnd && flowchartSettings.arrowStart) ||
+                           (ao.key === "none" && !flowchartSettings.arrowEnd && !flowchartSettings.arrowStart);
+          btn.className = isActive ? "tool-options-button tool-options-button--active" : "tool-options-button";
+          btn.style.padding = "0.35rem 0.25rem";
+          btn.style.fontSize = "0.75rem";
+          btn.textContent = ao.label;
+          btn.addEventListener("click", () => {
+            flowchartSettings.arrowEnd = ao.arrowEnd;
+            flowchartSettings.arrowStart = ao.arrowStart;
+            renderFlowchartOptions();
+          });
+          arrowRow.appendChild(btn);
+        });
+        modeGroup.appendChild(arrowRow);
+
+        const widthLabel = document.createElement("span");
+        widthLabel.className = "tool-options-label";
+        widthLabel.textContent = "Stroke Width";
+        modeGroup.appendChild(widthLabel);
+
+        const widthRow = document.createElement("div");
+        widthRow.className = "color-swatch-row";
+        widthRow.style.marginTop = "0.25rem";
+        widthRow.style.marginBottom = "0.75rem";
+        [1, 2, 3, 4, 6].forEach((w) => {
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = (flowchartSettings.width || 2) === w ? "tool-options-button tool-options-button--active" : "tool-options-button";
+          btn.style.padding = "0.25rem 0.6rem";
+          btn.style.fontSize = "0.75rem";
+          btn.textContent = w + "px";
+          btn.addEventListener("click", () => {
+            flowchartSettings.width = w;
+            renderFlowchartOptions();
+          });
+          widthRow.appendChild(btn);
+        });
+        modeGroup.appendChild(widthRow);
+
+        const colorLabel = document.createElement("span");
+        colorLabel.className = "tool-options-label";
+        colorLabel.textContent = "Color";
+        modeGroup.appendChild(colorLabel);
+
+        const colorRow = document.createElement("div");
+        colorRow.className = "color-swatch-row";
+        colorRow.style.marginTop = "0.25rem";
+        colorRow.style.marginBottom = "0.75rem";
+        const palette = ["#0f172a", "#2563eb", "#059669", "#dc2626", "#d97706", "#7c3aed"];
+        palette.forEach((c) => {
+          const sw = document.createElement("button");
+          sw.type = "button";
+          sw.className = (flowchartSettings.color || "#0f172a").toLowerCase() === c.toLowerCase() ? "color-swatch color-swatch--active" : "color-swatch";
+          sw.style.backgroundColor = c;
+          sw.title = c;
+          sw.addEventListener("click", () => {
+            flowchartSettings.color = c;
+            renderFlowchartOptions();
+          });
+          colorRow.appendChild(sw);
+        });
+        modeGroup.appendChild(colorRow);
+
+        const templLabel = document.createElement("span");
+        templLabel.className = "tool-options-label";
+        templLabel.textContent = "Quick Flowchart Templates";
+        modeGroup.appendChild(templLabel);
+
+        const templCol = document.createElement("div");
+        templCol.style.display = "flex";
+        templCol.style.flexDirection = "column";
+        templCol.style.gap = "0.4rem";
+        templCol.style.marginTop = "0.25rem";
+
+        const btnPFlow = document.createElement("button");
+        btnPFlow.type = "button";
+        btnPFlow.className = "tool-options-button";
+        btnPFlow.style.padding = "0.45rem 0.6rem";
+        btnPFlow.style.textAlign = "left";
+        btnPFlow.style.fontSize = "0.78rem";
+        btnPFlow.innerHTML = "⚡ <b>Process Flow</b> (Start → Step → End)";
+        btnPFlow.addEventListener("click", () => {
+          insertProcessFlowchartTemplate();
+        });
+        templCol.appendChild(btnPFlow);
+
+        const btnDFlow = document.createElement("button");
+        btnDFlow.type = "button";
+        btnDFlow.className = "tool-options-button";
+        btnDFlow.style.padding = "0.45rem 0.6rem";
+        btnDFlow.style.textAlign = "left";
+        btnDFlow.style.fontSize = "0.78rem";
+        btnDFlow.innerHTML = "🔀 <b>Decision Tree</b> (Start → Branch → End)";
+        btnDFlow.addEventListener("click", () => {
+          insertDecisionFlowchartTemplate();
+        });
+        templCol.appendChild(btnDFlow);
+        modeGroup.appendChild(templCol);
+
+        const tip = document.createElement("div");
+        tip.style.fontSize = "0.74rem";
+        tip.style.color = "#64748b";
+        tip.style.marginTop = "1rem";
+        tip.style.padding = "0.5rem";
+        tip.style.background = "#f1f5f9";
+        tip.style.borderRadius = "6px";
+        tip.innerHTML = "💡 <b>Pro Tip:</b> Connectors stay attached when shapes are dragged! Drag the amber handle on the line to adjust/flex its bend. Double-click any node or line to edit text.";
+        modeGroup.appendChild(tip);
+
+        propertiesContent.appendChild(modeGroup);
+      }
+
       function renderSelectOptions() {
         const wrap = document.createElement("div");
         wrap.className = "tool-options-group";
@@ -8499,6 +9681,131 @@
           actionsRow.style.flexWrap = "wrap";
           actionsRow.style.gap = "0.35rem";
           actionsRow.style.alignItems = "center";
+
+          if (selectedShapes.length === 1 && selectedShapes[0].type.startsWith("fc-")) {
+            const sh = selectedShapes[0];
+            const fcCard = document.createElement("div");
+            fcCard.style.background = "#f8fafc";
+            fcCard.style.border = "1.5px solid #0284c7";
+            fcCard.style.borderRadius = "8px";
+            fcCard.style.padding = "10px";
+            fcCard.style.marginTop = "0.5rem";
+            fcCard.style.marginBottom = "0.5rem";
+            fcCard.style.width = "100%";
+
+            const head = document.createElement("div");
+            head.style.fontWeight = "700";
+            head.style.fontSize = "0.84rem";
+            head.style.color = "#0369a1";
+            head.style.marginBottom = "6px";
+            head.textContent = "🔲 Flowchart Node";
+            fcCard.appendChild(head);
+
+            const txtLbl = document.createElement("label");
+            txtLbl.style.fontSize = "0.72rem";
+            txtLbl.style.color = "#64748b";
+            txtLbl.textContent = "Node Text (or double-click shape):";
+            fcCard.appendChild(txtLbl);
+
+            const txtInp = document.createElement("input");
+            txtInp.type = "text";
+            txtInp.value = sh.text || "";
+            txtInp.placeholder = "Enter label...";
+            txtInp.style.width = "100%";
+            txtInp.style.boxSizing = "border-box";
+            txtInp.style.padding = "5px 8px";
+            txtInp.style.fontSize = "0.82rem";
+            txtInp.style.borderRadius = "5px";
+            txtInp.style.border = "1px solid #cbd5e1";
+            txtInp.style.marginBottom = "8px";
+            txtInp.addEventListener("input", (e) => {
+              sh.text = e.target.value;
+              updateBoardAppearance();
+              notifyParentPageUpdate(currentPageIndex, true);
+            });
+            fcCard.appendChild(txtInp);
+            actionsRow.appendChild(fcCard);
+          }
+
+          if (selectedShapes.length === 1 && selectedShapes[0].type === "connector") {
+            const conn = selectedShapes[0];
+            const connCard = document.createElement("div");
+            connCard.style.background = "#f8fafc";
+            connCard.style.border = "1.5px solid #0284c7";
+            connCard.style.borderRadius = "8px";
+            connCard.style.padding = "10px";
+            connCard.style.marginTop = "0.5rem";
+            connCard.style.marginBottom = "0.5rem";
+            connCard.style.width = "100%";
+
+            const head = document.createElement("div");
+            head.style.fontWeight = "700";
+            head.style.fontSize = "0.84rem";
+            head.style.color = "#0369a1";
+            head.style.marginBottom = "6px";
+            head.textContent = "➡️ Flexible Connector Arrow";
+            connCard.appendChild(head);
+
+            const lblLbl = document.createElement("label");
+            lblLbl.style.fontSize = "0.72rem";
+            lblLbl.style.color = "#64748b";
+            lblLbl.textContent = "Branch Label (e.g. Yes / No / Done):";
+            connCard.appendChild(lblLbl);
+
+            const lblInp = document.createElement("input");
+            lblInp.type = "text";
+            lblInp.value = conn.label || "";
+            lblInp.placeholder = "Branch label...";
+            lblInp.style.width = "100%";
+            lblInp.style.boxSizing = "border-box";
+            lblInp.style.padding = "5px 8px";
+            lblInp.style.fontSize = "0.82rem";
+            lblInp.style.borderRadius = "5px";
+            lblInp.style.border = "1px solid #cbd5e1";
+            lblInp.style.marginBottom = "8px";
+            lblInp.addEventListener("input", (e) => {
+              conn.label = e.target.value;
+              updateBoardAppearance();
+              notifyParentPageUpdate(currentPageIndex, true);
+            });
+            connCard.appendChild(lblInp);
+
+            const rLabel = document.createElement("label");
+            rLabel.style.fontSize = "0.72rem";
+            rLabel.style.color = "#64748b";
+            rLabel.textContent = "Routing Type:";
+            connCard.appendChild(rLabel);
+
+            const rRow = document.createElement("div");
+            rRow.style.display = "grid";
+            rRow.style.gridTemplateColumns = "repeat(3, 1fr)";
+            rRow.style.gap = "0.3rem";
+            rRow.style.marginTop = "3px";
+            rRow.style.marginBottom = "8px";
+
+            [
+              { key: "orthogonal", label: "Step / Elbow" },
+              { key: "curved", label: "Curved" },
+              { key: "straight", label: "Straight" }
+            ].forEach((r) => {
+              const b = document.createElement("button");
+              b.type = "button";
+              b.className = (conn.routing || "orthogonal") === r.key ? "tool-options-button tool-options-button--active" : "tool-options-button";
+              b.style.padding = "0.25rem 0.2rem";
+              b.style.fontSize = "0.7rem";
+              b.textContent = r.label;
+              b.addEventListener("click", () => {
+                conn.routing = r.key;
+                updateBoardAppearance();
+                notifyParentPageUpdate(currentPageIndex, true);
+                renderSelectOptions();
+              });
+              rRow.appendChild(b);
+            });
+            connCard.appendChild(rRow);
+
+            actionsRow.appendChild(connCard);
+          }
 
           if (selectedShapes.length === 1 && selectedShapes[0].type === "equation") {
             const editEqBtn = document.createElement("button");
@@ -9042,7 +10349,7 @@
             wrap.appendChild(strokeWidthRow);
 
             // 3. Fill & 4. Fill Opacity (for closed / fillable shapes)
-            const fillableShapes = vectorShapes.filter((s) => !["line", "ray", "arrow"].includes(s.type));
+            const fillableShapes = vectorShapes.filter((s) => !["line", "ray", "arrow", "connector"].includes(s.type));
             if (fillableShapes.length > 0) {
               const isSolid = fillableShapes.some((s) => s.fillMode === "solid");
 
@@ -14204,6 +15511,12 @@
         const padding = 8;
         for (let i = page.shapes.length - 1; i >= 0; i--) {
           const shape = page.shapes[i];
+          if (shape.type === "connector") {
+            if (distToConnector(point, shape) <= 14) {
+              return { shape, index: i };
+            }
+            continue;
+          }
           const { start, end } = shape;
           if (!start || !end) continue;
           const x1 = Math.min(start.x, end.x) - padding;
@@ -14642,6 +15955,7 @@
         }
 
         if (typeof evt.preventDefault === "function") evt.preventDefault();
+
         try { boardCanvas.setPointerCapture(evt.pointerId); } catch (_) { }
         updateCanvasRect();
 
@@ -14760,8 +16074,104 @@
             keyText: chartSettings.keyText !== undefined ? chartSettings.keyText : (chartType === "pictograph" ? "Key: 1 symbol = 1 item" : ""),
           };
           updateBoardAppearance();
+        } else if (currentTool === "flowchart") {
+          const point = getCanvasPoint(evt);
+          const page = pages[currentPageIndex];
+          let hitPort = null;
+          let hitShape = null;
+
+          if (page && page.shapes) {
+            for (let i = page.shapes.length - 1; i >= 0; i--) {
+              const s = page.shapes[i];
+              if (s.type === "connector") continue;
+              const ports = getShapePorts(s);
+              const p = getClosestPortToPoint(ports, point);
+              if (p && p.dist <= 24) {
+                hitPort = p;
+                hitShape = s;
+                break;
+              }
+            }
+          }
+
+          if (flowchartSettings.activeMode === "connector" || hitPort) {
+            pushUndo();
+            isDrawing = true;
+            const startPt = hitPort ? { x: hitPort.x, y: hitPort.y } : point;
+            activeConnectorDraft = {
+              id: generateId(),
+              type: "connector",
+              start: startPt,
+              end: point,
+              startShapeId: hitShape ? hitShape.id : null,
+              startPort: hitPort ? hitPort.name : null,
+              endShapeId: null,
+              endPort: null,
+              routing: flowchartSettings.routing || "orthogonal",
+              arrowEnd: flowchartSettings.arrowEnd !== false,
+              arrowStart: !!flowchartSettings.arrowStart,
+              lineDash: (flowchartSettings.lineDash && flowchartSettings.lineDash.length > 0) ? flowchartSettings.lineDash.slice() : [],
+              color: flowchartSettings.color || "#0f172a",
+              width: flowchartSettings.width || 2,
+              label: ""
+            };
+            updateBoardAppearance();
+          } else {
+            pushUndo();
+            isDrawing = true;
+            activeShape = {
+              id: generateId(),
+              type: flowchartSettings.nodeType || "fc-process",
+              color: flowchartSettings.color || "#0f172a",
+              width: flowchartSettings.width || 2,
+              fillMode: flowchartSettings.fillMode || "solid",
+              fillColor: flowchartSettings.fillColor || "#ffffff",
+              fillOpacity: 1,
+              start: point,
+              end: point,
+              text: ""
+            };
+            updateBoardAppearance();
+          }
         } else if (currentTool === "select") {
           const point = getCanvasPoint(evt);
+
+          // check connector bend or anchor handles
+          for (const s of selectedShapes) {
+            if (s.type === "connector") {
+              const bh = s._connectorBendHandle;
+              if (bh && Math.hypot(point.x - bh.x, point.y - bh.y) <= 16) {
+                isDraggingConnectorBend = true;
+                activeBendConnector = s;
+                isDrawing = true;
+                pushUndo();
+                return;
+              }
+              const sh = s._connectorStartHandle;
+              if (sh && Math.hypot(point.x - sh.x, point.y - sh.y) <= 14) {
+                isDraggingConnectorBend = true;
+                activeBendConnector = s;
+                isDrawing = true;
+                pushUndo();
+                return;
+              }
+              const eh = s._connectorEndHandle;
+              if (eh && Math.hypot(point.x - eh.x, point.y - eh.y) <= 14) {
+                isDraggingConnectorBend = true;
+                activeBendConnector = s;
+                isDrawing = true;
+                pushUndo();
+                return;
+              }
+              if (distToConnector(point, s) <= 12) {
+                isDraggingConnectorBend = true;
+                activeBendConnector = s;
+                isDrawing = true;
+                pushUndo();
+                return;
+              }
+            }
+          }
 
           // check controls on the selection (order: unlock, duplicate, delete, lock)
           for (const shape of selectedShapes) {
@@ -15102,6 +16512,42 @@
 
       function handlePointerMove(evt) {
         if (activeDrawingPointerId !== null && evt.pointerId !== activeDrawingPointerId) return;
+
+        if (isDraggingConnectorBend && activeBendConnector) {
+          const point = getCanvasPoint(evt);
+          activeBendConnector.controlPoint = { x: point.x, y: point.y };
+          activeBendConnector.bendOffset = 0;
+          updateAttachedConnectors(pages[currentPageIndex]);
+          updateBoardAppearance();
+          return;
+        }
+
+        if (activeConnectorDraft) {
+          const point = getCanvasPoint(evt);
+          activeConnectorDraft.end = point;
+          const page = pages[currentPageIndex];
+          hoveredShapePort = null;
+          if (page && page.shapes) {
+            for (let i = page.shapes.length - 1; i >= 0; i--) {
+              const s = page.shapes[i];
+              if (s.id === activeConnectorDraft.startShapeId || s.type === "connector") continue;
+              const ports = getShapePorts(s);
+              const p = getClosestPortToPoint(ports, point);
+              if (p && p.dist <= 28) {
+                activeConnectorDraft.end = { x: p.x, y: p.y };
+                activeConnectorDraft.endShapeId = s.id;
+                activeConnectorDraft.endPort = p.name;
+                hoveredShapePort = { shapeId: s.id, portName: p.name };
+                break;
+              } else {
+                activeConnectorDraft.endShapeId = null;
+                activeConnectorDraft.endPort = null;
+              }
+            }
+          }
+          updateBoardAppearance();
+          return;
+        }
         if (isPanning && currentTool === "hand") {
           const container = boardCanvas.closest(".canvas-container");
           if (container) {
@@ -15380,7 +16826,7 @@
           }
         } else if (currentTool === "eraser") {
           handleEraserMove(evt);
-        } else if (currentTool === "shapes" || currentTool === "charts") {
+        } else if (currentTool === "shapes" || currentTool === "charts" || currentTool === "flowchart") {
           if (!activeShape) return;
           const point = getCanvasPoint(evt);
           checkAndExpandInfiniteCanvas(point.y);
@@ -15439,6 +16885,7 @@
               t.y = orig.y + dy;
             });
           }
+          updateAttachedConnectors(pages[currentPageIndex]);
           updateBoardAppearance();
         } else if (currentTool === "select" && isDraggingWidget && dragWidgetOriginals && selectedWidgets.length) {
           const point = getCanvasPoint(evt);
@@ -15533,14 +16980,59 @@
           notifyParentPageUpdate(currentPageIndex, true);
           return;
         }
-        if ((currentTool === "shapes" || currentTool === "charts") && activeShape) {
+        if (isDraggingConnectorBend) {
+          isDraggingConnectorBend = false;
+          activeBendConnector = null;
+          isDrawing = false;
+          updateAttachedConnectors(pages[currentPageIndex]);
+          notifyParentPageUpdate(currentPageIndex, true);
+          updateBoardAppearance();
+          return;
+        }
+        if (activeConnectorDraft) {
+          const draft = activeConnectorDraft;
+          activeConnectorDraft = null;
+          isDrawing = false;
+          hoveredShapePort = null;
+          const page = pages[currentPageIndex];
+          if (page) {
+            if (!page.shapes) page.shapes = [];
+            const dx = draft.end.x - draft.start.x;
+            const dy = draft.end.y - draft.start.y;
+            if (Math.hypot(dx, dy) >= 10) {
+              page.shapes.push(draft);
+              updateAttachedConnectors(page);
+              notifyParentPageUpdate(currentPageIndex, true);
+              currentTool = "select";
+              selectedShapes = [draft];
+              selectedTexts = [];
+              toolButtons.forEach((btn) => {
+                const isActive = btn.getAttribute("data-tool") === "select";
+                btn.classList.toggle("tool-button--active", isActive);
+              });
+              if (propertiesContent) handleToolSelection("select");
+            }
+          }
+          updateBoardAppearance();
+          return;
+        }
+        if ((currentTool === "shapes" || currentTool === "charts" || currentTool === "flowchart") && activeShape) {
           const page = pages[currentPageIndex];
           if (page) {
             if (!page.shapes) page.shapes = [];
             const a = { ...activeShape };
-            const dx = a.end.x - a.start.x;
-            const dy = a.end.y - a.start.y;
-            const len = Math.sqrt(dx * dx + dy * dy);
+            let dx = a.end.x - a.start.x;
+            let dy = a.end.y - a.start.y;
+            let len = Math.sqrt(dx * dx + dy * dy);
+            if (len < 14 && a.type.startsWith("fc-")) {
+              let defW = 140, defH = 60;
+              if (a.type === "fc-decision") { defW = 140; defH = 70; }
+              else if (a.type === "fc-connector-node") { defW = 44; defH = 44; }
+              else if (a.type === "fc-database") { defW = 120; defH = 80; }
+              a.start = { x: a.start.x - defW / 2, y: a.start.y - defH / 2 };
+              a.end = { x: a.start.x + defW, y: a.start.y + defH };
+              len = 60;
+            }
             if (len >= 10) {
               page.shapes.push(a);
               notifyParentPageUpdate(currentPageIndex, true);
@@ -15555,6 +17047,7 @@
             }
           }
           activeShape = null;
+          isDrawing = false;
         }
         if (currentTool === "select" && activeSelectionBox) {
           selectedShapes = shapesInBox(activeSelectionBox);
@@ -18569,9 +20062,16 @@
         if (boardCanvas) {
           boardCanvas.addEventListener("dblclick", (evt) => {
             const point = getCanvasPoint(evt);
-            const clickedShape = hitTestShape(point);
-            if (clickedShape && clickedShape.type === "equation") {
-              openEquationStudio(clickedShape);
+            const clickedResult = hitTestShape(point);
+            const clickedShape = clickedResult ? (clickedResult.shape || clickedResult) : null;
+            if (clickedShape) {
+              if (clickedShape.type === "equation") {
+                openEquationStudio(clickedShape);
+              } else if (clickedShape.type && clickedShape.type.startsWith("fc-")) {
+                openFlowchartNodeTextEditor(clickedShape);
+              } else if (clickedShape.type === "connector") {
+                openConnectorLabelEditor(clickedShape);
+              }
             }
           });
         }
