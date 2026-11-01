@@ -6906,7 +6906,7 @@
         ctx.lineJoin = "round";
         ctx.strokeStyle = shape.color;
         ctx.lineWidth = shape.width ?? 2;
-        ctx.fillStyle = shape.fillMode === "solid" ? shape.color : "transparent";
+        ctx.fillStyle = shape.fillMode === "solid" ? (shape.fillColor || shape.color) : "transparent";
         const fillOpacity = shape.fillOpacity ?? 1;
         ctx.beginPath();
 
@@ -8360,6 +8360,7 @@
             width: s.width != null ? s.width : 2,
             fillMode: s.fillMode != null ? s.fillMode : "hollow",
             fillOpacity: s.fillOpacity != null ? s.fillOpacity : 1,
+            fillColor: s.fillColor != null ? s.fillColor : undefined,
           };
         }
         if (selectedTexts.length > 0) {
@@ -8411,6 +8412,7 @@
             s.width = clip.width;
             s.fillMode = clip.fillMode;
             if (clip.fillOpacity != null) s.fillOpacity = clip.fillOpacity;
+            if (clip.fillColor != null) s.fillColor = clip.fillColor;
           });
         }
         if (hasTextClip && selectedTexts.length > 0) {
@@ -8897,6 +8899,322 @@
           wrap.appendChild(p);
           wrap.appendChild(actionsRow);
 
+          // Vector Shape Styling Options (Outline Color, Stroke Width, Fill, Fill Color, Fill Opacity)
+          const vectorShapes = selectedShapes.filter(
+            (s) => !["equation", "fractionModel", "elementCard", "periodicTable", "barChart", "horizontalBarChart", "pictograph", "pieChart", "graphPlotter", "image", "group"].includes(s.type)
+          );
+          if (vectorShapes.length > 0) {
+            const firstVectorShape = vectorShapes[0];
+            const curOutlineColor = (firstVectorShape.color || "#0f172a").toLowerCase();
+            const curWidth = Math.max(1, Math.min(24, Math.round(Number(firstVectorShape.width) || 2)));
+
+            // 1. Outline Color
+            const outlineColorLabel = document.createElement("span");
+            outlineColorLabel.className = "tool-options-label";
+            outlineColorLabel.textContent = "Outline color";
+            outlineColorLabel.style.marginTop = "0.75rem";
+            outlineColorLabel.style.display = "block";
+            wrap.appendChild(outlineColorLabel);
+
+            const outlineColorRow = document.createElement("div");
+            outlineColorRow.className = "color-swatch-row";
+            outlineColorRow.style.marginTop = "0.25rem";
+            outlineColorRow.style.flexWrap = "wrap";
+            outlineColorRow.style.alignItems = "center";
+
+            PEN_LIKE_COLORS.forEach((color) => {
+              const swatch = document.createElement("button");
+              swatch.type = "button";
+              swatch.className = "color-swatch";
+              swatch.style.backgroundColor = color;
+              if (curOutlineColor === color.toLowerCase()) {
+                swatch.classList.add("color-swatch--active");
+              }
+              swatch.addEventListener("click", () => {
+                pushUndo();
+                vectorShapes.forEach((s) => {
+                  s.color = color;
+                });
+                updateBoardAppearance();
+                notifyParentPageUpdate(currentPageIndex, true);
+                scheduleNotifyParentPages(100);
+                if (propertiesContent && currentTool === "select") handleToolSelection("select");
+              });
+              outlineColorRow.appendChild(swatch);
+            });
+
+            const customOutlineColorInput = document.createElement("input");
+            customOutlineColorInput.type = "color";
+            customOutlineColorInput.value = curOutlineColor.startsWith("#") && curOutlineColor.length === 7 ? curOutlineColor : "#0f172a";
+            customOutlineColorInput.title = "Custom outline color";
+            customOutlineColorInput.style.width = "22px";
+            customOutlineColorInput.style.height = "22px";
+            customOutlineColorInput.style.padding = "0";
+            customOutlineColorInput.style.border = "1px solid #cbd5e1";
+            customOutlineColorInput.style.borderRadius = "50%";
+            customOutlineColorInput.style.cursor = "pointer";
+            customOutlineColorInput.style.backgroundColor = "transparent";
+            customOutlineColorInput.style.flexShrink = "0";
+            customOutlineColorInput.addEventListener("input", (e) => {
+              const col = e.target.value;
+              vectorShapes.forEach((s) => { s.color = col; });
+              updateBoardAppearance();
+              notifyParentPageUpdate(currentPageIndex, true);
+            });
+            customOutlineColorInput.addEventListener("change", (e) => {
+              pushUndo();
+              const col = e.target.value;
+              vectorShapes.forEach((s) => { s.color = col; });
+              updateBoardAppearance();
+              notifyParentPageUpdate(currentPageIndex, true);
+              scheduleNotifyParentPages(100);
+              if (propertiesContent && currentTool === "select") handleToolSelection("select");
+            });
+            outlineColorRow.appendChild(customOutlineColorInput);
+            wrap.appendChild(outlineColorRow);
+
+            // 2. Stroke Width
+            const strokeWidthLabel = document.createElement("label");
+            strokeWidthLabel.className = "tool-options-label";
+            strokeWidthLabel.textContent = "Stroke width";
+            strokeWidthLabel.style.marginTop = "0.6rem";
+            strokeWidthLabel.style.display = "block";
+            wrap.appendChild(strokeWidthLabel);
+
+            const strokeWidthRow = document.createElement("div");
+            strokeWidthRow.style.display = "flex";
+            strokeWidthRow.style.alignItems = "center";
+            strokeWidthRow.style.gap = "0.5rem";
+            strokeWidthRow.style.marginTop = "0.25rem";
+
+            const strokeWidthSlider = document.createElement("input");
+            strokeWidthSlider.type = "range";
+            strokeWidthSlider.min = "1";
+            strokeWidthSlider.max = "16";
+            strokeWidthSlider.step = "1";
+            strokeWidthSlider.value = String(curWidth);
+            strokeWidthSlider.className = "slider-input";
+            strokeWidthSlider.style.flex = "1";
+
+            const strokeWidthValue = document.createElement("span");
+            strokeWidthValue.style.minWidth = "2.8rem";
+            strokeWidthValue.style.fontSize = "0.8rem";
+            strokeWidthValue.style.color = "#475569";
+            strokeWidthValue.style.fontWeight = "600";
+            strokeWidthValue.style.textAlign = "right";
+            strokeWidthValue.textContent = curWidth + "px";
+
+            let strokeWidthUndone = false;
+            strokeWidthSlider.addEventListener("input", () => {
+              const w = Math.max(1, Number(strokeWidthSlider.value) || 1);
+              if (!strokeWidthUndone) {
+                pushUndo();
+                strokeWidthUndone = true;
+              }
+              vectorShapes.forEach((s) => {
+                s.width = w;
+              });
+              strokeWidthValue.textContent = w + "px";
+              updateBoardAppearance();
+              notifyParentPageUpdate(currentPageIndex, true);
+            });
+            strokeWidthSlider.addEventListener("change", () => {
+              scheduleNotifyParentPages(100);
+            });
+
+            strokeWidthRow.appendChild(strokeWidthSlider);
+            strokeWidthRow.appendChild(strokeWidthValue);
+            wrap.appendChild(strokeWidthRow);
+
+            // 3. Fill & 4. Fill Opacity (for closed / fillable shapes)
+            const fillableShapes = vectorShapes.filter((s) => !["line", "ray", "arrow"].includes(s.type));
+            if (fillableShapes.length > 0) {
+              const isSolid = fillableShapes.some((s) => s.fillMode === "solid");
+
+              const fillLabel = document.createElement("span");
+              fillLabel.className = "tool-options-label";
+              fillLabel.textContent = "Fill";
+              fillLabel.style.marginTop = "0.6rem";
+              fillLabel.style.display = "block";
+              wrap.appendChild(fillLabel);
+
+              const fillRow = document.createElement("div");
+              fillRow.className = "color-swatch-row";
+              fillRow.style.marginTop = "0.25rem";
+              fillRow.style.gap = "0.35rem";
+
+              [
+                { id: "hollow", label: "Outline" },
+                { id: "solid", label: "Solid" },
+              ].forEach((item) => {
+                const btn = document.createElement("button");
+                btn.type = "button";
+                btn.textContent = item.label;
+                btn.style.fontSize = "0.75rem";
+                btn.style.fontWeight = "600";
+                btn.style.padding = "0.25rem 0.75rem";
+                btn.style.borderRadius = "999px";
+                btn.style.cursor = "pointer";
+                const active = item.id === "solid" ? isSolid : !isSolid;
+                btn.style.backgroundColor = active ? "#0284c7" : "#ffffff";
+                btn.style.color = active ? "#ffffff" : "#475569";
+                btn.style.border = active ? "1px solid #0284c7" : "1px solid #cbd5e1";
+
+                btn.addEventListener("click", () => {
+                  pushUndo();
+                  fillableShapes.forEach((s) => {
+                    s.fillMode = item.id;
+                    if (item.id === "solid" && !s.fillColor) {
+                      s.fillColor = s.color || "#0f172a";
+                    }
+                  });
+                  updateBoardAppearance();
+                  notifyParentPageUpdate(currentPageIndex, true);
+                  scheduleNotifyParentPages(100);
+                  if (propertiesContent && currentTool === "select") handleToolSelection("select");
+                });
+                fillRow.appendChild(btn);
+              });
+              wrap.appendChild(fillRow);
+
+              // If Solid, render Fill color swatches
+              if (isSolid) {
+                const fillColorLabel = document.createElement("span");
+                fillColorLabel.className = "tool-options-label";
+                fillColorLabel.textContent = "Fill color";
+                fillColorLabel.style.marginTop = "0.5rem";
+                fillColorLabel.style.display = "block";
+                wrap.appendChild(fillColorLabel);
+
+                const fillColorRow = document.createElement("div");
+                fillColorRow.className = "color-swatch-row";
+                fillColorRow.style.marginTop = "0.25rem";
+                fillColorRow.style.flexWrap = "wrap";
+                fillColorRow.style.alignItems = "center";
+
+                const curFillColor = (
+                  (fillableShapes.find((s) => s.fillColor)?.fillColor) ||
+                  fillableShapes[0].color ||
+                  "#0284c7"
+                ).toLowerCase();
+
+                PEN_LIKE_COLORS.forEach((color) => {
+                  const swatch = document.createElement("button");
+                  swatch.type = "button";
+                  swatch.className = "color-swatch";
+                  swatch.style.backgroundColor = color;
+                  if (curFillColor === color.toLowerCase()) {
+                    swatch.classList.add("color-swatch--active");
+                  }
+                  swatch.addEventListener("click", () => {
+                    pushUndo();
+                    fillableShapes.forEach((s) => {
+                      s.fillColor = color;
+                      s.fillMode = "solid";
+                    });
+                    updateBoardAppearance();
+                    notifyParentPageUpdate(currentPageIndex, true);
+                    scheduleNotifyParentPages(100);
+                    if (propertiesContent && currentTool === "select") handleToolSelection("select");
+                  });
+                  fillColorRow.appendChild(swatch);
+                });
+
+                const customFillColorInput = document.createElement("input");
+                customFillColorInput.type = "color";
+                customFillColorInput.value = curFillColor.startsWith("#") && curFillColor.length === 7 ? curFillColor : "#0284c7";
+                customFillColorInput.title = "Custom fill color";
+                customFillColorInput.style.width = "22px";
+                customFillColorInput.style.height = "22px";
+                customFillColorInput.style.padding = "0";
+                customFillColorInput.style.border = "1px solid #cbd5e1";
+                customFillColorInput.style.borderRadius = "50%";
+                customFillColorInput.style.cursor = "pointer";
+                customFillColorInput.style.backgroundColor = "transparent";
+                customFillColorInput.style.flexShrink = "0";
+                customFillColorInput.addEventListener("input", (e) => {
+                  const col = e.target.value;
+                  fillableShapes.forEach((s) => { s.fillColor = col; });
+                  updateBoardAppearance();
+                  notifyParentPageUpdate(currentPageIndex, true);
+                });
+                customFillColorInput.addEventListener("change", (e) => {
+                  pushUndo();
+                  const col = e.target.value;
+                  fillableShapes.forEach((s) => { s.fillColor = col; s.fillMode = "solid"; });
+                  updateBoardAppearance();
+                  notifyParentPageUpdate(currentPageIndex, true);
+                  scheduleNotifyParentPages(100);
+                  if (propertiesContent && currentTool === "select") handleToolSelection("select");
+                });
+                fillColorRow.appendChild(customFillColorInput);
+                wrap.appendChild(fillColorRow);
+              }
+
+              // Fill Opacity
+              const fillOpacityLabel = document.createElement("label");
+              fillOpacityLabel.className = "tool-options-label";
+              fillOpacityLabel.textContent = "Fill opacity";
+              fillOpacityLabel.style.marginTop = "0.5rem";
+              fillOpacityLabel.style.display = "block";
+              wrap.appendChild(fillOpacityLabel);
+
+              const fillOpacityRow = document.createElement("div");
+              fillOpacityRow.className = "color-swatch-row";
+              fillOpacityRow.style.alignItems = "center";
+              fillOpacityRow.style.marginTop = "0.2rem";
+
+              const firstOpacityShape = fillableShapes.find((s) => s.fillOpacity != null) || fillableShapes[0];
+              const curFillOpacity = firstOpacityShape && firstOpacityShape.fillOpacity != null ? firstOpacityShape.fillOpacity : 1;
+
+              const fillOpacitySlider = document.createElement("input");
+              fillOpacitySlider.type = "range";
+              fillOpacitySlider.min = "0";
+              fillOpacitySlider.max = "100";
+              fillOpacitySlider.value = String(Math.round(curFillOpacity * 100));
+              fillOpacitySlider.className = "slider-input";
+              fillOpacitySlider.style.flex = "1";
+              fillOpacitySlider.style.minWidth = "80px";
+
+              const fillOpacityValue = document.createElement("span");
+              fillOpacityValue.style.minWidth = "2.8rem";
+              fillOpacityValue.style.fontSize = "0.8rem";
+              fillOpacityValue.style.color = "#475569";
+              fillOpacityValue.style.fontWeight = "600";
+              fillOpacityValue.style.textAlign = "right";
+              fillOpacityValue.textContent = Math.round(curFillOpacity * 100) + "%";
+
+              let fillOpacityUndone = false;
+              fillOpacitySlider.addEventListener("input", () => {
+                const v = Number(fillOpacitySlider.value) / 100;
+                if (!fillOpacityUndone) {
+                  pushUndo();
+                  fillOpacityUndone = true;
+                }
+                fillableShapes.forEach((s) => {
+                  s.fillOpacity = v;
+                  if (!isSolid && v > 0) {
+                    s.fillMode = "solid";
+                    if (!s.fillColor) s.fillColor = s.color || "#0f172a";
+                  }
+                });
+                fillOpacityValue.textContent = Math.round(v * 100) + "%";
+                updateBoardAppearance();
+                notifyParentPageUpdate(currentPageIndex, true);
+              });
+              fillOpacitySlider.addEventListener("change", () => {
+                scheduleNotifyParentPages(100);
+                if (!isSolid) {
+                  if (propertiesContent && currentTool === "select") handleToolSelection("select");
+                }
+              });
+
+              fillOpacityRow.appendChild(fillOpacitySlider);
+              fillOpacityRow.appendChild(fillOpacityValue);
+              wrap.appendChild(fillOpacityRow);
+            }
+          }
+
           // Rotation slider & quick preset chips for all selected shapes
           if (selectedShapes.length > 0) {
             const rotLabel = document.createElement("label");
@@ -8996,49 +9314,6 @@
               presetsRow.appendChild(pBtn);
             });
             wrap.appendChild(presetsRow);
-          }
-
-          const hasSolidShape = selectedShapes.some((s) => s.fillMode === "solid");
-          if (selectedShapes.length > 0 && hasSolidShape) {
-            const shapeOpacityLabel = document.createElement("label");
-            shapeOpacityLabel.className = "tool-options-label";
-            shapeOpacityLabel.textContent = "Fill opacity";
-            shapeOpacityLabel.style.marginTop = "0.5rem";
-            shapeOpacityLabel.style.display = "block";
-            wrap.appendChild(shapeOpacityLabel);
-            const shapeOpacityRow = document.createElement("div");
-            shapeOpacityRow.className = "color-swatch-row";
-            shapeOpacityRow.style.alignItems = "center";
-            shapeOpacityRow.style.marginTop = "0.2rem";
-            const firstShapeOpacity = selectedShapes.find((s) => s.fillMode === "solid");
-            const shapeOpacityVal = firstShapeOpacity && firstShapeOpacity.fillOpacity != null ? firstShapeOpacity.fillOpacity : 1;
-            const shapeOpacitySlider = document.createElement("input");
-            shapeOpacitySlider.type = "range";
-            shapeOpacitySlider.min = "0";
-            shapeOpacitySlider.max = "100";
-            shapeOpacitySlider.value = String(Math.round(shapeOpacityVal * 100));
-            shapeOpacitySlider.className = "slider-input";
-            shapeOpacitySlider.style.flex = "1";
-            shapeOpacitySlider.style.minWidth = "80px";
-            const shapeOpacityValue = document.createElement("span");
-            shapeOpacityValue.style.minWidth = "2.5rem";
-            shapeOpacityValue.style.fontSize = "0.8rem";
-            shapeOpacityValue.style.color = "#475569";
-            shapeOpacityValue.textContent = Math.round(shapeOpacityVal * 100) + "%";
-            let shapeOpacityUndone = false;
-            shapeOpacitySlider.addEventListener("input", () => {
-              const v = Number(shapeOpacitySlider.value) / 100;
-              if (!shapeOpacityUndone) {
-                pushUndo();
-                shapeOpacityUndone = true;
-              }
-              selectedShapes.forEach((s) => { if (s.fillMode === "solid") s.fillOpacity = v; });
-              shapeOpacityValue.textContent = Math.round(v * 100) + "%";
-              updateBoardAppearance();
-            });
-            shapeOpacityRow.appendChild(shapeOpacitySlider);
-            shapeOpacityRow.appendChild(shapeOpacityValue);
-            wrap.appendChild(shapeOpacityRow);
           }
 
           if (selectedWidgets.length > 0) {
