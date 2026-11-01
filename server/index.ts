@@ -7629,9 +7629,13 @@ async function ensureWhiteboardImageTable() {
         "teacherId" TEXT,
         "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
         "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
-      );
-      CREATE INDEX IF NOT EXISTS "WhiteboardSavedImage_teacherId_idx" ON "WhiteboardSavedImage"("teacherId");
-      CREATE INDEX IF NOT EXISTS "WhiteboardSavedImage_createdAt_idx" ON "WhiteboardSavedImage"("createdAt");
+      )
+    `);
+    await prisma.$executeRawUnsafe(`
+      CREATE INDEX IF NOT EXISTS "WhiteboardSavedImage_teacherId_idx" ON "WhiteboardSavedImage"("teacherId")
+    `);
+    await prisma.$executeRawUnsafe(`
+      CREATE INDEX IF NOT EXISTS "WhiteboardSavedImage_createdAt_idx" ON "WhiteboardSavedImage"("createdAt")
     `);
     console.log('✅ WhiteboardSavedImage database table ready.');
   } catch (err) {
