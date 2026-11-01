@@ -1328,7 +1328,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
 
     // Center badge pill
     const normAngle = ((angle % 360) + 360) % 360;
-    const badgeText = `📏 ${lengthCm.toFixed(1)} cm • ${normAngle.toFixed(1)}°`;
+    const badgeText = `${r.isLocked ? '🔒 ' : '📏 '}${lengthCm.toFixed(1)} cm • ${normAngle.toFixed(1)}°`;
     ctx.font = 'bold 10px monospace';
     const tw = ctx.measureText(badgeText).width;
     ctx.fillStyle = 'rgba(255, 255, 255, 0.96)';
@@ -1531,7 +1531,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
     const midAngleRad = isInner ? (Math.PI + needleRad) / 2 : needleRad / 2;
     const bx = badgeDist * Math.cos(midAngleRad);
     const by = -badgeDist * Math.sin(midAngleRad);
-    const badgeText = `${angle.toFixed(1)}° (${isInner ? 'Inner' : 'Outer'})`;
+    const badgeText = `${p.isLocked ? '🔒 ' : ''}${angle.toFixed(1)}° (${isInner ? 'Inner' : 'Outer'})`;
     ctx.font = 'bold 10px monospace';
     const btw = ctx.measureText(badgeText).width;
     ctx.fillStyle = isInner ? '#ea580c' : '#0284c7';
@@ -1778,7 +1778,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
     }
 
 
-    const badgeText = `📐 ${is3060 ? '30°-60°-90°' : '45°-45°-90°'} • ${angle.toFixed(1)}°`;
+    const badgeText = `${sq.isLocked ? '🔒 ' : '📐 '}${is3060 ? '30°-60°-90°' : '45°-45°-90°'} • ${angle.toFixed(1)}°`;
     ctx.font = 'bold 9px monospace';
     const tw = ctx.measureText(badgeText).width;
     const pw = tw + 12;

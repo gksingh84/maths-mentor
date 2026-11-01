@@ -2230,6 +2230,35 @@
       background: #fee2e2;
       color: #dc2626;
     }
+    /* Educational Instruments Locked State */
+    .edu-instrument--locked {
+      pointer-events: none !important;
+      cursor: default !important;
+    }
+    .edu-instrument--locked .edu-ruler-center-bar,
+    .edu-instrument--locked .edu-protractor-controls-bar,
+    .edu-instrument--locked .edu-protractor-needle-knob,
+    .edu-instrument--locked .edu-setsquare-center-bar {
+      pointer-events: auto !important;
+    }
+    .edu-instrument--locked .edu-ruler-rotate-handle,
+    .edu-instrument--locked .edu-ruler-length-handle,
+    .edu-instrument--locked .edu-protractor-stretch-handle,
+    .edu-instrument--locked .edu-setsquare-rotate-handle,
+    .edu-instrument--locked .edu-setsquare-stretch-handle {
+      display: none !important;
+    }
+    .edu-instrument-btn--locked {
+      background: #fef3c7 !important;
+      color: #b45309 !important;
+      border-color: #f59e0b !important;
+      font-weight: 700 !important;
+    }
+    .edu-instrument-btn--locked:hover {
+      background: #fde68a !important;
+      border-color: #d97706 !important;
+      color: #92400e !important;
+    }
     .edu-ruler-rotate-handle {
       position: absolute;
       right: -32px;
@@ -2909,6 +2938,7 @@
               <span id="eduRulerLengthBadge" class="edu-instrument-badge edu-instrument-badge--length">15.0 cm</span>
               <button type="button" class="edu-ruler-btn edu-ruler-btn--primary" id="eduRulerTraceBtn" title="Draw line along top edge">✏️ Trace Line</button>
               <button type="button" class="edu-ruler-btn" id="eduRulerResetAngleBtn" title="Reset angle to 0°">🔄 0°</button>
+              <button type="button" class="edu-ruler-btn" id="eduRulerLockBtn" title="Lock ruler on screen so it won't move or rotate">🔓 Free</button>
               <button type="button" class="edu-ruler-close-btn" id="eduRulerCloseBtn" title="Close Ruler">✕</button>
             </div>
             <div class="edu-ruler-rotate-handle" id="eduRulerRotateHandle" title="Drag to rotate ruler">
@@ -2931,6 +2961,7 @@
               <button type="button" class="edu-protractor-btn" id="eduProtractorToggleScaleBtn" title="Switch between Outer Scale (0° Right) and Inner Scale (0° Left)">🔵 Outer (0°⭢)</button>
               <button type="button" class="edu-protractor-btn" id="eduProtractorToggleModeBtn" title="Toggle 180° / 360°">🌓 180°</button>
               <button type="button" class="edu-protractor-btn" id="eduProtractorResetBtn" title="Reset angle to 0°">🔄 0°</button>
+              <button type="button" class="edu-protractor-btn" id="eduProtractorLockBtn" title="Lock protractor on screen so it won't move">🔓 Free</button>
               <button type="button" class="edu-protractor-close-btn" id="eduProtractorCloseBtn" title="Close Protractor">✕</button>
             </div>
             <div class="edu-protractor-stretch-handle" id="eduProtractorStretchHandle" title="Drag to stretch / scale protractor">⤡</div>
@@ -2970,6 +3001,7 @@
               <button type="button" class="edu-setsquare-btn edu-setsquare-btn--primary" id="eduSetSquareStampBtn" title="Stamp exact triangle onto canvas">🔺 Stamp △</button>
               <button type="button" class="edu-setsquare-btn" id="eduSetSquareTraceHypBtn" title="Trace hypotenuse line">✏️ Hypotenuse</button>
               <button type="button" class="edu-setsquare-btn" id="eduSetSquareResetAngleBtn" title="Reset angle to 0°">🔄 0°</button>
+              <button type="button" class="edu-setsquare-btn" id="eduSetSquareLockBtn" title="Lock set square on screen so it won't move or rotate">🔓 Free</button>
               <button type="button" class="edu-setsquare-close-btn" id="eduSetSquareCloseBtn" title="Close Set Square">✕</button>
             </div>
             <div class="edu-setsquare-rotate-handle" id="eduSetSquareRotateHandle" title="Drag to rotate set square">↻</div>
@@ -10201,6 +10233,7 @@
 
           const stampRow = document.createElement("div");
           stampRow.className = "color-swatch-row";
+
           const stampBtn = document.createElement("button");
           stampBtn.type = "button";
           stampBtn.textContent = "Add image on board";
@@ -17784,8 +17817,10 @@
         y: 100,
         angle: 0,
         lengthCm: 15,
-        pxPerCm: 36
+        pxPerCm: 36,
+        isLocked: false
       };
+      window.rulerState = rulerState;
 
       const protractorState = {
         visible: false,
@@ -17796,8 +17831,10 @@
         isFullCircle: false,
         scaleMode: "outer", // "outer" (0° on Right) or "inner" (0° on Left)
         radius: 200,
-        scale: 1.0
+        scale: 1.0,
+        isLocked: false
       };
+      window.protractorState = protractorState;
 
       const compassState = {
         visible: false,
@@ -17817,9 +17854,139 @@
         angle: 0,
         type: "30-60-90", // "30-60-90" or "45-45-90"
         pxPerCm: 36,
-        sizeCm: 6
+        sizeCm: 6,
+        isLocked: false
       };
       window.setSquareState = setSquareState;
+
+      function updateRulerLockUI() {
+        const btn = document.getElementById("eduRulerLockBtn");
+        const rotateHandle = document.getElementById("eduRulerRotateHandle");
+        const lengthHandle = document.getElementById("eduRulerLengthHandle");
+        const resetBtn = document.getElementById("eduRulerResetAngleBtn");
+        const dragHandle = document.getElementById("eduRulerDragHandle");
+        const overlay = document.getElementById("eduRulerOverlay");
+
+        const isLocked = !!rulerState.isLocked;
+        if (btn) {
+          btn.innerHTML = isLocked ? "🔒 Locked" : "🔓 Free";
+          btn.classList.toggle("edu-instrument-btn--locked", isLocked);
+          btn.title = isLocked ? "Ruler is locked on screen (Cannot move or rotate). Click to unlock." : "Lock ruler position and angle on screen";
+        }
+        if (rotateHandle) {
+          rotateHandle.style.display = isLocked ? "none" : "flex";
+        }
+        if (lengthHandle) {
+          lengthHandle.style.display = isLocked ? "none" : "block";
+        }
+        if (resetBtn) {
+          resetBtn.style.opacity = isLocked ? "0.45" : "1";
+          resetBtn.style.pointerEvents = isLocked ? "none" : "auto";
+        }
+        if (dragHandle) {
+          dragHandle.style.cursor = isLocked ? "default" : "grab";
+          dragHandle.title = isLocked ? "Ruler is locked on screen (Click 🔒 to unlock)" : "Drag to move ruler";
+        }
+        if (overlay) {
+          overlay.style.cursor = isLocked ? "default" : "grab";
+          overlay.classList.toggle("edu-instrument--locked", isLocked);
+        }
+      }
+      window.updateRulerLockUI = updateRulerLockUI;
+
+      function toggleRulerLock(forceVal) {
+        rulerState.isLocked = (forceVal !== undefined) ? !!forceVal : !rulerState.isLocked;
+        updateRulerLockUI();
+        if (typeof renderEduToolsOptions === "function") renderEduToolsOptions();
+        syncEduInstrumentsToPage(true);
+        if (typeof showExportToast === "function") {
+          showExportToast(rulerState.isLocked ? "🔒 Ruler locked on screen" : "🔓 Ruler unlocked");
+        }
+      }
+      window.toggleRulerLock = toggleRulerLock;
+
+      function updateProtractorLockUI() {
+        const btn = document.getElementById("eduProtractorLockBtn");
+        const stretchHandle = document.getElementById("eduProtractorStretchHandle");
+        const originHandle = document.getElementById("eduProtractorOriginHandle");
+        const overlay = document.getElementById("eduProtractorOverlay");
+
+        const isLocked = !!protractorState.isLocked;
+        if (btn) {
+          btn.innerHTML = isLocked ? "🔒 Locked" : "🔓 Free";
+          btn.classList.toggle("edu-instrument-btn--locked", isLocked);
+          btn.title = isLocked ? "Protractor is locked on screen. Click to unlock." : "Lock protractor position on screen";
+        }
+        if (stretchHandle) {
+          stretchHandle.style.display = isLocked ? "none" : "flex";
+        }
+        if (originHandle) {
+          originHandle.style.cursor = isLocked ? "default" : "grab";
+          originHandle.title = isLocked ? "Protractor is locked on screen" : "Drag to position protractor origin";
+        }
+        if (overlay) {
+          overlay.style.cursor = isLocked ? "default" : "grab";
+          overlay.classList.toggle("edu-instrument--locked", isLocked);
+        }
+      }
+      window.updateProtractorLockUI = updateProtractorLockUI;
+
+      function toggleProtractorLock(forceVal) {
+        protractorState.isLocked = (forceVal !== undefined) ? !!forceVal : !protractorState.isLocked;
+        updateProtractorLockUI();
+        if (typeof renderEduToolsOptions === "function") renderEduToolsOptions();
+        syncEduInstrumentsToPage(true);
+        if (typeof showExportToast === "function") {
+          showExportToast(protractorState.isLocked ? "🔒 Protractor locked on screen" : "🔓 Protractor unlocked");
+        }
+      }
+      window.toggleProtractorLock = toggleProtractorLock;
+
+      function updateSetSquareLockUI() {
+        const btn = document.getElementById("eduSetSquareLockBtn");
+        const rotateHandle = document.getElementById("eduSetSquareRotateHandle");
+        const stretchHandle = document.getElementById("eduSetSquareStretchHandle");
+        const resetBtn = document.getElementById("eduSetSquareResetAngleBtn");
+        const dragHandle = document.getElementById("eduSetSquareDragHandle");
+        const overlay = document.getElementById("eduSetSquareOverlay");
+
+        const isLocked = !!setSquareState.isLocked;
+        if (btn) {
+          btn.innerHTML = isLocked ? "🔒 Locked" : "🔓 Free";
+          btn.classList.toggle("edu-instrument-btn--locked", isLocked);
+          btn.title = isLocked ? "Set square is locked on screen (Cannot move or rotate). Click to unlock." : "Lock set square on screen";
+        }
+        if (rotateHandle) {
+          rotateHandle.style.display = isLocked ? "none" : "flex";
+        }
+        if (stretchHandle) {
+          stretchHandle.style.display = isLocked ? "none" : "flex";
+        }
+        if (resetBtn) {
+          resetBtn.style.opacity = isLocked ? "0.45" : "1";
+          resetBtn.style.pointerEvents = isLocked ? "none" : "auto";
+        }
+        if (dragHandle) {
+          dragHandle.style.cursor = isLocked ? "default" : "grab";
+          dragHandle.title = isLocked ? "Set square is locked on screen (Click 🔒 to unlock)" : "Drag to move set square";
+        }
+        if (overlay) {
+          overlay.style.cursor = isLocked ? "default" : "grab";
+          overlay.classList.toggle("edu-instrument--locked", isLocked);
+        }
+      }
+      window.updateSetSquareLockUI = updateSetSquareLockUI;
+
+      function toggleSetSquareLock(forceVal) {
+        setSquareState.isLocked = (forceVal !== undefined) ? !!forceVal : !setSquareState.isLocked;
+        updateSetSquareLockUI();
+        if (typeof renderEduToolsOptions === "function") renderEduToolsOptions();
+        syncEduInstrumentsToPage(true);
+        if (typeof showExportToast === "function") {
+          showExportToast(setSquareState.isLocked ? "🔒 Set Square locked on screen" : "🔓 Set Square unlocked");
+        }
+      }
+      window.toggleSetSquareLock = toggleSetSquareLock;
 
       function updateProtractorScaleButton() {
         const btn = document.getElementById("eduProtractorToggleScaleBtn");
@@ -17851,7 +18018,8 @@
             y: logicalPt.y,
             angle: rulerState.angle,
             lengthCm: rulerState.lengthCm,
-            pxPerCm: rulerState.pxPerCm
+            pxPerCm: rulerState.pxPerCm,
+            isLocked: !!rulerState.isLocked
           };
         } else {
           rulerData = { visible: false };
@@ -17896,7 +18064,8 @@
             isFullCircle: protractorState.isFullCircle,
             scaleMode: protractorState.scaleMode || "outer",
             radius: 210,
-            scale: protractorState.scale || 1.0
+            scale: protractorState.scale || 1.0,
+            isLocked: !!protractorState.isLocked
           };
         } else {
           protractorData = { visible: false };
@@ -17937,7 +18106,8 @@
             angle: setSquareState.angle,
             type: setSquareState.type,
             pxPerCm: setSquareState.pxPerCm / (zoom || 1),
-            sizeCm: setSquareState.sizeCm || (setSquareState.type === "30-60-90" ? 6 : 7)
+            sizeCm: setSquareState.sizeCm || (setSquareState.type === "30-60-90" ? 6 : 7),
+            isLocked: !!setSquareState.isLocked
           };
         } else {
           setSquareData = { visible: false };
@@ -19783,6 +19953,30 @@
           });
           rulerSub.appendChild(presetRow);
 
+          const rulerLockRow = document.createElement("div");
+          rulerLockRow.style.display = "flex";
+          rulerLockRow.style.alignItems = "center";
+          rulerLockRow.style.justifyContent = "space-between";
+          rulerLockRow.style.marginBottom = "8px";
+
+          const rulerLockBtn = document.createElement("button");
+          rulerLockBtn.type = "button";
+          rulerLockBtn.textContent = rulerState.isLocked ? "🔒 Ruler Locked on Screen" : "🔓 Ruler Free (Drag to move & rotate)";
+          rulerLockBtn.style.width = "100%";
+          rulerLockBtn.style.padding = "4px 8px";
+          rulerLockBtn.style.fontSize = "0.73rem";
+          rulerLockBtn.style.fontWeight = "600";
+          rulerLockBtn.style.borderRadius = "5px";
+          rulerLockBtn.style.border = rulerState.isLocked ? "1px solid #f59e0b" : "1px solid #cbd5e1";
+          rulerLockBtn.style.background = rulerState.isLocked ? "#fef3c7" : "#ffffff";
+          rulerLockBtn.style.color = rulerState.isLocked ? "#b45309" : "#475569";
+          rulerLockBtn.style.cursor = "pointer";
+          rulerLockBtn.addEventListener("click", () => {
+            toggleRulerLock();
+          });
+          rulerLockRow.appendChild(rulerLockBtn);
+          rulerSub.appendChild(rulerLockRow);
+
           const traceBtn = document.createElement("button");
           traceBtn.type = "button";
           traceBtn.innerHTML = "✏️ Trace Straight Line on Board";
@@ -19950,6 +20144,30 @@
           });
           protractorSizeRow.appendChild(protractorScalePresets);
           protractorSub.appendChild(protractorSizeRow);
+
+          const protractorLockRow = document.createElement("div");
+          protractorLockRow.style.display = "flex";
+          protractorLockRow.style.alignItems = "center";
+          protractorLockRow.style.justifyContent = "space-between";
+          protractorLockRow.style.marginBottom = "8px";
+
+          const protractorLockBtn = document.createElement("button");
+          protractorLockBtn.type = "button";
+          protractorLockBtn.textContent = protractorState.isLocked ? "🔒 Protractor Locked on Screen" : "🔓 Protractor Free (Drag to move & stretch)";
+          protractorLockBtn.style.width = "100%";
+          protractorLockBtn.style.padding = "4px 8px";
+          protractorLockBtn.style.fontSize = "0.73rem";
+          protractorLockBtn.style.fontWeight = "600";
+          protractorLockBtn.style.borderRadius = "5px";
+          protractorLockBtn.style.border = protractorState.isLocked ? "1px solid #f59e0b" : "1px solid #cbd5e1";
+          protractorLockBtn.style.background = protractorState.isLocked ? "#fef3c7" : "#ffffff";
+          protractorLockBtn.style.color = protractorState.isLocked ? "#b45309" : "#475569";
+          protractorLockBtn.style.cursor = "pointer";
+          protractorLockBtn.addEventListener("click", () => {
+            toggleProtractorLock();
+          });
+          protractorLockRow.appendChild(protractorLockBtn);
+          protractorSub.appendChild(protractorLockRow);
 
           const drawAngleBtn = document.createElement("button");
           drawAngleBtn.type = "button";
@@ -20147,6 +20365,30 @@
           });
           sqSub.appendChild(anglesRow);
 
+          const sqLockRow = document.createElement("div");
+          sqLockRow.style.display = "flex";
+          sqLockRow.style.alignItems = "center";
+          sqLockRow.style.justifyContent = "space-between";
+          sqLockRow.style.marginBottom = "8px";
+
+          const sqLockBtn = document.createElement("button");
+          sqLockBtn.type = "button";
+          sqLockBtn.textContent = setSquareState.isLocked ? "🔒 Set Square Locked on Screen" : "🔓 Set Square Free (Drag to move, rotate & stretch)";
+          sqLockBtn.style.width = "100%";
+          sqLockBtn.style.padding = "4px 8px";
+          sqLockBtn.style.fontSize = "0.73rem";
+          sqLockBtn.style.fontWeight = "600";
+          sqLockBtn.style.borderRadius = "5px";
+          sqLockBtn.style.border = setSquareState.isLocked ? "1px solid #f59e0b" : "1px solid #cbd5e1";
+          sqLockBtn.style.background = setSquareState.isLocked ? "#fef3c7" : "#ffffff";
+          sqLockBtn.style.color = setSquareState.isLocked ? "#b45309" : "#475569";
+          sqLockBtn.style.cursor = "pointer";
+          sqLockBtn.addEventListener("click", () => {
+            toggleSetSquareLock();
+          });
+          sqLockRow.appendChild(sqLockBtn);
+          sqSub.appendChild(sqLockRow);
+
           const stampBtn = document.createElement("button");
           stampBtn.type = "button";
           stampBtn.innerHTML = "🔺 Stamp Triangle on Board";
@@ -20253,6 +20495,7 @@
         if (rulerState.visible) {
           renderRulerTicks();
           updateRulerPosition();
+          updateRulerLockUI();
         }
         syncEduInstrumentsToPage(true);
       }
@@ -20418,6 +20661,7 @@
           updateProtractorMode();
           updateProtractorPosition();
           renderProtractorSvg();
+          updateProtractorLockUI();
         }
         syncEduInstrumentsToPage(true);
       }
@@ -20970,6 +21214,7 @@
         if (setSquareState.visible) {
           updateSetSquarePosition();
           renderSetSquareSvg();
+          updateSetSquareLockUI();
         }
         syncEduInstrumentsToPage(true);
       }
@@ -21243,6 +21488,7 @@
         const rulerTraceBtn = document.getElementById("eduRulerTraceBtn");
         const rulerResetAngleBtn = document.getElementById("eduRulerResetAngleBtn");
         const rulerCloseBtn = document.getElementById("eduRulerCloseBtn");
+        const rulerLockBtn = document.getElementById("eduRulerLockBtn");
 
         const protractorOverlay = document.getElementById("eduProtractorOverlay");
         const protractorNeedleKnob = document.getElementById("eduProtractorNeedleKnob");
@@ -21251,14 +21497,17 @@
         const protractorToggleModeBtn = document.getElementById("eduProtractorToggleModeBtn");
         const protractorResetBtn = document.getElementById("eduProtractorResetBtn");
         const protractorCloseBtn = document.getElementById("eduProtractorCloseBtn");
+        const protractorLockBtn = document.getElementById("eduProtractorLockBtn");
 
         // --- Ruler Buttons ---
         if (rulerTraceBtn) rulerTraceBtn.onclick = traceRulerLine;
         if (rulerResetAngleBtn) rulerResetAngleBtn.onclick = () => {
+          if (rulerState.isLocked) return;
           rulerState.angle = 0;
           updateRulerPosition();
           syncEduInstrumentsToPage(true);
         };
+        if (rulerLockBtn) rulerLockBtn.onclick = () => toggleRulerLock();
         if (rulerCloseBtn) rulerCloseBtn.onclick = () => toggleRuler(false);
 
         // --- Ruler Dragging Anywhere on Body (Mouse, Touch, Stylus) ---
@@ -21270,6 +21519,7 @@
           let initialY = 0;
 
           rulerOverlay.addEventListener("pointerdown", (e) => {
+            if (rulerState.isLocked) return;
             if (e.target.closest("button") || e.target === rulerRotateHandle || e.target.closest(".edu-ruler-rotate-handle") || e.target === rulerLengthHandle || e.target.closest(".edu-ruler-length-handle")) return;
             isDragging = true;
             startClientX = e.clientX;
@@ -21284,7 +21534,7 @@
           });
 
           rulerOverlay.addEventListener("pointermove", (e) => {
-            if (!isDragging) return;
+            if (!isDragging || rulerState.isLocked) return;
             const dx = e.clientX - startClientX;
             const dy = e.clientY - startClientY;
             rulerState.x = initialX + dx;
@@ -21312,6 +21562,7 @@
           let isRotating = false;
 
           rulerRotateHandle.addEventListener("pointerdown", (e) => {
+            if (rulerState.isLocked) return;
             isRotating = true;
             try {
               rulerRotateHandle.setPointerCapture(e.pointerId);
@@ -21321,7 +21572,7 @@
           });
 
           rulerRotateHandle.addEventListener("pointermove", (e) => {
-            if (!isRotating) return;
+            if (!isRotating || rulerState.isLocked) return;
             const rect = rulerOverlay.getBoundingClientRect();
             const cx = rect.left + rect.width / 2;
             const cy = rect.top + rect.height / 2;
@@ -21358,6 +21609,7 @@
           let startLen = 15;
 
           rulerLengthHandle.addEventListener("pointerdown", (e) => {
+            if (rulerState.isLocked) return;
             isResizing = true;
             startX = e.clientX;
             startLen = rulerState.lengthCm;
@@ -21369,7 +21621,7 @@
           });
 
           rulerLengthHandle.addEventListener("pointermove", (e) => {
-            if (!isResizing) return;
+            if (!isResizing || rulerState.isLocked) return;
             const dx = e.clientX - startX;
             const deltaCm = dx / rulerState.pxPerCm;
             rulerState.lengthCm = Math.max(10, Math.min(30, Math.round((startLen + deltaCm) * 2) / 2));
@@ -21406,11 +21658,13 @@
           updateProtractorMode();
         };
         if (protractorResetBtn) protractorResetBtn.onclick = () => {
+          if (protractorState.isLocked) return;
           protractorState.angle = 0;
           renderProtractorSvg();
           updateProtractorNeedle();
           syncEduInstrumentsToPage(true);
         };
+        if (protractorLockBtn) protractorLockBtn.onclick = () => toggleProtractorLock();
         if (protractorCloseBtn) protractorCloseBtn.onclick = () => toggleProtractor(false);
 
         // --- Protractor Dragging Anywhere on Body ---
@@ -21422,6 +21676,7 @@
           let initialY = 0;
 
           protractorOverlay.addEventListener("pointerdown", (e) => {
+            if (protractorState.isLocked) return;
             if (e.target.closest("button") || e.target === protractorNeedleKnob || e.target.closest(".edu-protractor-needle-knob") || e.target === protractorStretchHandle || e.target.closest(".edu-protractor-stretch-handle")) return;
             isDragging = true;
             startClientX = e.clientX;
@@ -21436,7 +21691,7 @@
           });
 
           protractorOverlay.addEventListener("pointermove", (e) => {
-            if (!isDragging) return;
+            if (!isDragging || protractorState.isLocked) return;
             protractorState.x = initialX + (e.clientX - startClientX);
             protractorState.y = Math.max(52, initialY + (e.clientY - startClientY));
             updateProtractorPosition();
@@ -21466,6 +21721,7 @@
           let startScale = 1.0;
 
           protractorStretchHandle.addEventListener("pointerdown", (e) => {
+            if (protractorState.isLocked) return;
             isStretchingProtractor = true;
             const pSvg = document.getElementById("eduProtractorSvg");
             let cX = null, cY = null;
@@ -21494,7 +21750,7 @@
           });
 
           protractorStretchHandle.addEventListener("pointermove", (e) => {
-            if (!isStretchingProtractor || !stretchCenterScreen) return;
+            if (!isStretchingProtractor || !stretchCenterScreen || protractorState.isLocked) return;
             const curDist = Math.hypot(e.clientX - stretchCenterScreen.x, e.clientY - stretchCenterScreen.y);
             let newScale = startScale * (curDist / startDist);
             newScale = Math.max(0.6, Math.min(2.2, Math.round(newScale * 20) / 20));
@@ -21762,6 +22018,7 @@
         const setSquareStampBtn = document.getElementById("eduSetSquareStampBtn");
         const setSquareTraceHypBtn = document.getElementById("eduSetSquareTraceHypBtn");
         const setSquareResetAngleBtn = document.getElementById("eduSetSquareResetAngleBtn");
+        const setSquareLockBtn = document.getElementById("eduSetSquareLockBtn");
         const setSquareCloseBtn = document.getElementById("eduSetSquareCloseBtn");
 
         if (setSquareToggleTypeBtn) setSquareToggleTypeBtn.onclick = () => {
@@ -21773,10 +22030,12 @@
         if (setSquareStampBtn) setSquareStampBtn.onclick = stampSetSquareTriangle;
         if (setSquareTraceHypBtn) setSquareTraceHypBtn.onclick = traceSetSquareHypotenuse;
         if (setSquareResetAngleBtn) setSquareResetAngleBtn.onclick = () => {
+          if (setSquareState.isLocked) return;
           setSquareState.angle = 0;
           updateSetSquarePosition();
           syncEduInstrumentsToPage(true);
         };
+        if (setSquareLockBtn) setSquareLockBtn.onclick = () => toggleSetSquareLock();
         if (setSquareCloseBtn) setSquareCloseBtn.onclick = () => toggleSetSquare(false);
 
         // Set Square Dragging (Whole Body)
@@ -21786,6 +22045,7 @@
           let initX = 0, initY = 0;
 
           setSquareOverlay.addEventListener("pointerdown", (e) => {
+            if (setSquareState.isLocked) return;
             if (e.target.closest("button") || e.target === setSquareRotateHandle || e.target.closest(".edu-setsquare-rotate-handle") || e.target === setSquareStretchHandle || e.target.closest(".edu-setsquare-stretch-handle")) return;
             isDraggingSq = true;
             startCX = e.clientX;
@@ -21798,7 +22058,7 @@
           });
 
           setSquareOverlay.addEventListener("pointermove", (e) => {
-            if (!isDraggingSq) return;
+            if (!isDraggingSq || setSquareState.isLocked) return;
             setSquareState.x = initX + (e.clientX - startCX);
             setSquareState.y = Math.max(52, initY + (e.clientY - startCY));
             updateSetSquarePosition();
@@ -21823,6 +22083,7 @@
           let isStretchingSq = false;
 
           setSquareStretchHandle.addEventListener("pointerdown", (e) => {
+            if (setSquareState.isLocked) return;
             isStretchingSq = true;
             try { setSquareStretchHandle.setPointerCapture(e.pointerId); } catch (_) {}
             e.stopPropagation();
@@ -21830,7 +22091,7 @@
           });
 
           setSquareStretchHandle.addEventListener("pointermove", (e) => {
-            if (!isStretchingSq) return;
+            if (!isStretchingSq || setSquareState.isLocked) return;
             const ax = setSquareState.x + 24;
             const ay = setSquareState.y + 24;
             const theta = (setSquareState.angle * Math.PI) / 180;
@@ -21864,6 +22125,7 @@
           let isRotatingSq = false;
 
           setSquareRotateHandle.addEventListener("pointerdown", (e) => {
+            if (setSquareState.isLocked) return;
             isRotatingSq = true;
             try { setSquareRotateHandle.setPointerCapture(e.pointerId); } catch (_) {}
             e.stopPropagation();
@@ -21871,7 +22133,7 @@
           });
 
           setSquareRotateHandle.addEventListener("pointermove", (e) => {
-            if (!isRotatingSq) return;
+            if (!isRotatingSq || setSquareState.isLocked) return;
             const dx = e.clientX - setSquareState.x;
             const dy = e.clientY - setSquareState.y;
 
@@ -21897,6 +22159,11 @@
           setSquareRotateHandle.addEventListener("pointerup", onEndSqRotate);
           setSquareRotateHandle.addEventListener("pointercancel", onEndSqRotate);
         }
+
+        // Initialize instrument lock UIs
+        updateRulerLockUI();
+        updateProtractorLockUI();
+        updateSetSquareLockUI();
       }
 
       setupEduToolsListeners();

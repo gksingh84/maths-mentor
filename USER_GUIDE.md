@@ -364,10 +364,10 @@ The built-in **EduAshram Whiteboard** is a modern, infinite vertical digital can
 - **Infinite Vertical Scrolling**: Expand the page downwards without running out of writing room.
 - **Board Backgrounds**: Toggle between **Ruled Notebook** (standard lined paper), **Square Grid** (for geometry & algebra), **Dot Grid**, **Dark Blackboard** (chalkboard aesthetic), and **Coordinate Cartesian Graph** with customizable intervals.
 - **Geometry & Drawing Instruments**:
-  - Virtual Ruler with millimeter/inch markings.
-  - Compass for accurate circle drawing.
-  - 180° / 360° Protractor for angle measurement.
-  - 45° and 60° Set Squares.
+  - Virtual Ruler with millimeter/inch markings and Lock/Unlock on screen.
+  - Compass for accurate circle drawing with radius lock.
+  - 180° / 360° Protractor for angle measurement with Lock/Unlock on screen.
+  - 45° and 60° Set Squares with Lock/Unlock on screen.
 - **Drawing Tools**: Pressure-sensitive pens, multi-color highlighters, geometric shape auto-detection, text boxes, sticky notes, LaTeX equation insertion, and image upload.
 - **Single-Page Infinite Canvas for PDF & PPT Imports**:
   - When importing multi-page documents (PDF worksheets, exam papers, textbooks) or PowerPoint presentations (PPT / PPTX slides), all pages and slides are automatically imported onto a **Single Continuous Page with Infinite Scroll enabled**.
