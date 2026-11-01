@@ -3041,8 +3041,8 @@
         <div class="tool-bar__spacer"></div>
 
         <div class="tool-bar__bottom-group">
-          <button class="tool-button" id="undoButton">Undo</button>
-          <button class="tool-button" id="redoButton">Redo</button>
+          <button class="tool-button" id="undoButton" title="Undo (Ctrl+Z)">Undo</button>
+          <button class="tool-button" id="redoButton" title="Redo (Ctrl+Y / Ctrl+Shift+Z)">Redo</button>
         </div>
       </aside>
 
@@ -4026,7 +4026,14 @@
         redoStacks[currentPageIndex].push(snapshotPage());
         restorePage(stack.pop());
         selectedShapes = [];
+        selectedTexts = [];
+        selectedWidgets = [];
         updateBoardAppearance();
+        notifyParentPageUpdate(currentPageIndex, true);
+        scheduleNotifyParentPages(100);
+        clearTimeout(savePagesTimeout);
+        savePagesTimeout = setTimeout(savePagesToStorage, 800);
+        if (propertiesContent && currentTool === "select") handleToolSelection("select");
       }
 
       function redo() {
@@ -4035,7 +4042,15 @@
         if (stack.length === 0) return;
         undoStacks[currentPageIndex].push(snapshotPage());
         restorePage(stack.pop());
+        selectedShapes = [];
+        selectedTexts = [];
+        selectedWidgets = [];
         updateBoardAppearance();
+        notifyParentPageUpdate(currentPageIndex, true);
+        scheduleNotifyParentPages(100);
+        clearTimeout(savePagesTimeout);
+        savePagesTimeout = setTimeout(savePagesToStorage, 800);
+        if (propertiesContent && currentTool === "select") handleToolSelection("select");
       }
 
       function showWhiteboardToast(msg, type = "info") {
@@ -17796,6 +17811,12 @@
             badge.style.display = count > 0 ? "inline-block" : "none";
           }
         }
+        if (e.data && e.data.type === "WHITEBOARD_UNDO") {
+          undo();
+        }
+        if (e.data && e.data.type === "WHITEBOARD_REDO") {
+          redo();
+        }
       });
 
       if (typeof ResizeObserver !== "undefined") {
@@ -17812,10 +17833,41 @@
 
       document.addEventListener("keydown", (evt) => {
         const target = evt.target;
-        if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA")) return;
+        if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) return;
+
+        // Undo (Ctrl+Z / Cmd+Z) & Redo (Ctrl+Y / Ctrl+Shift+Z / Cmd+Y / Cmd+Shift+Z) for Desktop
+        if (evt.ctrlKey || evt.metaKey) {
+          const isZ = evt.key === "z" || evt.key === "Z" || evt.code === "KeyZ";
+          const isY = evt.key === "y" || evt.key === "Y" || evt.code === "KeyY";
+          if (isZ) {
+            evt.preventDefault();
+            if (isDrawing) {
+              isDrawing = false;
+              activeStroke = null;
+              activeShape = null;
+              activeDrawingPointerId = null;
+            }
+            if (evt.shiftKey) {
+              redo();
+            } else {
+              undo();
+            }
+            return;
+          } else if (isY) {
+            evt.preventDefault();
+            if (isDrawing) {
+              isDrawing = false;
+              activeStroke = null;
+              activeShape = null;
+              activeDrawingPointerId = null;
+            }
+            redo();
+            return;
+          }
+        }
 
         if (evt.key === "Delete" || evt.key === "Backspace") {
-          if (selectedShapes.length > 0 || selectedTexts.length > 0) {
+          if (selectedShapes.length > 0 || selectedTexts.length > 0 || selectedWidgets.length > 0) {
             evt.preventDefault();
             deleteSelected();
           }

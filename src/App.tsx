@@ -2129,6 +2129,32 @@ function TeacherWhiteboard({
       if (iframe?.contentWindow) {
         iframe.contentWindow.postMessage({ type: 'RESIZE_CANVAS' }, '*');
       }
+
+      const handleHostKeyDown = (e: KeyboardEvent) => {
+        const target = e.target as HTMLElement | null;
+        if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+          return;
+        }
+        if (e.ctrlKey || e.metaKey) {
+          const isZ = e.key === 'z' || e.key === 'Z' || e.code === 'KeyZ';
+          const isY = e.key === 'y' || e.key === 'Y' || e.code === 'KeyY';
+          const wbIframe = document.getElementById('teacher-whiteboard-iframe') as HTMLIFrameElement | null;
+          if (wbIframe?.contentWindow) {
+            if (isZ) {
+              e.preventDefault();
+              wbIframe.contentWindow.postMessage({ type: e.shiftKey ? 'WHITEBOARD_REDO' : 'WHITEBOARD_UNDO' }, '*');
+            } else if (isY) {
+              e.preventDefault();
+              wbIframe.contentWindow.postMessage({ type: 'WHITEBOARD_REDO' }, '*');
+            }
+          }
+        }
+      };
+
+      window.addEventListener('keydown', handleHostKeyDown);
+      return () => {
+        window.removeEventListener('keydown', handleHostKeyDown);
+      };
     }
   }, [isActiveTab]);
 
