@@ -9378,137 +9378,324 @@
         if (currentTool === "select") handleToolSelection("select");
       }
 
+      function createFlowchartIconSvg(id, size = 22) {
+        const svg = document.createElementNS(SVGNS, "svg");
+        svg.setAttribute("viewBox", "0 0 24 24");
+        svg.setAttribute("width", String(size));
+        svg.setAttribute("height", String(size));
+        svg.setAttribute("aria-hidden", "true");
+        svg.style.display = "block";
+
+        if (id === "fc-process") {
+          el(svg, "rect", { x: "3", y: "6", width: "18", height: "12", rx: "2", fill: "none", stroke: "currentColor", "stroke-width": "1.8" });
+        } else if (id === "fc-decision") {
+          el(svg, "polygon", { points: "12,3 21,12 12,21 3,12", fill: "none", stroke: "currentColor", "stroke-width": "1.8", "stroke-linejoin": "round" });
+        } else if (id === "fc-terminal") {
+          el(svg, "rect", { x: "3", y: "6", width: "18", height: "12", rx: "6", fill: "none", stroke: "currentColor", "stroke-width": "1.8" });
+        } else if (id === "fc-io") {
+          el(svg, "polygon", { points: "6,6 21,6 18,18 3,18", fill: "none", stroke: "currentColor", "stroke-width": "1.8", "stroke-linejoin": "round" });
+        } else if (id === "fc-document") {
+          el(svg, "path", { d: "M4,4 L20,4 L20,16 Q16,19 12,16 Q8,13 4,16 Z", fill: "none", stroke: "currentColor", "stroke-width": "1.8", "stroke-linejoin": "round" });
+        } else if (id === "fc-database") {
+          el(svg, "path", { d: "M4,7 L4,17 Q12,21 20,17 L20,7 M4,7 Q12,10 20,7 M4,7 Q12,4 20,7 M4,12 Q12,15 20,12", fill: "none", stroke: "currentColor", "stroke-width": "1.8" });
+        } else if (id === "fc-subroutine") {
+          el(svg, "rect", { x: "3", y: "5", width: "18", height: "14", rx: "2", fill: "none", stroke: "currentColor", "stroke-width": "1.8" });
+          el(svg, "line", { x1: "7", y1: "5", x2: "7", y2: "19", stroke: "currentColor", "stroke-width": "1.5" });
+          el(svg, "line", { x1: "17", y1: "5", x2: "17", y2: "19", stroke: "currentColor", "stroke-width": "1.5" });
+        } else if (id === "fc-connector-node") {
+          el(svg, "circle", { cx: "12", cy: "12", r: "7", fill: "none", stroke: "currentColor", "stroke-width": "1.8" });
+          el(svg, "circle", { cx: "12", cy: "12", r: "2.5", fill: "currentColor" });
+        } else if (id === "orthogonal") {
+          el(svg, "path", { d: "M4,19 L13,19 L13,6 L19,6", fill: "none", stroke: "currentColor", "stroke-width": "2", "stroke-linecap": "round", "stroke-linejoin": "round" });
+          el(svg, "polyline", { points: "16,3 19,6 16,9", fill: "none", stroke: "currentColor", "stroke-width": "2", "stroke-linecap": "round", "stroke-linejoin": "round" });
+        } else if (id === "curved") {
+          el(svg, "path", { d: "M4,19 Q12,4 19,6", fill: "none", stroke: "currentColor", "stroke-width": "2", "stroke-linecap": "round" });
+          el(svg, "polyline", { points: "16,3 19,6 16,9", fill: "none", stroke: "currentColor", "stroke-width": "2", "stroke-linecap": "round", "stroke-linejoin": "round" });
+        } else if (id === "straight") {
+          el(svg, "line", { x1: "4", y1: "19", x2: "18", y2: "5", stroke: "currentColor", "stroke-width": "2", "stroke-linecap": "round" });
+          el(svg, "polyline", { points: "13,5 18,5 18,10", fill: "none", stroke: "currentColor", "stroke-width": "2", "stroke-linecap": "round", "stroke-linejoin": "round" });
+        }
+        return svg;
+      }
+
       function renderFlowchartOptions() {
         if (!propertiesContent) return;
         propertiesContent.innerHTML = "";
 
-        const modeGroup = document.createElement("div");
-        modeGroup.className = "tool-options-group";
+        // ==========================================
+        // 1. TOP SEGMENTED TAB SWITCHER (Modern Pill Control)
+        // ==========================================
+        const tabContainer = document.createElement("div");
+        tabContainer.style.background = "#f1f5f9";
+        tabContainer.style.padding = "3px";
+        tabContainer.style.borderRadius = "9px";
+        tabContainer.style.display = "grid";
+        tabContainer.style.gridTemplateColumns = "1fr 1fr";
+        tabContainer.style.gap = "4px";
+        tabContainer.style.marginBottom = "0.65rem";
+        tabContainer.style.border = "1px solid #e2e8f0";
 
-        const modeLabel = document.createElement("span");
-        modeLabel.className = "tool-options-label";
-        modeLabel.textContent = "Flowchart Mode";
-        modeGroup.appendChild(modeLabel);
+        const isNodes = (flowchartSettings.activeMode || "nodes") === "nodes";
 
-        const modeRow = document.createElement("div");
-        modeRow.style.display = "grid";
-        modeRow.style.gridTemplateColumns = "1fr 1fr";
-        modeRow.style.gap = "0.5rem";
-        modeRow.style.marginTop = "0.25rem";
-        modeRow.style.marginBottom = "0.75rem";
-
-        const btnNodes = document.createElement("button");
-        btnNodes.type = "button";
-        btnNodes.className = flowchartSettings.activeMode === "nodes" ? "tool-options-button tool-options-button--active" : "tool-options-button";
-        btnNodes.innerHTML = "🔲 <b>Node Shapes</b>";
-        btnNodes.style.padding = "0.4rem 0.5rem";
-        btnNodes.style.fontSize = "0.78rem";
-        btnNodes.addEventListener("click", () => {
+        const btnTabNodes = document.createElement("button");
+        btnTabNodes.type = "button";
+        btnTabNodes.style.border = "none";
+        btnTabNodes.style.borderRadius = "7px";
+        btnTabNodes.style.padding = "0.45rem 0.5rem";
+        btnTabNodes.style.fontSize = "0.78rem";
+        btnTabNodes.style.fontWeight = isNodes ? "600" : "500";
+        btnTabNodes.style.color = isNodes ? "#0284c7" : "#64748b";
+        btnTabNodes.style.backgroundColor = isNodes ? "#ffffff" : "transparent";
+        btnTabNodes.style.boxShadow = isNodes ? "0 1px 3px rgba(0,0,0,0.08)" : "none";
+        btnTabNodes.style.cursor = "pointer";
+        btnTabNodes.style.display = "flex";
+        btnTabNodes.style.alignItems = "center";
+        btnTabNodes.style.justifyContent = "center";
+        btnTabNodes.style.gap = "6px";
+        btnTabNodes.style.transition = "all 0.15s ease";
+        btnTabNodes.innerHTML = "<span>🔲</span><span>Node Shapes</span>";
+        btnTabNodes.addEventListener("click", () => {
           flowchartSettings.activeMode = "nodes";
           renderFlowchartOptions();
         });
-        modeRow.appendChild(btnNodes);
+        tabContainer.appendChild(btnTabNodes);
 
-        const btnConnector = document.createElement("button");
-        btnConnector.type = "button";
-        btnConnector.className = flowchartSettings.activeMode === "connector" ? "tool-options-button tool-options-button--active" : "tool-options-button";
-        btnConnector.innerHTML = "➡️ <b>Connector</b>";
-        btnConnector.style.padding = "0.4rem 0.5rem";
-        btnConnector.style.fontSize = "0.78rem";
-        btnConnector.title = "Drag between shapes to connect with a flexible arrow";
-        btnConnector.addEventListener("click", () => {
+        const btnTabConn = document.createElement("button");
+        btnTabConn.type = "button";
+        btnTabConn.style.border = "none";
+        btnTabConn.style.borderRadius = "7px";
+        btnTabConn.style.padding = "0.45rem 0.5rem";
+        btnTabConn.style.fontSize = "0.78rem";
+        btnTabConn.style.fontWeight = !isNodes ? "600" : "500";
+        btnTabConn.style.color = !isNodes ? "#0284c7" : "#64748b";
+        btnTabConn.style.backgroundColor = !isNodes ? "#ffffff" : "transparent";
+        btnTabConn.style.boxShadow = !isNodes ? "0 1px 3px rgba(0,0,0,0.08)" : "none";
+        btnTabConn.style.cursor = "pointer";
+        btnTabConn.style.display = "flex";
+        btnTabConn.style.alignItems = "center";
+        btnTabConn.style.justifyContent = "center";
+        btnTabConn.style.gap = "6px";
+        btnTabConn.style.transition = "all 0.15s ease";
+        btnTabConn.innerHTML = "<span>➡️</span><span>Connector</span>";
+        btnTabConn.addEventListener("click", () => {
           flowchartSettings.activeMode = "connector";
           renderFlowchartOptions();
         });
-        modeRow.appendChild(btnConnector);
-        modeGroup.appendChild(modeRow);
+        tabContainer.appendChild(btnTabConn);
+        propertiesContent.appendChild(tabContainer);
 
-        if (flowchartSettings.activeMode === "nodes") {
-          const shapesLabel = document.createElement("span");
-          shapesLabel.className = "tool-options-label";
-          shapesLabel.textContent = "Choose Symbol";
-          modeGroup.appendChild(shapesLabel);
+        // ==========================================
+        // 2. NODE SYMBOLS PALETTE (When Node Mode is Active)
+        // ==========================================
+        if (isNodes) {
+          const symbolsGroup = document.createElement("div");
+          symbolsGroup.className = "tool-options-group";
+
+          const symbolsLabel = document.createElement("span");
+          symbolsLabel.className = "tool-options-label";
+          symbolsLabel.textContent = "CHOOSE SYMBOL";
+          symbolsGroup.appendChild(symbolsLabel);
 
           const nodeTypes = [
-            { type: "fc-process", label: "Process", desc: "Action / Step", icon: "▭" },
-            { type: "fc-decision", label: "Decision", desc: "Question / Branch", icon: "◇" },
-            { type: "fc-terminal", label: "Start / End", desc: "Terminal capsule", icon: "▢" },
-            { type: "fc-io", label: "Data (I/O)", desc: "Input / Output", icon: "▱" },
-            { type: "fc-document", label: "Document", desc: "Report / Page", icon: "📄" },
-            { type: "fc-database", label: "Database", desc: "Data store", icon: "🗄️" },
-            { type: "fc-subroutine", label: "Subroutine", desc: "Predefined", icon: "⫽" },
-            { type: "fc-connector-node", label: "Junction", desc: "Circular node", icon: "○" }
+            { type: "fc-process", label: "Process", title: "Process / Action (Rectangle)" },
+            { type: "fc-decision", label: "Decision", title: "Decision / Branch (Diamond)" },
+            { type: "fc-terminal", label: "Start / End", title: "Start / End (Capsule)" },
+            { type: "fc-io", label: "Data (I/O)", title: "Input / Output (Parallelogram)" },
+            { type: "fc-document", label: "Document", title: "Document / Report" },
+            { type: "fc-database", label: "Database", title: "Database / Store" },
+            { type: "fc-subroutine", label: "Subroutine", title: "Predefined Process" },
+            { type: "fc-connector-node", label: "Junction", title: "Junction / Circle Node" }
           ];
 
           const grid = document.createElement("div");
           grid.style.display = "grid";
-          grid.style.gridTemplateColumns = "repeat(2, 1fr)";
-          grid.style.gap = "0.35rem";
-          grid.style.marginTop = "0.25rem";
-          grid.style.marginBottom = "0.75rem";
+          grid.style.gridTemplateColumns = "repeat(4, 1fr)";
+          grid.style.gap = "6px";
+          grid.style.marginTop = "4px";
+          grid.style.marginBottom = "8px";
 
           nodeTypes.forEach((nt) => {
             const btn = document.createElement("button");
             btn.type = "button";
-            btn.className = flowchartSettings.nodeType === nt.type ? "tool-options-button tool-options-button--active" : "tool-options-button";
+            const isActive = flowchartSettings.nodeType === nt.type;
+            btn.title = nt.title;
+            btn.style.boxSizing = "border-box";
+            btn.style.height = "54px";
             btn.style.display = "flex";
+            btn.style.flexDirection = "column";
             btn.style.alignItems = "center";
-            btn.style.gap = "0.35rem";
-            btn.style.padding = "0.4rem 0.5rem";
-            btn.style.textAlign = "left";
-            btn.title = nt.desc;
-            btn.innerHTML = "<span style='font-size:1.1rem;line-height:1;'>" + nt.icon + "</span> <span style='font-size:0.75rem;font-weight:600;'>" + nt.label + "</span>";
+            btn.style.justifyContent = "center";
+            btn.style.gap = "4px";
+            btn.style.padding = "4px 2px";
+            btn.style.borderRadius = "8px";
+            btn.style.cursor = "pointer";
+            btn.style.transition = "all 0.12s ease";
+
+            if (isActive) {
+              btn.style.backgroundColor = "#f0f9ff";
+              btn.style.border = "2px solid #0284c7";
+              btn.style.color = "#0284c7";
+              btn.style.boxShadow = "0 0 0 2px rgba(2, 132, 199, 0.15)";
+            } else {
+              btn.style.backgroundColor = "#ffffff";
+              btn.style.border = "1.5px solid #e2e8f0";
+              btn.style.color = "#475569";
+            }
+
+            btn.addEventListener("mouseenter", () => {
+              if (flowchartSettings.nodeType !== nt.type) {
+                btn.style.backgroundColor = "#f8fafc";
+                btn.style.borderColor = "#94a3b8";
+                btn.style.transform = "translateY(-1px)";
+              }
+            });
+            btn.addEventListener("mouseleave", () => {
+              if (flowchartSettings.nodeType !== nt.type) {
+                btn.style.backgroundColor = "#ffffff";
+                btn.style.borderColor = "#e2e8f0";
+                btn.style.transform = "none";
+              }
+            });
+
+            const svg = createFlowchartIconSvg(nt.type, 22);
+            btn.appendChild(svg);
+
+            const lbl = document.createElement("span");
+            lbl.style.fontSize = "0.64rem";
+            lbl.style.fontWeight = isActive ? "600" : "500";
+            lbl.style.lineHeight = "1.1";
+            lbl.style.textAlign = "center";
+            lbl.style.maxWidth = "100%";
+            lbl.style.overflow = "hidden";
+            lbl.style.textOverflow = "ellipsis";
+            lbl.style.whiteSpace = "nowrap";
+            lbl.textContent = nt.label;
+            btn.appendChild(lbl);
+
             btn.addEventListener("click", () => {
               flowchartSettings.nodeType = nt.type;
               renderFlowchartOptions();
             });
             grid.appendChild(btn);
           });
-          modeGroup.appendChild(grid);
+          symbolsGroup.appendChild(grid);
 
+          // Primary "Insert Selected Node" button
           const insertBtn = document.createElement("button");
           insertBtn.type = "button";
-          insertBtn.className = "tool-options-button";
           insertBtn.style.width = "100%";
-          insertBtn.style.padding = "0.45rem";
+          insertBtn.style.padding = "0.5rem 0.75rem";
+          insertBtn.style.borderRadius = "8px";
           insertBtn.style.fontWeight = "600";
-          insertBtn.style.backgroundColor = "#eff6ff";
-          insertBtn.style.borderColor = "#93c5fd";
-          insertBtn.style.color = "#1d4ed8";
-          insertBtn.style.marginBottom = "0.75rem";
-          insertBtn.innerHTML = "➕ Insert Selected Node";
+          insertBtn.style.fontSize = "0.8rem";
+          insertBtn.style.backgroundColor = "#0284c7";
+          insertBtn.style.color = "#ffffff";
+          insertBtn.style.border = "none";
+          insertBtn.style.cursor = "pointer";
+          insertBtn.style.display = "flex";
+          insertBtn.style.alignItems = "center";
+          insertBtn.style.justifyContent = "center";
+          insertBtn.style.gap = "6px";
+          insertBtn.style.boxShadow = "0 1px 3px rgba(2, 132, 199, 0.3)";
+          insertBtn.style.transition = "all 0.15s ease";
+
+          const curTitle = (nodeTypes.find((n) => n.type === flowchartSettings.nodeType) || {}).label || "Node";
+          insertBtn.innerHTML = "<span>➕</span><span>Insert " + curTitle + "</span>";
+
+          insertBtn.addEventListener("mouseenter", () => {
+            insertBtn.style.backgroundColor = "#0369a1";
+            insertBtn.style.transform = "translateY(-1px)";
+            insertBtn.style.boxShadow = "0 3px 6px rgba(2, 132, 199, 0.35)";
+          });
+          insertBtn.addEventListener("mouseleave", () => {
+            insertBtn.style.backgroundColor = "#0284c7";
+            insertBtn.style.transform = "none";
+            insertBtn.style.boxShadow = "0 1px 3px rgba(2, 132, 199, 0.3)";
+          });
+
           insertBtn.addEventListener("click", () => {
             addFlowchartNode(flowchartSettings.nodeType);
           });
-          modeGroup.appendChild(insertBtn);
+          symbolsGroup.appendChild(insertBtn);
+          propertiesContent.appendChild(symbolsGroup);
         }
+
+        // ==========================================
+        // 3. CONNECTOR ROUTING & ARROWHEAD GROUP
+        // ==========================================
+        const connGroup = document.createElement("div");
+        connGroup.className = "tool-options-group";
 
         const routingLabel = document.createElement("span");
         routingLabel.className = "tool-options-label";
-        routingLabel.textContent = "Connector Routing";
-        modeGroup.appendChild(routingLabel);
+        routingLabel.textContent = "CONNECTOR ROUTING";
+        connGroup.appendChild(routingLabel);
 
         const routingRow = document.createElement("div");
         routingRow.style.display = "grid";
         routingRow.style.gridTemplateColumns = "repeat(3, 1fr)";
-        routingRow.style.gap = "0.35rem";
-        routingRow.style.marginTop = "0.25rem";
-        routingRow.style.marginBottom = "0.75rem";
+        routingRow.style.gap = "6px";
+        routingRow.style.marginTop = "4px";
+        routingRow.style.marginBottom = "8px";
 
         const routings = [
-          { key: "orthogonal", label: "Step / Elbow", icon: "⬎" },
-          { key: "curved", label: "Curved", icon: "⌒" },
-          { key: "straight", label: "Straight", icon: "╱" }
+          { key: "orthogonal", label: "Step / Elbow", icon: "orthogonal" },
+          { key: "curved", label: "Curved Arc", icon: "curved" },
+          { key: "straight", label: "Straight Line", icon: "straight" }
         ];
 
         routings.forEach((r) => {
           const btn = document.createElement("button");
           btn.type = "button";
-          btn.className = (flowchartSettings.routing || "orthogonal") === r.key ? "tool-options-button tool-options-button--active" : "tool-options-button";
-          btn.style.padding = "0.35rem 0.25rem";
-          btn.style.fontSize = "0.72rem";
-          btn.style.textAlign = "center";
-          btn.innerHTML = "<div style='font-size:1rem;line-height:1;'>" + r.icon + "</div><div>" + r.label + "</div>";
+          const isActive = (flowchartSettings.routing || "orthogonal") === r.key;
+          btn.style.boxSizing = "border-box";
+          btn.style.height = "52px";
+          btn.style.display = "flex";
+          btn.style.flexDirection = "column";
+          btn.style.alignItems = "center";
+          btn.style.justifyContent = "center";
+          btn.style.gap = "3px";
+          btn.style.padding = "4px 2px";
+          btn.style.borderRadius = "8px";
+          btn.style.cursor = "pointer";
+          btn.style.transition = "all 0.12s ease";
+
+          if (isActive) {
+            btn.style.backgroundColor = "#f0f9ff";
+            btn.style.border = "2px solid #0284c7";
+            btn.style.color = "#0284c7";
+            btn.style.boxShadow = "0 0 0 2px rgba(2, 132, 199, 0.15)";
+          } else {
+            btn.style.backgroundColor = "#ffffff";
+            btn.style.border = "1.5px solid #cbd5e1";
+            btn.style.color = "#475569";
+          }
+
+          btn.addEventListener("mouseenter", () => {
+            if ((flowchartSettings.routing || "orthogonal") !== r.key) {
+              btn.style.backgroundColor = "#f8fafc";
+              btn.style.borderColor = "#94a3b8";
+              btn.style.transform = "translateY(-1px)";
+            }
+          });
+          btn.addEventListener("mouseleave", () => {
+            if ((flowchartSettings.routing || "orthogonal") !== r.key) {
+              btn.style.backgroundColor = "#ffffff";
+              btn.style.borderColor = "#cbd5e1";
+              btn.style.transform = "none";
+            }
+          });
+
+          const svg = createFlowchartIconSvg(r.icon, 20);
+          btn.appendChild(svg);
+
+          const lbl = document.createElement("span");
+          lbl.style.fontSize = "0.64rem";
+          lbl.style.fontWeight = isActive ? "600" : "500";
+          lbl.style.lineHeight = "1.1";
+          lbl.textContent = r.label;
+          btn.appendChild(lbl);
+
           btn.addEventListener("click", () => {
             flowchartSettings.routing = r.key;
             flowchartSettings.activeMode = "connector";
@@ -9528,24 +9715,25 @@
           });
           routingRow.appendChild(btn);
         });
-        modeGroup.appendChild(routingRow);
+        connGroup.appendChild(routingRow);
 
+        // Arrowhead Row
         const arrowLabel = document.createElement("span");
         arrowLabel.className = "tool-options-label";
-        arrowLabel.textContent = "Arrowhead";
-        modeGroup.appendChild(arrowLabel);
+        arrowLabel.textContent = "ARROWHEAD";
+        connGroup.appendChild(arrowLabel);
 
         const arrowRow = document.createElement("div");
         arrowRow.style.display = "grid";
         arrowRow.style.gridTemplateColumns = "repeat(3, 1fr)";
-        arrowRow.style.gap = "0.35rem";
-        arrowRow.style.marginTop = "0.25rem";
-        arrowRow.style.marginBottom = "0.75rem";
+        arrowRow.style.gap = "6px";
+        arrowRow.style.marginTop = "4px";
+        arrowRow.style.marginBottom = "6px";
 
         const arrowOptions = [
-          { key: "end", label: "End (➔)", arrowEnd: true, arrowStart: false },
-          { key: "both", label: "Both (↔)", arrowEnd: true, arrowStart: true },
-          { key: "none", label: "Plain (—)", arrowEnd: false, arrowStart: false }
+          { key: "end", label: "➔ End", arrowEnd: true, arrowStart: false },
+          { key: "both", label: "↔ Both", arrowEnd: true, arrowStart: true },
+          { key: "none", label: "— Plain", arrowEnd: false, arrowStart: false }
         ];
 
         arrowOptions.forEach((ao) => {
@@ -9554,114 +9742,397 @@
           const isActive = (ao.key === "end" && flowchartSettings.arrowEnd && !flowchartSettings.arrowStart) ||
                            (ao.key === "both" && flowchartSettings.arrowEnd && flowchartSettings.arrowStart) ||
                            (ao.key === "none" && !flowchartSettings.arrowEnd && !flowchartSettings.arrowStart);
-          btn.className = isActive ? "tool-options-button tool-options-button--active" : "tool-options-button";
-          btn.style.padding = "0.35rem 0.25rem";
-          btn.style.fontSize = "0.75rem";
+
+          btn.style.boxSizing = "border-box";
+          btn.style.padding = "0.35rem 0.4rem";
+          btn.style.borderRadius = "7px";
+          btn.style.fontSize = "0.72rem";
+          btn.style.fontWeight = isActive ? "600" : "500";
+          btn.style.cursor = "pointer";
+          btn.style.transition = "all 0.12s ease";
           btn.textContent = ao.label;
+
+          if (isActive) {
+            btn.style.backgroundColor = "#f0f9ff";
+            btn.style.border = "1.5px solid #0284c7";
+            btn.style.color = "#0284c7";
+          } else {
+            btn.style.backgroundColor = "#ffffff";
+            btn.style.border = "1px solid #cbd5e1";
+            btn.style.color = "#475569";
+          }
+
           btn.addEventListener("click", () => {
             flowchartSettings.arrowEnd = ao.arrowEnd;
             flowchartSettings.arrowStart = ao.arrowStart;
+            if (selectedShapes && selectedShapes.length) {
+              selectedShapes.forEach((s) => {
+                if (s.type === "connector") {
+                  s.arrowEnd = ao.arrowEnd;
+                  s.arrowStart = ao.arrowStart;
+                }
+              });
+              updateBoardAppearance();
+              notifyParentPageUpdate(currentPageIndex, true);
+            }
             renderFlowchartOptions();
           });
           arrowRow.appendChild(btn);
         });
-        modeGroup.appendChild(arrowRow);
+        connGroup.appendChild(arrowRow);
+
+        // Smart "Connect Selected Shapes" button
+        const connectSelectedBtn = document.createElement("button");
+        connectSelectedBtn.type = "button";
+        connectSelectedBtn.style.width = "100%";
+        connectSelectedBtn.style.padding = "0.45rem 0.6rem";
+        connectSelectedBtn.style.borderRadius = "7px";
+        connectSelectedBtn.style.fontWeight = "600";
+        connectSelectedBtn.style.fontSize = "0.75rem";
+        connectSelectedBtn.style.backgroundColor = "#f0fdf4";
+        connectSelectedBtn.style.color = "#166534";
+        connectSelectedBtn.style.border = "1.5px solid #bbf7d0";
+        connectSelectedBtn.style.cursor = "pointer";
+        connectSelectedBtn.style.display = "flex";
+        connectSelectedBtn.style.alignItems = "center";
+        connectSelectedBtn.style.justifyContent = "center";
+        connectSelectedBtn.style.gap = "6px";
+        connectSelectedBtn.style.marginTop = "8px";
+        connectSelectedBtn.style.transition = "all 0.15s ease";
+        connectSelectedBtn.innerHTML = "<span>⚡</span><span>Auto-Connect Selected Shapes</span>";
+
+        connectSelectedBtn.addEventListener("mouseenter", () => {
+          connectSelectedBtn.style.backgroundColor = "#dcfce7";
+          connectSelectedBtn.style.borderColor = "#86efac";
+          connectSelectedBtn.style.transform = "translateY(-1px)";
+        });
+        connectSelectedBtn.addEventListener("mouseleave", () => {
+          connectSelectedBtn.style.backgroundColor = "#f0fdf4";
+          connectSelectedBtn.style.borderColor = "#bbf7d0";
+          connectSelectedBtn.style.transform = "none";
+        });
+
+        connectSelectedBtn.addEventListener("click", () => {
+          const page = pages[currentPageIndex];
+          if (!page || !page.shapes) return;
+          const valid = (selectedShapes || []).filter((s) => s.type !== "connector");
+          if (valid.length >= 2) {
+            pushUndo();
+            for (let i = 0; i < valid.length - 1; i++) {
+              addConnectorBetween(valid[i], valid[i + 1], flowchartSettings.routing || "orthogonal");
+            }
+            updateBoardAppearance();
+            notifyParentPageUpdate(currentPageIndex, true);
+          } else {
+            flowchartSettings.activeMode = "connector";
+            renderFlowchartOptions();
+          }
+        });
+        connGroup.appendChild(connectSelectedBtn);
+
+        propertiesContent.appendChild(connGroup);
+
+        // ==========================================
+        // 4. STROKE & COLOR GROUP
+        // ==========================================
+        const styleGroup = document.createElement("div");
+        styleGroup.className = "tool-options-group";
 
         const widthLabel = document.createElement("span");
         widthLabel.className = "tool-options-label";
-        widthLabel.textContent = "Stroke Width";
-        modeGroup.appendChild(widthLabel);
+        widthLabel.textContent = "STROKE WIDTH";
+        styleGroup.appendChild(widthLabel);
 
         const widthRow = document.createElement("div");
         widthRow.className = "color-swatch-row";
-        widthRow.style.marginTop = "0.25rem";
-        widthRow.style.marginBottom = "0.75rem";
+        widthRow.style.marginTop = "0.2rem";
+        widthRow.style.marginBottom = "0.55rem";
+
         [1, 2, 3, 4, 6].forEach((w) => {
           const btn = document.createElement("button");
           btn.type = "button";
-          btn.className = (flowchartSettings.width || 2) === w ? "tool-options-button tool-options-button--active" : "tool-options-button";
-          btn.style.padding = "0.25rem 0.6rem";
-          btn.style.fontSize = "0.75rem";
+          const isActive = (flowchartSettings.width || 2) === w;
+          btn.style.padding = "0.25rem 0.55rem";
+          btn.style.borderRadius = "6px";
+          btn.style.fontSize = "0.72rem";
+          btn.style.fontWeight = isActive ? "600" : "500";
+          btn.style.cursor = "pointer";
           btn.textContent = w + "px";
+
+          if (isActive) {
+            btn.style.backgroundColor = "#f0f9ff";
+            btn.style.border = "1.5px solid #0284c7";
+            btn.style.color = "#0284c7";
+          } else {
+            btn.style.backgroundColor = "#ffffff";
+            btn.style.border = "1px solid #cbd5e1";
+            btn.style.color = "#475569";
+          }
+
           btn.addEventListener("click", () => {
             flowchartSettings.width = w;
+            if (selectedShapes && selectedShapes.length) {
+              selectedShapes.forEach((s) => { s.width = w; });
+              updateBoardAppearance();
+              notifyParentPageUpdate(currentPageIndex, true);
+            }
             renderFlowchartOptions();
           });
           widthRow.appendChild(btn);
         });
-        modeGroup.appendChild(widthRow);
+        styleGroup.appendChild(widthRow);
 
+        // Outline Color Row
         const colorLabel = document.createElement("span");
         colorLabel.className = "tool-options-label";
-        colorLabel.textContent = "Color";
-        modeGroup.appendChild(colorLabel);
+        colorLabel.textContent = "OUTLINE COLOR";
+        styleGroup.appendChild(colorLabel);
 
         const colorRow = document.createElement("div");
         colorRow.className = "color-swatch-row";
-        colorRow.style.marginTop = "0.25rem";
-        colorRow.style.marginBottom = "0.75rem";
-        const palette = ["#0f172a", "#2563eb", "#059669", "#dc2626", "#d97706", "#7c3aed"];
+        colorRow.style.marginTop = "0.2rem";
+        colorRow.style.marginBottom = "0.55rem";
+        const palette = ["#0f172a", "#0284c7", "#10b981", "#dc2626", "#f59e0b", "#8b5cf6"];
         palette.forEach((c) => {
           const sw = document.createElement("button");
           sw.type = "button";
-          sw.className = (flowchartSettings.color || "#0f172a").toLowerCase() === c.toLowerCase() ? "color-swatch color-swatch--active" : "color-swatch";
+          const isSelected = (flowchartSettings.color || "#0f172a").toLowerCase() === c.toLowerCase();
+          sw.className = isSelected ? "color-swatch color-swatch--active" : "color-swatch";
           sw.style.backgroundColor = c;
           sw.title = c;
           sw.addEventListener("click", () => {
             flowchartSettings.color = c;
+            if (selectedShapes && selectedShapes.length) {
+              selectedShapes.forEach((s) => { s.color = c; });
+              updateBoardAppearance();
+              notifyParentPageUpdate(currentPageIndex, true);
+            }
             renderFlowchartOptions();
           });
           colorRow.appendChild(sw);
         });
-        modeGroup.appendChild(colorRow);
+
+        // Native Color Picker input
+        const customColorInp = document.createElement("input");
+        customColorInp.type = "color";
+        customColorInp.value = flowchartSettings.color || "#0f172a";
+        customColorInp.title = "Custom color";
+        customColorInp.style.width = "24px";
+        customColorInp.style.height = "24px";
+        customColorInp.style.padding = "0";
+        customColorInp.style.border = "none";
+        customColorInp.style.borderRadius = "999px";
+        customColorInp.style.cursor = "pointer";
+        customColorInp.style.backgroundColor = "transparent";
+        customColorInp.addEventListener("input", (e) => {
+          const col = e.target.value;
+          flowchartSettings.color = col;
+          if (selectedShapes && selectedShapes.length) {
+            selectedShapes.forEach((s) => { s.color = col; });
+            updateBoardAppearance();
+            notifyParentPageUpdate(currentPageIndex, true);
+          }
+        });
+        colorRow.appendChild(customColorInp);
+        styleGroup.appendChild(colorRow);
+
+        // Fill Color Row (For nodes)
+        if (isNodes) {
+          const fillLabel = document.createElement("span");
+          fillLabel.className = "tool-options-label";
+          fillLabel.textContent = "FILL COLOR";
+          styleGroup.appendChild(fillLabel);
+
+          const fillRow = document.createElement("div");
+          fillRow.className = "color-swatch-row";
+          fillRow.style.marginTop = "0.2rem";
+          fillRow.style.marginBottom = "0.25rem";
+
+          const fillPalette = [
+            { col: "#ffffff", title: "White" },
+            { col: "#f0f9ff", title: "Ice Blue" },
+            { col: "#f0fdf4", title: "Mint Green" },
+            { col: "#fefce8", title: "Soft Yellow" },
+            { col: "#fdf2f8", title: "Pink" },
+            { col: "transparent", title: "Transparent / Hollow" }
+          ];
+
+          fillPalette.forEach((fp) => {
+            const sw = document.createElement("button");
+            sw.type = "button";
+            const isSelected = (flowchartSettings.fillColor || "#ffffff").toLowerCase() === fp.col.toLowerCase() && flowchartSettings.fillMode === (fp.col === "transparent" ? "hollow" : "solid");
+            sw.className = isSelected ? "color-swatch color-swatch--active" : "color-swatch";
+            sw.style.backgroundColor = fp.col === "transparent" ? "#ffffff" : fp.col;
+            if (fp.col === "transparent") {
+              sw.style.backgroundImage = "linear-gradient(45deg, #ef4444 50%, transparent 50%)";
+            }
+            sw.title = fp.title;
+            sw.addEventListener("click", () => {
+              if (fp.col === "transparent") {
+                flowchartSettings.fillMode = "hollow";
+              } else {
+                flowchartSettings.fillMode = "solid";
+                flowchartSettings.fillColor = fp.col;
+              }
+              if (selectedShapes && selectedShapes.length) {
+                selectedShapes.forEach((s) => {
+                  if (s.type.startsWith("fc-")) {
+                    s.fillMode = flowchartSettings.fillMode;
+                    s.fillColor = flowchartSettings.fillColor;
+                  }
+                });
+                updateBoardAppearance();
+                notifyParentPageUpdate(currentPageIndex, true);
+              }
+              renderFlowchartOptions();
+            });
+            fillRow.appendChild(sw);
+          });
+
+          const customFillInp = document.createElement("input");
+          customFillInp.type = "color";
+          customFillInp.value = flowchartSettings.fillColor || "#ffffff";
+          customFillInp.title = "Custom fill color";
+          customFillInp.style.width = "24px";
+          customFillInp.style.height = "24px";
+          customFillInp.style.padding = "0";
+          customFillInp.style.border = "none";
+          customFillInp.style.borderRadius = "999px";
+          customFillInp.style.cursor = "pointer";
+          customFillInp.style.backgroundColor = "transparent";
+          customFillInp.addEventListener("input", (e) => {
+            flowchartSettings.fillMode = "solid";
+            flowchartSettings.fillColor = e.target.value;
+            if (selectedShapes && selectedShapes.length) {
+              selectedShapes.forEach((s) => {
+                if (s.type.startsWith("fc-")) {
+                  s.fillMode = "solid";
+                  s.fillColor = e.target.value;
+                }
+              });
+              updateBoardAppearance();
+              notifyParentPageUpdate(currentPageIndex, true);
+            }
+          });
+          fillRow.appendChild(customFillInp);
+          styleGroup.appendChild(fillRow);
+        }
+
+        propertiesContent.appendChild(styleGroup);
+
+        // ==========================================
+        // 5. QUICK 1-CLICK TEMPLATES GROUP
+        // ==========================================
+        const templGroup = document.createElement("div");
+        templGroup.className = "tool-options-group";
 
         const templLabel = document.createElement("span");
         templLabel.className = "tool-options-label";
-        templLabel.textContent = "Quick Flowchart Templates";
-        modeGroup.appendChild(templLabel);
+        templLabel.textContent = "QUICK TEMPLATES";
+        templGroup.appendChild(templLabel);
 
         const templCol = document.createElement("div");
         templCol.style.display = "flex";
         templCol.style.flexDirection = "column";
-        templCol.style.gap = "0.4rem";
-        templCol.style.marginTop = "0.25rem";
+        templCol.style.gap = "6px";
+        templCol.style.marginTop = "4px";
 
-        const btnPFlow = document.createElement("button");
-        btnPFlow.type = "button";
-        btnPFlow.className = "tool-options-button";
-        btnPFlow.style.padding = "0.45rem 0.6rem";
-        btnPFlow.style.textAlign = "left";
-        btnPFlow.style.fontSize = "0.78rem";
-        btnPFlow.innerHTML = "⚡ <b>Process Flow</b> (Start → Step → End)";
-        btnPFlow.addEventListener("click", () => {
+        // Template 1: Linear Process
+        const cardProcess = document.createElement("div");
+        cardProcess.style.backgroundColor = "#ffffff";
+        cardProcess.style.border = "1px solid #e2e8f0";
+        cardProcess.style.borderRadius = "8px";
+        cardProcess.style.padding = "8px 10px";
+        cardProcess.style.display = "flex";
+        cardProcess.style.alignItems = "center";
+        cardProcess.style.gap = "10px";
+        cardProcess.style.cursor = "pointer";
+        cardProcess.style.transition = "all 0.15s ease";
+
+        cardProcess.innerHTML = `
+          <div style="width: 28px; height: 28px; border-radius: 6px; background: #e0f2fe; color: #0284c7; display: flex; align-items: center; justify-content: center; font-size: 1rem; flex-shrink: 0;">⚡</div>
+          <div style="flex: 1; min-width: 0;">
+            <div style="font-size: 0.78rem; font-weight: 600; color: #0f172a;">Process Flow</div>
+            <div style="font-size: 0.68rem; color: #64748b;">Start → Step → End (Auto-linked)</div>
+          </div>
+        `;
+
+        cardProcess.addEventListener("mouseenter", () => {
+          cardProcess.style.borderColor = "#0284c7";
+          cardProcess.style.backgroundColor = "#f8fafc";
+          cardProcess.style.transform = "translateY(-1px)";
+          cardProcess.style.boxShadow = "0 2px 6px rgba(0,0,0,0.06)";
+        });
+        cardProcess.addEventListener("mouseleave", () => {
+          cardProcess.style.borderColor = "#e2e8f0";
+          cardProcess.style.backgroundColor = "#ffffff";
+          cardProcess.style.transform = "none";
+          cardProcess.style.boxShadow = "none";
+        });
+
+        cardProcess.addEventListener("click", () => {
           insertProcessFlowchartTemplate();
         });
-        templCol.appendChild(btnPFlow);
+        templCol.appendChild(cardProcess);
 
-        const btnDFlow = document.createElement("button");
-        btnDFlow.type = "button";
-        btnDFlow.className = "tool-options-button";
-        btnDFlow.style.padding = "0.45rem 0.6rem";
-        btnDFlow.style.textAlign = "left";
-        btnDFlow.style.fontSize = "0.78rem";
-        btnDFlow.innerHTML = "🔀 <b>Decision Tree</b> (Start → Branch → End)";
-        btnDFlow.addEventListener("click", () => {
+        // Template 2: Decision Tree
+        const cardDecision = document.createElement("div");
+        cardDecision.style.backgroundColor = "#ffffff";
+        cardDecision.style.border = "1px solid #e2e8f0";
+        cardDecision.style.borderRadius = "8px";
+        cardDecision.style.padding = "8px 10px";
+        cardDecision.style.display = "flex";
+        cardDecision.style.alignItems = "center";
+        cardDecision.style.gap = "10px";
+        cardDecision.style.cursor = "pointer";
+        cardDecision.style.transition = "all 0.15s ease";
+
+        cardDecision.innerHTML = `
+          <div style="width: 28px; height: 28px; border-radius: 6px; background: #fef3c7; color: #d97706; display: flex; align-items: center; justify-content: center; font-size: 1rem; flex-shrink: 0;">🔀</div>
+          <div style="flex: 1; min-width: 0;">
+            <div style="font-size: 0.78rem; font-weight: 600; color: #0f172a;">Decision Tree</div>
+            <div style="font-size: 0.68rem; color: #64748b;">Start → Branch → Yes/No → End</div>
+          </div>
+        `;
+
+        cardDecision.addEventListener("mouseenter", () => {
+          cardDecision.style.borderColor = "#0284c7";
+          cardDecision.style.backgroundColor = "#f8fafc";
+          cardDecision.style.transform = "translateY(-1px)";
+          cardDecision.style.boxShadow = "0 2px 6px rgba(0,0,0,0.06)";
+        });
+        cardDecision.addEventListener("mouseleave", () => {
+          cardDecision.style.borderColor = "#e2e8f0";
+          cardDecision.style.backgroundColor = "#ffffff";
+          cardDecision.style.transform = "none";
+          cardDecision.style.boxShadow = "none";
+        });
+
+        cardDecision.addEventListener("click", () => {
           insertDecisionFlowchartTemplate();
         });
-        templCol.appendChild(btnDFlow);
-        modeGroup.appendChild(templCol);
+        templCol.appendChild(cardDecision);
 
+        templGroup.appendChild(templCol);
+        propertiesContent.appendChild(templGroup);
+
+        // ==========================================
+        // 6. PRO TIP BANNER
+        // ==========================================
         const tip = document.createElement("div");
-        tip.style.fontSize = "0.74rem";
-        tip.style.color = "#64748b";
-        tip.style.marginTop = "1rem";
-        tip.style.padding = "0.5rem";
-        tip.style.background = "#f1f5f9";
-        tip.style.borderRadius = "6px";
-        tip.innerHTML = "💡 <b>Pro Tip:</b> Connectors stay attached when shapes are dragged! Drag the amber handle on the line to adjust/flex its bend. Double-click any node or line to edit text.";
-        modeGroup.appendChild(tip);
-
-        propertiesContent.appendChild(modeGroup);
+        tip.style.fontSize = "0.72rem";
+        tip.style.lineHeight = "1.35";
+        tip.style.color = "#0369a1";
+        tip.style.marginTop = "0.4rem";
+        tip.style.padding = "7px 10px";
+        tip.style.background = "#f0f9ff";
+        tip.style.border = "1px solid #bae6fd";
+        tip.style.borderRadius = "8px";
+        tip.style.display = "flex";
+        tip.style.alignItems = "flex-start";
+        tip.style.gap = "6px";
+        tip.innerHTML = "<span>💡</span><div><b>Pro Tip:</b> Connectors lock to shapes and stay connected when moved! Drag the amber diamond to bend/flex any line. Double-click any shape to edit text.</div>";
+        propertiesContent.appendChild(tip);
       }
 
       function renderSelectOptions() {
@@ -9779,23 +10250,56 @@
             const rRow = document.createElement("div");
             rRow.style.display = "grid";
             rRow.style.gridTemplateColumns = "repeat(3, 1fr)";
-            rRow.style.gap = "0.3rem";
-            rRow.style.marginTop = "3px";
+            rRow.style.gap = "6px";
+            rRow.style.marginTop = "4px";
             rRow.style.marginBottom = "8px";
 
             [
-              { key: "orthogonal", label: "Step / Elbow" },
-              { key: "curved", label: "Curved" },
-              { key: "straight", label: "Straight" }
+              { key: "orthogonal", label: "Step / Elbow", icon: "orthogonal" },
+              { key: "curved", label: "Curved Arc", icon: "curved" },
+              { key: "straight", label: "Straight Line", icon: "straight" }
             ].forEach((r) => {
               const b = document.createElement("button");
               b.type = "button";
-              b.className = (conn.routing || "orthogonal") === r.key ? "tool-options-button tool-options-button--active" : "tool-options-button";
-              b.style.padding = "0.25rem 0.2rem";
-              b.style.fontSize = "0.7rem";
-              b.textContent = r.label;
+              const isActive = (conn.routing || "orthogonal") === r.key;
+              b.style.boxSizing = "border-box";
+              b.style.height = "48px";
+              b.style.display = "flex";
+              b.style.flexDirection = "column";
+              b.style.alignItems = "center";
+              b.style.justifyContent = "center";
+              b.style.gap = "2px";
+              b.style.padding = "3px 2px";
+              b.style.borderRadius = "7px";
+              b.style.cursor = "pointer";
+              b.style.transition = "all 0.12s ease";
+
+              if (isActive) {
+                b.style.backgroundColor = "#f0f9ff";
+                b.style.border = "2px solid #0284c7";
+                b.style.color = "#0284c7";
+                b.style.fontWeight = "600";
+              } else {
+                b.style.backgroundColor = "#ffffff";
+                b.style.border = "1.5px solid #cbd5e1";
+                b.style.color = "#475569";
+                b.style.fontWeight = "500";
+              }
+
+              const svg = createFlowchartIconSvg(r.icon, 18);
+              b.appendChild(svg);
+
+              const lbl = document.createElement("span");
+              lbl.style.fontSize = "0.64rem";
+              lbl.textContent = r.label;
+              b.appendChild(lbl);
+
               b.addEventListener("click", () => {
                 conn.routing = r.key;
+                conn.controlPoint = null;
+                conn.bendOffset = 0;
+                flowchartSettings.routing = r.key;
+                updateAttachedConnectors(pages[currentPageIndex]);
                 updateBoardAppearance();
                 notifyParentPageUpdate(currentPageIndex, true);
                 renderSelectOptions();
