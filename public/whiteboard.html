@@ -4214,13 +4214,24 @@
         const strokeWidth = maxX - minX;
         const strokeHeight = maxY - minY;
         const pad = Math.max(24, Math.min(60, Math.max(strokeWidth, strokeHeight) * 0.12));
-        const canvasW = Math.max(160, Math.ceil(strokeWidth + pad * 2));
-        const canvasH = Math.max(80, Math.ceil(strokeHeight + pad * 2));
+        const rawW = Math.max(160, Math.ceil(strokeWidth + pad * 2));
+        const rawH = Math.max(80, Math.ceil(strokeHeight + pad * 2));
+
+        // Limit maximum dimensions to keep request size tiny (~30-80KB) and prevent Nginx 413
+        const maxDim = 900;
+        let scale = 1;
+        if (Math.max(rawW, rawH) > maxDim) {
+          scale = maxDim / Math.max(rawW, rawH);
+        } else if (Math.max(rawW, rawH) < 450) {
+          scale = Math.min(2, 450 / Math.max(rawW, rawH));
+        }
+
+        const canvasW = Math.round(rawW * scale);
+        const canvasH = Math.round(rawH * scale);
 
         const offscreen = document.createElement("canvas");
-        const scale = 2;
-        offscreen.width = canvasW * scale;
-        offscreen.height = canvasH * scale;
+        offscreen.width = canvasW;
+        offscreen.height = canvasH;
         const octx = offscreen.getContext("2d");
         if (!octx) return;
 
@@ -4254,7 +4265,14 @@
           }
         }
 
-        const base64Image = offscreen.toDataURL("image/png");
+        // Export as JPEG with 0.85 quality: ultra-compact (~40KB), crystal-clear contrast
+        let base64Image = "";
+        try {
+          base64Image = offscreen.toDataURL("image/jpeg", 0.85);
+        } catch (_) {
+          base64Image = offscreen.toDataURL("image/png");
+        }
+
         const convMode = forcedMode || inkToTextConfig.mode || "auto";
 
         inkToTextConfig.isProcessing = true;
@@ -4270,9 +4288,25 @@
             })
           });
 
-          const data = await response.json();
-          if (!response.ok || !data.success) {
-            throw new Error(data.error || "Handwriting recognition failed.");
+          const contentType = response.headers.get("content-type") || "";
+          let data = null;
+          if (contentType.includes("application/json")) {
+            data = await response.json();
+          } else {
+            const rawText = await response.text();
+            if (response.status === 404) {
+              throw new Error("API route not found on server (404). Please run 'git pull && npm run build && pm2 restart all' on the AWS EC2 server.");
+            } else if (response.status === 413) {
+              throw new Error("Handwriting image exceeded server payload limit (413). Try writing smaller or shorter segments.");
+            } else if (response.status >= 500) {
+              throw new Error(`Server gateway error (${response.status}). The AWS backend service might be restarting.`);
+            } else {
+              throw new Error(`Server returned HTTP ${response.status} (${response.statusText || 'Non-JSON response'}).`);
+            }
+          }
+
+          if (!response.ok || !data || !data.success) {
+            throw new Error((data && data.error) || "Handwriting recognition failed.");
           }
 
           pushUndo();
