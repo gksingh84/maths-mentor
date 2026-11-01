@@ -1170,11 +1170,16 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
       if (!dataUrl.startsWith('data:') && !dataUrl.startsWith('blob:')) {
         img.crossOrigin = 'anonymous';
       }
-      img.src = dataUrl;
       img.onload = () => {
         // Trigger repaint when image loads
-        drawCurrentPage();
+        requestAnimationFrame(() => {
+          drawCurrentPage();
+        });
       };
+      img.onerror = () => {
+        console.warn('Student whiteboard: image load error for dataUrl');
+      };
+      img.src = dataUrl;
       imageCacheRef.current.set(dataUrl, img);
     }
     return imageCacheRef.current.get(dataUrl)!;
@@ -2208,11 +2213,33 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
   };
 
   const drawStudentGeometricDiagram = (ctx: CanvasRenderingContext2D, shape: any, strokeColor: string, lineWidth: number) => {
-    if ((window as any).EduAshramGeometry && typeof (window as any).EduAshramGeometry.drawGeometricDiagramShape === 'function') {
-      const isDark = (document.documentElement.getAttribute('data-theme') === 'dark') || (shape.isDark ?? false);
-      const shaped = { ...shape, color: strokeColor || shape.color, width: lineWidth || shape.width };
-      (window as any).EduAshramGeometry.drawGeometricDiagramShape(ctx, shaped, isDark);
-      return;
+    const isBoardDark = (pages[viewingPageIndex]?.boardType === 'black' || pages[viewingPageIndex]?.boardType === 'green') ||
+                        (document.documentElement.getAttribute('data-theme') === 'dark') ||
+                        (shape.isDark ?? false);
+    const resolvedGeoType = shape.geoType || shape.advancedType || (shape.type !== 'geometricDiagram' && shape.type !== 'eduAdvancedDiagram' ? shape.type : undefined);
+    const shaped = { ...shape, geoType: resolvedGeoType, color: strokeColor || shape.color, width: lineWidth || shape.width };
+
+    // 1. Check EduAshramAdvancedTools directly (Place Value Charts, 2D/3D Formulas, Master Reference Charts)
+    const advEngine = (window as any).EduAshramAdvancedTools;
+    if (advEngine && typeof advEngine.drawAdvancedEduShape === 'function') {
+      try {
+        if (advEngine.drawAdvancedEduShape(ctx, shaped, isBoardDark)) {
+          return;
+        }
+      } catch (err) {
+        console.warn('Student whiteboard drawAdvancedEduShape note:', err);
+      }
+    }
+
+    // 2. Check EduAshramGeometry (37 NCERT Geometric Diagram Figures)
+    const geoEngine = (window as any).EduAshramGeometry;
+    if (geoEngine && typeof geoEngine.drawGeometricDiagramShape === 'function') {
+      try {
+        geoEngine.drawGeometricDiagramShape(ctx, shaped, isBoardDark);
+        return;
+      } catch (err) {
+        console.warn('Student whiteboard drawGeometricDiagramShape note:', err);
+      }
     }
     const { start, end } = shape;
     if (!start || !end) return;
@@ -2898,10 +2925,104 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
         return;
       }
 
-      if ((type === 'image' || type === 'equation') && (sh.dataUrl || sh.svgDataUrl)) {
+      if (type === 'equation') {
+        const eqDataUrl = sh.dataUrl || sh.svgDataUrl;
+        let drawn = false;
+        if (eqDataUrl) {
+          const img = getCachedImage(eqDataUrl);
+          if (img && img.complete && img.naturalWidth > 0) {
+            ctx.save();
+            if (isDark && (!sh.color || sh.color === '#0f172a' || sh.color === '#000000')) {
+              ctx.filter = 'invert(1) hue-rotate(180deg)';
+            }
+            ctx.drawImage(img, x1, y1, w, h);
+            ctx.restore();
+            drawn = true;
+          }
+        }
+        if (!drawn && sh.latex && (window as any).MathJax?.tex2svg) {
+          try {
+            const node = (window as any).MathJax.tex2svg(sh.latex, { display: true });
+            const svgNode = node ? (node.nodeName?.toLowerCase() === 'svg' ? node : node.querySelector('svg')) : null;
+            if (svgNode) {
+              const svgColor = isDark ? '#ffffff' : (sh.color || '#0f172a');
+              svgNode.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+              svgNode.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+              svgNode.setAttribute('width', String(w));
+              svgNode.setAttribute('height', String(h));
+              svgNode.setAttribute('color', svgColor);
+              const paths = svgNode.querySelectorAll('path');
+              paths.forEach((p: Element) => {
+                if (!p.getAttribute('fill') || p.getAttribute('fill') === 'currentColor') p.setAttribute('fill', svgColor);
+              });
+              const allG = svgNode.querySelectorAll('g');
+              allG.forEach((g: Element) => {
+                if (g.getAttribute('stroke') === 'currentColor') g.setAttribute('stroke', svgColor);
+                if (g.getAttribute('fill') === 'currentColor') g.setAttribute('fill', svgColor);
+              });
+              const xml = new XMLSerializer().serializeToString(svgNode);
+              const generatedUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(xml);
+              sh.dataUrl = generatedUrl;
+              const newImg = getCachedImage(generatedUrl);
+              if (newImg && newImg.complete && newImg.naturalWidth > 0) {
+                ctx.drawImage(newImg, x1, y1, w, h);
+                drawn = true;
+              }
+            }
+          } catch (e) {
+            console.warn('Student whiteboard LaTeX fallback render note:', e);
+          }
+        }
+        if (!drawn && sh.latex) {
+          ctx.save();
+          ctx.fillStyle = isDark ? '#ffffff' : (sh.color || '#0f172a');
+          const fontSize = Math.max(14, Math.min(32, Math.round(h * 0.42)));
+          ctx.font = `italic 600 ${fontSize}px "Plus Jakarta Sans", Cambria, serif`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(sh.latex, cx, cy, w - 10);
+          ctx.restore();
+        }
+        return;
+      }
+
+      if (type === 'image' && (sh.dataUrl || sh.svgDataUrl)) {
         const img = getCachedImage(sh.dataUrl || sh.svgDataUrl);
-        if (img && img.complete) {
+        if (img && img.complete && img.naturalWidth > 0) {
           ctx.drawImage(img, x1, y1, w, h);
+        }
+        if ((sh.name || sh.label) && sh.showName !== false) {
+          const labelText = String(sh.name || sh.label || '').trim();
+          if (labelText) {
+            ctx.save();
+            const fontSize = Math.max(11, Math.min(18, Math.round(Math.min(w, h) * 0.08)));
+            ctx.font = `600 ${fontSize}px "Plus Jakarta Sans", "Segoe UI", sans-serif`;
+            const textMetrics = ctx.measureText(labelText);
+            const textW = textMetrics.width;
+            const padX = Math.round(fontSize * 0.75);
+            const pillH = Math.round(fontSize * 1.75);
+            const pillW = Math.min(w - 10, textW + padX * 2);
+            const pillX = x1 + (w - pillW) / 2;
+            const pillY = (sh.labelPosition === 'below') ? (y1 + h + 6) : (y1 + h - pillH - 6);
+            const pillRadius = Math.round(pillH / 2);
+
+            if (pillW > 20 && pillH > 10) {
+              ctx.fillStyle = 'rgba(15, 23, 42, 0.82)';
+              ctx.beginPath();
+              if (typeof ctx.roundRect === 'function') {
+                ctx.roundRect(pillX, pillY, pillW, pillH, pillRadius);
+              } else {
+                ctx.rect(pillX, pillY, pillW, pillH);
+              }
+              ctx.fill();
+
+              ctx.fillStyle = '#ffffff';
+              ctx.textAlign = 'center';
+              ctx.textBaseline = 'middle';
+              ctx.fillText(labelText, pillX + pillW / 2, pillY + pillH / 2);
+            }
+            ctx.restore();
+          }
         }
         return;
       }
@@ -2994,7 +3115,12 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
         drawStudentVennDiagram(ctx, sh, strokeColor, lineWidth);
       } else if (type === 'fractionModel') {
         drawStudentFractionModel(ctx, sh, strokeColor, lineWidth);
-      } else if (type === 'geometricDiagram' || type === 'eduAdvancedDiagram') {
+      } else if (
+        type === 'geometricDiagram' ||
+        type === 'eduAdvancedDiagram' ||
+        (typeof type === 'string' && (type.startsWith('placeValue') || type.startsWith('formula'))) ||
+        (window as any).EduAshramAdvancedTools?.ADVANCED_PRESETS?.some((p: any) => p.type === type)
+      ) {
         drawStudentGeometricDiagram(ctx, sh, strokeColor, lineWidth);
       } else if (type === '3dSolid') {
         drawStudent3dSolid(ctx, sh, strokeColor, lineWidth);
@@ -3777,7 +3903,13 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
 
     // 1. Draw shapes & charts
     if (page.shapes && Array.isArray(page.shapes)) {
-      page.shapes.forEach((sh: any) => renderShape(sh));
+      page.shapes.forEach((sh: any) => {
+        try {
+          renderShape(sh);
+        } catch (shapeErr) {
+          console.warn('Student whiteboard error rendering shape:', sh?.type, shapeErr);
+        }
+      });
     }
 
     // 2. Draw texts & sticky notes

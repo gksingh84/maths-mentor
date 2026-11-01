@@ -17294,6 +17294,7 @@
 
           const clone = svg.cloneNode(true);
           clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+          clone.setAttribute("xmlns:xlink", "http://www.w3.org/1999/xlink");
           clone.removeAttribute("style");
           clone.setAttribute("width", String(w));
           clone.setAttribute("height", String(h));
@@ -17612,6 +17613,7 @@
           if (currentEditingEquationShape && currentEditingEquationShape.type === "equation") {
             currentEditingEquationShape.latex = latex;
             currentEditingEquationShape.dataUrl = res.dataUrl;
+            currentEditingEquationShape.svgDataUrl = res.dataUrl;
             currentEditingEquationShape.color = res.color;
             currentEditingEquationShape.scale = activeEqScale;
             const origW = Math.abs(currentEditingEquationShape.end.x - currentEditingEquationShape.start.x);
@@ -17625,6 +17627,7 @@
               type: "equation",
               latex: latex,
               dataUrl: res.dataUrl,
+              svgDataUrl: res.dataUrl,
               color: res.color,
               scale: activeEqScale,
               start: { x: cx - w / 2, y: cy - h / 2 },

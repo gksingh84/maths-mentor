@@ -254,6 +254,19 @@
     ctx.closePath();
   }
 
+  function drawParallelArrow(ctx, mx, my, angle, size) {
+    const s = size || 6;
+    ctx.save();
+    ctx.translate(mx, my);
+    ctx.rotate(angle);
+    ctx.beginPath();
+    ctx.moveTo(-s, -s);
+    ctx.lineTo(0, 0);
+    ctx.lineTo(-s, s);
+    ctx.stroke();
+    ctx.restore();
+  }
+
   function drawDoubleArrow(ctx, x1, y1, x2, y2, size) {
     const s = size || 6;
     ctx.beginPath();
