@@ -2755,78 +2755,6 @@
       transform: scale(1.2);
     }
 
-    /* Handwriting Recognition (Ink to Text & Math) Styles */
-    .ink-to-text-card {
-      margin-top: 0.6rem;
-      background: #f0f9ff;
-      border: 1px solid #bae6fd;
-      border-radius: 8px;
-      padding: 0.55rem 0.65rem;
-    }
-    .ink-to-text-card .tool-options-label {
-      margin-top: 0.35rem;
-      margin-bottom: 0.25rem;
-    }
-    .ink-seg-btn {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 0.3rem;
-      cursor: pointer;
-      font-size: 0.74rem;
-      font-weight: 600;
-      border-radius: 6px;
-      padding: 0.35rem 0.5rem;
-      transition: all 0.12s ease;
-      border: 1px solid #cbd5e1;
-      background: #ffffff;
-      color: #475569;
-    }
-    .ink-seg-btn:hover {
-      background: #f8fafc;
-      color: #0f172a;
-    }
-    .ink-seg-btn.active {
-      background: #0284c7 !important;
-      border-color: #0284c7 !important;
-      color: #ffffff !important;
-      box-shadow: 0 1px 3px rgba(2, 132, 199, 0.3);
-    }
-    .floating-ink-toolbar {
-      position: absolute;
-      top: 52px;
-      right: 14px;
-      z-index: 20;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      pointer-events: auto;
-    }
-    .floating-ink-btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      background: linear-gradient(135deg, #0284c7, #2563eb);
-      color: #ffffff;
-      border: 1px solid rgba(255, 255, 255, 0.35);
-      border-radius: 999px;
-      padding: 7px 15px;
-      font-size: 0.8rem;
-      font-weight: 600;
-      box-shadow: 0 4px 14px rgba(2, 132, 199, 0.4);
-      cursor: pointer;
-      transition: all 0.15s ease;
-      user-select: none;
-    }
-    .floating-ink-btn:hover {
-      transform: translateY(-1px);
-      box-shadow: 0 6px 18px rgba(2, 132, 199, 0.5);
-      background: linear-gradient(135deg, #0369a1, #1d4ed8);
-    }
-    .floating-ink-btn:active {
-      transform: translateY(0);
-    }
-
     /* Instant Math Shorthand Panel (Option 1: Zero-API, 0ms Latency) */
     .instant-math-panel {
       background: #f0fdf4;
@@ -3122,14 +3050,6 @@
           <canvas id="boardCanvas"></canvas>
           <div id="textInputAnchor" class="text-input-anchor" aria-hidden="true"></div>
           <div id="videoWidgetsContainer" class="video-widgets-container"></div>
-
-          <!-- Floating Ink-to-Text Quick Convert Button -->
-          <div id="floatingInkToolbar" class="floating-ink-toolbar" style="display: none;">
-            <button type="button" id="floatingInkConvertBtn" class="floating-ink-btn" title="Convert handwriting to digital text or LaTeX math">
-              <span>✨</span>
-              <span>Convert Ink</span>
-            </button>
-          </div>
 
           <!-- Educational Tools: Interactive Ruler Overlay -->
           <div id="eduRulerOverlay" class="edu-ruler-overlay" style="display: none; left: 140px; top: 100px;">
@@ -3581,16 +3501,7 @@
         color: "#0f172a",
         width: 3,
       };
-      const inkToTextConfig = {
-        enabled: false,           // false = Natural handwriting; true = Convert to digital format
-        mode: "auto",             // "auto" | "text" | "math"
-        trigger: "manual",        // "manual" (on demand, 0ms lag, no API call while writing) | "auto" (on pause)
-        pauseMs: 1200,            // pause time (1.2s) before auto-converting if auto trigger selected
-        isProcessing: false,
-      };
-      let inkRecentStrokes = [];
-      let inkAutoConvertTimer = null;
-      let inkToastTimer = null;
+      let wbToastTimer = null;
       const highlighterSettings = {
         color: "#facc15",
         width: 10,
@@ -4126,7 +4037,7 @@
         updateBoardAppearance();
       }
 
-      function showInkToast(msg, type = "info") {
+      function showWhiteboardToast(msg, type = "info") {
         let toast = document.getElementById("whiteboardToast");
         if (!toast) {
           toast = document.createElement("div");
@@ -4145,265 +4056,15 @@
         } else {
           toast.style.background = "#0f172a";
         }
-        if (inkToastTimer) clearTimeout(inkToastTimer);
+        if (wbToastTimer) clearTimeout(wbToastTimer);
         if (type !== "loading") {
-          inkToastTimer = setTimeout(() => {
+          wbToastTimer = setTimeout(() => {
             toast.classList.remove("is-visible");
             toast.style.background = "";
           }, 3200);
         }
       }
-
-      function registerFinishedInkStroke(stroke) {
-        if (!stroke || currentTool !== "pen") return;
-        inkRecentStrokes.push(stroke);
-        const floatToolbar = document.getElementById("floatingInkToolbar");
-        if (floatToolbar) floatToolbar.style.display = "flex";
-        if (inkToTextConfig.enabled && inkToTextConfig.trigger === "auto") {
-          clearTimeout(inkAutoConvertTimer);
-          inkAutoConvertTimer = setTimeout(() => {
-            if (inkToTextConfig.enabled && inkToTextConfig.trigger === "auto" && !inkToTextConfig.isProcessing) {
-              convertInkStrokesToDigital();
-            }
-          }, inkToTextConfig.pauseMs || 1200);
-        }
-      }
-
-      async function convertInkStrokesToDigital(targetStrokes = null, forcedMode = null) {
-        if (inkToTextConfig.isProcessing) return;
-        const page = pages[currentPageIndex];
-        if (!page) return;
-
-        let strokesToConvert = targetStrokes;
-        if (!strokesToConvert || strokesToConvert.length === 0) {
-          if (inkRecentStrokes.length > 0) {
-            const currentStrokeSet = new Set(page.strokes || []);
-            strokesToConvert = inkRecentStrokes.filter(s => currentStrokeSet.has(s));
-          }
-        }
-        if (!strokesToConvert || strokesToConvert.length === 0) {
-          if (page.strokes && page.strokes.length > 0) {
-            strokesToConvert = [page.strokes[page.strokes.length - 1]];
-          }
-        }
-
-        if (!strokesToConvert || strokesToConvert.length === 0) {
-          showInkToast("No handwriting strokes found to convert.", "info");
-          return;
-        }
-
-        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-        let totalPoints = 0;
-        for (const stroke of strokesToConvert) {
-          if (!stroke.points || stroke.points.length === 0) continue;
-          for (const pt of stroke.points) {
-            if (pt.x < minX) minX = pt.x;
-            if (pt.y < minY) minY = pt.y;
-            if (pt.x > maxX) maxX = pt.x;
-            if (pt.y > maxY) maxY = pt.y;
-            totalPoints++;
-          }
-        }
-
-        if (totalPoints < 2 || !isFinite(minX) || !isFinite(minY)) {
-          showInkToast("Ink strokes are too small to recognize.", "info");
-          inkRecentStrokes = [];
-          return;
-        }
-
-        const strokeWidth = maxX - minX;
-        const strokeHeight = maxY - minY;
-        const pad = Math.max(24, Math.min(60, Math.max(strokeWidth, strokeHeight) * 0.12));
-        const rawW = Math.max(160, Math.ceil(strokeWidth + pad * 2));
-        const rawH = Math.max(80, Math.ceil(strokeHeight + pad * 2));
-
-        // Limit maximum dimensions to keep request size tiny (~30-80KB) and prevent Nginx 413
-        const maxDim = 900;
-        let scale = 1;
-        if (Math.max(rawW, rawH) > maxDim) {
-          scale = maxDim / Math.max(rawW, rawH);
-        } else if (Math.max(rawW, rawH) < 450) {
-          scale = Math.min(2, 450 / Math.max(rawW, rawH));
-        }
-
-        const canvasW = Math.round(rawW * scale);
-        const canvasH = Math.round(rawH * scale);
-
-        const offscreen = document.createElement("canvas");
-        offscreen.width = canvasW;
-        offscreen.height = canvasH;
-        const octx = offscreen.getContext("2d");
-        if (!octx) return;
-
-        octx.fillStyle = "#ffffff";
-        octx.fillRect(0, 0, offscreen.width, offscreen.height);
-
-        octx.scale(scale, scale);
-        octx.translate(-minX + pad, -minY + pad);
-        octx.lineCap = "round";
-        octx.lineJoin = "round";
-
-        for (const stroke of strokesToConvert) {
-          const pts = stroke.points;
-          if (!pts || pts.length === 0) continue;
-          octx.beginPath();
-          octx.strokeStyle = "#020617";
-          octx.lineWidth = Math.max(3.5, (stroke.width || 3) * 1.15);
-          if (pts.length === 1) {
-            octx.arc(pts[0].x, pts[0].y, octx.lineWidth / 2, 0, Math.PI * 2);
-            octx.fillStyle = "#020617";
-            octx.fill();
-          } else {
-            octx.moveTo(pts[0].x, pts[0].y);
-            for (let i = 1; i < pts.length; i++) {
-              const midX = (pts[i - 1].x + pts[i].x) / 2;
-              const midY = (pts[i - 1].y + pts[i].y) / 2;
-              octx.quadraticCurveTo(pts[i - 1].x, pts[i - 1].y, midX, midY);
-            }
-            octx.lineTo(pts[pts.length - 1].x, pts[pts.length - 1].y);
-            octx.stroke();
-          }
-        }
-
-        // Export as JPEG with 0.85 quality: ultra-compact (~40KB), crystal-clear contrast
-        let base64Image = "";
-        try {
-          base64Image = offscreen.toDataURL("image/jpeg", 0.85);
-        } catch (_) {
-          base64Image = offscreen.toDataURL("image/png");
-        }
-
-        const convMode = forcedMode || inkToTextConfig.mode || "auto";
-
-        inkToTextConfig.isProcessing = true;
-        showInkToast("✨ Converting handwriting to " + (convMode === "math" ? "Math LaTeX" : convMode === "text" ? "Text" : "digital format") + "...", "loading");
-
-        try {
-          const response = await fetch("/api/whiteboard/recognize-handwriting", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              image: base64Image,
-              mode: convMode
-            })
-          });
-
-          const contentType = response.headers.get("content-type") || "";
-          let data = null;
-          if (contentType.includes("application/json")) {
-            data = await response.json();
-          } else {
-            const rawText = await response.text();
-            if (response.status === 404) {
-              throw new Error("API route not found on server (404). Please run 'git pull && npm run build && pm2 restart all' on the AWS EC2 server.");
-            } else if (response.status === 413) {
-              throw new Error("Handwriting image exceeded server payload limit (413). Try writing smaller or shorter segments.");
-            } else if (response.status >= 500) {
-              throw new Error(`Server gateway error (${response.status}). The AWS backend service might be restarting.`);
-            } else {
-              throw new Error(`Server returned HTTP ${response.status} (${response.statusText || 'Non-JSON response'}).`);
-            }
-          }
-
-          if (!response.ok || !data || !data.success) {
-            throw new Error((data && data.error) || "Handwriting recognition failed.");
-          }
-
-          pushUndo();
-
-          const convertedStrokeSet = new Set(strokesToConvert);
-          page.strokes = (page.strokes || []).filter(s => !convertedStrokeSet.has(s));
-          inkRecentStrokes = inkRecentStrokes.filter(s => !convertedStrokeSet.has(s));
-
-          const strokeColor = (strokesToConvert[0] && strokesToConvert[0].color) || penSettings.color || "#0f172a";
-
-          if (data.type === "math" && data.latex) {
-            let svgRes = null;
-            if (typeof convertLatexToSvgDataUrl === "function") {
-              svgRes = convertLatexToSvgDataUrl(data.latex, strokeColor);
-            }
-
-            if (svgRes && svgRes.dataUrl) {
-              if (!page.shapes) page.shapes = [];
-              const targetW = Math.max(strokeWidth, Math.round(svgRes.width * 1.15));
-              const targetH = Math.max(strokeHeight, Math.round(svgRes.height * 1.15));
-              const eqShape = {
-                id: generateId(),
-                type: "equation",
-                latex: data.latex,
-                dataUrl: svgRes.dataUrl,
-                svgDataUrl: svgRes.dataUrl,
-                color: strokeColor,
-                scale: 1.15,
-                start: { x: minX, y: minY },
-                end: { x: minX + targetW, y: minY + targetH },
-                createdAt: Date.now()
-              };
-              page.shapes.push(eqShape);
-              getCachedImage(svgRes.dataUrl);
-
-              const preview = data.latex.length > 28 ? data.latex.substring(0, 25) + "..." : data.latex;
-              showInkToast("✓ Math Equation: " + preview, "success");
-            } else {
-              if (!page.texts) page.texts = [];
-              page.texts.push({
-                id: generateId(),
-                x: minX,
-                y: minY,
-                text: data.text || data.latex,
-                color: strokeColor,
-                fontSize: Math.max(20, Math.min(60, Math.round(strokeHeight * 0.85))),
-                fontFamily: "Arial",
-                bold: false,
-                italic: false,
-                underline: false,
-                subscript: false,
-                superscript: false,
-                strikethrough: false
-              });
-              showInkToast("✓ Converted: " + (data.text || data.latex), "success");
-            }
-          } else {
-            if (!page.texts) page.texts = [];
-            const textLines = (data.text || "").split("\n");
-            const lineCount = Math.max(1, textLines.length);
-            const estFontSize = Math.max(18, Math.min(64, Math.round((strokeHeight / lineCount) * 0.85)));
-
-            page.texts.push({
-              id: generateId(),
-              x: minX,
-              y: minY,
-              text: data.text || "",
-              color: strokeColor,
-              fontSize: estFontSize,
-              fontFamily: (typeof textSettings !== "undefined" && textSettings.fontFamily) || "Arial",
-              bold: false,
-              italic: false,
-              underline: false,
-              subscript: false,
-              superscript: false,
-              strikethrough: false
-            });
-            const preview = (data.text || "").length > 25 ? (data.text || "").substring(0, 22) + "..." : (data.text || "");
-            showInkToast("✓ Digital Text: \"" + preview + "\"", "success");
-          }
-
-          updateBoardAppearance();
-          notifyParentPageUpdate(currentPageIndex, true);
-          scheduleNotifyParentPages(100);
-        } catch (err) {
-          console.warn("Ink recognition error:", err);
-          showInkToast("Recognition error: " + (err.message || "Failed to convert handwriting"), "error");
-        } finally {
-          inkToTextConfig.isProcessing = false;
-          const floatToolbar = document.getElementById("floatingInkToolbar");
-          if (floatToolbar) {
-            const hasInk = (page && page.strokes && page.strokes.length > 0) || inkRecentStrokes.length > 0;
-            floatToolbar.style.display = (currentTool === "pen" && hasInk) ? "flex" : "none";
-          }
-        }
-      }
-      window.convertInkStrokesToDigital = convertInkStrokesToDigital;
+      const showInkToast = showWhiteboardToast;
 
       // Option 1: Instant Math Shorthand Parser (Zero API, 0ms Latency)
       function parseMathShorthandToLatex(raw) {
@@ -5044,13 +4705,6 @@
           renderBoardVideoWidgets();
         } else if (typeof window !== "undefined" && typeof window.renderBoardVideoWidgets === "function") {
           window.renderBoardVideoWidgets();
-        }
-
-        // 5) Update floating handwriting conversion button visibility
-        const floatToolbar = document.getElementById("floatingInkToolbar");
-        if (floatToolbar) {
-          const hasInk = (page && page.strokes && page.strokes.length > 0) || inkRecentStrokes.length > 0;
-          floatToolbar.style.display = (currentTool === "pen" && hasInk) ? "flex" : "none";
         }
       }
       window.updateBoardAppearance = updateBoardAppearance;
@@ -8565,16 +8219,6 @@
           btn.classList.toggle("tool-button--active", isActive);
         });
 
-        if (tool !== "pen") {
-          clearTimeout(inkAutoConvertTimer);
-        }
-        const floatToolbar = document.getElementById("floatingInkToolbar");
-        if (floatToolbar) {
-          const page = pages[currentPageIndex];
-          const hasInk = (page && page.strokes && page.strokes.length > 0) || inkRecentStrokes.length > 0;
-          floatToolbar.style.display = (tool === "pen" && hasInk) ? "flex" : "none";
-        }
-
         if (!propertiesContent) return;
         propertiesContent.innerHTML = "";
 
@@ -8837,27 +8481,6 @@
           actionsRow.style.flexWrap = "wrap";
           actionsRow.style.gap = "0.35rem";
           actionsRow.style.alignItems = "center";
-
-          const selPage = pages[currentPageIndex];
-          if (selPage && selPage.strokes && selPage.strokes.length > 0) {
-            const convInkBtn = document.createElement("button");
-            convInkBtn.type = "button";
-            convInkBtn.innerHTML = "✨ Convert Ink (" + selPage.strokes.length + ")";
-            convInkBtn.title = "Convert whiteboard handwriting strokes to digital text or math";
-            convInkBtn.style.padding = "0.35rem 0.75rem";
-            convInkBtn.style.minHeight = "32px";
-            convInkBtn.style.borderRadius = "999px";
-            convInkBtn.style.border = "1px solid #c084fc";
-            convInkBtn.style.backgroundColor = "#faf5ff";
-            convInkBtn.style.color = "#7e22ce";
-            convInkBtn.style.fontSize = "0.8rem";
-            convInkBtn.style.fontWeight = "600";
-            convInkBtn.style.cursor = "pointer";
-            convInkBtn.addEventListener("click", () => {
-              convertInkStrokesToDigital(selPage.strokes);
-            });
-            actionsRow.appendChild(convInkBtn);
-          }
 
           if (selectedShapes.length === 1 && selectedShapes[0].type === "equation") {
             const editEqBtn = document.createElement("button");
@@ -9944,41 +9567,8 @@
           p.textContent = "Click a shape to select. Shift+click to add or remove from selection. Drag on empty area to select multiple with a box.";
           wrap.appendChild(p);
 
-          const emptyPage = pages[currentPageIndex];
-          if (emptyPage && emptyPage.strokes && emptyPage.strokes.length > 0) {
-            const inkCard = document.createElement("div");
-            inkCard.style.marginTop = "0.6rem";
-            inkCard.style.padding = "0.55rem 0.65rem";
-            inkCard.style.background = "#faf5ff";
-            inkCard.style.border = "1px solid #e9d5ff";
-            inkCard.style.borderRadius = "8px";
-
-            const inkTitle = document.createElement("div");
-            inkTitle.style.fontSize = "0.75rem";
-            inkTitle.style.fontWeight = "700";
-            inkTitle.style.color = "#7e22ce";
-            inkTitle.style.marginBottom = "0.35rem";
-            inkTitle.textContent = "✨ Handwriting on page (" + emptyPage.strokes.length + " strokes)";
-            inkCard.appendChild(inkTitle);
-
-            const convBtn = document.createElement("button");
-            convBtn.type = "button";
-            convBtn.innerHTML = "✨ Convert All Page Ink to Text / Math";
-            convBtn.style.width = "100%";
-            convBtn.style.padding = "0.45rem 0.6rem";
-            convBtn.style.fontSize = "0.78rem";
-            convBtn.style.fontWeight = "600";
-            convBtn.style.borderRadius = "6px";
-            convBtn.style.border = "none";
-            convBtn.style.background = "linear-gradient(135deg, #9333ea, #7e22ce)";
-            convBtn.style.color = "#ffffff";
-            convBtn.style.cursor = "pointer";
-            convBtn.addEventListener("click", () => {
-              convertInkStrokesToDigital(emptyPage.strokes);
-            });
-            inkCard.appendChild(convBtn);
-            wrap.appendChild(inkCard);
-          }
+          propertiesContent.appendChild(wrap);
+          return;
         }
         propertiesContent.appendChild(wrap);
       }
@@ -10855,204 +10445,6 @@
 
         group.appendChild(widthLabel);
         group.appendChild(slider);
-
-        if (!isHighlighter) {
-          const hwCard = document.createElement("div");
-          hwCard.className = "ink-to-text-card";
-
-          const hwHeader = document.createElement("div");
-          hwHeader.style.display = "flex";
-          hwHeader.style.alignItems = "center";
-          hwHeader.style.justifyContent = "space-between";
-          hwHeader.style.marginBottom = "0.45rem";
-
-          const hwTitle = document.createElement("span");
-          hwTitle.style.fontSize = "0.74rem";
-          hwTitle.style.fontWeight = "700";
-          hwTitle.style.color = "#0369a1";
-          hwTitle.style.textTransform = "uppercase";
-          hwTitle.style.letterSpacing = "0.04em";
-          hwTitle.textContent = "Handwriting Recognition";
-
-          const hwBadge = document.createElement("span");
-          hwBadge.style.fontSize = "0.65rem";
-          hwBadge.style.fontWeight = "700";
-          hwBadge.style.padding = "0.15rem 0.45rem";
-          hwBadge.style.borderRadius = "999px";
-          hwBadge.style.background = "#e0f2fe";
-          hwBadge.style.color = "#0284c7";
-          hwBadge.textContent = "AI OCR";
-
-          hwHeader.appendChild(hwTitle);
-          hwHeader.appendChild(hwBadge);
-          hwCard.appendChild(hwHeader);
-
-          // 1. Primary Mode Segmented: Natural Ink vs Convert
-          const modeRow = document.createElement("div");
-          modeRow.style.display = "flex";
-          modeRow.style.gap = "0.3rem";
-          modeRow.style.marginBottom = "0.5rem";
-
-          const naturalBtn = document.createElement("button");
-          naturalBtn.type = "button";
-          naturalBtn.className = "ink-seg-btn" + (!inkToTextConfig.enabled ? " active" : "");
-          naturalBtn.innerHTML = "✍️ Natural Ink";
-          naturalBtn.style.flex = "1";
-
-          const convertBtn = document.createElement("button");
-          convertBtn.type = "button";
-          convertBtn.className = "ink-seg-btn" + (inkToTextConfig.enabled ? " active" : "");
-          convertBtn.innerHTML = "✨ Convert to Keyboard";
-          convertBtn.style.flex = "1";
-
-          naturalBtn.addEventListener("click", () => {
-            inkToTextConfig.enabled = false;
-            naturalBtn.classList.add("active");
-            convertBtn.classList.remove("active");
-            subOptions.style.display = "none";
-            showInkToast("Natural handwriting mode active.", "info");
-          });
-
-          convertBtn.addEventListener("click", () => {
-            inkToTextConfig.enabled = true;
-            convertBtn.classList.add("active");
-            naturalBtn.classList.remove("active");
-            subOptions.style.display = "block";
-            showInkToast("Handwriting conversion mode active.", "info");
-          });
-
-          modeRow.appendChild(naturalBtn);
-          modeRow.appendChild(convertBtn);
-          hwCard.appendChild(modeRow);
-
-          // Sub-options container
-          const subOptions = document.createElement("div");
-          subOptions.style.display = inkToTextConfig.enabled ? "block" : "none";
-
-          // Format selector: Auto-detect / Plain Text / Math LaTeX
-          const formatLabel = document.createElement("span");
-          formatLabel.className = "tool-options-label";
-          formatLabel.textContent = "Conversion Format";
-          subOptions.appendChild(formatLabel);
-
-          const formatRow = document.createElement("div");
-          formatRow.style.display = "flex";
-          formatRow.style.gap = "0.25rem";
-          formatRow.style.marginBottom = "0.45rem";
-
-          const formats = [
-            { id: "auto", label: "⚡ Auto" },
-            { id: "text", label: "🔤 Text" },
-            { id: "math", label: "📐 Math" }
-          ];
-
-          formats.forEach(f => {
-            const fBtn = document.createElement("button");
-            fBtn.type = "button";
-            const isActive = inkToTextConfig.mode === f.id;
-            fBtn.className = "ink-seg-btn" + (isActive ? " active" : "");
-            fBtn.style.flex = "1";
-            fBtn.style.fontSize = "0.72rem";
-            fBtn.style.padding = "0.3rem 0.2rem";
-            fBtn.textContent = f.label;
-            fBtn.addEventListener("click", () => {
-              inkToTextConfig.mode = f.id;
-              formatRow.querySelectorAll(".ink-seg-btn").forEach(b => b.classList.remove("active"));
-              fBtn.classList.add("active");
-            });
-            formatRow.appendChild(fBtn);
-          });
-          subOptions.appendChild(formatRow);
-
-          // Trigger selector: Auto on pause vs Manual
-          const triggerLabel = document.createElement("span");
-          triggerLabel.className = "tool-options-label";
-          triggerLabel.textContent = "Trigger Method";
-          subOptions.appendChild(triggerLabel);
-
-          const triggerRow = document.createElement("div");
-          triggerRow.style.display = "flex";
-          triggerRow.style.gap = "0.25rem";
-          triggerRow.style.marginBottom = "0.55rem";
-
-          const triggers = [
-            { id: "manual", label: "👆 On-Demand (0ms Lag)" },
-            { id: "auto", label: "⏱️ Auto Pause" }
-          ];
-
-          triggers.forEach(t => {
-            const tBtn = document.createElement("button");
-            tBtn.type = "button";
-            const isActive = inkToTextConfig.trigger === t.id;
-            tBtn.className = "ink-seg-btn" + (isActive ? " active" : "");
-            tBtn.style.flex = "1";
-            tBtn.style.fontSize = "0.72rem";
-            tBtn.style.padding = "0.3rem 0.2rem";
-            tBtn.textContent = t.label;
-            tBtn.addEventListener("click", () => {
-              inkToTextConfig.trigger = t.id;
-              triggerRow.querySelectorAll(".ink-seg-btn").forEach(b => b.classList.remove("active"));
-              tBtn.classList.add("active");
-              zeroLagTip.style.display = t.id === "manual" ? "block" : "none";
-            });
-            triggerRow.appendChild(tBtn);
-          });
-          subOptions.appendChild(triggerRow);
-
-          const zeroLagTip = document.createElement("div");
-          zeroLagTip.style.fontSize = "0.71rem";
-          zeroLagTip.style.color = "#0369a1";
-          zeroLagTip.style.background = "#e0f2fe";
-          zeroLagTip.style.borderRadius = "6px";
-          zeroLagTip.style.padding = "0.35rem 0.5rem";
-          zeroLagTip.style.marginBottom = "0.55rem";
-          zeroLagTip.style.lineHeight = "1.35";
-          zeroLagTip.style.display = inkToTextConfig.trigger === "manual" ? "block" : "none";
-          zeroLagTip.innerHTML = "⚡ <b>Zero-Lag Active:</b> Write freely at full speed. When finished, tap <b>Convert Recent Ink Now</b>.";
-          subOptions.appendChild(zeroLagTip);
-
-          hwCard.appendChild(subOptions);
-
-          // Convert Now Button
-          const convertNowBtn = document.createElement("button");
-          convertNowBtn.type = "button";
-          convertNowBtn.innerHTML = "✨ Convert Recent Ink Now";
-          convertNowBtn.style.width = "100%";
-          convertNowBtn.style.padding = "0.45rem 0.6rem";
-          convertNowBtn.style.fontSize = "0.78rem";
-          convertNowBtn.style.fontWeight = "600";
-          convertNowBtn.style.borderRadius = "6px";
-          convertNowBtn.style.border = "none";
-          convertNowBtn.style.background = "linear-gradient(135deg, #0284c7, #2563eb)";
-          convertNowBtn.style.color = "#ffffff";
-          convertNowBtn.style.cursor = "pointer";
-          convertNowBtn.style.boxShadow = "0 2px 6px rgba(2, 132, 199, 0.3)";
-          convertNowBtn.addEventListener("click", () => {
-            convertInkStrokesToDigital();
-          });
-          hwCard.appendChild(convertNowBtn);
-
-          // Fast Switch to Instant Math
-          const switchMathBtn = document.createElement("button");
-          switchMathBtn.type = "button";
-          switchMathBtn.innerHTML = "⌨️ Instant Math Shorthand (0ms)";
-          switchMathBtn.style.width = "100%";
-          switchMathBtn.style.padding = "0.4rem 0.6rem";
-          switchMathBtn.style.marginTop = "0.45rem";
-          switchMathBtn.style.fontSize = "0.75rem";
-          switchMathBtn.style.fontWeight = "600";
-          switchMathBtn.style.borderRadius = "6px";
-          switchMathBtn.style.border = "1px solid #bbf7d0";
-          switchMathBtn.style.background = "#f0fdf4";
-          switchMathBtn.style.color = "#15803d";
-          switchMathBtn.style.cursor = "pointer";
-          switchMathBtn.addEventListener("click", () => {
-            handleToolSelection("math");
-          });
-          hwCard.appendChild(switchMathBtn);
-
-          group.appendChild(hwCard);
-        }
 
         if (!isHighlighter) {
           const imageLabel = document.createElement("span");
@@ -14210,7 +13602,6 @@
         isDrawing = false;
         activeStroke = null;
         activeShape = null;
-        inkRecentStrokes = [];
 
         if (pagesStrip) {
           const buttons = pagesStrip.querySelectorAll(".page-thumbnail");
@@ -15792,11 +15183,9 @@
         dragWidgetOriginals = null;
         dragTextOriginals = null;
         if (activeStroke && activeStroke.points && activeStroke.points.length >= 1) {
-          const finishedStroke = activeStroke;
           finishActiveStroke(activeStroke);
           notifyParentStroke(activeStroke);
-          registerFinishedInkStroke(finishedStroke);
-          const finishedPts = finishedStroke.points;
+          const finishedPts = activeStroke.points;
           activeStroke = null;
           activeShape = null;
           if (finishedPts && finishedPts.length > 0) {
@@ -15814,7 +15203,6 @@
         }
         activeStroke = null;
         activeShape = null;
-        inkRecentStrokes = [];
         updateBoardAppearance();
       }
 
@@ -15913,11 +15301,9 @@
               pts.push(endPt);
             }
           }
-          const finishedStroke = activeStroke;
           finishActiveStroke(activeStroke);
           notifyParentStroke(activeStroke);
-          registerFinishedInkStroke(finishedStroke);
-          const finishedPts = finishedStroke.points;
+          const finishedPts = activeStroke.points;
           activeStroke = null;
           activeShape = null;
 
@@ -15938,7 +15324,6 @@
         }
         activeStroke = null;
         activeShape = null;
-        inkRecentStrokes = [];
         updateBoardAppearance();
       }
 
@@ -18250,10 +17635,8 @@
           }
           // Safety fallback: If touch ended but pointerup was suppressed on tablet, finalize and emit stroke
           if (e.touches.length === 0 && isDrawing && activeStroke && activeStroke.points && activeStroke.points.length >= 1) {
-            const finishedStroke = activeStroke;
             finishActiveStroke(activeStroke);
             notifyParentStroke(activeStroke);
-            registerFinishedInkStroke(finishedStroke);
             activeStroke = null;
             activeShape = null;
             isDrawing = false;
@@ -23228,14 +22611,6 @@
       }
 
       setupEduToolsListeners();
-
-      // Initialize floating ink convert button listener
-      const floatingInkBtn = document.getElementById("floatingInkConvertBtn");
-      if (floatingInkBtn) {
-        floatingInkBtn.addEventListener("click", () => {
-          convertInkStrokesToDigital();
-        });
-      }
 
       setInterval(() => {
         const page = pages[currentPageIndex];
