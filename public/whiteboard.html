@@ -3557,6 +3557,8 @@
         lineDash: []
       };
       let activeConnectorDraft = null;
+      let connectorDragMode = null;
+      let activeDragConnector = null;
       let isDraggingConnectorBend = false;
       let activeBendConnector = null;
       let hoveredShapePort = null;
@@ -7590,30 +7592,40 @@
         ctx.save();
         ctx.setLineDash([]);
 
-        // Start handle (Green anchor)
+        // 1. Start handle (Green anchor with inner dot) - drag to move/re-anchor start point
         ctx.beginPath();
         ctx.fillStyle = "#10b981";
         ctx.strokeStyle = "#ffffff";
-        ctx.lineWidth = 2;
-        ctx.arc(shape.start.x, shape.start.y, 6, 0, Math.PI * 2);
+        ctx.lineWidth = 2.5;
+        ctx.arc(shape.start.x, shape.start.y, 7, 0, Math.PI * 2);
         ctx.fill();
         ctx.stroke();
 
-        // End handle (Blue anchor)
+        ctx.beginPath();
+        ctx.fillStyle = "#ffffff";
+        ctx.arc(shape.start.x, shape.start.y, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+
+        // 2. End handle (Blue anchor with inner dot) - drag to move/re-anchor arrow tip
         ctx.beginPath();
         ctx.fillStyle = "#0284c7";
         ctx.strokeStyle = "#ffffff";
-        ctx.lineWidth = 2;
-        ctx.arc(shape.end.x, shape.end.y, 6, 0, Math.PI * 2);
+        ctx.lineWidth = 2.5;
+        ctx.arc(shape.end.x, shape.end.y, 7, 0, Math.PI * 2);
         ctx.fill();
         ctx.stroke();
 
-        // Bend handle (Amber diamond) - user drags this to adjust/flex the arrow's bend!
-        const bSize = 7;
+        ctx.beginPath();
+        ctx.fillStyle = "#ffffff";
+        ctx.arc(shape.end.x, shape.end.y, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+
+        // 3. Mid / Bend handle (Amber diamond) - drag to adjust/flex the line bend
+        const bSize = 8;
         ctx.beginPath();
         ctx.fillStyle = "#f59e0b";
         ctx.strokeStyle = "#ffffff";
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 2.5;
         ctx.moveTo(midPoint.x, midPoint.y - bSize);
         ctx.lineTo(midPoint.x + bSize, midPoint.y);
         ctx.lineTo(midPoint.x, midPoint.y + bSize);
@@ -7623,12 +7635,12 @@
         ctx.stroke();
 
         // Save handle positions for pointer hit testing
-        shape._connectorStartHandle = { x: shape.start.x, y: shape.start.y, r: 8 };
-        shape._connectorEndHandle = { x: shape.end.x, y: shape.end.y, r: 8 };
-        shape._connectorBendHandle = { x: midPoint.x, y: midPoint.y, r: 10 };
+        shape._connectorStartHandle = { x: shape.start.x, y: shape.start.y, r: 12 };
+        shape._connectorEndHandle = { x: shape.end.x, y: shape.end.y, r: 12 };
+        shape._connectorBendHandle = { x: midPoint.x, y: midPoint.y, r: 14 };
 
         // Duplicate and Delete mini-buttons near midpoint
-        const btnY = midPoint.y - 28;
+        const btnY = midPoint.y - 30;
         const btnX = midPoint.x + 10;
         const btnSize = 14;
 
@@ -7667,7 +7679,7 @@
         ctx.moveTo(delX + 3.5, btnY + 3.5);
         ctx.lineTo(delX + btnSize - 3.5, btnY + btnSize - 3.5);
         ctx.moveTo(delX + btnSize - 3.5, btnY + 3.5);
-        ctx.lineTo(delX + 3.5, btnY + btnSize - 3.5);
+        ctx.lineTo(delX + 3.5, btnY + 3.5);
         ctx.stroke();
         shape._deleteHandle = { x: delX, y: btnY, w: btnSize, h: btnSize };
 
@@ -10307,6 +10319,75 @@
               rRow.appendChild(b);
             });
             connCard.appendChild(rRow);
+
+            // Flow & Endpoint Controls
+            const epLabel = document.createElement("label");
+            epLabel.style.fontSize = "0.72rem";
+            epLabel.style.color = "#64748b";
+            epLabel.textContent = "Endpoints & Flow:";
+            connCard.appendChild(epLabel);
+
+            const epRow = document.createElement("div");
+            epRow.style.display = "grid";
+            epRow.style.gridTemplateColumns = "1fr 1fr";
+            epRow.style.gap = "4px";
+            epRow.style.marginTop = "3px";
+            epRow.style.marginBottom = "6px";
+
+            // Flip / Reverse direction
+            const flipBtn = document.createElement("button");
+            flipBtn.type = "button";
+            flipBtn.style.padding = "0.3rem 0.4rem";
+            flipBtn.style.borderRadius = "6px";
+            flipBtn.style.fontSize = "0.72rem";
+            flipBtn.style.border = "1px solid #cbd5e1";
+            flipBtn.style.backgroundColor = "#ffffff";
+            flipBtn.style.color = "#334155";
+            flipBtn.style.cursor = "pointer";
+            flipBtn.innerHTML = "🔄 <b>Flip Flow</b>";
+            flipBtn.title = "Reverse the start and end of this connector";
+            flipBtn.addEventListener("click", () => {
+              pushUndo();
+              const tmpPt = conn.start;
+              conn.start = conn.end;
+              conn.end = tmpPt;
+              const tmpId = conn.startShapeId;
+              conn.startShapeId = conn.endShapeId;
+              conn.endShapeId = tmpId;
+              const tmpP = conn.startPort;
+              conn.startPort = conn.endPort;
+              conn.endPort = tmpP;
+              conn.controlPoint = null;
+              updateAttachedConnectors(pages[currentPageIndex]);
+              updateBoardAppearance();
+              notifyParentPageUpdate(currentPageIndex, true);
+              renderSelectOptions();
+            });
+            epRow.appendChild(flipBtn);
+
+            // Reset Mid Bend
+            const resetBendBtn = document.createElement("button");
+            resetBendBtn.type = "button";
+            resetBendBtn.style.padding = "0.3rem 0.4rem";
+            resetBendBtn.style.borderRadius = "6px";
+            resetBendBtn.style.fontSize = "0.72rem";
+            resetBendBtn.style.border = "1px solid #cbd5e1";
+            resetBendBtn.style.backgroundColor = "#ffffff";
+            resetBendBtn.style.color = "#334155";
+            resetBendBtn.style.cursor = "pointer";
+            resetBendBtn.innerHTML = "⮌ <b>Reset Bend</b>";
+            resetBendBtn.title = "Reset custom bend point back to default alignment";
+            resetBendBtn.addEventListener("click", () => {
+              pushUndo();
+              conn.controlPoint = null;
+              conn.bendOffset = 0;
+              updateAttachedConnectors(pages[currentPageIndex]);
+              updateBoardAppearance();
+              notifyParentPageUpdate(currentPageIndex, true);
+              renderSelectOptions();
+            });
+            epRow.appendChild(resetBendBtn);
+            connCard.appendChild(epRow);
 
             actionsRow.appendChild(connCard);
           }
@@ -16640,19 +16721,13 @@
         } else if (currentTool === "select") {
           const point = getCanvasPoint(evt);
 
-          // check connector bend or anchor handles
+          // check connector start, mid, or end handles
           for (const s of selectedShapes) {
             if (s.type === "connector") {
-              const bh = s._connectorBendHandle;
-              if (bh && Math.hypot(point.x - bh.x, point.y - bh.y) <= 16) {
-                isDraggingConnectorBend = true;
-                activeBendConnector = s;
-                isDrawing = true;
-                pushUndo();
-                return;
-              }
               const sh = s._connectorStartHandle;
-              if (sh && Math.hypot(point.x - sh.x, point.y - sh.y) <= 14) {
+              if (sh && Math.hypot(point.x - sh.x, point.y - sh.y) <= 16) {
+                connectorDragMode = "start";
+                activeDragConnector = s;
                 isDraggingConnectorBend = true;
                 activeBendConnector = s;
                 isDrawing = true;
@@ -16660,7 +16735,19 @@
                 return;
               }
               const eh = s._connectorEndHandle;
-              if (eh && Math.hypot(point.x - eh.x, point.y - eh.y) <= 14) {
+              if (eh && Math.hypot(point.x - eh.x, point.y - eh.y) <= 16) {
+                connectorDragMode = "end";
+                activeDragConnector = s;
+                isDraggingConnectorBend = true;
+                activeBendConnector = s;
+                isDrawing = true;
+                pushUndo();
+                return;
+              }
+              const bh = s._connectorBendHandle;
+              if (bh && Math.hypot(point.x - bh.x, point.y - bh.y) <= 16) {
+                connectorDragMode = "mid";
+                activeDragConnector = s;
                 isDraggingConnectorBend = true;
                 activeBendConnector = s;
                 isDrawing = true;
@@ -16668,6 +16755,8 @@
                 return;
               }
               if (distToConnector(point, s) <= 12) {
+                connectorDragMode = "mid";
+                activeDragConnector = s;
                 isDraggingConnectorBend = true;
                 activeBendConnector = s;
                 isDrawing = true;
@@ -17017,6 +17106,61 @@
       function handlePointerMove(evt) {
         if (activeDrawingPointerId !== null && evt.pointerId !== activeDrawingPointerId) return;
 
+        if (connectorDragMode && activeDragConnector) {
+          const point = getCanvasPoint(evt);
+          const page = pages[currentPageIndex];
+          hoveredShapePort = null;
+
+          if (connectorDragMode === "start") {
+            activeDragConnector.start = { x: point.x, y: point.y };
+            if (page && page.shapes) {
+              for (let i = page.shapes.length - 1; i >= 0; i--) {
+                const s = page.shapes[i];
+                if (s.id === activeDragConnector.endShapeId || s.type === "connector") continue;
+                const ports = getShapePorts(s);
+                const p = getClosestPortToPoint(ports, point);
+                if (p && p.dist <= 26) {
+                  activeDragConnector.start = { x: p.x, y: p.y };
+                  activeDragConnector.startShapeId = s.id;
+                  activeDragConnector.startPort = p.name;
+                  hoveredShapePort = { shapeId: s.id, portName: p.name };
+                  break;
+                } else {
+                  activeDragConnector.startShapeId = null;
+                  activeDragConnector.startPort = null;
+                }
+              }
+            }
+          } else if (connectorDragMode === "end") {
+            activeDragConnector.end = { x: point.x, y: point.y };
+            if (page && page.shapes) {
+              for (let i = page.shapes.length - 1; i >= 0; i--) {
+                const s = page.shapes[i];
+                if (s.id === activeDragConnector.startShapeId || s.type === "connector") continue;
+                const ports = getShapePorts(s);
+                const p = getClosestPortToPoint(ports, point);
+                if (p && p.dist <= 26) {
+                  activeDragConnector.end = { x: p.x, y: p.y };
+                  activeDragConnector.endShapeId = s.id;
+                  activeDragConnector.endPort = p.name;
+                  hoveredShapePort = { shapeId: s.id, portName: p.name };
+                  break;
+                } else {
+                  activeDragConnector.endShapeId = null;
+                  activeDragConnector.endPort = null;
+                }
+              }
+            }
+          } else if (connectorDragMode === "mid") {
+            activeDragConnector.controlPoint = { x: point.x, y: point.y };
+            activeDragConnector.bendOffset = 0;
+            updateAttachedConnectors(page);
+          }
+
+          updateBoardAppearance();
+          return;
+        }
+
         if (isDraggingConnectorBend && activeBendConnector) {
           const point = getCanvasPoint(evt);
           activeBendConnector.controlPoint = { x: point.x, y: point.y };
@@ -17065,6 +17209,24 @@
         }
         if (!isDrawing) {
           if (currentTool === "select" && selectedShapes && selectedShapes.length === 1 && boardCanvas) {
+            const curSh = selectedShapes[0];
+            if (curSh && curSh.type === "connector") {
+              const pt = getCanvasPoint(evt);
+              let matched = "";
+              if (curSh._connectorStartHandle && Math.hypot(pt.x - curSh._connectorStartHandle.x, pt.y - curSh._connectorStartHandle.y) <= 12) {
+                matched = "crosshair";
+              } else if (curSh._connectorEndHandle && Math.hypot(pt.x - curSh._connectorEndHandle.x, pt.y - curSh._connectorEndHandle.y) <= 12) {
+                matched = "crosshair";
+              } else if (curSh._connectorBendHandle && Math.hypot(pt.x - curSh._connectorBendHandle.x, pt.y - curSh._connectorBendHandle.y) <= 14) {
+                matched = "grab";
+              } else if (distToConnector(pt, curSh) <= 10) {
+                matched = "pointer";
+              }
+              if (matched) {
+                boardCanvas.style.cursor = matched;
+                return;
+              }
+            }
             const sh = selectedShapes[0];
             if (sh && !sh.locked && sh._resizeHandles && Array.isArray(sh._resizeHandles)) {
               const pt = getCanvasPoint(evt);
@@ -17484,10 +17646,25 @@
           notifyParentPageUpdate(currentPageIndex, true);
           return;
         }
-        if (isDraggingConnectorBend) {
+        if (connectorDragMode && activeDragConnector) {
+          connectorDragMode = null;
+          activeDragConnector = null;
           isDraggingConnectorBend = false;
           activeBendConnector = null;
           isDrawing = false;
+          hoveredShapePort = null;
+          updateAttachedConnectors(pages[currentPageIndex]);
+          notifyParentPageUpdate(currentPageIndex, true);
+          updateBoardAppearance();
+          return;
+        }
+        if (isDraggingConnectorBend) {
+          connectorDragMode = null;
+          activeDragConnector = null;
+          isDraggingConnectorBend = false;
+          activeBendConnector = null;
+          isDrawing = false;
+          hoveredShapePort = null;
           updateAttachedConnectors(pages[currentPageIndex]);
           notifyParentPageUpdate(currentPageIndex, true);
           updateBoardAppearance();
