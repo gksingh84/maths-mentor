@@ -1801,7 +1801,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
   };
 
   // --- Educational Diagram Renderers (Phase 4B) ---
-  const drawStudentNumberLine = (ctx: CanvasRenderingContext2D, shape: any, strokeColor: string, lineWidth: number) => {
+  const drawStudentNumberLine = (ctx: CanvasRenderingContext2D, shape: any, strokeColor: string, lineWidth: number, isDark = false) => {
     const { start, end } = shape;
     if (!start || !end) return;
     const x1 = Math.min(start.x, end.x);
@@ -1810,7 +1810,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
     const y2 = Math.max(start.y, end.y);
     const cy = (y1 + y2) / 2;
     const w = x2 - x1 || 300;
-    const color = strokeColor || shape.color || '#0f172a';
+    const color = (isDark && (!strokeColor || strokeColor === '#0f172a' || strokeColor === '#000000')) ? '#ffffff' : (strokeColor || shape.color || (isDark ? '#ffffff' : '#0f172a'));
 
     const min = typeof shape.min === 'number' ? shape.min : -5;
     const max = typeof shape.max === 'number' ? shape.max : 5;
@@ -1857,7 +1857,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
       const isZero = Math.abs(val) < 0.0001;
 
       ctx.beginPath();
-      ctx.strokeStyle = isZero ? '#0284c7' : color;
+      ctx.strokeStyle = isZero ? (isDark ? '#38bdf8' : '#0284c7') : color;
       ctx.lineWidth = isZero ? (lineWidth || 2) + 1 : (lineWidth || 2);
       const tickH = isZero ? 13 : 8;
       ctx.moveTo(tx, cy - tickH);
@@ -1865,7 +1865,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
       ctx.stroke();
 
       // Value label
-      ctx.fillStyle = isZero ? '#0284c7' : color;
+      ctx.fillStyle = isZero ? (isDark ? '#38bdf8' : '#0284c7') : (isDark ? '#ffffff' : color);
       let labelText = String(Math.round(val * 100) / 100);
       if (shape.stylePreset === 'fractions') {
         if (val === 0) labelText = '0';
@@ -1902,7 +1902,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
     const y2 = Math.max(start.y, end.y);
     const w = x2 - x1 || 240;
     const h = y2 - y1 || 240;
-    const color = strokeColor || shape.color || '#0f172a';
+    const color = (isDark && (!strokeColor || strokeColor === '#0f172a' || strokeColor === '#000000')) ? '#ffffff' : (strokeColor || shape.color || (isDark ? '#ffffff' : '#0f172a'));
     const isPos = shape.mode === 'positiveQuadrant';
 
     const originX = isPos ? x1 + 24 : (x1 + x2) / 2;
@@ -1975,7 +1975,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
 
     // Labels
     ctx.font = 'bold 13px serif';
-    ctx.fillStyle = color;
+    ctx.fillStyle = isDark ? '#ffffff' : color;
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
     ctx.fillText('x', x2 + 2, originY);
@@ -1992,7 +1992,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
     ctx.restore();
   };
 
-  const drawStudentVennDiagram = (ctx: CanvasRenderingContext2D, shape: any, _strokeColor: string, lineWidth: number) => {
+  const drawStudentVennDiagram = (ctx: CanvasRenderingContext2D, shape: any, _strokeColor: string, lineWidth: number, isDark = false) => {
     const { start, end } = shape;
     if (!start || !end) return;
     const x1 = Math.min(start.x, end.x);
@@ -2008,7 +2008,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
     ctx.save();
 
     // Universal Set box U
-    ctx.strokeStyle = '#64748b';
+    ctx.strokeStyle = isDark ? '#ffffff' : '#64748b';
     ctx.lineWidth = Math.max(1.5, Math.min(3.5, w * 0.005));
     if (ctx.roundRect) {
       ctx.beginPath();
@@ -2020,7 +2020,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
 
     const uFontSize = Math.max(12, Math.min(32, Math.round(Math.min(w, h) * 0.065)));
     ctx.font = `bold ${uFontSize}px "Plus Jakarta Sans", sans-serif`;
-    ctx.fillStyle = '#334155';
+    ctx.fillStyle = isDark ? '#ffffff' : '#334155';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
     ctx.fillText(shape.labelU || 'U', x1 + 12, y1 + 10);
@@ -2070,7 +2070,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
       // Intersection notation hint scaled with radius
       const interFontSize = Math.max(10, Math.min(26, Math.round(r * 0.14)));
       ctx.font = `bold ${interFontSize}px "Plus Jakarta Sans", sans-serif`;
-      ctx.fillStyle = '#475569';
+      ctx.fillStyle = isDark ? '#ffffff' : '#475569';
       ctx.textBaseline = 'middle';
       ctx.fillText('A ∩ B', cx, cy);
     } else {
@@ -2134,7 +2134,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
     ctx.restore();
   };
 
-  const drawStudentFractionModel = (ctx: CanvasRenderingContext2D, shape: any, strokeColor: string, lineWidth: number) => {
+  const drawStudentFractionModel = (ctx: CanvasRenderingContext2D, shape: any, strokeColor: string, lineWidth: number, isDark = false) => {
     const { start, end } = shape;
     if (!start || !end) return;
     const x1 = Math.min(start.x, end.x);
@@ -2147,7 +2147,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
     const h = y2 - y1 || 200;
     const total = Math.max(1, shape.totalParts || 4);
     const shaded = Math.max(0, Math.min(total, shape.shadedParts !== undefined ? shape.shadedParts : 3));
-    const color = strokeColor || shape.color || '#0f172a';
+    const color = (isDark && (!strokeColor || strokeColor === '#0f172a' || strokeColor === '#000000')) ? '#ffffff' : (strokeColor || shape.color || (isDark ? '#ffffff' : '#0f172a'));
     const fillColor = shape.fillColor || '#0284c7';
 
     ctx.save();
@@ -2172,7 +2172,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
       // Fraction label below scaled with strip height
       const fs = Math.max(12, Math.min(28, Math.round(barH * 0.35)));
       ctx.font = `bold ${fs}px "Plus Jakarta Sans", sans-serif`;
-      ctx.fillStyle = color;
+      ctx.fillStyle = isDark ? '#ffffff' : color;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'top';
       ctx.fillText(`${shaded} / ${total}`, cx, barY + barH + 8);
@@ -2203,7 +2203,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
       // Fraction label below scaled with radius
       const fs = Math.max(12, Math.min(32, Math.round(r * 0.22)));
       ctx.font = `bold ${fs}px "Plus Jakarta Sans", sans-serif`;
-      ctx.fillStyle = color;
+      ctx.fillStyle = isDark ? '#ffffff' : color;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'top';
       ctx.fillText(`${shaded} / ${total}`, cx, cy + r + 8);
@@ -2441,7 +2441,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
     ctx.restore();
   };
 
-  const drawStudent3dSolid = (ctx: CanvasRenderingContext2D, shape: any, strokeColor: string, lineWidth: number) => {
+  const drawStudent3dSolid = (ctx: CanvasRenderingContext2D, shape: any, strokeColor: string, lineWidth: number, isDark = false) => {
     const { start, end, solidType } = shape;
     if (!start || !end) return;
     const x1 = Math.min(start.x, end.x);
@@ -2452,8 +2452,9 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
     const h = y2 - y1;
     const cx = (x1 + x2) / 2;
     const cy = (y1 + y2) / 2;
-    const color = strokeColor || shape.color || '#0f172a';
+    const color = (isDark && (!strokeColor || strokeColor === '#0f172a' || strokeColor === '#000000')) ? '#ffffff' : (strokeColor || shape.color || (isDark ? '#ffffff' : '#0f172a'));
     const width = lineWidth || shape.width || 2;
+    const dashStroke = isDark ? 'rgba(255, 255, 255, 0.45)' : 'rgba(100, 116, 139, 0.7)';
 
     ctx.save();
     ctx.strokeStyle = color;
@@ -2489,7 +2490,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
       ctx.stroke();
 
       ctx.setLineDash([5, 4]);
-      ctx.strokeStyle = 'rgba(100, 116, 139, 0.7)';
+      ctx.strokeStyle = dashStroke;
       ctx.beginPath();
       ctx.moveTo(fx, fy + s);
       ctx.lineTo(fx + dx, fy + s + dy);
@@ -2532,7 +2533,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
       ctx.stroke();
 
       ctx.setLineDash([5, 4]);
-      ctx.strokeStyle = 'rgba(100, 116, 139, 0.7)';
+      ctx.strokeStyle = dashStroke;
       ctx.beginPath();
       ctx.moveTo(fx, fy + hc);
       ctx.lineTo(fx + dx, fy + hc + dy);
@@ -2572,7 +2573,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
       ctx.stroke();
 
       ctx.setLineDash([5, 4]);
-      ctx.strokeStyle = 'rgba(100, 116, 139, 0.7)';
+      ctx.strokeStyle = dashStroke;
       ctx.beginPath();
       ctx.ellipse(cx, botCy, rx, ry, 0, Math.PI, Math.PI * 2);
       ctx.stroke();
@@ -2609,7 +2610,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
       ctx.stroke();
 
       ctx.setLineDash([5, 4]);
-      ctx.strokeStyle = 'rgba(100, 116, 139, 0.7)';
+      ctx.strokeStyle = dashStroke;
       ctx.beginPath();
       ctx.ellipse(cx, botCy, rx, ry, 0, Math.PI, Math.PI * 2);
       ctx.stroke();
@@ -2646,7 +2647,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
       ctx.stroke();
 
       ctx.setLineDash([5, 4]);
-      ctx.strokeStyle = 'rgba(100, 116, 139, 0.7)';
+      ctx.strokeStyle = dashStroke;
       ctx.beginPath();
       ctx.ellipse(cx, cy, r, ry, 0, Math.PI, Math.PI * 2);
       ctx.stroke();
@@ -2693,7 +2694,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
       ctx.stroke();
 
       ctx.setLineDash([5, 4]);
-      ctx.strokeStyle = 'rgba(100, 116, 139, 0.7)';
+      ctx.strokeStyle = dashStroke;
       ctx.beginPath();
       ctx.moveTo(fB.x, fB.y);
       ctx.lineTo(fB.x + dx, fB.y + dy);
@@ -2722,7 +2723,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
       ctx.stroke();
 
       ctx.setLineDash([5, 4]);
-      ctx.strokeStyle = 'rgba(100, 116, 139, 0.7)';
+      ctx.strokeStyle = dashStroke;
       ctx.beginPath();
       ctx.moveTo(pD.x, pD.y); ctx.lineTo(pA.x, pA.y); ctx.lineTo(pB.x, pB.y);
       ctx.moveTo(cx, apexY); ctx.lineTo(pA.x, pA.y);
@@ -2876,7 +2877,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
     const getContrastColor = (color?: string, fallbackDark = '#ffffff', fallbackLight = '#0f172a') => {
       if (!color) return isDark ? fallbackDark : fallbackLight;
       const c = String(color).toLowerCase().trim();
-      if (isDark && (c === '#000000' || c === '#0f172a' || c === '#1e293b' || c === '#020617' || c === 'rgb(0, 0, 0)' || c === 'rgb(15, 23, 42)')) {
+      if (isDark && (c === '#000000' || c === '#0f172a' || c === '#1e293b' || c === '#020617' || c === '#374151' || c === '#475569' || c === '#64748b' || c === '#111827' || c === 'rgb(0, 0, 0)' || c === 'rgb(15, 23, 42)')) {
         return fallbackDark;
       }
       if (!isDark && (c === '#ffffff' || c === '#fff' || c === 'rgb(255, 255, 255)')) {
@@ -2926,13 +2927,14 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
       });
     };
 
-    const drawNodeText = (text: string, cx: number, cy: number, maxW: number, maxH: number, color: string) => {
+    const drawNodeText = (text: string, cx: number, cy: number, maxW: number, maxH: number, color: string, fontOptions: any = {}) => {
       if (!text) return;
       const availableW = Math.max(24, maxW - 8);
       const availableH = Math.max(16, maxH - 6);
 
       ctx.save();
-      ctx.fillStyle = getContrastColor(color, '#ffffff', '#0f172a');
+      const fillCol = (fontOptions && fontOptions.textColor) || color;
+      ctx.fillStyle = getContrastColor(fillCol, '#ffffff', '#0f172a');
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
 
@@ -2940,8 +2942,16 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
       ctx.rect(cx - availableW / 2 - 2, cy - availableH / 2 - 2, availableW + 4, availableH + 4);
       ctx.clip();
 
+      const fontFamily = (fontOptions && fontOptions.fontFamily) || "Inter, -apple-system, sans-serif";
+      const isBold = fontOptions && fontOptions.bold !== undefined ? !!fontOptions.bold : true;
+      const isItalic = fontOptions && fontOptions.italic !== undefined ? !!fontOptions.italic : false;
+      const fontStylePrefix = (isItalic ? "italic " : "") + (isBold ? "bold " : "normal ");
+
+      let targetFs = (fontOptions && fontOptions.fontSize) ? parseInt(fontOptions.fontSize, 10) : 14;
+      if (isNaN(targetFs) || targetFs <= 0) targetFs = 14;
+
       const wrapLines = (fontSize: number) => {
-        ctx.font = `600 ${fontSize}px Inter, -apple-system, sans-serif`;
+        ctx.font = `${fontStylePrefix}${fontSize}px ${fontFamily}`;
         const paragraphs = String(text).split(/\r?\n/);
         const lines: string[] = [];
 
@@ -2984,7 +2994,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
         return lines;
       };
 
-      let fs = Math.min(14, Math.max(9, Math.floor(availableH * 0.35)));
+      let fs = Math.max(9, targetFs);
       let lines = wrapLines(fs);
       let lineHeight = Math.round(fs * 1.25);
       while (lines.length * lineHeight > availableH && fs > 8) {
@@ -2993,7 +3003,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
         lineHeight = Math.round(fs * 1.25);
       }
 
-      ctx.font = `600 ${fs}px Inter, -apple-system, sans-serif`;
+      ctx.font = `${fontStylePrefix}${fs}px ${fontFamily}`;
       const totalH = lines.length * lineHeight;
       const startY = cy - totalH / 2 + lineHeight / 2;
       lines.forEach((line, idx) => {
@@ -3099,17 +3109,29 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
 
       if (s.label) {
         ctx.save();
-        ctx.font = 'bold 12px Inter, sans-serif';
+        const fontFamily = s.labelFontFamily || s.fontFamily || 'Inter, sans-serif';
+        const isBold = s.labelBold !== undefined ? s.labelBold : (s.bold !== undefined ? s.bold : true);
+        const isItalic = s.labelItalic !== undefined ? s.labelItalic : (s.italic !== undefined ? s.italic : false);
+        const fontStylePrefix = (isItalic ? 'italic ' : '') + (isBold ? 'bold ' : 'normal ');
+        const fs = parseInt(s.labelFontSize || s.fontSize, 10) || 12;
+        ctx.font = `${fontStylePrefix}${fs}px ${fontFamily}`;
         const txtW = ctx.measureText(s.label).width;
+        const padX = 8;
+        const padY = 4;
+        const pillW = txtW + padX * 2;
+        const pillH = fs + padY * 2 + 2;
+
         ctx.fillStyle = isDark ? '#1e293b' : '#ffffff';
         ctx.strokeStyle = color;
         ctx.lineWidth = 1;
         ctx.beginPath();
-        if ((ctx as any).roundRect) (ctx as any).roundRect(midPoint.x - txtW / 2 - 5, midPoint.y - 10, txtW + 10, 20, 4);
-        else ctx.rect(midPoint.x - txtW / 2 - 5, midPoint.y - 10, txtW + 10, 20);
+        if ((ctx as any).roundRect) (ctx as any).roundRect(midPoint.x - pillW / 2, midPoint.y - pillH / 2, pillW, pillH, 6);
+        else ctx.rect(midPoint.x - pillW / 2, midPoint.y - pillH / 2, pillW, pillH);
         ctx.fill();
         ctx.stroke();
-        ctx.fillStyle = color;
+
+        const labelCol = s.labelColor || s.textColor || color;
+        ctx.fillStyle = getContrastColor(labelCol, '#ffffff', '#0f172a');
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(s.label, midPoint.x, midPoint.y);
@@ -3347,13 +3369,13 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
         ctx.arc(vx, vy, arcR, sAngle, eAngle, anticlockwise);
         ctx.stroke();
       } else if (type === 'numberLine') {
-        drawStudentNumberLine(ctx, sh, strokeColor, lineWidth);
+        drawStudentNumberLine(ctx, sh, strokeColor, lineWidth, isDark);
       } else if (type === 'coordinateAxes') {
         drawStudentCoordinateAxes(ctx, sh, strokeColor, lineWidth, isDark);
       } else if (type === 'vennDiagram') {
-        drawStudentVennDiagram(ctx, sh, strokeColor, lineWidth);
+        drawStudentVennDiagram(ctx, sh, strokeColor, lineWidth, isDark);
       } else if (type === 'fractionModel') {
-        drawStudentFractionModel(ctx, sh, strokeColor, lineWidth);
+        drawStudentFractionModel(ctx, sh, strokeColor, lineWidth, isDark);
       } else if (
         type === 'geometricDiagram' ||
         type === 'eduAdvancedDiagram' ||
@@ -3362,21 +3384,21 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
       ) {
         drawStudentGeometricDiagram(ctx, sh, strokeColor, lineWidth);
       } else if (type === '3dSolid') {
-        drawStudent3dSolid(ctx, sh, strokeColor, lineWidth);
+        drawStudent3dSolid(ctx, sh, strokeColor, lineWidth, isDark);
       } else if (type === 'graphPlotter') {
         const engine = (window as any).EduAshramGraphPlotter;
         if (engine && typeof engine.drawGraphPlotterShape === 'function') {
-          engine.drawGraphPlotterShape(ctx, sh, false);
+          engine.drawGraphPlotterShape(ctx, sh, false, isDark);
         }
       } else if (type === 'elementCard') {
         const engine = (window as any).EduAshramPeriodicTable;
         if (engine && typeof engine.drawElementCardShape === 'function') {
-          engine.drawElementCardShape(ctx, sh, false);
+          engine.drawElementCardShape(ctx, sh, false, isDark);
         }
       } else if (type === 'periodicTable') {
         const engine = (window as any).EduAshramPeriodicTable;
         if (engine && typeof engine.drawPeriodicTableShape === 'function') {
-          engine.drawPeriodicTableShape(ctx, sh, false);
+          engine.drawPeriodicTableShape(ctx, sh, false, isDark);
         }
       } else if (type === 'fc-terminal') {
         const pillR = Math.min(w, h) / 2;
@@ -3387,7 +3409,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
         ctx.strokeStyle = strokeColor;
         ctx.lineWidth = lineWidth;
         ctx.stroke();
-        if (sh.text) drawNodeText(sh.text, cx, cy, w - 16, h - 10, sh.textColor || strokeColor);
+        if (sh.text) drawNodeText(sh.text, cx, cy, w - 16, h - 10, sh.textColor || strokeColor, sh);
         return;
       } else if (type === 'fc-process') {
         ctx.beginPath();
@@ -3396,7 +3418,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
         ctx.strokeStyle = strokeColor;
         ctx.lineWidth = lineWidth;
         ctx.stroke();
-        if (sh.text) drawNodeText(sh.text, cx, cy, w - 16, h - 10, sh.textColor || strokeColor);
+        if (sh.text) drawNodeText(sh.text, cx, cy, w - 16, h - 10, sh.textColor || strokeColor, sh);
         return;
       } else if (type === 'fc-decision') {
         ctx.beginPath();
@@ -3409,7 +3431,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
         ctx.strokeStyle = strokeColor;
         ctx.lineWidth = lineWidth;
         ctx.stroke();
-        if (sh.text) drawNodeText(sh.text, cx, cy, w * 0.65, h * 0.65, sh.textColor || strokeColor);
+        if (sh.text) drawNodeText(sh.text, cx, cy, w * 0.65, h * 0.65, sh.textColor || strokeColor, sh);
         return;
       } else if (type === 'fc-io') {
         const slant = Math.min(w * 0.2, 28);
@@ -3423,7 +3445,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
         ctx.strokeStyle = strokeColor;
         ctx.lineWidth = lineWidth;
         ctx.stroke();
-        if (sh.text) drawNodeText(sh.text, cx, cy, w - slant * 2 - 10, h - 10, sh.textColor || strokeColor);
+        if (sh.text) drawNodeText(sh.text, cx, cy, w - slant * 2 - 10, h - 10, sh.textColor || strokeColor, sh);
         return;
       } else if (type === 'fc-document') {
         const waveH = Math.min(14, h * 0.2);
@@ -3438,7 +3460,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
         ctx.strokeStyle = strokeColor;
         ctx.lineWidth = lineWidth;
         ctx.stroke();
-        if (sh.text) drawNodeText(sh.text, cx, cy - waveH * 0.3, w - 16, h - waveH - 10, sh.textColor || strokeColor);
+        if (sh.text) drawNodeText(sh.text, cx, cy - waveH * 0.3, w - 16, h - waveH - 10, sh.textColor || strokeColor, sh);
         return;
       } else if (type === 'fc-database') {
         const ellipseH = Math.min(18, h * 0.25);
@@ -3456,7 +3478,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
         ctx.beginPath();
         ctx.ellipse(cx, y1 + ellipseH, w / 2, ellipseH, 0, 0, Math.PI * 2);
         ctx.stroke();
-        if (sh.text) drawNodeText(sh.text, cx, cy + ellipseH * 0.5, w - 16, h - ellipseH * 2, sh.textColor || strokeColor);
+        if (sh.text) drawNodeText(sh.text, cx, cy + ellipseH * 0.5, w - 16, h - ellipseH * 2, sh.textColor || strokeColor, sh);
         return;
       } else if (type === 'fc-subroutine') {
         ctx.beginPath();
@@ -3472,7 +3494,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
         ctx.moveTo(x2 - barInset, y1);
         ctx.lineTo(x2 - barInset, y2);
         ctx.stroke();
-        if (sh.text) drawNodeText(sh.text, cx, cy, w - barInset * 2 - 12, h - 10, sh.textColor || strokeColor);
+        if (sh.text) drawNodeText(sh.text, cx, cy, w - barInset * 2 - 12, h - 10, sh.textColor || strokeColor, sh);
         return;
       } else if (type === 'fc-connector-node') {
         const rNode = Math.min(w, h) / 2;
@@ -3482,7 +3504,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
         ctx.strokeStyle = strokeColor;
         ctx.lineWidth = lineWidth;
         ctx.stroke();
-        if (sh.text) drawNodeText(sh.text, cx, cy, rNode * 1.5, rNode * 1.5, sh.textColor || strokeColor);
+        if (sh.text) drawNodeText(sh.text, cx, cy, rNode * 1.5, rNode * 1.5, sh.textColor || strokeColor, sh);
         return;
       } else if (type === 'rectangle' || type === 'rect') {
         if (isSolid) {
@@ -3709,7 +3731,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
             ctx.font = 'bold ' + titleFontSize + 'px "Segoe UI", sans-serif';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'top';
-            ctx.fillStyle = '#111827';
+            ctx.fillStyle = isDark ? '#ffffff' : '#111827';
             ctx.fillText(title, x1 + w / 2, y1 + Math.max(6, (padT - titleFontSize) / 2));
           }
 
@@ -3730,7 +3752,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
 
             if (showAxisLabels) {
               ctx.font = tickFontSize + 'px "Segoe UI", sans-serif';
-              ctx.fillStyle = '#4b5563';
+              ctx.fillStyle = isDark ? '#ffffff' : '#4b5563';
               ctx.fillText(String(valNum), x1 + padL - 6, gy);
             }
           }
@@ -3742,7 +3764,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
             ctx.font = 'bold ' + axisTitleFontSize + 'px "Segoe UI", sans-serif';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            ctx.fillStyle = '#374151';
+            ctx.fillStyle = isDark ? '#ffffff' : '#374151';
             ctx.fillText(yAxisLabel, 0, 0);
             ctx.restore();
           }
@@ -3755,7 +3777,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
 
             ctx.fillStyle = barColors[i % barColors.length];
             ctx.fillRect(bx, by, barW, barH);
-            ctx.strokeStyle = '#1e293b';
+            ctx.strokeStyle = isDark ? 'rgba(255, 255, 255, 0.4)' : '#1e293b';
             ctx.lineWidth = 1;
             ctx.strokeRect(bx, by, barW, barH);
 
@@ -3763,7 +3785,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
               ctx.font = 'bold ' + valFontSize + 'px "Segoe UI", sans-serif';
               ctx.textAlign = 'center';
               ctx.textBaseline = 'bottom';
-              ctx.fillStyle = '#1e293b';
+              ctx.fillStyle = isDark ? '#ffffff' : '#1e293b';
               ctx.fillText(String(data[i]), bx + barW / 2, by - 4);
             }
 
@@ -3771,7 +3793,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
             ctx.font = '600 ' + catFontSize + 'px "Segoe UI", sans-serif';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'top';
-            ctx.fillStyle = '#374151';
+            ctx.fillStyle = isDark ? '#ffffff' : '#374151';
             ctx.fillText(cat, bx + barW / 2, y1 + padT + chartH + 6);
           }
 
@@ -3779,7 +3801,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
             ctx.font = 'bold ' + axisTitleFontSize + 'px "Segoe UI", sans-serif';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'top';
-            ctx.fillStyle = '#374151';
+            ctx.fillStyle = isDark ? '#ffffff' : '#374151';
             const xLabelY = y1 + padT + chartH + catFontSize + 10;
             ctx.fillText(xAxisLabel, x1 + padL + chartW / 2, xLabelY);
           }
@@ -3788,7 +3810,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
             ctx.font = 'italic ' + keyFontSize + 'px "Segoe UI", sans-serif';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'top';
-            ctx.fillStyle = '#6b7280';
+            ctx.fillStyle = isDark ? '#ffffff' : '#6b7280';
             const keyY = hasXLabel ? (y1 + padT + chartH + catFontSize + axisTitleFontSize + 16) : (y1 + padT + chartH + catFontSize + 12);
             ctx.fillText(keyText, x1 + padL + chartW / 2, keyY);
           }
@@ -3881,7 +3903,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
               const ly2 = pieCy + Math.sin(midA) * (rad + 12);
 
               ctx.beginPath();
-              ctx.strokeStyle = '#4b5563';
+              ctx.strokeStyle = isDark ? '#ffffff' : '#4b5563';
               ctx.lineWidth = 1;
               ctx.moveTo(lx1, ly1);
               ctx.lineTo(lx2, ly2);
@@ -3890,7 +3912,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
               ctx.font = '11px "Segoe UI", sans-serif';
               ctx.textAlign = Math.cos(midA) >= 0 ? 'left' : 'right';
               ctx.textBaseline = 'middle';
-              ctx.fillStyle = '#1e293b';
+              ctx.fillStyle = isDark ? '#ffffff' : '#1e293b';
               ctx.fillText(pct + '%', lx2 + (Math.cos(midA) >= 0 ? 3 : -3), ly2);
             }
 
@@ -3901,7 +3923,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
             ctx.font = 'italic ' + keyFontSize + 'px "Segoe UI", sans-serif';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'bottom';
-            ctx.fillStyle = '#6b7280';
+            ctx.fillStyle = isDark ? '#ffffff' : '#6b7280';
             ctx.fillText(keyText, cx, y1 + h - 4);
           }
 
@@ -3968,7 +3990,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
             ctx.font = 'bold ' + titleFontSize + 'px "Segoe UI", sans-serif';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'top';
-            ctx.fillStyle = '#111827';
+            ctx.fillStyle = isDark ? '#ffffff' : '#111827';
             ctx.fillText(title, x1 + w / 2, y1 + Math.max(6, (padT - titleFontSize) / 2));
           }
 
@@ -3990,7 +4012,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
 
             if (showAxisLabels) {
               ctx.font = tickFontSize + 'px "Segoe UI", sans-serif';
-              ctx.fillStyle = '#4b5563';
+              ctx.fillStyle = isDark ? '#ffffff' : '#4b5563';
               ctx.fillText(String(valNum), gx, y1 + padT + chartH + 4);
             }
           }
@@ -4002,7 +4024,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
             ctx.font = 'bold ' + axisTitleFontSize + 'px "Segoe UI", sans-serif';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            ctx.fillStyle = '#374151';
+            ctx.fillStyle = isDark ? '#ffffff' : '#374151';
             ctx.fillText(yAxisLabel, 0, 0);
             ctx.restore();
           }
@@ -4015,7 +4037,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
 
             ctx.fillStyle = barColors[i % barColors.length];
             ctx.fillRect(bx, by, barW, barH);
-            ctx.strokeStyle = '#1e293b';
+            ctx.strokeStyle = isDark ? 'rgba(255, 255, 255, 0.4)' : '#1e293b';
             ctx.lineWidth = 1;
             ctx.strokeRect(bx, by, barW, barH);
 
@@ -4023,14 +4045,14 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
             ctx.font = '600 ' + catFontSize + 'px "Segoe UI", sans-serif';
             ctx.textAlign = 'right';
             ctx.textBaseline = 'middle';
-            ctx.fillStyle = '#374151';
+            ctx.fillStyle = isDark ? '#ffffff' : '#374151';
             ctx.fillText(cat, bx - 8, by + barH / 2);
 
             if (showValues) {
               ctx.font = 'bold ' + valFontSize + 'px "Segoe UI", sans-serif';
               ctx.textAlign = 'left';
               ctx.textBaseline = 'middle';
-              ctx.fillStyle = '#1e293b';
+              ctx.fillStyle = isDark ? '#ffffff' : '#1e293b';
               ctx.fillText(String(data[i]), bx + barW + 6, by + barH / 2);
             }
           }
@@ -4039,7 +4061,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
             ctx.font = 'bold ' + axisTitleFontSize + 'px "Segoe UI", sans-serif';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'top';
-            ctx.fillStyle = '#374151';
+            ctx.fillStyle = isDark ? '#ffffff' : '#374151';
             const xLabelY = y1 + padT + chartH + tickFontSize + 8;
             ctx.fillText(xAxisLabel, x1 + padL + chartW / 2, xLabelY);
           }
@@ -4048,7 +4070,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
             ctx.font = 'italic ' + keyFontSize + 'px "Segoe UI", sans-serif';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'top';
-            ctx.fillStyle = '#6b7280';
+            ctx.fillStyle = isDark ? '#ffffff' : '#6b7280';
             const keyY = hasXLabel ? (y1 + padT + chartH + tickFontSize + axisTitleFontSize + 14) : (y1 + padT + chartH + tickFontSize + 10);
             ctx.fillText(keyText, x1 + padL + chartW / 2, keyY);
           }
@@ -4095,7 +4117,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
             ctx.font = 'bold ' + titleFontSize + 'px "Segoe UI", sans-serif';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'top';
-            ctx.fillStyle = '#111827';
+            ctx.fillStyle = isDark ? '#ffffff' : '#111827';
             ctx.fillText(title, x1 + w / 2, y1 + Math.max(6, (padT - titleFontSize) / 2));
           }
 
@@ -4116,7 +4138,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
             ctx.font = '600 ' + catFontSize + 'px "Segoe UI", sans-serif';
             ctx.textAlign = 'right';
             ctx.textBaseline = 'middle';
-            ctx.fillStyle = '#374151';
+            ctx.fillStyle = isDark ? '#ffffff' : '#374151';
             ctx.fillText(cat, x1 + padL - 8, sy);
 
             const cellW = (chartW - 8) / Math.max(maxCount, count, 1);
@@ -4162,7 +4184,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
                 ctx.arc(cxS, sy, r, 0, Math.PI * 2);
               }
               ctx.fill();
-              ctx.strokeStyle = '#1e293b';
+              ctx.strokeStyle = isDark ? 'rgba(255, 255, 255, 0.4)' : '#1e293b';
               ctx.lineWidth = 0.8;
               ctx.stroke();
             }
@@ -4171,7 +4193,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
               ctx.font = 'bold ' + valFontSize + 'px "Segoe UI", sans-serif';
               ctx.textAlign = 'left';
               ctx.textBaseline = 'middle';
-              ctx.fillStyle = '#1e293b';
+              ctx.fillStyle = isDark ? '#ffffff' : '#1e293b';
               ctx.fillText(String(count), x1 + padL + chartW + 8, sy);
             }
           }
@@ -4180,7 +4202,7 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
             ctx.font = 'italic ' + keyFontSize + 'px "Segoe UI", sans-serif';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'top';
-            ctx.fillStyle = '#6b7280';
+            ctx.fillStyle = isDark ? '#ffffff' : '#6b7280';
             ctx.fillText(keyText, x1 + padL + chartW / 2, y1 + padT + chartH + 7);
           }
 

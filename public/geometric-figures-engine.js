@@ -463,10 +463,11 @@
     const w = Math.max(40, x2 - x1);
     const h = Math.max(30, y2 - y1);
 
-    const isActuallyDark = !!isDark;
+    const isActuallyDark = Boolean(isDark) ||
+      (typeof window !== "undefined" && (window.currentBoardType === "black" || window.currentBoardType === "green"));
     let color = shape.color;
     if (isActuallyDark) {
-      if (!color || color === "#0f172a" || color === "#000000") color = "#f8fafc";
+      if (!color || color === "#0f172a" || color === "#000000" || color === "#1e293b" || color === "#374151" || color === "#475569") color = "#ffffff";
     } else {
       if (!color || color === "#ffffff" || color === "#f8fafc" || color === "#f1f5f9") color = "#0f172a";
     }
@@ -501,7 +502,11 @@
       ctx.strokeText(str, tx, ty);
 
       // High-contrast foreground text
-      ctx.fillStyle = txtColor || color;
+      let finalTextColor = txtColor || color;
+      if (isActuallyDark && (!finalTextColor || finalTextColor === "#0f172a" || finalTextColor === "#000000" || finalTextColor === "#1e293b" || finalTextColor === "#374151" || finalTextColor === "#475569" || finalTextColor === "#64748b")) {
+        finalTextColor = "#ffffff";
+      }
+      ctx.fillStyle = finalTextColor;
       ctx.fillText(str, tx, ty);
       ctx.restore();
     }
@@ -550,7 +555,7 @@
       ctx.strokeStyle = primary;
       ctx.beginPath(); ctx.arc(vx, vy, arcR, angleRad, 0); ctx.stroke();
 
-      drawLabel("θ < 90°", vx + arcR * 1.35, vy - arcR * 0.65, fontMath, primary);
+      drawLabel("θ < 90°", vx + arcR + 8, vy - arcR * 0.55, fontMath, primary, "left");
       drawLabel("O", vx - 10, vy + 4, fontLabel, color, "right");
       drawLabel("A", vx + rayLenX + 10, vy, fontLabel, color, "left");
       drawLabel("B", bx + 4, by - 10, fontLabel, color, "left");
@@ -574,7 +579,7 @@
       ctx.strokeStyle = primary;
       ctx.strokeRect(vx, vy - sq, sq, sq);
 
-      drawLabel("90°", vx + sq + 14, vy - sq - 4, fontMath, primary);
+      drawLabel("90°", vx + sq + 8, vy - sq * 0.5, fontMath, primary, "left");
       drawLabel("O", vx - 10, vy + 4, fontLabel, color, "right");
       drawLabel("A", vx + rayLenX + 10, vy, fontLabel, color, "left");
       drawLabel("B", vx, vy - rayLenY - 10, fontLabel, color, "center");
@@ -598,16 +603,24 @@
       ctx.strokeStyle = warn;
       ctx.beginPath(); ctx.arc(vx, vy, arcR, angleRad, 0); ctx.stroke();
 
-      drawLabel("90° < θ < 180°", vx - arcR * 0.75, vy - arcR * 0.9, fontMath, warn);
+      const labelX = vx + Math.max(12, arcR * 0.35);
+      const labelY = vy - arcR - 14;
+      drawLabel("90° < θ < 180°", labelX, labelY, fontMath, warn, "center");
       drawLabel("O", vx + 4, vy + 12, fontLabel, color, "center");
       drawLabel("A", vx + rayLenX + 10, vy, fontLabel, color, "left");
       drawLabel("B", bx - 6, by - 8, fontLabel, color, "right");
     } else if (geo === "angleStraight") {
-      drawLabel("Straight Angle", cx, y1 + 12, fontTitle, color);
+      const rayLen = Math.max(28, gw / 2 - 12);
+      const arcR = Math.min(46, Math.min(rayLen * 0.40, Math.max(24, gh * 0.32)));
+      // Center the straight line vertically within the bounding box
+      const vx = cx;
+      const vy = Math.round(cy + arcR * 0.35);
 
-      const vx = cx, vy = bottomY - 14;
-      const rayLen = gw / 2 - 10;
+      // Title stays directly above the angle (never moves away when stretched vertically)
+      const titleY = Math.max(y1 + 14, vy - arcR - 36);
+      drawLabel("Straight Angle", cx, titleY, fontTitle, color);
 
+      // Ray AOB (straight horizontal line with arrows on both ends)
       ctx.beginPath(); ctx.moveTo(vx - rayLen, vy); ctx.lineTo(vx + rayLen, vy); ctx.stroke();
       drawArrowHead(ctx, vx, vy, vx + rayLen, vy);
       drawArrowHead(ctx, vx, vy, vx - rayLen, vy);
@@ -615,43 +628,65 @@
       // Center point
       ctx.fillStyle = primary; ctx.beginPath(); ctx.arc(vx, vy, 3.5, 0, Math.PI * 2); ctx.fill();
 
-      // Semicircle arc
-      const arcR = Math.min(40, Math.min(rayLen * 0.45, vy - topY - 12));
+      // Semicircle arc (180 deg)
       ctx.strokeStyle = primary;
       ctx.beginPath(); ctx.arc(vx, vy, arcR, Math.PI, 0); ctx.stroke();
 
-      drawLabel("180°", vx, vy - arcR - 10, fontMath, primary);
-      drawLabel("O", vx, vy + 12, fontLabel, color);
+      // 180° label sits 12px above semicircle arc apex
+      drawLabel("180°", vx, vy - arcR - 12, fontMath, primary);
+      drawLabel("O", vx, vy + 14, fontLabel, color);
       drawLabel("A", vx + rayLen + 10, vy, fontLabel, color, "left");
       drawLabel("B", vx - rayLen - 10, vy, fontLabel, color, "right");
     } else if (geo === "angleReflex") {
-      drawLabel("Reflex Angle", cx, y1 + 12, fontTitle, color);
+      const vx = cx - 12;
+      const vy = Math.round(cy + 6);
+      const rayLenX = Math.max(30, gx2 - vx - 10);
+      const bx = gx1 + 10, by = topY + 8;
 
-      const vx = cx - 20, vy = topY + 12;
-      const rayLenX = gx2 - vx - 8;
-      const bx = gx1 + 10, by = bottomY - 10;
+      // Title stays neatly above the figure
+      const titleY = Math.max(y1 + 14, by - 16);
+      drawLabel("Reflex Angle", cx, titleY, fontTitle, color);
 
       // Horizontal ray OA
       ctx.beginPath(); ctx.moveTo(vx, vy); ctx.lineTo(vx + rayLenX, vy); ctx.stroke();
       drawArrowHead(ctx, vx, vy, vx + rayLenX, vy);
 
-      // Down-left ray OB
+      // Up-left ray OB
       ctx.beginPath(); ctx.moveTo(vx, vy); ctx.lineTo(bx, by); ctx.stroke();
       drawArrowHead(ctx, vx, vy, bx, by);
 
       const angleRad = Math.atan2(by - vy, bx - vx);
-      const arcR = Math.min(38, Math.min(rayLenX, by - vy) * 0.45);
+      const arcR = Math.min(44, Math.min(rayLenX * 0.45, Math.max(26, gh * 0.35)));
+
+      // True reflex angle arc (> 180°) sweeps clockwise around the bottom from 0 to angleRad
       ctx.strokeStyle = danger;
       ctx.beginPath(); ctx.arc(vx, vy, arcR, 0, angleRad); ctx.stroke();
 
-      drawLabel("180° < θ < 360°", cx + 12, vy + arcR * 0.70, fontMath, danger);
-      drawLabel("O", vx - 10, vy - 8, fontLabel, color);
+      // Degree label sits 14px below the reflex arc apex without overlapping curve or rays
+      drawLabel("180° < θ < 360°", vx, vy + arcR + 14, fontMath, danger, "center");
+      drawLabel("O", vx - 8, vy - 10, fontLabel, color, "right");
       drawLabel("A", vx + rayLenX + 10, vy, fontLabel, color, "left");
-      drawLabel("B", bx - 10, by + 6, fontLabel, color, "right");
+      drawLabel("B", bx - 6, by - 8, fontLabel, color, "right");
     } else if (geo === "typesOfAngles") {
-      drawLabel("Types of Angles (Overview)", cx, y1 + 12, fontTitle, color);
-
       const step = gw / 5;
+      const rayLen = Math.max(26, Math.min(step * 0.36, 42));
+      const arcR = Math.max(12, Math.round(rayLen * 0.40));
+
+      // Calculate total vertical height of the cohesive 3-row layout
+      // Title (24px) -> Names (22px) -> Angle Figures (~40px) -> Degree Labels (20px)
+      const totalH = 24 + Math.round(rayLen * 0.75) + 16 + arcR + 20;
+
+      // Group is vertically centered as a single unified unit inside bounding box
+      const centerY = (y1 + y2) / 2;
+      // Title moved higher with ample 34px vertical clearance above details (zero overlap)
+      const titleY = Math.max(y1 + 10, Math.round(centerY - totalH / 2) - 8);
+      const nameY = titleY + 34;
+      const oy = nameY + Math.round(rayLen * 0.75) + 14;
+      const degY = oy + arcR + 18;
+
+      // Clean diagram title (moved higher, ample breathing room above details)
+      drawLabel("Types of Angles (Overview)", cx, titleY, fontTitle, color);
+
       const titles = [
         { name: "Acute", deg: "< 90°", c: primary },
         { name: "Right", deg: "90°", c: accent },
@@ -662,41 +697,109 @@
 
       titles.forEach((item, idx) => {
         const ox = gx1 + step * (idx + 0.5);
-        const oy = bottomY - 16;
-        const subRay = Math.min(step * 0.38, (oy - topY) * 0.58);
 
-        ctx.strokeStyle = color;
-        ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(ox + subRay, oy); ctx.stroke();
-        drawArrowHead(ctx, ox, oy, ox + subRay, oy, 5);
+        // Row 1: Category Name (bold, in category theme color)
+        drawLabel(item.name, ox, nameY, fontLabel, item.c, "center", "middle");
 
+        // Row 2: Clean Geometric Angle Drawing (rays, vertex, arc marker)
         if (idx === 0) {
-          const bx = ox + subRay * 0.7, by = oy - subRay * 0.7;
-          ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(bx, by); ctx.stroke();
-          drawArrowHead(ctx, ox, oy, bx, by, 5);
-          ctx.strokeStyle = item.c; ctx.beginPath(); ctx.arc(ox, oy, 10, -Math.PI / 4, 0); ctx.stroke();
+          // 1. Acute Angle
+          const vx = ox - rayLen * 0.40;
+
+          // Arc
+          ctx.strokeStyle = item.c; ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.arc(vx, oy, arcR, -Math.PI / 4, 0); ctx.stroke();
+
+          // Rays
+          ctx.strokeStyle = color; ctx.lineWidth = width;
+          ctx.beginPath(); ctx.moveTo(vx, oy); ctx.lineTo(vx + rayLen, oy); ctx.stroke();
+          drawArrowHead(ctx, vx, oy, vx + rayLen, oy, 4.5);
+
+          const bx = vx + rayLen * 0.72, by = oy - rayLen * 0.72;
+          ctx.beginPath(); ctx.moveTo(vx, oy); ctx.lineTo(bx, by); ctx.stroke();
+          drawArrowHead(ctx, vx, oy, bx, by, 4.5);
+
+          // Vertex dot
+          ctx.fillStyle = item.c; ctx.beginPath(); ctx.arc(vx, oy, 2.5, 0, Math.PI * 2); ctx.fill();
         } else if (idx === 1) {
-          ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(ox, oy - subRay); ctx.stroke();
-          drawArrowHead(ctx, ox, oy, ox, oy - subRay, 5);
-          ctx.strokeStyle = item.c; ctx.strokeRect(ox, oy - 8, 8, 8);
+          // 2. Right Angle
+          const vx = ox - rayLen * 0.40;
+          const sq = Math.max(9, Math.round(rayLen * 0.28));
+
+          // 90° square marker
+          ctx.strokeStyle = item.c; ctx.lineWidth = 1.8;
+          ctx.strokeRect(vx, oy - sq, sq, sq);
+
+          // Rays
+          ctx.strokeStyle = color; ctx.lineWidth = width;
+          ctx.beginPath(); ctx.moveTo(vx, oy); ctx.lineTo(vx + rayLen, oy); ctx.stroke();
+          drawArrowHead(ctx, vx, oy, vx + rayLen, oy, 4.5);
+
+          ctx.beginPath(); ctx.moveTo(vx, oy); ctx.lineTo(vx, oy - rayLen * 0.80); ctx.stroke();
+          drawArrowHead(ctx, vx, oy, vx, oy - rayLen * 0.80, 4.5);
+
+          // Vertex dot
+          ctx.fillStyle = item.c; ctx.beginPath(); ctx.arc(vx, oy, 2.5, 0, Math.PI * 2); ctx.fill();
         } else if (idx === 2) {
-          const bx = ox - subRay * 0.65, by = oy - subRay * 0.7;
-          ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(bx, by); ctx.stroke();
-          drawArrowHead(ctx, ox, oy, bx, by, 5);
-          ctx.strokeStyle = item.c; ctx.beginPath(); ctx.arc(ox, oy, 12, -3 * Math.PI / 4, 0); ctx.stroke();
+          // 3. Obtuse Angle
+          const vx = ox + rayLen * 0.15;
+          const angObt = Math.atan2(-rayLen * 0.68, -rayLen * 0.78);
+
+          // Arc
+          ctx.strokeStyle = item.c; ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.arc(vx, oy, arcR, angObt, 0); ctx.stroke();
+
+          // Rays
+          ctx.strokeStyle = color; ctx.lineWidth = width;
+          ctx.beginPath(); ctx.moveTo(vx, oy); ctx.lineTo(vx + rayLen * 0.78, oy); ctx.stroke();
+          drawArrowHead(ctx, vx, oy, vx + rayLen * 0.78, oy, 4.5);
+
+          const bx = vx - rayLen * 0.78, by = oy - rayLen * 0.68;
+          ctx.beginPath(); ctx.moveTo(vx, oy); ctx.lineTo(bx, by); ctx.stroke();
+          drawArrowHead(ctx, vx, oy, bx, by, 4.5);
+
+          // Vertex dot
+          ctx.fillStyle = item.c; ctx.beginPath(); ctx.arc(vx, oy, 2.5, 0, Math.PI * 2); ctx.fill();
         } else if (idx === 3) {
-          const bx = ox - subRay * 0.65, by = oy + subRay * 0.55;
-          ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(ox - subRay, oy); ctx.stroke();
-          drawArrowHead(ctx, ox, oy, ox - subRay, oy, 5);
-          ctx.strokeStyle = item.c; ctx.beginPath(); ctx.arc(ox, oy, 10, Math.PI, 0); ctx.stroke();
+          // 4. Straight Angle
+          const vx = ox;
+
+          // Semicircle arc (180 deg)
+          ctx.strokeStyle = item.c; ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.arc(vx, oy, arcR, Math.PI, 0); ctx.stroke();
+
+          // Rays in standard stroke color
+          ctx.strokeStyle = color; ctx.lineWidth = width;
+          ctx.beginPath(); ctx.moveTo(vx - rayLen * 0.82, oy); ctx.lineTo(vx + rayLen * 0.82, oy); ctx.stroke();
+          drawArrowHead(ctx, vx, oy, vx + rayLen * 0.82, oy, 4.5);
+          drawArrowHead(ctx, vx, oy, vx - rayLen * 0.82, oy, 4.5);
+
+          // Center vertex dot
+          ctx.fillStyle = item.c; ctx.beginPath(); ctx.arc(vx, oy, 2.5, 0, Math.PI * 2); ctx.fill();
         } else {
-          const bx = ox - subRay * 0.65, by = oy + subRay * 0.55;
-          ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(bx, by); ctx.stroke();
-          drawArrowHead(ctx, ox, oy, bx, by, 5);
-          ctx.strokeStyle = item.c; ctx.beginPath(); ctx.arc(ox, oy, 10, 0, 2.5); ctx.stroke();
+          // 5. Reflex Angle
+          const vx = ox + rayLen * 0.15;
+          const angRef = Math.atan2(-rayLen * 0.68, -rayLen * 0.78);
+
+          // True reflex arc (> 180°) looping cleanly around the bottom
+          ctx.strokeStyle = item.c; ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.arc(vx, oy, arcR, 0, angRef); ctx.stroke();
+
+          // Rays
+          ctx.strokeStyle = color; ctx.lineWidth = width;
+          ctx.beginPath(); ctx.moveTo(vx, oy); ctx.lineTo(vx + rayLen * 0.78, oy); ctx.stroke();
+          drawArrowHead(ctx, vx, oy, vx + rayLen * 0.78, oy, 4.5);
+
+          const bx = vx - rayLen * 0.78, by = oy - rayLen * 0.68;
+          ctx.beginPath(); ctx.moveTo(vx, oy); ctx.lineTo(bx, by); ctx.stroke();
+          drawArrowHead(ctx, vx, oy, bx, by, 4.5);
+
+          // Vertex dot
+          ctx.fillStyle = item.c; ctx.beginPath(); ctx.arc(vx, oy, 2.5, 0, Math.PI * 2); ctx.fill();
         }
 
-        drawLabel(item.name, ox, oy - subRay - 8, fontSmall, item.c);
-        drawLabel(item.deg, ox, oy + 10, fontSmall, color);
+        // Row 3: Degree Measure (bold, in category theme color with guaranteed vertical clearance)
+        drawLabel(item.deg, ox, degY, fontMath, item.c, "center", "middle");
       });
     }
 
@@ -765,8 +868,8 @@
       ctx.beginPath(); ctx.arc(bLeftX, bLeftY, arcR, -Math.PI / 3, 0); ctx.stroke();
       ctx.beginPath(); ctx.arc(bRightX, bRightY, arcR, Math.PI, 4 * Math.PI / 3); ctx.stroke();
 
-      drawLabel("θ", bLeftX + arcR + 6, bLeftY - 6, fontMath, accent);
-      drawLabel("θ", bRightX - arcR - 6, bRightY - 6, fontMath, accent);
+      drawLabel("θ", bLeftX + arcR + 8, bLeftY - 6, fontMath, accent);
+      drawLabel("θ", bRightX - arcR - 8, bRightY - 6, fontMath, accent);
 
       drawLabel("A", topX, apexY - 9, fontLabel, color);
       drawLabel("B", bLeftX - 8, bLeftY + 4, fontLabel, color, "right");
@@ -903,7 +1006,7 @@
       ctx.strokeStyle = warn;
       ctx.beginPath(); ctx.arc(obtX, obtY, arcR, -Math.PI * 0.8, 0); ctx.stroke();
 
-      drawLabel("> 90°", obtX - arcR * 0.4, obtY - arcR - 6, fontMath, warn);
+      drawLabel("> 90°", obtX + Math.max(10, arcR * 0.4), obtY - arcR - 10, fontMath, warn, "center");
       drawLabel("A", apexX, apexY - 9, fontLabel, color);
       drawLabel("B", obtX - 8, obtY + 4, fontLabel, color, "right");
       drawLabel("C", rightX + 8, rightY + 4, fontLabel, color, "left");
@@ -919,19 +1022,19 @@
       // 1. Acute
       const acCx = gx1 + step * 0.5;
       ctx.beginPath(); ctx.moveTo(acCx, tTopY); ctx.lineTo(acCx - step * 0.38, baseY); ctx.lineTo(acCx + step * 0.38, baseY); ctx.closePath(); ctx.stroke();
-      drawLabel("Acute (<90°)", acCx, baseY + 10, fontSmall, primary);
+      drawLabel("Acute (<90°)", acCx, baseY + 12, fontSmall, primary);
 
       // 2. Right
       const rtCx = gx1 + step * 1.5;
       const rx1 = rtCx - step * 0.35, rx2 = rtCx + step * 0.35;
       ctx.beginPath(); ctx.moveTo(rx1, tTopY); ctx.lineTo(rx1, baseY); ctx.lineTo(rx2, baseY); ctx.closePath(); ctx.stroke();
       ctx.strokeStyle = accent; ctx.strokeRect(rx1, baseY - 8, 8, 8);
-      drawLabel("Right (90°)", rtCx, baseY + 10, fontSmall, accent);
+      drawLabel("Right (90°)", rtCx, baseY + 12, fontSmall, accent);
 
       // 3. Obtuse
       const obCx = gx1 + step * 2.5;
       ctx.beginPath(); ctx.moveTo(obCx - step * 0.25, tTopY); ctx.lineTo(obCx - step * 0.05, baseY); ctx.lineTo(obCx + step * 0.42, baseY); ctx.closePath(); ctx.stroke();
-      drawLabel("Obtuse (>90°)", obCx + step * 0.1, baseY + 10, fontSmall, warn);
+      drawLabel("Obtuse (>90°)", obCx + step * 0.1, baseY + 12, fontSmall, warn);
     }
 
     // =========================================================================

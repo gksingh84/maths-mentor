@@ -291,7 +291,7 @@
   // 3. Vector Canvas Drawing on Whiteboard: Element Card & Full Table
   // =========================================================================
 
-  function drawElementCardShape(ctx, shape, isPreview) {
+  function drawElementCardShape(ctx, shape, isPreview, isDarkParam) {
     if (!shape || !shape.start || !shape.end) return;
 
     const x1 = Math.min(shape.start.x, shape.end.x);
@@ -305,8 +305,11 @@
 
     ctx.save();
 
-    let isDark = false;
-    if (typeof boardTheme === "string" && (boardTheme === "blackboard" || boardTheme === "dark")) {
+    let isDark = Boolean(isDarkParam);
+    if (!isDark && typeof window !== "undefined" && (window.currentBoardType === "black" || window.currentBoardType === "green")) {
+      isDark = true;
+    }
+    if (!isDark && typeof boardTheme === "string" && (boardTheme === "blackboard" || boardTheme === "dark")) {
       isDark = true;
     }
 
@@ -335,7 +338,7 @@
 
     // Category Label on Left
     ctx.font = "bold 13px system-ui, -apple-system, sans-serif";
-    ctx.fillStyle = cat.text;
+    ctx.fillStyle = isDark ? "#ffffff" : cat.text;
     ctx.textAlign = "left";
     ctx.textBaseline = "middle";
     const headerTitle = cat.label + " · Period " + el.period + (el.group ? " · Group " + el.group : "");
@@ -357,7 +360,7 @@
     ctx.fill();
     ctx.stroke();
 
-    ctx.fillStyle = cat.text;
+    ctx.fillStyle = isDark ? "#ffffff" : cat.text;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText(zPillText, zPillX + zPillW / 2, zPillY + zPillH / 2);
@@ -378,27 +381,28 @@
 
     // Atomic Number (top-left of tile)
     ctx.font = "bold 12px system-ui, -apple-system, sans-serif";
-    ctx.fillStyle = isDark ? "#94a3b8" : "#64748b";
+    ctx.fillStyle = isDark ? "#ffffff" : "#64748b";
     ctx.textAlign = "left";
     ctx.textBaseline = "top";
     ctx.fillText(el.z.toString(), tileX + 7, tileY + 6);
 
     // Atomic Mass (top-right of tile)
     ctx.font = "bold 11px system-ui, -apple-system, sans-serif";
+    ctx.fillStyle = isDark ? "#ffffff" : "#64748b";
     ctx.textAlign = "right";
     ctx.fillText(el.mass + " u", tileX + tileW - 7, tileY + 6);
 
     // Large Chemical Symbol
     const symFontSize = Math.max(34, Math.min(52, Math.round(tileW * 0.45)));
     ctx.font = "bold " + symFontSize + "px system-ui, -apple-system, sans-serif";
-    ctx.fillStyle = isDark ? "#f8fafc" : cat.text;
+    ctx.fillStyle = isDark ? "#ffffff" : cat.text;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText(el.symbol, tileX + tileW / 2, tileY + tileH * 0.52);
 
     // Element Name (bottom of tile)
     ctx.font = "bold 13px system-ui, -apple-system, sans-serif";
-    ctx.fillStyle = isDark ? "#cbd5e1" : "#334155";
+    ctx.fillStyle = isDark ? "#ffffff" : "#334155";
     ctx.fillText(el.name, tileX + tileW / 2, tileY + tileH - 10);
 
     // 4. Upper Right: Prominent Properties
@@ -409,7 +413,7 @@
 
     function drawProperty(label, val, valCol, isPill) {
       ctx.font = "bold 13px system-ui, -apple-system, sans-serif";
-      ctx.fillStyle = isDark ? "#94a3b8" : "#64748b";
+      ctx.fillStyle = isDark ? "#ffffff" : "#64748b";
       ctx.textAlign = "left";
       ctx.textBaseline = "middle";
       ctx.fillText(label, propX, propY);
@@ -436,7 +440,7 @@
         ctx.fillText(pText, pX + pW / 2, propY);
       } else {
         ctx.font = "bold 14px system-ui, -apple-system, sans-serif";
-        ctx.fillStyle = valCol || (isDark ? "#f8fafc" : "#0f172a");
+        ctx.fillStyle = valCol || (isDark ? "#ffffff" : "#0f172a");
         ctx.textAlign = "left";
         ctx.textBaseline = "middle";
         ctx.fillText(val, propX + 85, propY);
@@ -445,11 +449,11 @@
     }
 
     drawProperty("Valency:", el.valency.toString(), "#16a34a", true);
-    drawProperty("State:", el.phase.toUpperCase(), el.phase === "gas" ? "#0284c7" : el.phase === "liquid" ? "#d97706" : "#475569", true);
+    drawProperty("State:", el.phase.toUpperCase(), el.phase === "gas" ? "#0284c7" : el.phase === "liquid" ? "#d97706" : (isDark ? "#ffffff" : "#475569"), true);
     
     // Shells distribution
     ctx.font = "bold 12px system-ui, -apple-system, sans-serif";
-    ctx.fillStyle = isDark ? "#94a3b8" : "#64748b";
+    ctx.fillStyle = isDark ? "#ffffff" : "#64748b";
     ctx.textAlign = "left";
     ctx.textBaseline = "middle";
     ctx.fillText("Shells (e⁻):", propX, propY);
@@ -518,7 +522,7 @@
     ctx.restore();
   }
 
-  function drawPeriodicTableShape(ctx, shape, isPreview) {
+  function drawPeriodicTableShape(ctx, shape, isPreview, isDarkParam) {
     if (!shape || !shape.start || !shape.end) return;
 
     const x1 = Math.min(shape.start.x, shape.end.x);
@@ -531,8 +535,11 @@
     if (w < 80 || h < 60) return;
 
     ctx.save();
-    let isDark = false;
-    if (typeof boardTheme === "string" && (boardTheme === "blackboard" || boardTheme === "dark")) {
+    let isDark = Boolean(isDarkParam);
+    if (!isDark && typeof window !== "undefined" && (window.currentBoardType === "black" || window.currentBoardType === "green")) {
+      isDark = true;
+    }
+    if (!isDark && typeof boardTheme === "string" && (boardTheme === "blackboard" || boardTheme === "dark")) {
       isDark = true;
     }
 
@@ -561,7 +568,7 @@
     ctx.fillText("🔬 MODERN PERIODIC TABLE OF ELEMENTS", x1 + 14, y1 + 14);
 
     ctx.font = "bold 10px system-ui, -apple-system, sans-serif";
-    ctx.fillStyle = isDark ? "#94a3b8" : "#64748b";
+    ctx.fillStyle = isDark ? "#ffffff" : "#64748b";
     ctx.textAlign = "right";
     ctx.fillText("18 Groups · 7 Periods · 118 Elements", x2 - 14, y1 + 14);
 
@@ -578,7 +585,7 @@
 
     // Draw Group Numbers along the top
     ctx.font = "bold 9px system-ui, -apple-system, sans-serif";
-    ctx.fillStyle = isDark ? "#94a3b8" : "#64748b";
+    ctx.fillStyle = isDark ? "#ffffff" : "#64748b";
     ctx.textAlign = "center";
     ctx.textBaseline = "bottom";
     for (let g = 1; g <= 18; g++) {
@@ -625,7 +632,7 @@
         // Atomic number
         if (cellW > 20 && cellH > 20) {
           ctx.font = "bold " + Math.max(6, Math.min(8, Math.round(cellH * 0.28))) + "px system-ui, -apple-system, sans-serif";
-          ctx.fillStyle = isDark ? "#94a3b8" : "#64748b";
+          ctx.fillStyle = isDark ? "#ffffff" : "#64748b";
           ctx.textAlign = "left";
           ctx.textBaseline = "top";
           ctx.fillText(el.z.toString(), cx + 2, cy + 2);
@@ -633,7 +640,7 @@
 
         // Symbol
         ctx.font = "bold " + Math.max(8, Math.min(13, Math.round(cellH * 0.48))) + "px system-ui, -apple-system, sans-serif";
-        ctx.fillStyle = isDark ? "#f8fafc" : cat.text;
+        ctx.fillStyle = isDark ? "#ffffff" : cat.text;
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         ctx.fillText(el.symbol, cx + cellW / 2, cy + cellH * 0.55);
@@ -642,7 +649,7 @@
 
     // Draw Lanthanide / Actinide Indicator tags on Main Table
     ctx.font = "bold 8px system-ui, -apple-system, sans-serif";
-    ctx.fillStyle = isDark ? "#cbd5e1" : "#64748b";
+    ctx.fillStyle = isDark ? "#ffffff" : "#64748b";
     ctx.textAlign = "left";
     ctx.textBaseline = "middle";
     ctx.fillText("* 57–71 Lanthanides", x1 + padL + 2 * cellW, y1 + padTop + 10 + 7.8 * cellH - 4);

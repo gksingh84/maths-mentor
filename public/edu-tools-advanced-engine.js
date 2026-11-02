@@ -307,10 +307,11 @@
     const w = Math.max(40, x2 - x1);
     const h = Math.max(30, y2 - y1);
 
-    const isActuallyDark = !!isDark;
+    const isActuallyDark = Boolean(isDark) ||
+      (typeof window !== "undefined" && (window.currentBoardType === "black" || window.currentBoardType === "green"));
     let color = shape.color;
     if (isActuallyDark) {
-      if (!color || color === "#0f172a" || color === "#000000") color = "#f8fafc";
+      if (!color || color === "#0f172a" || color === "#000000" || color === "#1e293b" || color === "#374151" || color === "#475569") color = "#ffffff";
     } else {
       if (!color || color === "#ffffff" || color === "#f8fafc" || color === "#f1f5f9") color = "#0f172a";
     }
@@ -354,7 +355,11 @@
         ctx.strokeText(str, tx, ty);
       }
 
-      ctx.fillStyle = txtColor || color;
+      let finalTextColor = txtColor || color;
+      if (isActuallyDark && (!finalTextColor || finalTextColor === "#0f172a" || finalTextColor === "#000000" || finalTextColor === "#1e293b" || finalTextColor === "#374151" || finalTextColor === "#475569" || finalTextColor === "#64748b")) {
+        finalTextColor = "#ffffff";
+      }
+      ctx.fillStyle = finalTextColor;
       ctx.fillText(str, tx, ty);
       ctx.restore();
     }

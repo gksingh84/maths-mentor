@@ -3554,7 +3554,12 @@
         activeMode: "nodes", // "nodes" | "connector"
         arrowEnd: true,
         arrowStart: false,
-        lineDash: []
+        lineDash: [],
+        fontSize: 14,
+        fontFamily: "Inter, -apple-system, sans-serif",
+        bold: true,
+        italic: false,
+        textColor: "#0f172a"
       };
       let activeConnectorDraft = null;
       let connectorDragMode = null;
@@ -4412,12 +4417,16 @@
           const text = (input.value || "").trim();
           const page = pages[currentPageIndex];
           if (page && page.texts && text !== "") {
+            const isDark = (typeof currentBoardType === "string" && (currentBoardType === "black" || currentBoardType === "green")) ||
+                           (typeof pages !== "undefined" && (pages[currentPageIndex]?.boardType === "black" || pages[currentPageIndex]?.boardType === "green"));
+            const chosenColor = textSettings.color;
+            const finalColor = (!isSticky && isDark && (!chosenColor || chosenColor === "#0f172a" || chosenColor === "#000000" || chosenColor === "#111827" || chosenColor === "#1e293b" || chosenColor === "#374151")) ? "#ffffff" : (chosenColor || (!isSticky && isDark ? "#ffffff" : "#0f172a"));
             const newItem = {
               id: generateId(),
               x: logicalPoint.x,
               y: logicalPoint.y,
               text: text,
-              color: textSettings.color,
+              color: finalColor,
               fontSize: textSettings.fontSize,
               fontFamily: textSettings.fontFamily,
               bold: textSettings.bold,
@@ -4727,7 +4736,10 @@
               const fs = Math.max(14, (widget.fontSize || 28) * zoom);
               ctx.save();
               ctx.font = `bold ${fs}px Arial`;
-              ctx.fillStyle = widget.color || "#0f172a";
+              const isDark = (typeof currentBoardType === "string" && (currentBoardType === "black" || currentBoardType === "green")) ||
+                             (typeof pages !== "undefined" && (pages[currentPageIndex]?.boardType === "black" || pages[currentPageIndex]?.boardType === "green"));
+              const widgetCol = (isDark && (!widget.color || widget.color === "#0f172a" || widget.color === "#000000" || widget.color === "#1e293b" || widget.color === "#374151")) ? "#ffffff" : (widget.color || (isDark ? "#ffffff" : "#0f172a"));
+              ctx.fillStyle = widgetCol;
               ctx.textBaseline = "middle";
               ctx.fillText(text, widget.x, widget.y);
               ctx.restore();
@@ -4988,7 +5000,14 @@
           ctx.lineWidth = 1;
           ctx.stroke();
         }
-        ctx.fillStyle = item.color ?? "#0f172a";
+        const isDark = (typeof currentBoardType === "string" && (currentBoardType === "black" || currentBoardType === "green")) ||
+                       (typeof pages !== "undefined" && (pages[currentPageIndex]?.boardType === "black" || pages[currentPageIndex]?.boardType === "green"));
+        let defaultTextColor = (isDark && !item.sticky) ? "#ffffff" : "#0f172a";
+        let activeTextColor = item.color ?? defaultTextColor;
+        if (isDark && !item.sticky && (activeTextColor === "#0f172a" || activeTextColor === "#000000" || activeTextColor === "#111827" || activeTextColor === "#1e293b" || activeTextColor === "#374151")) {
+          activeTextColor = "#ffffff";
+        }
+        ctx.fillStyle = activeTextColor;
         ctx.textBaseline = "top";
         const yOffset = item.superscript ? -fs * 0.35 : item.subscript ? fs * 0.4 : 0;
         const lineHeight = subSup ? drawFs : fs;
@@ -5410,7 +5429,10 @@
               const fs = Math.max(14, widget.fontSize || 28);
               ctx.save();
               ctx.font = `bold ${fs}px Arial`;
-              ctx.fillStyle = widget.color || "#0f172a";
+              const isDark = (typeof currentBoardType === "string" && (currentBoardType === "black" || currentBoardType === "green")) ||
+                             (typeof pages !== "undefined" && (pages[currentPageIndex]?.boardType === "black" || pages[currentPageIndex]?.boardType === "green"));
+              const widgetCol = (isDark && (!widget.color || widget.color === "#0f172a" || widget.color === "#000000" || widget.color === "#1e293b" || widget.color === "#374151")) ? "#ffffff" : (widget.color || (isDark ? "#ffffff" : "#0f172a"));
+              ctx.fillStyle = widgetCol;
               ctx.textBaseline = "middle";
               ctx.fillText(text, widget.x, widget.y);
               ctx.restore();
@@ -5892,7 +5914,10 @@
               const fs = Math.max(14, (widget.fontSize || 28));
               ctx.save();
               ctx.font = `bold ${fs}px Arial`;
-              ctx.fillStyle = widget.color || "#0f172a";
+              const isDark = (typeof currentBoardType === "string" && (currentBoardType === "black" || currentBoardType === "green")) ||
+                             (typeof pages !== "undefined" && (pages[currentPageIndex]?.boardType === "black" || pages[currentPageIndex]?.boardType === "green"));
+              const widgetCol = (isDark && (!widget.color || widget.color === "#0f172a" || widget.color === "#000000" || widget.color === "#1e293b" || widget.color === "#374151")) ? "#ffffff" : (widget.color || (isDark ? "#ffffff" : "#0f172a"));
+              ctx.fillStyle = widgetCol;
               ctx.textBaseline = "middle";
               ctx.fillText(text, widget.x, widget.y);
               ctx.restore();
@@ -6016,7 +6041,10 @@
         const y2 = Math.max(start.y, end.y);
         const cy = (y1 + y2) / 2;
         const w = x2 - x1 || 300;
-        const color = shape.color || "#0f172a";
+        const isDark = (typeof currentBoardType === "string" && (currentBoardType === "black" || currentBoardType === "green")) ||
+                       (pages[currentPageIndex]?.boardType === "black" || pages[currentPageIndex]?.boardType === "green");
+        const defaultStroke = isDark ? "#ffffff" : "#0f172a";
+        const color = (isDark && (!shape.color || shape.color === "#0f172a" || shape.color === "#000000" || shape.color === "#1e293b" || shape.color === "#374151")) ? "#ffffff" : (shape.color || defaultStroke);
 
         const min = typeof shape.min === "number" ? shape.min : -5;
         const max = typeof shape.max === "number" ? shape.max : 5;
@@ -6063,7 +6091,7 @@
           const isZero = Math.abs(val) < 0.0001;
 
           ctx.beginPath();
-          ctx.strokeStyle = isZero ? "#0284c7" : color;
+          ctx.strokeStyle = isZero ? (isDark ? "#38bdf8" : "#0284c7") : color;
           ctx.lineWidth = isZero ? (shape.width || 2) + 1 : (shape.width || 2);
           const tickH = isZero ? 13 : 8;
           ctx.moveTo(tx, cy - tickH);
@@ -6071,7 +6099,7 @@
           ctx.stroke();
 
           // Value label
-          ctx.fillStyle = isZero ? "#0284c7" : color;
+          ctx.fillStyle = isZero ? (isDark ? "#38bdf8" : "#0284c7") : (isDark ? "#ffffff" : color);
           let labelText = String(Math.round(val * 100) / 100);
           if (shape.stylePreset === "fractions") {
             if (val === 0) labelText = "0";
@@ -6107,7 +6135,10 @@
         const y2 = Math.max(start.y, end.y);
         const w = x2 - x1 || 240;
         const h = y2 - y1 || 240;
-        const color = shape.color || "#0f172a";
+        const isDark = (typeof currentBoardType === "string" && (currentBoardType === "black" || currentBoardType === "green")) ||
+                       (pages[currentPageIndex]?.boardType === "black" || pages[currentPageIndex]?.boardType === "green");
+        const defaultStroke = isDark ? "#ffffff" : "#0f172a";
+        const color = (isDark && (!shape.color || shape.color === "#0f172a" || shape.color === "#000000" || shape.color === "#1e293b" || shape.color === "#374151")) ? "#ffffff" : (shape.color || defaultStroke);
         const isPos = shape.mode === "positiveQuadrant";
 
         const originX = isPos ? x1 + 24 : (x1 + x2) / 2;
@@ -6117,8 +6148,6 @@
 
         // 1. Optional background grid (similar to whiteboard grid, increased visibility by 20%)
         if (shape.gridVisible !== false) {
-          const isDark = (typeof currentBoardType !== "undefined" && (currentBoardType === "black" || currentBoardType === "green")) ||
-                         (typeof pages !== "undefined" && pages[currentPageIndex] && (pages[currentPageIndex].boardType === "black" || pages[currentPageIndex].boardType === "green"));
           ctx.strokeStyle = isDark ? "rgba(255, 255, 255, 0.28)" : "rgba(0, 0, 0, 0.24)";
           ctx.lineWidth = 0.9;
           const stepX = isPos ? (w - 32) / 6 : (w / 2 - 16) / 5;
@@ -6182,7 +6211,7 @@
 
         // Labels
         ctx.font = "bold 13px serif";
-        ctx.fillStyle = color;
+        ctx.fillStyle = isDark ? "#ffffff" : color;
         ctx.textAlign = "left";
         ctx.textBaseline = "middle";
         ctx.fillText("x", x2 + 2, originY);
@@ -6210,11 +6239,13 @@
         const w = Math.max(20, x2 - x1);
         const h = Math.max(20, y2 - y1);
         const is3Sets = shape.sets === 3;
+        const isDark = (typeof currentBoardType === "string" && (currentBoardType === "black" || currentBoardType === "green")) ||
+                       (pages[currentPageIndex]?.boardType === "black" || pages[currentPageIndex]?.boardType === "green");
 
         ctx.save();
 
         // Universal Set box U
-        ctx.strokeStyle = "#64748b";
+        ctx.strokeStyle = isDark ? "#ffffff" : "#64748b";
         ctx.lineWidth = Math.max(1.5, Math.min(3.5, w * 0.005));
         if (ctx.roundRect) {
           ctx.beginPath();
@@ -6226,14 +6257,13 @@
 
         const uFontSize = Math.max(12, Math.min(32, Math.round(Math.min(w, h) * 0.065)));
         ctx.font = "bold " + uFontSize + "px sans-serif";
-        ctx.fillStyle = "#334155";
+        ctx.fillStyle = isDark ? "#ffffff" : "#334155";
         ctx.textAlign = "left";
         ctx.textBaseline = "top";
         ctx.fillText(shape.labelU || "U", x1 + 12, y1 + 10);
 
         if (!is3Sets) {
           // 2-Set Venn Diagram
-          // Dynamically scale circle radius to fill the box proportionately without arbitrary caps
           const maxRw = (w - 36) / 3.2;
           const maxRh = (h - 48) / 2.2;
           const r = Math.max(12, Math.min(maxRw, maxRh));
@@ -6242,8 +6272,8 @@
 
           // Set A
           ctx.save();
-          ctx.fillStyle = "rgba(2, 132, 199, 0.16)";
-          ctx.strokeStyle = "#0284c7";
+          ctx.fillStyle = isDark ? "rgba(56, 189, 248, 0.22)" : "rgba(2, 132, 199, 0.16)";
+          ctx.strokeStyle = isDark ? "#38bdf8" : "#0284c7";
           ctx.lineWidth = setLineWidth;
           ctx.beginPath();
           ctx.arc(cx - offset, cy, r, 0, Math.PI * 2);
@@ -6253,8 +6283,8 @@
 
           // Set B
           ctx.save();
-          ctx.fillStyle = "rgba(234, 88, 12, 0.16)";
-          ctx.strokeStyle = "#ea580c";
+          ctx.fillStyle = isDark ? "rgba(251, 146, 60, 0.22)" : "rgba(234, 88, 12, 0.16)";
+          ctx.strokeStyle = isDark ? "#fb923c" : "#ea580c";
           ctx.lineWidth = setLineWidth;
           ctx.beginPath();
           ctx.arc(cx + offset, cy, r, 0, Math.PI * 2);
@@ -6265,23 +6295,22 @@
           // Set Labels scaled with radius
           const setFontSize = Math.max(12, Math.min(36, Math.round(r * 0.18)));
           ctx.font = "bold " + setFontSize + "px sans-serif";
-          ctx.fillStyle = "#0284c7";
+          ctx.fillStyle = isDark ? "#38bdf8" : "#0284c7";
           ctx.textAlign = "center";
           ctx.textBaseline = "bottom";
           ctx.fillText(shape.labelA || "A", cx - offset - r * 0.45, cy - r * 0.6);
 
-          ctx.fillStyle = "#ea580c";
+          ctx.fillStyle = isDark ? "#fb923c" : "#ea580c";
           ctx.fillText(shape.labelB || "B", cx + offset + r * 0.45, cy - r * 0.6);
 
           // Intersection notation hint scaled with radius
           const interFontSize = Math.max(10, Math.min(26, Math.round(r * 0.14)));
           ctx.font = "bold " + interFontSize + "px sans-serif";
-          ctx.fillStyle = "#475569";
+          ctx.fillStyle = isDark ? "#ffffff" : "#475569";
           ctx.textBaseline = "middle";
           ctx.fillText("A ∩ B", cx, cy);
         } else {
           // 3-Set Venn Diagram
-          // Dynamically scale circle radius to fill the box proportionately without arbitrary caps
           const maxRw = (w - 36) / 3.3;
           const maxRh = (h - 52) / 3.0;
           const r = Math.max(12, Math.min(maxRw, maxRh));
@@ -6292,8 +6321,8 @@
 
           // Set A (top)
           ctx.save();
-          ctx.fillStyle = "rgba(2, 132, 199, 0.14)";
-          ctx.strokeStyle = "#0284c7";
+          ctx.fillStyle = isDark ? "rgba(56, 189, 248, 0.20)" : "rgba(2, 132, 199, 0.14)";
+          ctx.strokeStyle = isDark ? "#38bdf8" : "#0284c7";
           ctx.lineWidth = setLineWidth;
           ctx.beginPath();
           ctx.arc(cx, topY, r, 0, Math.PI * 2);
@@ -6303,8 +6332,8 @@
 
           // Set B (bottom left)
           ctx.save();
-          ctx.fillStyle = "rgba(234, 88, 12, 0.14)";
-          ctx.strokeStyle = "#ea580c";
+          ctx.fillStyle = isDark ? "rgba(251, 146, 60, 0.20)" : "rgba(234, 88, 12, 0.14)";
+          ctx.strokeStyle = isDark ? "#fb923c" : "#ea580c";
           ctx.lineWidth = setLineWidth;
           ctx.beginPath();
           ctx.arc(cx - offset, botY, r, 0, Math.PI * 2);
@@ -6314,8 +6343,8 @@
 
           // Set C (bottom right)
           ctx.save();
-          ctx.fillStyle = "rgba(22, 163, 74, 0.14)";
-          ctx.strokeStyle = "#16a34a";
+          ctx.fillStyle = isDark ? "rgba(74, 222, 128, 0.20)" : "rgba(22, 163, 74, 0.14)";
+          ctx.strokeStyle = isDark ? "#4ade80" : "#16a34a";
           ctx.lineWidth = setLineWidth;
           ctx.beginPath();
           ctx.arc(cx + offset, botY, r, 0, Math.PI * 2);
@@ -6326,14 +6355,14 @@
           // Labels scaled with radius
           const setFontSize = Math.max(11, Math.min(32, Math.round(r * 0.18)));
           ctx.font = "bold " + setFontSize + "px sans-serif";
-          ctx.fillStyle = "#0284c7";
+          ctx.fillStyle = isDark ? "#38bdf8" : "#0284c7";
           ctx.textAlign = "center";
           ctx.fillText(shape.labelA || "A", cx, topY - r - 3);
 
-          ctx.fillStyle = "#ea580c";
+          ctx.fillStyle = isDark ? "#fb923c" : "#ea580c";
           ctx.fillText(shape.labelB || "B", cx - offset - r * 0.7, botY + r * 0.4);
 
-          ctx.fillStyle = "#16a34a";
+          ctx.fillStyle = isDark ? "#4ade80" : "#16a34a";
           ctx.fillText(shape.labelC || "C", cx + offset + r * 0.7, botY + r * 0.4);
         }
 
@@ -6352,7 +6381,10 @@
         const h = Math.max(20, y2 - y1);
         const total = Math.max(1, Math.min(48, shape.totalParts || 4));
         const shaded = Math.max(0, Math.min(total, shape.shadedParts !== undefined ? shape.shadedParts : 3));
-        const color = shape.color || "#0f172a";
+        const isDark = (typeof currentBoardType === "string" && (currentBoardType === "black" || currentBoardType === "green")) ||
+                       (pages[currentPageIndex]?.boardType === "black" || pages[currentPageIndex]?.boardType === "green");
+        const defaultStroke = isDark ? "#ffffff" : "#0f172a";
+        const color = (isDark && (!shape.color || shape.color === "#0f172a" || shape.color === "#000000" || shape.color === "#1e293b" || shape.color === "#374151")) ? "#ffffff" : (shape.color || defaultStroke);
         const fillColor = shape.fillColor || "#0284c7";
 
         ctx.save();
@@ -6377,7 +6409,7 @@
           // Fraction label below scaled with strip height
           const fs = Math.max(12, Math.min(28, Math.round(barH * 0.35)));
           ctx.font = "bold " + fs + "px sans-serif";
-          ctx.fillStyle = color;
+          ctx.fillStyle = isDark ? "#ffffff" : color;
           ctx.textAlign = "center";
           ctx.textBaseline = "top";
           ctx.fillText(shaded + " / " + total, cx, barY + barH + 8);
@@ -6408,7 +6440,7 @@
           // Fraction label below scaled with radius
           const fs = Math.max(12, Math.min(32, Math.round(r * 0.22)));
           ctx.font = "bold " + fs + "px sans-serif";
-          ctx.fillStyle = color;
+          ctx.fillStyle = isDark ? "#ffffff" : color;
           ctx.textAlign = "center";
           ctx.textBaseline = "top";
           ctx.fillText(shaded + " / " + total, cx, cy + r + 8);
@@ -6633,8 +6665,12 @@
         const h = y2 - y1;
         const cx = (x1 + x2) / 2;
         const cy = (y1 + y2) / 2;
-        const color = shape.color || "#0f172a";
+        const isDark = (typeof currentBoardType === "string" && (currentBoardType === "black" || currentBoardType === "green")) ||
+                       (pages[currentPageIndex]?.boardType === "black" || pages[currentPageIndex]?.boardType === "green");
+        const defaultStroke = isDark ? "#ffffff" : "#0f172a";
+        const color = (isDark && (!shape.color || shape.color === "#0f172a" || shape.color === "#000000" || shape.color === "#1e293b" || shape.color === "#374151")) ? "#ffffff" : (shape.color || defaultStroke);
         const width = shape.width || 2;
+        const dashStroke = isDark ? "rgba(255, 255, 255, 0.45)" : "rgba(100, 116, 139, 0.7)";
 
         ctx.save();
         ctx.strokeStyle = color;
@@ -6670,7 +6706,7 @@
           ctx.stroke();
 
           ctx.setLineDash([5, 4]);
-          ctx.strokeStyle = "rgba(100, 116, 139, 0.7)";
+          ctx.strokeStyle = dashStroke;
           ctx.beginPath();
           ctx.moveTo(fx, fy + s);
           ctx.lineTo(fx + dx, fy + s + dy);
@@ -6713,7 +6749,7 @@
           ctx.stroke();
 
           ctx.setLineDash([5, 4]);
-          ctx.strokeStyle = "rgba(100, 116, 139, 0.7)";
+          ctx.strokeStyle = dashStroke;
           ctx.beginPath();
           ctx.moveTo(fx, fy + hc);
           ctx.lineTo(fx + dx, fy + hc + dy);
@@ -6753,7 +6789,7 @@
           ctx.stroke();
 
           ctx.setLineDash([5, 4]);
-          ctx.strokeStyle = "rgba(100, 116, 139, 0.7)";
+          ctx.strokeStyle = dashStroke;
           ctx.beginPath();
           ctx.ellipse(cx, botCy, rx, ry, 0, Math.PI, Math.PI * 2);
           ctx.stroke();
@@ -6790,7 +6826,7 @@
           ctx.stroke();
 
           ctx.setLineDash([5, 4]);
-          ctx.strokeStyle = "rgba(100, 116, 139, 0.7)";
+          ctx.strokeStyle = dashStroke;
           ctx.beginPath();
           ctx.ellipse(cx, botCy, rx, ry, 0, Math.PI, Math.PI * 2);
           ctx.stroke();
@@ -6827,7 +6863,7 @@
           ctx.stroke();
 
           ctx.setLineDash([5, 4]);
-          ctx.strokeStyle = "rgba(100, 116, 139, 0.7)";
+          ctx.strokeStyle = dashStroke;
           ctx.beginPath();
           ctx.ellipse(cx, cy, r, ry, 0, Math.PI, Math.PI * 2);
           ctx.stroke();
@@ -6874,7 +6910,7 @@
           ctx.stroke();
 
           ctx.setLineDash([5, 4]);
-          ctx.strokeStyle = "rgba(100, 116, 139, 0.7)";
+          ctx.strokeStyle = dashStroke;
           ctx.beginPath();
           ctx.moveTo(fB.x, fB.y);
           ctx.lineTo(fB.x + dx, fB.y + dy);
@@ -6904,7 +6940,7 @@
           ctx.stroke();
 
           ctx.setLineDash([5, 4]);
-          ctx.strokeStyle = "rgba(100, 116, 139, 0.7)";
+          ctx.strokeStyle = dashStroke;
           ctx.beginPath();
           ctx.moveTo(pD.x, pD.y); ctx.lineTo(pA.x, pA.y); ctx.lineTo(pB.x, pB.y);
           ctx.moveTo(cx, apexY); ctx.lineTo(pA.x, pA.y);
@@ -7161,18 +7197,35 @@
         ctx.restore();
       }
 
-      function drawConnectorLabel(ctx, label, x, y, color) {
+      function drawConnectorLabel(ctx, label, x, y, color, fontOptions = {}) {
         if (!label) return;
         ctx.save();
-        ctx.font = "bold 12px Arial, sans-serif";
+
+        const isDark = (typeof currentBoardType === "string" && (currentBoardType === "black" || currentBoardType === "green")) ||
+                       (pages[currentPageIndex]?.boardType === "black" || pages[currentPageIndex]?.boardType === "green");
+
+        let labelCol = (fontOptions && (fontOptions.labelColor || fontOptions.textColor)) || color;
+        if (!labelCol || (isDark && (labelCol === "#0f172a" || labelCol === "#000000" || labelCol === "#1e293b" || labelCol === "#374151" || labelCol === "#475569"))) {
+          labelCol = isDark ? "#ffffff" : "#0f172a";
+        }
+
+        const fontFamily = (fontOptions && (fontOptions.labelFontFamily || fontOptions.fontFamily)) || "Inter, Arial, sans-serif";
+        const isBold = fontOptions && (fontOptions.labelBold !== undefined ? fontOptions.labelBold : (fontOptions.bold !== undefined ? fontOptions.bold : true));
+        const isItalic = fontOptions && (fontOptions.labelItalic !== undefined ? fontOptions.labelItalic : (fontOptions.italic !== undefined ? fontOptions.italic : false));
+        const fontStylePrefix = (isItalic ? "italic " : "") + (isBold ? "bold " : "normal ");
+
+        let fs = (fontOptions && (fontOptions.labelFontSize || fontOptions.fontSize)) ? parseInt(fontOptions.labelFontSize || fontOptions.fontSize, 10) : 12;
+        if (isNaN(fs) || fs <= 0) fs = 12;
+
+        ctx.font = `${fontStylePrefix}${fs}px ${fontFamily}`;
         const metrics = ctx.measureText(label);
         const padX = 8;
-        const padY = 3;
+        const padY = 4;
         const w = metrics.width + padX * 2;
-        const h = 20;
+        const h = fs + padY * 2 + 2;
 
-        ctx.fillStyle = "#ffffff";
-        ctx.strokeStyle = "#cbd5e1";
+        ctx.fillStyle = isDark ? "#0f172a" : "#ffffff";
+        ctx.strokeStyle = isDark ? "#38bdf8" : "#cbd5e1";
         ctx.lineWidth = 1;
         ctx.setLineDash([]);
         ctx.beginPath();
@@ -7181,20 +7234,35 @@
         ctx.fill();
         ctx.stroke();
 
-        ctx.fillStyle = color || "#0f172a";
+        ctx.fillStyle = labelCol;
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         ctx.fillText(label, x, y);
         ctx.restore();
       }
 
-      function drawNodeText(ctx, text, cx, cy, maxW, maxH, color) {
+      function drawNodeText(ctx, text, cx, cy, maxW, maxH, color, fontOptions = {}) {
         if (!text) return;
         const availableW = Math.max(24, maxW - 8);
         const availableH = Math.max(16, maxH - 6);
 
+        const isDark = (typeof currentBoardType === "string" && (currentBoardType === "black" || currentBoardType === "green")) ||
+                       (pages[currentPageIndex]?.boardType === "black" || pages[currentPageIndex]?.boardType === "green");
+        let fillCol = (fontOptions && fontOptions.textColor) || color;
+        if (!fillCol || (isDark && (fillCol === "#0f172a" || fillCol === "#000000" || fillCol === "#1e293b" || fillCol === "#374151" || fillCol === "#475569"))) {
+          fillCol = isDark ? "#ffffff" : "#0f172a";
+        }
+
+        const fontFamily = (fontOptions && fontOptions.fontFamily) || "Inter, -apple-system, sans-serif";
+        const isBold = fontOptions && fontOptions.bold !== undefined ? !!fontOptions.bold : true;
+        const isItalic = fontOptions && fontOptions.italic !== undefined ? !!fontOptions.italic : false;
+        const fontStylePrefix = (isItalic ? "italic " : "") + (isBold ? "bold " : "normal ");
+
+        let targetFs = (fontOptions && fontOptions.fontSize) ? parseInt(fontOptions.fontSize, 10) : 14;
+        if (isNaN(targetFs) || targetFs <= 0) targetFs = 14;
+
         ctx.save();
-        ctx.fillStyle = color || "#0f172a";
+        ctx.fillStyle = fillCol;
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
 
@@ -7205,7 +7273,7 @@
 
         // Helper to wrap lines with word-break and character-breaking for long strings
         function wrapLines(fontSize) {
-          ctx.font = "600 " + fontSize + "px system-ui, -apple-system, sans-serif";
+          ctx.font = `${fontStylePrefix}${fontSize}px ${fontFamily}`;
           const paragraphs = String(text).split(/\r?\n/);
           const lines = [];
 
@@ -7249,7 +7317,7 @@
         }
 
         // Dynamically scale font size if needed so all lines fit inside availableH
-        let fs = Math.min(14, Math.max(9, Math.floor(availableH * 0.35)));
+        let fs = Math.max(9, targetFs);
         let lines = wrapLines(fs);
         let lineHeight = Math.round(fs * 1.25);
         while (lines.length * lineHeight > availableH && fs > 8) {
@@ -7258,7 +7326,7 @@
           lineHeight = Math.round(fs * 1.25);
         }
 
-        ctx.font = "600 " + fs + "px system-ui, -apple-system, sans-serif";
+        ctx.font = `${fontStylePrefix}${fs}px ${fontFamily}`;
         const totalH = lines.length * lineHeight;
         const startY = cy - totalH / 2 + lineHeight / 2;
         lines.forEach((line, idx) => {
@@ -7272,7 +7340,10 @@
         let end = shape.end;
         if (!start || !end) return;
 
-        const color = shape.color || "#0f172a";
+        const isDark = (typeof currentBoardType === "string" && (currentBoardType === "black" || currentBoardType === "green")) ||
+                       (pages[currentPageIndex]?.boardType === "black" || pages[currentPageIndex]?.boardType === "green");
+        const defaultColor = isDark ? "#ffffff" : "#0f172a";
+        const color = (isDark && (!shape.color || shape.color === "#0f172a" || shape.color === "#000000" || shape.color === "#1e293b" || shape.color === "#374151" || shape.color === "#475569")) ? "#ffffff" : (shape.color || defaultColor);
         const lineWidth = shape.width || 2;
         const routing = shape.routing || "orthogonal";
 
@@ -7385,7 +7456,7 @@
         }
 
         if (shape.label) {
-          drawConnectorLabel(ctx, shape.label, midPoint.x, midPoint.y, color);
+          drawConnectorLabel(ctx, shape.label, midPoint.x, midPoint.y, shape.labelColor || shape.textColor || color, shape);
         }
 
         shape._midPoint = midPoint;
@@ -7449,6 +7520,10 @@
           w = 44; h = 44; defaultText = "A"; color = "#0f172a"; fillColor = "#ffffff";
         }
 
+        const isDark = (typeof currentBoardType === "string" && (currentBoardType === "black" || currentBoardType === "green")) ||
+                       (pages[currentPageIndex]?.boardType === "black" || pages[currentPageIndex]?.boardType === "green");
+        const defaultTextCol = isDark ? "#ffffff" : "#0f172a";
+
         const newShape = {
           id: generateId(),
           type,
@@ -7456,11 +7531,15 @@
           end: { x: Math.round(cx + w / 2), y: Math.round(cy + h / 2) },
           text: customText || defaultText,
           color,
-          width: 2,
-          fillMode: "solid",
+          width: flowchartSettings.width || 2,
+          fillMode: flowchartSettings.fillMode || "solid",
           fillColor,
           fillOpacity: 1,
-          textColor: "#0f172a"
+          textColor: flowchartSettings.textColor || defaultTextCol,
+          fontSize: flowchartSettings.fontSize || 14,
+          fontFamily: flowchartSettings.fontFamily || "Inter, -apple-system, sans-serif",
+          bold: flowchartSettings.bold !== undefined ? flowchartSettings.bold : true,
+          italic: flowchartSettings.italic !== undefined ? flowchartSettings.italic : false
         };
 
         if (!page.shapes) page.shapes = [];
@@ -7479,6 +7558,10 @@
         const page = pages[currentPageIndex];
         if (!page || !shapeA || !shapeB) return null;
 
+        const isDark = (typeof currentBoardType === "string" && (currentBoardType === "black" || currentBoardType === "green")) ||
+                       (pages[currentPageIndex]?.boardType === "black" || pages[currentPageIndex]?.boardType === "green");
+        const defaultTextCol = isDark ? "#ffffff" : "#0f172a";
+
         const portsA = getShapePorts(shapeA);
         const portsB = getShapePorts(shapeB);
         const best = getBestPorts(shapeA, shapeB);
@@ -7492,15 +7575,20 @@
           endPort: best.toPort,
           start: { x: portsA[best.fromPort].x, y: portsA[best.fromPort].y },
           end: { x: portsB[best.toPort].x, y: portsB[best.toPort].y },
-          routing: routing || "orthogonal",
+          routing: routing || flowchartSettings.routing || "orthogonal",
           controlPoint: null,
           bendOffset: 0,
-          color: "#0f172a",
-          width: 2,
-          arrowEnd: true,
-          arrowStart: false,
-          lineDash: [],
-          label: label || ""
+          color: flowchartSettings.color || defaultTextCol,
+          width: flowchartSettings.width || 2,
+          arrowEnd: flowchartSettings.arrowEnd !== false,
+          arrowStart: !!flowchartSettings.arrowStart,
+          lineDash: (flowchartSettings.lineDash && flowchartSettings.lineDash.length > 0) ? flowchartSettings.lineDash.slice() : [],
+          label: label || "",
+          labelFontSize: flowchartSettings.fontSize || 12,
+          labelFontFamily: flowchartSettings.fontFamily || "Inter, -apple-system, sans-serif",
+          labelBold: flowchartSettings.bold !== undefined ? flowchartSettings.bold : true,
+          labelItalic: flowchartSettings.italic !== undefined ? flowchartSettings.italic : false,
+          labelColor: flowchartSettings.textColor || defaultTextCol
         };
 
         if (!page.shapes) page.shapes = [];
@@ -7720,6 +7808,8 @@
         }
 
         ctx.save();
+        const isDark = (typeof currentBoardType === "string" && (currentBoardType === "black" || currentBoardType === "green")) ||
+                       (typeof pages !== "undefined" && (pages[currentPageIndex]?.boardType === "black" || pages[currentPageIndex]?.boardType === "green"));
         if (isPreview) {
           ctx.setLineDash([6, 4]);
         }
@@ -7805,15 +7895,15 @@
           draw3dSolidShape(ctx, shape);
         } else if (type === "graphPlotter") {
           if (window.EduAshramGraphPlotter && typeof window.EduAshramGraphPlotter.drawGraphPlotterShape === "function") {
-            window.EduAshramGraphPlotter.drawGraphPlotterShape(ctx, shape, isPreview);
+            window.EduAshramGraphPlotter.drawGraphPlotterShape(ctx, shape, isPreview, isDark);
           }
         } else if (type === "elementCard") {
           if (window.EduAshramPeriodicTable && typeof window.EduAshramPeriodicTable.drawElementCardShape === "function") {
-            window.EduAshramPeriodicTable.drawElementCardShape(ctx, shape, isPreview);
+            window.EduAshramPeriodicTable.drawElementCardShape(ctx, shape, isPreview, isDark);
           }
         } else if (type === "periodicTable") {
           if (window.EduAshramPeriodicTable && typeof window.EduAshramPeriodicTable.drawPeriodicTableShape === "function") {
-            window.EduAshramPeriodicTable.drawPeriodicTableShape(ctx, shape, isPreview);
+            window.EduAshramPeriodicTable.drawPeriodicTableShape(ctx, shape, isPreview, isDark);
           }
         } else if (type === "angleArc" || type === "arc") {
           const vx = (shape.vertex && typeof shape.vertex.x === "number") ? shape.vertex.x : cx;
@@ -7845,7 +7935,7 @@
           if (shape.fillMode === "solid") { ctx.save(); ctx.globalAlpha = fillOpacity; ctx.fill(); ctx.restore(); }
           ctx.stroke();
           if (shape.text) {
-            drawNodeText(ctx, shape.text, cx, cy, w - 16, h - 10, shape.textColor || shape.color);
+            drawNodeText(ctx, shape.text, cx, cy, w - 16, h - 10, shape.textColor || shape.color, shape);
           }
         } else if (type === "fc-process") {
           ctx.beginPath();
@@ -7853,7 +7943,7 @@
           if (shape.fillMode === "solid") { ctx.save(); ctx.globalAlpha = fillOpacity; ctx.fill(); ctx.restore(); }
           ctx.stroke();
           if (shape.text) {
-            drawNodeText(ctx, shape.text, cx, cy, w - 16, h - 10, shape.textColor || shape.color);
+            drawNodeText(ctx, shape.text, cx, cy, w - 16, h - 10, shape.textColor || shape.color, shape);
           }
         } else if (type === "fc-decision") {
           ctx.beginPath();
@@ -7865,7 +7955,7 @@
           if (shape.fillMode === "solid") { ctx.save(); ctx.globalAlpha = fillOpacity; ctx.fill(); ctx.restore(); }
           ctx.stroke();
           if (shape.text) {
-            drawNodeText(ctx, shape.text, cx, cy, w * 0.65, h * 0.65, shape.textColor || shape.color);
+            drawNodeText(ctx, shape.text, cx, cy, w * 0.65, h * 0.65, shape.textColor || shape.color, shape);
           }
         } else if (type === "fc-io") {
           const slant = Math.min(w * 0.2, 28);
@@ -7878,7 +7968,7 @@
           if (shape.fillMode === "solid") { ctx.save(); ctx.globalAlpha = fillOpacity; ctx.fill(); ctx.restore(); }
           ctx.stroke();
           if (shape.text) {
-            drawNodeText(ctx, shape.text, cx, cy, w - slant * 2 - 10, h - 10, shape.textColor || shape.color);
+            drawNodeText(ctx, shape.text, cx, cy, w - slant * 2 - 10, h - 10, shape.textColor || shape.color, shape);
           }
         } else if (type === "fc-document") {
           const waveH = Math.min(14, h * 0.2);
@@ -7892,7 +7982,7 @@
           if (shape.fillMode === "solid") { ctx.save(); ctx.globalAlpha = fillOpacity; ctx.fill(); ctx.restore(); }
           ctx.stroke();
           if (shape.text) {
-            drawNodeText(ctx, shape.text, cx, cy - waveH * 0.3, w - 16, h - waveH - 10, shape.textColor || shape.color);
+            drawNodeText(ctx, shape.text, cx, cy - waveH * 0.3, w - 16, h - waveH - 10, shape.textColor || shape.color, shape);
           }
         } else if (type === "fc-database") {
           const ellipseH = Math.min(18, h * 0.25);
@@ -7909,7 +7999,7 @@
           ctx.ellipse(cx, y1 + ellipseH, w / 2, ellipseH, 0, 0, Math.PI * 2);
           ctx.stroke();
           if (shape.text) {
-            drawNodeText(ctx, shape.text, cx, cy + ellipseH * 0.5, w - 16, h - ellipseH * 2, shape.textColor || shape.color);
+            drawNodeText(ctx, shape.text, cx, cy + ellipseH * 0.5, w - 16, h - ellipseH * 2, shape.textColor || shape.color, shape);
           }
         } else if (type === "fc-subroutine") {
           ctx.beginPath();
@@ -7924,7 +8014,7 @@
           ctx.lineTo(x2 - barInset, y2);
           ctx.stroke();
           if (shape.text) {
-            drawNodeText(ctx, shape.text, cx, cy, w - barInset * 2 - 12, h - 10, shape.textColor || shape.color);
+            drawNodeText(ctx, shape.text, cx, cy, w - barInset * 2 - 12, h - 10, shape.textColor || shape.color, shape);
           }
         } else if (type === "fc-connector-node") {
           const rNode = Math.min(w, h) / 2;
@@ -7933,7 +8023,7 @@
           if (shape.fillMode === "solid") { ctx.save(); ctx.globalAlpha = fillOpacity; ctx.fill(); ctx.restore(); }
           ctx.stroke();
           if (shape.text) {
-            drawNodeText(ctx, shape.text, cx, cy, rNode * 1.5, rNode * 1.5, shape.textColor || shape.color);
+            drawNodeText(ctx, shape.text, cx, cy, rNode * 1.5, rNode * 1.5, shape.textColor || shape.color, shape);
           }
         } else if (type === "rectangle") {
           ctx.rect(x1, y1, w, h);
@@ -8209,7 +8299,7 @@
           ctx.save();
 
           // Background frame
-          ctx.strokeStyle = shape.color || "#374151";
+          ctx.strokeStyle = (isDark && (!shape.color || shape.color === "#374151" || shape.color === "#0f172a" || shape.color === "#000000")) ? "#ffffff" : (shape.color || (isDark ? "#ffffff" : "#374151"));
           ctx.lineWidth = 1;
           ctx.strokeRect(x1 + padL, y1 + padT, chartW, chartH);
 
@@ -8218,7 +8308,7 @@
             ctx.font = 'bold ' + titleFontSize + 'px "Segoe UI", sans-serif';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'top';
-            ctx.fillStyle = '#111827';
+            ctx.fillStyle = isDark ? '#ffffff' : '#111827';
             ctx.fillText(title, x1 + w / 2, y1 + Math.max(6, (padT - titleFontSize) / 2));
           }
 
@@ -8232,7 +8322,7 @@
             const valNum = Math.round(tickMax * frac);
             const gy = y1 + padT + chartH - frac * chartH;
             ctx.beginPath();
-            ctx.strokeStyle = t === 0 ? (shape.color || "#374151") : "rgba(156, 163, 175, 0.3)";
+            ctx.strokeStyle = t === 0 ? (isDark ? '#ffffff' : (shape.color || "#374151")) : (isDark ? "rgba(255, 255, 255, 0.25)" : "rgba(156, 163, 175, 0.3)");
             ctx.lineWidth = t === 0 ? 1.5 : 1;
             ctx.moveTo(x1 + padL, gy);
             ctx.lineTo(x1 + padL + chartW, gy);
@@ -8240,7 +8330,7 @@
 
             if (showAxisLabels) {
               ctx.font = tickFontSize + 'px "Segoe UI", sans-serif';
-              ctx.fillStyle = '#4b5563';
+              ctx.fillStyle = isDark ? '#ffffff' : '#4b5563';
               ctx.fillText(String(valNum), x1 + padL - 6, gy);
             }
           }
@@ -8253,7 +8343,7 @@
             ctx.font = 'bold ' + axisTitleFontSize + 'px "Segoe UI", sans-serif';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            ctx.fillStyle = '#374151';
+            ctx.fillStyle = isDark ? '#ffffff' : '#374151';
             ctx.fillText(yAxisLabel, 0, 0);
             ctx.restore();
           }
@@ -8267,7 +8357,7 @@
 
             ctx.fillStyle = barColors[i % barColors.length];
             ctx.fillRect(bx, by, barW, barH);
-            ctx.strokeStyle = '#1e293b';
+            ctx.strokeStyle = isDark ? 'rgba(255, 255, 255, 0.5)' : '#1e293b';
             ctx.lineWidth = 1;
             ctx.strokeRect(bx, by, barW, barH);
 
@@ -8276,7 +8366,7 @@
               ctx.font = 'bold ' + valFontSize + 'px "Segoe UI", sans-serif';
               ctx.textAlign = 'center';
               ctx.textBaseline = 'bottom';
-              ctx.fillStyle = '#1e293b';
+              ctx.fillStyle = isDark ? '#ffffff' : '#1e293b';
               ctx.fillText(String(data[i]), bx + barW / 2, by - 4);
             }
 
@@ -8285,7 +8375,7 @@
             ctx.font = '600 ' + catFontSize + 'px "Segoe UI", sans-serif';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'top';
-            ctx.fillStyle = '#374151';
+            ctx.fillStyle = isDark ? '#ffffff' : '#374151';
             ctx.fillText(cat, bx + barW / 2, y1 + padT + chartH + 6);
           }
 
@@ -8294,7 +8384,7 @@
             ctx.font = 'bold ' + axisTitleFontSize + 'px "Segoe UI", sans-serif';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'top';
-            ctx.fillStyle = '#374151';
+            ctx.fillStyle = isDark ? '#ffffff' : '#374151';
             const xLabelY = y1 + padT + chartH + catFontSize + 10;
             ctx.fillText(xAxisLabel, x1 + padL + chartW / 2, xLabelY);
           }
@@ -8304,7 +8394,7 @@
             ctx.font = 'italic ' + keyFontSize + 'px "Segoe UI", sans-serif';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'top';
-            ctx.fillStyle = '#6b7280';
+            ctx.fillStyle = isDark ? '#ffffff' : '#6b7280';
             const keyY = hasXLabel ? (y1 + padT + chartH + catFontSize + axisTitleFontSize + 16) : (y1 + padT + chartH + catFontSize + 12);
             ctx.fillText(keyText, x1 + padL + chartW / 2, keyY);
           }
@@ -8342,7 +8432,7 @@
             ctx.font = 'bold ' + titleFontSize + 'px "Segoe UI", sans-serif';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'top';
-            ctx.fillStyle = '#111827';
+            ctx.fillStyle = isDark ? '#ffffff' : '#111827';
             ctx.fillText(title, cx, y1 + 8);
           }
 
@@ -8360,7 +8450,7 @@
             ctx.closePath();
             ctx.fillStyle = sliceColors[i % sliceColors.length];
             ctx.fill();
-            ctx.strokeStyle = "#1e293b";
+            ctx.strokeStyle = isDark ? "rgba(255, 255, 255, 0.4)" : "#1e293b";
             ctx.lineWidth = 1;
             ctx.stroke();
 
@@ -8397,7 +8487,7 @@
               const ly2 = pieCy + Math.sin(midA) * (rad + 12);
 
               ctx.beginPath();
-              ctx.strokeStyle = '#4b5563';
+              ctx.strokeStyle = isDark ? '#ffffff' : '#4b5563';
               ctx.lineWidth = 1;
               ctx.moveTo(lx1, ly1);
               ctx.lineTo(lx2, ly2);
@@ -8406,7 +8496,7 @@
               ctx.font = '11px "Segoe UI", sans-serif';
               ctx.textAlign = Math.cos(midA) >= 0 ? 'left' : 'right';
               ctx.textBaseline = 'middle';
-              ctx.fillStyle = '#1e293b';
+              ctx.fillStyle = isDark ? '#ffffff' : '#1e293b';
               ctx.fillText(pct + "%", lx2 + (Math.cos(midA) >= 0 ? 3 : -3), ly2);
             }
 
@@ -8418,7 +8508,7 @@
             ctx.font = 'italic ' + keyFontSize + 'px "Segoe UI", sans-serif';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'bottom';
-            ctx.fillStyle = '#6b7280';
+            ctx.fillStyle = isDark ? '#ffffff' : '#6b7280';
             ctx.fillText(keyText, cx, y1 + h - 4);
           }
 
@@ -8478,7 +8568,7 @@
           ctx.save();
 
           // Background frame
-          ctx.strokeStyle = shape.color || "#374151";
+          ctx.strokeStyle = (isDark && (!shape.color || shape.color === "#374151" || shape.color === "#0f172a" || shape.color === "#000000")) ? "#ffffff" : (shape.color || (isDark ? "#ffffff" : "#374151"));
           ctx.lineWidth = 1;
           ctx.strokeRect(x1 + padL, y1 + padT, chartW, chartH);
 
@@ -8487,7 +8577,7 @@
             ctx.font = 'bold ' + titleFontSize + 'px "Segoe UI", sans-serif';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'top';
-            ctx.fillStyle = '#111827';
+            ctx.fillStyle = isDark ? '#ffffff' : '#111827';
             ctx.fillText(title, x1 + w / 2, y1 + Math.max(6, (padT - titleFontSize) / 2));
           }
 
@@ -8502,7 +8592,7 @@
             const gx = x1 + padL + frac * chartW;
 
             ctx.beginPath();
-            ctx.strokeStyle = t === 0 ? (shape.color || "#374151") : "rgba(156, 163, 175, 0.3)";
+            ctx.strokeStyle = t === 0 ? (isDark ? '#ffffff' : (shape.color || "#374151")) : (isDark ? "rgba(255, 255, 255, 0.25)" : "rgba(156, 163, 175, 0.3)");
             ctx.lineWidth = t === 0 ? 1.5 : 1;
             ctx.moveTo(gx, y1 + padT);
             ctx.lineTo(gx, y1 + padT + chartH);
@@ -8510,7 +8600,7 @@
 
             if (showAxisLabels) {
               ctx.font = tickFontSize + 'px "Segoe UI", sans-serif';
-              ctx.fillStyle = '#4b5563';
+              ctx.fillStyle = isDark ? '#ffffff' : '#4b5563';
               ctx.fillText(String(valNum), gx, y1 + padT + chartH + 4);
             }
           }
@@ -8523,7 +8613,7 @@
             ctx.font = 'bold ' + axisTitleFontSize + 'px "Segoe UI", sans-serif';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            ctx.fillStyle = '#374151';
+            ctx.fillStyle = isDark ? '#ffffff' : '#374151';
             ctx.fillText(yAxisLabel, 0, 0);
             ctx.restore();
           }
@@ -8537,7 +8627,7 @@
 
             ctx.fillStyle = barColors[i % barColors.length];
             ctx.fillRect(bx, by, barW, barH);
-            ctx.strokeStyle = '#1e293b';
+            ctx.strokeStyle = isDark ? 'rgba(255, 255, 255, 0.5)' : '#1e293b';
             ctx.lineWidth = 1;
             ctx.strokeRect(bx, by, barW, barH);
 
@@ -8546,7 +8636,7 @@
             ctx.font = '600 ' + catFontSize + 'px "Segoe UI", sans-serif';
             ctx.textAlign = 'right';
             ctx.textBaseline = 'middle';
-            ctx.fillStyle = '#374151';
+            ctx.fillStyle = isDark ? '#ffffff' : '#374151';
             ctx.fillText(cat, bx - 8, by + barH / 2);
 
             // Value at right end of bar
@@ -8554,7 +8644,7 @@
               ctx.font = 'bold ' + valFontSize + 'px "Segoe UI", sans-serif';
               ctx.textAlign = 'left';
               ctx.textBaseline = 'middle';
-              ctx.fillStyle = '#1e293b';
+              ctx.fillStyle = isDark ? '#ffffff' : '#1e293b';
               ctx.fillText(String(data[i]), bx + barW + 6, by + barH / 2);
             }
           }
@@ -8564,7 +8654,7 @@
             ctx.font = 'bold ' + axisTitleFontSize + 'px "Segoe UI", sans-serif';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'top';
-            ctx.fillStyle = '#374151';
+            ctx.fillStyle = isDark ? '#ffffff' : '#374151';
             const xLabelY = y1 + padT + chartH + tickFontSize + 8;
             ctx.fillText(xAxisLabel, x1 + padL + chartW / 2, xLabelY);
           }
@@ -8574,7 +8664,7 @@
             ctx.font = 'italic ' + keyFontSize + 'px "Segoe UI", sans-serif';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'top';
-            ctx.fillStyle = '#6b7280';
+            ctx.fillStyle = isDark ? '#ffffff' : '#6b7280';
             const keyY = hasXLabel ? (y1 + padT + chartH + tickFontSize + axisTitleFontSize + 14) : (y1 + padT + chartH + tickFontSize + 10);
             ctx.fillText(keyText, x1 + padL + chartW / 2, keyY);
           }
@@ -8614,7 +8704,7 @@
           ctx.save();
 
           // Background frame
-          ctx.strokeStyle = shape.color || "#374151";
+          ctx.strokeStyle = (isDark && (!shape.color || shape.color === "#374151" || shape.color === "#0f172a" || shape.color === "#000000")) ? "#ffffff" : (shape.color || (isDark ? "#ffffff" : "#374151"));
           ctx.lineWidth = 1;
           ctx.strokeRect(x1 + padL, y1 + padT, chartW, chartH);
 
@@ -8623,7 +8713,7 @@
             ctx.font = 'bold ' + titleFontSize + 'px "Segoe UI", sans-serif';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'top';
-            ctx.fillStyle = '#111827';
+            ctx.fillStyle = isDark ? '#ffffff' : '#111827';
             ctx.fillText(title, x1 + w / 2, y1 + Math.max(6, (padT - titleFontSize) / 2));
           }
 
@@ -8635,7 +8725,7 @@
             // Row divider
             if (i > 0) {
               ctx.beginPath();
-              ctx.strokeStyle = "rgba(156, 163, 175, 0.25)";
+              ctx.strokeStyle = isDark ? "rgba(255, 255, 255, 0.2)" : "rgba(156, 163, 175, 0.25)";
               ctx.lineWidth = 1;
               ctx.moveTo(x1 + padL, y1 + padT + i * rowH);
               ctx.lineTo(x1 + padL + chartW, y1 + padT + i * rowH);
@@ -8647,7 +8737,7 @@
             ctx.font = '600 ' + catFontSize + 'px "Segoe UI", sans-serif';
             ctx.textAlign = 'right';
             ctx.textBaseline = 'middle';
-            ctx.fillStyle = '#374151';
+            ctx.fillStyle = isDark ? '#ffffff' : '#374151';
             ctx.fillText(cat, x1 + padL - 8, sy);
 
             // Symbols
@@ -8694,7 +8784,7 @@
                 ctx.arc(cxS, sy, r, 0, Math.PI * 2);
               }
               ctx.fill();
-              ctx.strokeStyle = "#1e293b";
+              ctx.strokeStyle = isDark ? "rgba(255, 255, 255, 0.4)" : "#1e293b";
               ctx.lineWidth = 0.8;
               ctx.stroke();
             }
@@ -8704,7 +8794,7 @@
               ctx.font = 'bold ' + valFontSize + 'px "Segoe UI", sans-serif';
               ctx.textAlign = 'left';
               ctx.textBaseline = 'middle';
-              ctx.fillStyle = '#1e293b';
+              ctx.fillStyle = isDark ? '#ffffff' : '#1e293b';
               ctx.fillText(String(count), x1 + padL + chartW + 8, sy);
             }
           }
@@ -8714,7 +8804,7 @@
             ctx.font = 'italic ' + keyFontSize + 'px "Segoe UI", sans-serif';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'top';
-            ctx.fillStyle = '#6b7280';
+            ctx.fillStyle = isDark ? '#ffffff' : '#6b7280';
             ctx.fillText(keyText, x1 + padL + chartW / 2, y1 + padT + chartH + 7);
           }
 
@@ -8723,6 +8813,9 @@
           const img = getCachedImage(shape.dataUrl);
           if (img && img.complete) {
             ctx.save();
+            if (type === "equation" && isDark && (!shape.color || shape.color === "#0f172a" || shape.color === "#000000" || shape.color === "#1e293b" || shape.color === "#374151")) {
+              ctx.filter = "invert(1) hue-rotate(180deg)";
+            }
             const iw = img.width;
             const ih = img.height;
             if (iw > 0 && ih > 0) {
@@ -9089,15 +9182,25 @@
           settingsSelect.value = type;
         }
 
+        window.currentBoardType = type;
+
         // Adjust default drawing colors based on board background
         if (type === "black" || type === "green") {
           penSettings.color = "#ffffff";
           textSettings.color = "#ffffff";
           shapeSettings.color = "#ffffff";
+          if (typeof flowchartSettings !== "undefined") flowchartSettings.color = "#ffffff";
+          if (typeof timeToolSettings !== "undefined") timeToolSettings.color = "#ffffff";
+          if (typeof pollSettings !== "undefined") pollSettings.color = "#ffffff";
+          if (typeof activeEqColor !== "undefined") activeEqColor = "#ffffff";
         } else {
           penSettings.color = "#0f172a";
           textSettings.color = "#0f172a";
           shapeSettings.color = "#0f172a";
+          if (typeof flowchartSettings !== "undefined") flowchartSettings.color = "#0f172a";
+          if (typeof timeToolSettings !== "undefined") timeToolSettings.color = "#0f172a";
+          if (typeof pollSettings !== "undefined") pollSettings.color = "#0f172a";
+          if (typeof activeEqColor !== "undefined") activeEqColor = "#0f172a";
         }
         updateBoardAppearance();
         updateBoardInfoLabel();
@@ -9428,6 +9531,322 @@
           el(svg, "polyline", { points: "13,5 18,5 18,10", fill: "none", stroke: "currentColor", "stroke-width": "2", "stroke-linecap": "round", "stroke-linejoin": "round" });
         }
         return svg;
+      }
+
+      function normHexColor(c) {
+        if (!c) return "";
+        c = String(c).trim().toLowerCase();
+        if (c.startsWith("#") && c.length === 4) {
+          return "#" + c[1] + c[1] + c[2] + c[2] + c[3] + c[3];
+        }
+        return c;
+      }
+
+      function createFlowchartTypographyControls(values, onChange) {
+        const container = document.createElement("div");
+        container.style.marginTop = "4px";
+        container.style.display = "flex";
+        container.style.flexDirection = "column";
+        container.style.gap = "6px";
+
+        // 1. Font Family & Style Row (Select + Bold + Italic)
+        const row1 = document.createElement("div");
+        row1.style.display = "flex";
+        row1.style.gap = "5px";
+        row1.style.alignItems = "center";
+
+        const fontSelect = document.createElement("select");
+        fontSelect.style.flex = "1";
+        fontSelect.style.minWidth = "0";
+        fontSelect.style.padding = "4px 6px";
+        fontSelect.style.borderRadius = "6px";
+        fontSelect.style.border = "1px solid #cbd5e1";
+        fontSelect.style.fontSize = "0.74rem";
+        fontSelect.style.backgroundColor = "#ffffff";
+        fontSelect.style.color = "#0f172a";
+        fontSelect.style.cursor = "pointer";
+
+        const fontFamilies = [
+          { name: "Inter (Modern)", val: "Inter, -apple-system, sans-serif" },
+          { name: "Arial (Clean)", val: "Arial, sans-serif" },
+          { name: "Georgia (Serif)", val: "Georgia, serif" },
+          { name: "Courier New (Mono)", val: "'Courier New', monospace" },
+          { name: "Comic Sans (Casual)", val: "'Comic Sans MS', cursive, sans-serif" },
+          { name: "Trebuchet MS", val: "'Trebuchet MS', sans-serif" },
+          { name: "Impact (Bold)", val: "Impact, sans-serif" }
+        ];
+
+        fontFamilies.forEach((f) => {
+          const opt = document.createElement("option");
+          opt.value = f.val;
+          opt.textContent = f.name;
+          const curVal = (values.fontFamily || "").toLowerCase();
+          const familyKey = f.val.split(",")[0].replace(/'/g, "").toLowerCase();
+          if (curVal.includes(familyKey)) {
+            opt.selected = true;
+          }
+          fontSelect.appendChild(opt);
+        });
+
+        fontSelect.addEventListener("change", (e) => {
+          onChange("fontFamily", e.target.value);
+        });
+        row1.appendChild(fontSelect);
+
+        // Bold Button
+        const isBold = values.bold !== undefined ? !!values.bold : true;
+        const btnBold = document.createElement("button");
+        btnBold.type = "button";
+        btnBold.style.width = "28px";
+        btnBold.style.height = "26px";
+        btnBold.style.borderRadius = "5px";
+        btnBold.style.border = isBold ? "2px solid #0284c7" : "1px solid #cbd5e1";
+        btnBold.style.backgroundColor = isBold ? "#f0f9ff" : "#ffffff";
+        btnBold.style.color = isBold ? "#0284c7" : "#475569";
+        btnBold.style.fontWeight = "bold";
+        btnBold.style.fontSize = "0.8rem";
+        btnBold.style.cursor = "pointer";
+        btnBold.textContent = "B";
+        btnBold.title = "Toggle Bold";
+        btnBold.addEventListener("click", () => {
+          onChange("bold", !isBold);
+        });
+        row1.appendChild(btnBold);
+
+        // Italic Button
+        const isItalic = !!values.italic;
+        const btnItalic = document.createElement("button");
+        btnItalic.type = "button";
+        btnItalic.style.width = "28px";
+        btnItalic.style.height = "26px";
+        btnItalic.style.borderRadius = "5px";
+        btnItalic.style.border = isItalic ? "2px solid #0284c7" : "1px solid #cbd5e1";
+        btnItalic.style.backgroundColor = isItalic ? "#f0f9ff" : "#ffffff";
+        btnItalic.style.color = isItalic ? "#0284c7" : "#475569";
+        btnItalic.style.fontStyle = "italic";
+        btnItalic.style.fontWeight = "600";
+        btnItalic.style.fontSize = "0.8rem";
+        btnItalic.style.cursor = "pointer";
+        btnItalic.textContent = "I";
+        btnItalic.title = "Toggle Italic";
+        btnItalic.addEventListener("click", () => {
+          onChange("italic", !isItalic);
+        });
+        row1.appendChild(btnItalic);
+        container.appendChild(row1);
+
+        // 2. Font Size Section (Header with Stepper + 12 Quick Pills up to 52px)
+        const curFs = parseInt(values.fontSize, 10) || 14;
+
+        const sizeHeader = document.createElement("div");
+        sizeHeader.style.display = "flex";
+        sizeHeader.style.justifyContent = "space-between";
+        sizeHeader.style.alignItems = "center";
+        sizeHeader.style.marginTop = "2px";
+        sizeHeader.style.marginBottom = "2px";
+
+        const sizeHeaderLabel = document.createElement("span");
+        sizeHeaderLabel.style.fontSize = "0.68rem";
+        sizeHeaderLabel.style.color = "#64748b";
+        sizeHeaderLabel.style.fontWeight = "600";
+        sizeHeaderLabel.textContent = "FONT SIZE";
+        sizeHeader.appendChild(sizeHeaderLabel);
+
+        const stepperWrap = document.createElement("div");
+        stepperWrap.style.display = "flex";
+        stepperWrap.style.alignItems = "center";
+        stepperWrap.style.gap = "3px";
+
+        const btnMinus = document.createElement("button");
+        btnMinus.type = "button";
+        btnMinus.textContent = "−";
+        btnMinus.title = "Decrease font size";
+        btnMinus.style.width = "22px";
+        btnMinus.style.height = "22px";
+        btnMinus.style.borderRadius = "4px";
+        btnMinus.style.border = "1px solid #cbd5e1";
+        btnMinus.style.backgroundColor = "#ffffff";
+        btnMinus.style.color = "#334155";
+        btnMinus.style.cursor = "pointer";
+        btnMinus.style.fontWeight = "bold";
+        btnMinus.style.fontSize = "0.85rem";
+        btnMinus.style.lineHeight = "1";
+        btnMinus.addEventListener("click", () => {
+          const newSize = Math.max(8, curFs - 2);
+          onChange("fontSize", newSize);
+        });
+        stepperWrap.appendChild(btnMinus);
+
+        const numInp = document.createElement("input");
+        numInp.type = "number";
+        numInp.min = "8";
+        numInp.max = "96";
+        numInp.value = String(curFs);
+        numInp.style.width = "40px";
+        numInp.style.height = "22px";
+        numInp.style.padding = "0 2px";
+        numInp.style.fontSize = "0.72rem";
+        numInp.style.fontWeight = "600";
+        numInp.style.textAlign = "center";
+        numInp.style.borderRadius = "4px";
+        numInp.style.border = "1px solid #cbd5e1";
+        numInp.style.backgroundColor = "#ffffff";
+        numInp.style.color = "#0f172a";
+        numInp.addEventListener("change", (e) => {
+          const val = parseInt(e.target.value, 10);
+          if (!isNaN(val) && val >= 8 && val <= 120) {
+            onChange("fontSize", val);
+          }
+        });
+        stepperWrap.appendChild(numInp);
+
+        const btnPlus = document.createElement("button");
+        btnPlus.type = "button";
+        btnPlus.textContent = "+";
+        btnPlus.title = "Increase font size";
+        btnPlus.style.width = "22px";
+        btnPlus.style.height = "22px";
+        btnPlus.style.borderRadius = "4px";
+        btnPlus.style.border = "1px solid #cbd5e1";
+        btnPlus.style.backgroundColor = "#ffffff";
+        btnPlus.style.color = "#334155";
+        btnPlus.style.cursor = "pointer";
+        btnPlus.style.fontWeight = "bold";
+        btnPlus.style.fontSize = "0.85rem";
+        btnPlus.style.lineHeight = "1";
+        btnPlus.addEventListener("click", () => {
+          const newSize = Math.min(96, curFs + 2);
+          onChange("fontSize", newSize);
+        });
+        stepperWrap.appendChild(btnPlus);
+        sizeHeader.appendChild(stepperWrap);
+        container.appendChild(sizeHeader);
+
+        // Extended Quick Pills: 10, 12, 14, 16, 18, 20, 24, 28, 32, 36, 44, 52
+        const sizePillsRow = document.createElement("div");
+        sizePillsRow.style.display = "flex";
+        sizePillsRow.style.alignItems = "center";
+        sizePillsRow.style.gap = "4px";
+        sizePillsRow.style.flexWrap = "wrap";
+        sizePillsRow.style.marginTop = "2px";
+        sizePillsRow.style.marginBottom = "4px";
+
+        const fontSizes = [10, 12, 14, 16, 18, 20, 24, 28, 32, 36, 44, 52];
+        fontSizes.forEach((fs) => {
+          const btn = document.createElement("button");
+          btn.type = "button";
+          const isActive = curFs === fs;
+          btn.style.padding = "2px 5px";
+          btn.style.borderRadius = "4px";
+          btn.style.fontSize = "0.68rem";
+          btn.style.fontWeight = isActive ? "700" : "500";
+          btn.style.cursor = "pointer";
+          btn.textContent = fs + "px";
+          if (isActive) {
+            btn.style.backgroundColor = "#f0f9ff";
+            btn.style.border = "1.5px solid #0284c7";
+            btn.style.color = "#0284c7";
+            btn.style.boxShadow = "0 0 0 1px #0284c7";
+          } else {
+            btn.style.backgroundColor = "#ffffff";
+            btn.style.border = "1px solid #cbd5e1";
+            btn.style.color = "#475569";
+            btn.style.boxShadow = "none";
+          }
+          btn.addEventListener("click", () => {
+            onChange("fontSize", fs);
+          });
+          sizePillsRow.appendChild(btn);
+        });
+        container.appendChild(sizePillsRow);
+
+        // 3. Font Color Row with Clear Double-Ring Selection Circle
+        const normCurrent = normHexColor(values.textColor || "#0f172a");
+
+        const colorHeader = document.createElement("div");
+        colorHeader.style.fontSize = "0.68rem";
+        colorHeader.style.color = "#64748b";
+        colorHeader.style.fontWeight = "600";
+        colorHeader.style.marginTop = "2px";
+        colorHeader.style.marginBottom = "2px";
+        colorHeader.textContent = "FONT COLOR";
+        container.appendChild(colorHeader);
+
+        const colorRow = document.createElement("div");
+        colorRow.className = "color-swatch-row";
+        colorRow.style.marginTop = "0.2rem";
+        colorRow.style.marginBottom = "0.4rem";
+
+        const palette = ["#0f172a", "#ffffff", "#0284c7", "#16a34a", "#dc2626", "#d97706", "#7c3aed"];
+
+        palette.forEach((c) => {
+          const sw = document.createElement("button");
+          sw.type = "button";
+          const normC = normHexColor(c);
+          const isSelected = normCurrent === normC;
+
+          sw.className = isSelected ? "color-swatch color-swatch--active" : "color-swatch";
+          sw.style.backgroundColor = c;
+          if (normC === "#ffffff") {
+            sw.style.border = isSelected ? "2px solid #0284c7" : "2px solid #cbd5e1";
+          }
+          sw.title = c;
+          sw.dataset.color = normC;
+          sw.addEventListener("click", () => {
+            colorRow.querySelectorAll(".color-swatch").forEach((el) => {
+              el.classList.remove("color-swatch--active");
+              if (el.dataset.color === "#ffffff") {
+                el.style.border = "2px solid #cbd5e1";
+              }
+            });
+            sw.classList.add("color-swatch--active");
+            if (normC === "#ffffff") {
+              sw.style.border = "2px solid #0284c7";
+            }
+            if (customCol) {
+              customCol.style.boxShadow = "none";
+              customCol.style.transform = "none";
+            }
+            onChange("textColor", c);
+          });
+          colorRow.appendChild(sw);
+        });
+
+        // Native Color Picker input (identical 24px x 24px as outline & fill color)
+        const customCol = document.createElement("input");
+        customCol.type = "color";
+        customCol.value = (values.textColor && values.textColor.startsWith("#")) ? values.textColor : "#0f172a";
+        customCol.title = "Custom font color";
+        customCol.style.width = "24px";
+        customCol.style.height = "24px";
+        customCol.style.padding = "0";
+        customCol.style.border = "none";
+        customCol.style.borderRadius = "999px";
+        customCol.style.cursor = "pointer";
+        customCol.style.backgroundColor = "transparent";
+
+        const isCustomSelected = !palette.some((p) => normHexColor(p) === normCurrent);
+        if (isCustomSelected) {
+          customCol.style.boxShadow = "0 0 0 2px #0284c7";
+          customCol.style.transform = "scale(1.18)";
+        }
+
+        customCol.addEventListener("input", (e) => {
+          const col = e.target.value;
+          colorRow.querySelectorAll(".color-swatch").forEach((el) => {
+            el.classList.remove("color-swatch--active");
+            if (el.dataset.color === "#ffffff") {
+              el.style.border = "2px solid #cbd5e1";
+            }
+          });
+          customCol.style.boxShadow = "0 0 0 2px #0284c7";
+          customCol.style.transform = "scale(1.18)";
+          onChange("textColor", col);
+        });
+        colorRow.appendChild(customCol);
+        container.appendChild(colorRow);
+
+        return container;
       }
 
       function renderFlowchartOptions() {
@@ -10033,7 +10452,52 @@
         propertiesContent.appendChild(styleGroup);
 
         // ==========================================
-        // 5. QUICK 1-CLICK TEMPLATES GROUP
+        // 5. LABEL TYPOGRAPHY GROUP (Font Style, Size, Color)
+        // ==========================================
+        const typoGroup = document.createElement("div");
+        typoGroup.className = "tool-options-group";
+
+        const typoLabel = document.createElement("span");
+        typoLabel.className = "tool-options-label";
+        typoLabel.textContent = "LABEL TYPOGRAPHY";
+        typoGroup.appendChild(typoLabel);
+
+        const isDarkBoard = (typeof currentBoardType === "string" && (currentBoardType === "black" || currentBoardType === "green")) ||
+                            (pages[currentPageIndex]?.boardType === "black" || pages[currentPageIndex]?.boardType === "green");
+
+        const typoControls = createFlowchartTypographyControls(
+          {
+            fontFamily: flowchartSettings.fontFamily || "Inter, -apple-system, sans-serif",
+            bold: flowchartSettings.bold !== undefined ? flowchartSettings.bold : true,
+            italic: flowchartSettings.italic !== undefined ? flowchartSettings.italic : false,
+            fontSize: flowchartSettings.fontSize || 14,
+            textColor: flowchartSettings.textColor || (isDarkBoard ? "#ffffff" : "#0f172a")
+          },
+          (prop, val) => {
+            flowchartSettings[prop] = val;
+            if (selectedShapes && selectedShapes.length) {
+              selectedShapes.forEach((s) => {
+                if (s.type.startsWith("fc-")) {
+                  s[prop] = val;
+                } else if (s.type === "connector") {
+                  if (prop === "fontFamily") s.labelFontFamily = val;
+                  else if (prop === "bold") s.labelBold = val;
+                  else if (prop === "italic") s.labelItalic = val;
+                  else if (prop === "fontSize") s.labelFontSize = val;
+                  else if (prop === "textColor") s.labelColor = val;
+                }
+              });
+              updateBoardAppearance();
+              notifyParentPageUpdate(currentPageIndex, true);
+            }
+            renderFlowchartOptions();
+          }
+        );
+        typoGroup.appendChild(typoControls);
+        propertiesContent.appendChild(typoGroup);
+
+        // ==========================================
+        // 6. QUICK 1-CLICK TEMPLATES GROUP
         // ==========================================
         const templGroup = document.createElement("div");
         templGroup.className = "tool-options-group";
@@ -10148,6 +10612,15 @@
       }
 
       function renderSelectOptions() {
+        if (!propertiesContent) return;
+        propertiesContent.innerHTML = "";
+        const heading = document.createElement("h4");
+        heading.className = "tool-options-title";
+        heading.textContent = "Selection Tool";
+        heading.style.fontSize = "0.85rem";
+        heading.style.margin = "0 0 0.4rem";
+        propertiesContent.appendChild(heading);
+
         const wrap = document.createElement("div");
         wrap.className = "tool-options-group";
         const p = document.createElement("p");
@@ -10207,6 +10680,36 @@
               notifyParentPageUpdate(currentPageIndex, true);
             });
             fcCard.appendChild(txtInp);
+
+            const isDarkBoardNode = (typeof currentBoardType === "string" && (currentBoardType === "black" || currentBoardType === "green")) ||
+                                    (pages[currentPageIndex]?.boardType === "black" || pages[currentPageIndex]?.boardType === "green");
+
+            const typoLbl = document.createElement("label");
+            typoLbl.style.fontSize = "0.72rem";
+            typoLbl.style.fontWeight = "600";
+            typoLbl.style.color = "#475569";
+            typoLbl.style.marginTop = "2px";
+            typoLbl.style.display = "block";
+            typoLbl.textContent = "Label Typography:";
+            fcCard.appendChild(typoLbl);
+
+            const nodeTypo = createFlowchartTypographyControls(
+              {
+                fontFamily: sh.fontFamily || flowchartSettings.fontFamily || "Inter, -apple-system, sans-serif",
+                bold: sh.bold !== undefined ? sh.bold : true,
+                italic: !!sh.italic,
+                fontSize: sh.fontSize || 14,
+                textColor: sh.textColor || (isDarkBoardNode ? "#ffffff" : "#0f172a")
+              },
+              (prop, val) => {
+                sh[prop] = val;
+                flowchartSettings[prop] = val;
+                updateBoardAppearance();
+                notifyParentPageUpdate(currentPageIndex, true);
+                renderSelectOptions();
+              }
+            );
+            fcCard.appendChild(nodeTypo);
             actionsRow.appendChild(fcCard);
           }
 
@@ -10252,6 +10755,45 @@
               notifyParentPageUpdate(currentPageIndex, true);
             });
             connCard.appendChild(lblInp);
+
+            const isDarkBoardConn = (typeof currentBoardType === "string" && (currentBoardType === "black" || currentBoardType === "green")) ||
+                                    (pages[currentPageIndex]?.boardType === "black" || pages[currentPageIndex]?.boardType === "green");
+
+            const connTypoLbl = document.createElement("label");
+            connTypoLbl.style.fontSize = "0.72rem";
+            connTypoLbl.style.fontWeight = "600";
+            connTypoLbl.style.color = "#475569";
+            connTypoLbl.style.marginTop = "2px";
+            connTypoLbl.style.display = "block";
+            connTypoLbl.textContent = "Branch Label Typography:";
+            connCard.appendChild(connTypoLbl);
+
+            const connTypo = createFlowchartTypographyControls(
+              {
+                fontFamily: conn.labelFontFamily || conn.fontFamily || flowchartSettings.fontFamily || "Inter, -apple-system, sans-serif",
+                bold: conn.labelBold !== undefined ? conn.labelBold : (conn.bold !== undefined ? conn.bold : true),
+                italic: conn.labelItalic !== undefined ? conn.labelItalic : !!conn.italic,
+                fontSize: conn.labelFontSize || conn.fontSize || 12,
+                textColor: conn.labelColor || conn.textColor || (isDarkBoardConn ? "#ffffff" : "#0f172a")
+              },
+              (prop, val) => {
+                if (prop === "fontFamily") { conn.labelFontFamily = val; flowchartSettings.fontFamily = val; }
+                else if (prop === "bold") { conn.labelBold = val; flowchartSettings.bold = val; }
+                else if (prop === "italic") { conn.labelItalic = val; flowchartSettings.italic = val; }
+                else if (prop === "fontSize") { conn.labelFontSize = val; flowchartSettings.fontSize = val; }
+                else if (prop === "textColor") { conn.labelColor = val; flowchartSettings.textColor = val; }
+                updateBoardAppearance();
+                notifyParentPageUpdate(currentPageIndex, true);
+                renderSelectOptions();
+              }
+            );
+            connCard.appendChild(connTypo);
+
+            const divider = document.createElement("hr");
+            divider.style.border = "none";
+            divider.style.borderTop = "1px solid #e2e8f0";
+            divider.style.margin = "8px 0 6px 0";
+            connCard.appendChild(divider);
 
             const rLabel = document.createElement("label");
             rLabel.style.fontSize = "0.72rem";
@@ -13690,12 +14232,15 @@
         const fs = listSettings.fontSize ?? 24;
         const text = getListTemplate(listSettings.type || "bullet");
         pushUndo();
+        const isDark = (typeof currentBoardType === "string" && (currentBoardType === "black" || currentBoardType === "green")) ||
+                       (typeof pages !== "undefined" && (pages[currentPageIndex]?.boardType === "black" || pages[currentPageIndex]?.boardType === "green"));
+        const color = (isDark && (!textSettings.color || textSettings.color === "#0f172a" || textSettings.color === "#000000" || textSettings.color === "#111827" || textSettings.color === "#1e293b" || textSettings.color === "#374151")) ? "#ffffff" : (textSettings.color || (isDark ? "#ffffff" : "#0f172a"));
         const item = {
           id: generateId(),
           x: point.x,
           y: point.y,
           text,
-          color: textSettings.color,
+          color: color,
           fontSize: fs,
           fontFamily: textSettings.fontFamily,
           bold: textSettings.bold,
@@ -13787,13 +14332,16 @@
         if (!page.widgets) page.widgets = [];
         const mode = timeToolSettings.mode;
         const fontSize = 28;
+        const isDark = (typeof currentBoardType === "string" && (currentBoardType === "black" || currentBoardType === "green")) ||
+                       (typeof pages !== "undefined" && (pages[currentPageIndex]?.boardType === "black" || pages[currentPageIndex]?.boardType === "green"));
+        const color = (isDark && (!timeToolSettings.color || timeToolSettings.color === "#0f172a" || timeToolSettings.color === "#000000" || timeToolSettings.color === "#1e293b" || timeToolSettings.color === "#374151")) ? "#ffffff" : (timeToolSettings.color || (isDark ? "#ffffff" : "#0f172a"));
         const widget = {
           id: generateId(),
           type: mode,
           x: point.x,
           y: point.y,
           fontSize,
-          color: timeToolSettings.color || "#0f172a",
+          color: color,
         };
         if (mode === "timer") {
           const totalSec = timeToolSettings.timerHours * 3600 + timeToolSettings.timerMinutes * 60 + (timeToolSettings.timerSeconds || 0);
@@ -13816,6 +14364,9 @@
         if (!page) return;
         if (!page.widgets) page.widgets = [];
         const options = (pollSettings.options || ["Option 1", "Option 2"]).map((text) => ({ text: String(text).trim() || "Option", votes: 0 }));
+        const isDark = (typeof currentBoardType === "string" && (currentBoardType === "black" || currentBoardType === "green")) ||
+                       (typeof pages !== "undefined" && (pages[currentPageIndex]?.boardType === "black" || pages[currentPageIndex]?.boardType === "green"));
+        const color = (isDark && (!pollSettings.color || pollSettings.color === "#0f172a" || pollSettings.color === "#000000" || pollSettings.color === "#1e293b" || pollSettings.color === "#374151")) ? "#ffffff" : (pollSettings.color || (isDark ? "#ffffff" : "#0f172a"));
         const widget = {
           id: generateId(),
           type: "poll",
@@ -13825,7 +14376,7 @@
           options,
           ended: false,
           fontSize: 20,
-          color: pollSettings.color || "#0f172a",
+          color: color,
           fontFamily: pollSettings.fontFamily || "Arial",
         };
         pushUndo();
@@ -16420,7 +16971,9 @@
         const zoom = zoomFactor != null ? zoomFactor : 1;
         const fs = Math.max(14, (widget.fontSize || 20) * zoom);
         const fontFamily = widget.fontFamily || "Arial";
-        const color = widget.color || "#0f172a";
+        const isDark = (typeof currentBoardType === "string" && (currentBoardType === "black" || currentBoardType === "green")) ||
+                       (typeof pages !== "undefined" && (pages[currentPageIndex]?.boardType === "black" || pages[currentPageIndex]?.boardType === "green"));
+        const color = (isDark && (!widget.color || widget.color === "#0f172a" || widget.color === "#000000" || widget.color === "#1e293b" || widget.color === "#374151")) ? "#ffffff" : (widget.color || (isDark ? "#ffffff" : "#0f172a"));
         const lineH = fs * 1.2;
         const question = widget.question || "New Poll";
         const options = widget.options || [];
@@ -16641,9 +17194,11 @@
             ["Cat 1", "Cat 2", "Cat 3", "Cat 4", "Cat 5"].slice(0, chartData.length)
           );
 
+          const isDark = (typeof currentBoardType === "string" && (currentBoardType === "black" || currentBoardType === "green")) ||
+                         (typeof pages !== "undefined" && (pages[currentPageIndex]?.boardType === "black" || pages[currentPageIndex]?.boardType === "green"));
           activeShape = {
             type: chartType,
-            color: "#374151",
+            color: isDark ? "#ffffff" : "#374151",
             width: 2,
             fillMode: "hollow",
             start: point,
@@ -16682,6 +17237,9 @@
           if (flowchartSettings.activeMode === "connector" || hitPort) {
             pushUndo();
             isDrawing = true;
+            const isDark = (typeof currentBoardType === "string" && (currentBoardType === "black" || currentBoardType === "green")) ||
+                           (pages[currentPageIndex]?.boardType === "black" || pages[currentPageIndex]?.boardType === "green");
+            const defaultTextCol = isDark ? "#ffffff" : "#0f172a";
             const startPt = hitPort ? { x: hitPort.x, y: hitPort.y } : point;
             activeConnectorDraft = {
               id: generateId(),
@@ -16696,25 +17254,38 @@
               arrowEnd: flowchartSettings.arrowEnd !== false,
               arrowStart: !!flowchartSettings.arrowStart,
               lineDash: (flowchartSettings.lineDash && flowchartSettings.lineDash.length > 0) ? flowchartSettings.lineDash.slice() : [],
-              color: flowchartSettings.color || "#0f172a",
+              color: flowchartSettings.color || defaultTextCol,
               width: flowchartSettings.width || 2,
-              label: ""
+              label: "",
+              labelFontSize: flowchartSettings.fontSize || 12,
+              labelFontFamily: flowchartSettings.fontFamily || "Inter, -apple-system, sans-serif",
+              labelBold: flowchartSettings.bold !== undefined ? flowchartSettings.bold : true,
+              labelItalic: flowchartSettings.italic !== undefined ? flowchartSettings.italic : false,
+              labelColor: flowchartSettings.textColor || defaultTextCol
             };
             updateBoardAppearance();
           } else {
             pushUndo();
             isDrawing = true;
+            const isDark = (typeof currentBoardType === "string" && (currentBoardType === "black" || currentBoardType === "green")) ||
+                           (pages[currentPageIndex]?.boardType === "black" || pages[currentPageIndex]?.boardType === "green");
+            const defaultTextCol = isDark ? "#ffffff" : "#0f172a";
             activeShape = {
               id: generateId(),
               type: flowchartSettings.nodeType || "fc-process",
-              color: flowchartSettings.color || "#0f172a",
+              color: flowchartSettings.color || defaultTextCol,
               width: flowchartSettings.width || 2,
               fillMode: flowchartSettings.fillMode || "solid",
               fillColor: flowchartSettings.fillColor || "#ffffff",
               fillOpacity: 1,
               start: point,
               end: point,
-              text: ""
+              text: "",
+              fontSize: flowchartSettings.fontSize || 14,
+              fontFamily: flowchartSettings.fontFamily || "Inter, -apple-system, sans-serif",
+              bold: flowchartSettings.bold !== undefined ? flowchartSettings.bold : true,
+              italic: flowchartSettings.italic !== undefined ? flowchartSettings.italic : false,
+              textColor: flowchartSettings.textColor || defaultTextCol
             };
             updateBoardAppearance();
           }

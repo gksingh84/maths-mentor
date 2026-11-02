@@ -360,7 +360,7 @@
   // 4. Vector Canvas Renderer: drawGraphPlotterShape
   // =========================================================================
 
-  function drawGraphPlotterShape(ctx, shape, isPreview) {
+  function drawGraphPlotterShape(ctx, shape, isPreview, isDarkParam) {
     if (!shape || !shape.start || !shape.end) return;
 
     const x1 = Math.min(shape.start.x, shape.end.x);
@@ -375,18 +375,21 @@
     ctx.save();
 
     // Check dark mode
-    let isDark = false;
-    if (typeof boardTheme === "string" && (boardTheme === "blackboard" || boardTheme === "dark")) {
+    let isDark = Boolean(isDarkParam);
+    if (!isDark && typeof window !== "undefined" && (window.currentBoardType === "black" || window.currentBoardType === "green")) {
+      isDark = true;
+    }
+    if (!isDark && typeof boardTheme === "string" && (boardTheme === "blackboard" || boardTheme === "dark")) {
       isDark = true;
     }
 
     // Color definitions
     const cardBg = isDark ? "rgba(15, 23, 42, 0.95)" : "rgba(255, 255, 255, 0.96)";
-    const cardBorder = isDark ? "#334155" : "#cbd5e1";
-    const majorGridCol = isDark ? "rgba(255, 255, 255, 0.12)" : "rgba(100, 116, 139, 0.22)";
-    const minorGridCol = isDark ? "rgba(255, 255, 255, 0.05)" : "rgba(148, 163, 184, 0.10)";
-    const axisCol = isDark ? "#f8fafc" : "#1e293b";
-    const axisTextCol = isDark ? "#cbd5e1" : "#475569";
+    const cardBorder = isDark ? "#475569" : "#cbd5e1";
+    const majorGridCol = isDark ? "rgba(255, 255, 255, 0.18)" : "rgba(100, 116, 139, 0.22)";
+    const minorGridCol = isDark ? "rgba(255, 255, 255, 0.08)" : "rgba(148, 163, 184, 0.10)";
+    const axisCol = isDark ? "#ffffff" : "#1e293b";
+    const axisTextCol = isDark ? "#ffffff" : "#475569";
     const titleCol = isDark ? "#38bdf8" : "#0284c7";
 
     // 1. Draw Card Background with Rounded Corners
