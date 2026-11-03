@@ -3525,6 +3525,7 @@
         color: "#fef08a",
         maxWidth: 220,
         fillOpacity: 1,
+        cornerRadius: 20,
       };
       const chartSettings = {
         type: "barChart", // barChart | pieChart | horizontalBarChart | pictograph
@@ -3540,7 +3541,7 @@
       const symbolSettings = {
         fontSize: 32,
       };
-      const timeToolSettings = { mode: "clock", timerHours: 0, timerMinutes: 1, timerSeconds: 0, color: "#0f172a" };
+      const timeToolSettings = { mode: "clock", clockFormat: "12h", timerHours: 0, timerMinutes: 1, timerSeconds: 0, color: "#0f172a" };
       const pollSettings = { question: "New Poll", options: ["Option 1", "Option 2"], color: "#0f172a", fontFamily: "Arial" };
       const listSettings = { type: "bullet", fontSize: 24 };
       const flowchartSettings = {
@@ -4967,9 +4968,9 @@
           const y1 = b.y - pad;
           const x2 = b.x + b.w + pad;
           const y2 = b.y + b.h + pad;
-          const r = 6;
-          const foldSize = 18;
-          ctx.shadowColor = "rgba(0,0,0,0.2)";
+          const r = Math.min(Math.round(Math.min(x2 - x1, y2 - y1) / 3), Math.max(6, item.cornerRadius ?? stickyNotesSettings.cornerRadius ?? 20));
+          const foldSize = Math.max(22, Math.round(r * 1.25));
+          ctx.shadowColor = "rgba(0,0,0,0.18)";
           ctx.shadowBlur = 8;
           ctx.shadowOffsetX = 2;
           ctx.shadowOffsetY = 2;
@@ -4989,16 +4990,30 @@
           ctx.shadowBlur = 0;
           ctx.shadowOffsetX = 0;
           ctx.shadowOffsetY = 0;
+
+          // Fold triangle in top-right corner clipped to the rounded corner
+          ctx.save();
+          ctx.beginPath();
+          if (ctx.roundRect) {
+            ctx.roundRect(x1, y1, x2 - x1, y2 - y1, r);
+          } else {
+            ctx.rect(x1, y1, x2 - x1, y2 - y1);
+          }
+          ctx.clip();
           ctx.fillStyle = "rgba(0,0,0,0.08)";
           ctx.beginPath();
           ctx.moveTo(x2 - foldSize, y1);
-          ctx.lineTo(x2, y1);
-          ctx.lineTo(x2, y1 + foldSize);
+          ctx.lineTo(x2 + 2, y1 - 2);
+          ctx.lineTo(x2 + 2, y1 + foldSize);
           ctx.closePath();
           ctx.fill();
-          ctx.strokeStyle = "rgba(0,0,0,0.1)";
-          ctx.lineWidth = 1;
+          ctx.strokeStyle = "rgba(0,0,0,0.12)";
+          ctx.lineWidth = 1.2;
+          ctx.beginPath();
+          ctx.moveTo(x2 - foldSize, y1);
+          ctx.lineTo(x2, y1 + foldSize);
           ctx.stroke();
+          ctx.restore();
         }
         const isDark = (typeof currentBoardType === "string" && (currentBoardType === "black" || currentBoardType === "green")) ||
                        (typeof pages !== "undefined" && (pages[currentPageIndex]?.boardType === "black" || pages[currentPageIndex]?.boardType === "green"));
@@ -5120,7 +5135,14 @@
           ctx.strokeStyle = item.locked ? "#6b7280" : "#eab308";
           ctx.lineWidth = 1;
           ctx.setLineDash([4, 3]);
-          ctx.strokeRect(boxX, boxY, boxW, boxH);
+          if (item.sticky && ctx.roundRect) {
+            const r = Math.min(Math.round(Math.min(boxW, boxH) / 3), Math.max(6, item.cornerRadius ?? stickyNotesSettings.cornerRadius ?? 20));
+            ctx.beginPath();
+            ctx.roundRect(boxX, boxY, boxW, boxH, r + 2);
+            ctx.stroke();
+          } else {
+            ctx.strokeRect(boxX, boxY, boxW, boxH);
+          }
 
           if (item.locked) {
             item._resizeHandles = undefined;
@@ -11794,6 +11816,50 @@
               });
               wrap.appendChild(widgetColorRow);
             }
+            if (firstWidget.type === "clock") {
+              const sel = firstWidget;
+              const clockLabel = document.createElement("span");
+              clockLabel.className = "tool-options-label";
+              clockLabel.textContent = "Clock Format";
+              clockLabel.style.marginTop = "0.75rem";
+              clockLabel.style.display = "block";
+              wrap.appendChild(clockLabel);
+              const clockRow = document.createElement("div");
+              clockRow.className = "color-swatch-row";
+              clockRow.style.marginTop = "0.25rem";
+              clockRow.style.gap = "0.4rem";
+              clockRow.style.flexWrap = "wrap";
+              const curFormat = sel.clockFormat || "12h";
+              [
+                { key: "12h", label: "12-Hour (AM/PM)" },
+                { key: "24h", label: "24-Hour" }
+              ].forEach((fmt) => {
+                const btn = document.createElement("button");
+                btn.type = "button";
+                btn.textContent = fmt.label;
+                btn.style.fontSize = "0.8rem";
+                btn.style.padding = "0.32rem 0.65rem";
+                btn.style.borderRadius = "999px";
+                btn.style.cursor = "pointer";
+                const isActive = curFormat === fmt.key;
+                btn.style.background = isActive ? "#0284c7" : "#ffffff";
+                btn.style.color = isActive ? "#ffffff" : "#475569";
+                btn.style.border = isActive ? "1px solid #0284c7" : "1px solid #cbd5e1";
+                btn.style.fontWeight = isActive ? "700" : "500";
+                btn.addEventListener("click", () => {
+                  pushUndo();
+                  selectedWidgets.forEach((w) => {
+                    if (w.type === "clock") w.clockFormat = fmt.key;
+                  });
+                  timeToolSettings.clockFormat = fmt.key;
+                  updateBoardAppearance();
+                  notifyParentPageUpdate(currentPageIndex, true);
+                  if (propertiesContent && currentTool === "select") handleToolSelection("select");
+                });
+                clockRow.appendChild(btn);
+              });
+              wrap.appendChild(clockRow);
+            }
             if (firstWidget.type === "stopwatch") {
               const sel = firstWidget;
               const stopwatchLabel = document.createElement("span");
@@ -12211,6 +12277,47 @@
               stickyOpacityRow.appendChild(stickyOpacitySlider);
               stickyOpacityRow.appendChild(stickyOpacityValue);
               wrap.appendChild(stickyOpacityRow);
+
+              const stickyRadiusLabel = document.createElement("label");
+              stickyRadiusLabel.className = "tool-options-label";
+              stickyRadiusLabel.textContent = "Corner radius";
+              stickyRadiusLabel.style.marginTop = "0.35rem";
+              stickyRadiusLabel.style.display = "block";
+              wrap.appendChild(stickyRadiusLabel);
+              const stickyRadiusRow = document.createElement("div");
+              stickyRadiusRow.className = "color-swatch-row";
+              stickyRadiusRow.style.alignItems = "center";
+              stickyRadiusRow.style.marginTop = "0.2rem";
+              const stickyRadiusSlider = document.createElement("input");
+              stickyRadiusSlider.type = "range";
+              stickyRadiusSlider.min = "6";
+              stickyRadiusSlider.max = "36";
+              const firstStickyRadius = (firstSticky && (firstSticky.cornerRadius != null ? firstSticky.cornerRadius : stickyNotesSettings.cornerRadius)) ?? 20;
+              stickyRadiusSlider.value = String(firstStickyRadius);
+              stickyRadiusSlider.className = "slider-input";
+              stickyRadiusSlider.style.flex = "1";
+              stickyRadiusSlider.style.minWidth = "80px";
+              const stickyRadiusValue = document.createElement("span");
+              stickyRadiusValue.style.minWidth = "2.5rem";
+              stickyRadiusValue.style.fontSize = "0.8rem";
+              stickyRadiusValue.style.color = "#475569";
+              stickyRadiusValue.textContent = firstStickyRadius + "px";
+              let stickyRadiusUndone = false;
+              stickyRadiusSlider.addEventListener("input", () => {
+                const rVal = Number(stickyRadiusSlider.value);
+                if (!stickyRadiusUndone) {
+                  pushUndo();
+                  stickyRadiusUndone = true;
+                }
+                selectedTexts.forEach((t) => { if (t.sticky) t.cornerRadius = rVal; });
+                stickyNotesSettings.cornerRadius = rVal;
+                stickyRadiusValue.textContent = rVal + "px";
+                updateBoardAppearance();
+                notifyParentPageUpdate(currentPageIndex, true);
+              });
+              stickyRadiusRow.appendChild(stickyRadiusSlider);
+              stickyRadiusRow.appendChild(stickyRadiusValue);
+              wrap.appendChild(stickyRadiusRow);
             }
 
             const sizeLabel = document.createElement("label");
@@ -14147,6 +14254,57 @@
         opacityRow.appendChild(opacitySlider);
         opacityRow.appendChild(opacityValue);
         wrap.appendChild(opacityRow);
+
+        const radiusLabel = document.createElement("label");
+        radiusLabel.className = "tool-options-label";
+        radiusLabel.textContent = "Corner radius";
+        radiusLabel.style.marginTop = "0.5rem";
+        radiusLabel.style.display = "block";
+        wrap.appendChild(radiusLabel);
+
+        const radiusRow = document.createElement("div");
+        radiusRow.className = "color-swatch-row";
+        radiusRow.style.alignItems = "center";
+        radiusRow.style.marginTop = "0.2rem";
+
+        const radiusSlider = document.createElement("input");
+        radiusSlider.type = "range";
+        radiusSlider.min = "6";
+        radiusSlider.max = "36";
+        radiusSlider.value = String(stickyNotesSettings.cornerRadius ?? 20);
+        radiusSlider.className = "slider-input";
+        radiusSlider.style.flex = "1";
+        radiusSlider.style.minWidth = "80px";
+
+        const radiusValue = document.createElement("span");
+        radiusValue.style.minWidth = "2.5rem";
+        radiusValue.style.fontSize = "0.8rem";
+        radiusValue.style.color = "#475569";
+        radiusValue.textContent = (stickyNotesSettings.cornerRadius ?? 20) + "px";
+
+        radiusSlider.addEventListener("input", () => {
+          stickyNotesSettings.cornerRadius = Number(radiusSlider.value);
+          radiusValue.textContent = stickyNotesSettings.cornerRadius + "px";
+          if (selectedTexts && selectedTexts.length > 0) {
+            let changed = false;
+            selectedTexts.forEach((t) => {
+              if (t.sticky) {
+                t.cornerRadius = stickyNotesSettings.cornerRadius;
+                changed = true;
+              }
+            });
+            if (changed) {
+              pushUndo();
+              updateBoardAppearance();
+              notifyParentPageUpdate(currentPageIndex, true);
+            }
+          }
+        });
+
+        radiusRow.appendChild(radiusSlider);
+        radiusRow.appendChild(radiusValue);
+        wrap.appendChild(radiusRow);
+
         propertiesContent.appendChild(wrap);
       }
 
@@ -14271,10 +14429,16 @@
         const now = Date.now();
         if (widget.type === "clock") {
           const d = new Date();
-          const h = d.getHours();
-          const m = d.getMinutes();
-          const s = d.getSeconds();
-          return [h, m, s].map((n) => String(n).padStart(2, "0")).join(":");
+          const format = widget.clockFormat || widget.format || timeToolSettings.clockFormat || "12h";
+          const rawH = d.getHours();
+          const m = String(d.getMinutes()).padStart(2, "0");
+          const s = String(d.getSeconds()).padStart(2, "0");
+          if (format === "24h" || format === "24") {
+            return `${String(rawH).padStart(2, "0")}:${m}:${s}`;
+          }
+          const h12 = rawH % 12 || 12;
+          const ampm = rawH >= 12 ? "PM" : "AM";
+          return `${String(h12).padStart(2, "0")}:${m}:${s} ${ampm}`;
         }
         if (widget.type === "timer") {
           const end = widget.endTime || 0;
@@ -14343,7 +14507,9 @@
           fontSize,
           color: color,
         };
-        if (mode === "timer") {
+        if (mode === "clock") {
+          widget.clockFormat = timeToolSettings.clockFormat || "12h";
+        } else if (mode === "timer") {
           const totalSec = timeToolSettings.timerHours * 3600 + timeToolSettings.timerMinutes * 60 + (timeToolSettings.timerSeconds || 0);
           widget.durationSeconds = Math.max(1, totalSec);
           widget.endTime = Date.now() + widget.durationSeconds * 1000;
@@ -14357,6 +14523,7 @@
         page.widgets.push(widget);
         copyTimeWidgetToOtherPages(widget);
         updateBoardAppearance();
+        notifyParentPageUpdate(currentPageIndex, true);
       }
 
       function placePollWidget(point) {
@@ -14654,11 +14821,79 @@
               b.style.color = active ? "#ffffff" : "#475569";
               b.style.border = active ? "1px solid #0284c7" : "1px solid #cbd5e1";
             });
+            if (clockRow) clockRow.style.display = mode === "clock" ? "block" : "none";
             if (timerRow) timerRow.style.display = mode === "timer" ? "block" : "none";
           });
           modeRow.appendChild(btn);
         });
         wrap.appendChild(modeRow);
+
+        // Clock options group (Format: 12-Hour / 24-Hour)
+        const clockRow = document.createElement("div");
+        clockRow.className = "tool-options-group";
+        clockRow.style.marginTop = "0.5rem";
+        clockRow.style.display = timeToolSettings.mode === "clock" ? "block" : "none";
+
+        const clockFmtLabel = document.createElement("span");
+        clockFmtLabel.className = "tool-options-label";
+        clockFmtLabel.textContent = "Clock Format";
+        clockRow.appendChild(clockFmtLabel);
+
+        const clockFmtBtnsRow = document.createElement("div");
+        clockFmtBtnsRow.className = "color-swatch-row";
+        clockFmtBtnsRow.style.marginTop = "0.25rem";
+        clockFmtBtnsRow.style.gap = "0.4rem";
+        clockFmtBtnsRow.style.flexWrap = "wrap";
+
+        function updateClockFmtButtons() {
+          clockFmtBtnsRow.querySelectorAll("button").forEach((b) => {
+            const f = b.getAttribute("data-format");
+            const active = (timeToolSettings.clockFormat || "12h") === f;
+            b.style.background = active ? "#0284c7" : "#ffffff";
+            b.style.color = active ? "#ffffff" : "#475569";
+            b.style.border = active ? "1px solid #0284c7" : "1px solid #cbd5e1";
+            b.style.fontWeight = active ? "700" : "500";
+          });
+        }
+
+        [
+          { id: "12h", label: "12-Hour (AM/PM)" },
+          { id: "24h", label: "24-Hour" }
+        ].forEach((fmt) => {
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.setAttribute("data-format", fmt.id);
+          btn.textContent = fmt.label;
+          btn.style.fontSize = "0.8rem";
+          btn.style.padding = "0.32rem 0.65rem";
+          btn.style.borderRadius = "999px";
+          btn.style.border = "1px solid #cbd5e1";
+          btn.style.cursor = "pointer";
+          btn.addEventListener("click", () => {
+            timeToolSettings.clockFormat = fmt.id;
+            updateClockFmtButtons();
+            if (selectedWidgets && selectedWidgets.length > 0) {
+              let updated = false;
+              selectedWidgets.forEach((w) => {
+                if (w.type === "clock") {
+                  w.clockFormat = fmt.id;
+                  updated = true;
+                }
+              });
+              if (updated) {
+                pushUndo();
+                updateBoardAppearance();
+                notifyParentPageUpdate(currentPageIndex, true);
+              }
+            }
+          });
+          clockFmtBtnsRow.appendChild(btn);
+        });
+        clockRow.appendChild(clockFmtBtnsRow);
+
+        updateClockFmtButtons();
+        wrap.appendChild(clockRow);
+
         const timeColorLabel = document.createElement("span");
         timeColorLabel.className = "tool-options-label";
         timeColorLabel.textContent = "Color";
@@ -14749,11 +14984,51 @@
         hint.style.fontSize = "0.8rem";
         hint.style.color = "#64748b";
         hint.style.margin = "0.5rem 0 0 0";
-        hint.textContent = "Click on the board to place. Use Pointer tool to select and delete.";
+        hint.textContent = "Click on the board to place. Use Pointer tool to select, move, change format, or delete.";
         wrap.appendChild(hint);
         if (selectedWidgets.length > 0) {
           const sel = selectedWidgets[0];
-          if (sel.type === "stopwatch") {
+          if (sel.type === "clock") {
+            const clockSelRow = document.createElement("div");
+            clockSelRow.className = "tool-options-group";
+            clockSelRow.style.marginTop = "0.5rem";
+            const selLabel = document.createElement("span");
+            selLabel.className = "tool-options-label";
+            selLabel.textContent = "Selected Clock Format";
+            clockSelRow.appendChild(selLabel);
+            const selBtnsRow = document.createElement("div");
+            selBtnsRow.className = "color-swatch-row";
+            selBtnsRow.style.marginTop = "0.25rem";
+            selBtnsRow.style.gap = "0.4rem";
+            [
+              { key: "12h", label: "12-Hour (AM/PM)" },
+              { key: "24h", label: "24-Hour" }
+            ].forEach((fmt) => {
+              const btn = document.createElement("button");
+              btn.type = "button";
+              btn.textContent = fmt.label;
+              btn.style.fontSize = "0.8rem";
+              btn.style.padding = "0.32rem 0.65rem";
+              btn.style.borderRadius = "999px";
+              btn.style.cursor = "pointer";
+              const isActive = (sel.clockFormat || "12h") === fmt.key;
+              btn.style.background = isActive ? "#0284c7" : "#ffffff";
+              btn.style.color = isActive ? "#ffffff" : "#475569";
+              btn.style.border = isActive ? "1px solid #0284c7" : "1px solid #cbd5e1";
+              btn.style.fontWeight = isActive ? "700" : "500";
+              btn.addEventListener("click", () => {
+                pushUndo();
+                sel.clockFormat = fmt.key;
+                timeToolSettings.clockFormat = fmt.key;
+                updateBoardAppearance();
+                notifyParentPageUpdate(currentPageIndex, true);
+                renderTimeOptions();
+              });
+              selBtnsRow.appendChild(btn);
+            });
+            clockSelRow.appendChild(selBtnsRow);
+            wrap.appendChild(clockSelRow);
+          } else if (sel.type === "stopwatch") {
             const ctrlRow = document.createElement("div");
             ctrlRow.className = "color-swatch-row";
             ctrlRow.style.marginTop = "0.5rem";

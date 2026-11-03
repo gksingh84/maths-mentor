@@ -4232,23 +4232,37 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
         const stickH = Math.max(80, lines.length * (fs * 1.3) + pad * 2);
         const x = txt.x || 0;
         const y = txt.y || 0;
-        const fold = 16;
+        const r = Math.min(Math.round(Math.min(stickW, stickH) / 3), Math.max(6, txt.cornerRadius ?? 20));
+        const fold = Math.max(22, Math.round(r * 1.25));
 
         ctx.save();
         ctx.fillStyle = txt.stickyColor || '#fef08a';
         ctx.globalAlpha = txt.stickyOpacity ?? 0.95;
         ctx.beginPath();
-        if (ctx.roundRect) ctx.roundRect(x, y, stickW, stickH, 6);
+        if (ctx.roundRect) ctx.roundRect(x, y, stickW, stickH, r);
         else ctx.rect(x, y, stickW, stickH);
         ctx.fill();
+        ctx.restore();
 
-        ctx.fillStyle = 'rgba(0,0,0,0.12)';
+        // Fold in top-right corner clipped to roundRect
+        ctx.save();
+        ctx.beginPath();
+        if (ctx.roundRect) ctx.roundRect(x, y, stickW, stickH, r);
+        else ctx.rect(x, y, stickW, stickH);
+        ctx.clip();
+        ctx.fillStyle = 'rgba(0,0,0,0.10)';
         ctx.beginPath();
         ctx.moveTo(x + stickW - fold, y);
-        ctx.lineTo(x + stickW, y);
-        ctx.lineTo(x + stickW, y + fold);
+        ctx.lineTo(x + stickW + 2, y - 2);
+        ctx.lineTo(x + stickW + 2, y + fold);
         ctx.closePath();
         ctx.fill();
+        ctx.strokeStyle = 'rgba(0,0,0,0.12)';
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.moveTo(x + stickW - fold, y);
+        ctx.lineTo(x + stickW, y + fold);
+        ctx.stroke();
         ctx.restore();
 
         ctx.fillStyle = '#0f172a';
@@ -4313,7 +4327,17 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
           const now = Date.now();
           if (widget.type === 'clock') {
             const d = new Date();
-            text = [d.getHours(), d.getMinutes(), d.getSeconds()].map((n) => String(n).padStart(2, '0')).join(':');
+            const format = widget.clockFormat || widget.format || '12h';
+            const rawH = d.getHours();
+            const m = String(d.getMinutes()).padStart(2, '0');
+            const s = String(d.getSeconds()).padStart(2, '0');
+            if (format === '24h' || format === '24') {
+              text = `${String(rawH).padStart(2, '0')}:${m}:${s}`;
+            } else {
+              const h12 = rawH % 12 || 12;
+              const ampm = rawH >= 12 ? 'PM' : 'AM';
+              text = `${String(h12).padStart(2, '0')}:${m}:${s} ${ampm}`;
+            }
           } else if (widget.type === 'timer') {
             const end = widget.endTime || 0;
             const left = Math.max(0, Math.ceil((end - now) / 1000));
@@ -4536,6 +4560,19 @@ export const StudentLiveWhiteboard: React.FC<StudentLiveWhiteboardProps> = ({
   useEffect(() => {
     drawCurrentPage();
   }, [pages, viewingPageIndex, isLive, laserPointer]);
+
+  // Active widgets ticker (Clock, Timer, Stopwatch) to update student canvas every second
+  useEffect(() => {
+    const curPage = pages[viewingPageIndex];
+    const hasActiveWidgets = curPage?.widgets?.some(
+      (w: any) => w.type === 'clock' || w.type === 'timer' || (w.type === 'stopwatch' && w.running)
+    );
+    if (!hasActiveWidgets) return;
+    const interval = setInterval(() => {
+      drawCurrentPage();
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [pages, viewingPageIndex]);
 
   // Window resize observer for canvas auto-scaling
   useEffect(() => {
