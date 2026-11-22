@@ -3516,16 +3516,16 @@ Follow these rules strictly:
 ### 4. CORE CAPABILITIES & TWO-PART LESSON STRUCTURE
 
 MANDATORY INSTRUCTION ON OUTPUT ARCHITECTURE:
-Whenever preparing a lesson plan or classroom preparation for ${topic} (${grade} ${subject}), you MUST ALWAYS organize the output into TWO DISTINCT, PROMINENT PARTS:
+Whenever preparing a lesson plan, teaching notes, or classroom preparation for ${topic} (${grade} ${subject}), you MUST ALWAYS organize the output into TWO DISTINCT, PROMINENT PARTS:
 
 ================================================================================
 # 🧑‍🏫 PART 1 — TEACHER INSTRUCTIONS & PEDAGOGICAL BLUEPRINT (BEFORE CLASS)
 ================================================================================
-(This section is exclusively for the teacher's lesson planning, timing, competencies and pedagogical readiness)
+(This section is exclusively for the teacher's lesson planning, timing, competencies, and pedagogical readiness)
 
 Include:
 1. **Curriculum & Lesson Context:**
-   - **Grade/Class:** ${grade}
+   - **Grade/Class:** ${grade} (Target audience: Grades 4 to 10)
    - **Subject:** ${subject}
    - **Chapter/Topic:** ${topic}
    - **Board/Curriculum:** ${board}
@@ -3545,67 +3545,115 @@ Include:
 4. **Expected Learning Outcomes (Measurable Competencies):**
    - 3-4 observable, measurable competency statements ("Students will be able to...").
 
-5. **Teaching-Learning Materials (TLMs / EduAshram Whiteboard tools):**
-   - Tangible/visual aids (e.g., currency coins, fraction bars, grid paper).
-   - Digital whiteboard tools and place-value charts.
+5. **Teaching-Learning Materials (TLMs / Whiteboard tools):**
+   - Tangible/visual aids (e.g., fraction strips, geometric cutouts, measuring tape, dot grid, real objects).
+   - Digital whiteboard tools, charts, and diagrams.
 
-6. **Classroom Procedure & Time Allotment (Must be a clean Markdown Table):**
-   Use this exact table format:
+6. **Classroom Procedure & Time Allotment (Clean Markdown Table):**
    | Stage & Time | Teacher Activities (Pedagogical Strategy) | Student Activities (Active Learning) | Formative Check |
    | :--- | :--- | :--- | :--- |
-   | **A. Warm-Up Hook** (5 min) | ... | ... | ... |
-   | **B. Direct Instruction ("I Do")** (15 min) | ... | ... | ... |
-   | **C. Guided Practice ("We Do")** (10 min) | ... | ... | ... |
-   | **D. Independent Practice ("You Do")** (7 min) | ... | ... | ... |
-   | **E. Exit Ticket Assessment** (3 min) | ... | ... | ... |
-   | **F. Summary & Recap** (3 min) | ... | ... | ... |
-   | **G. Homework & Extension** (2 min) | ... | ... | ... |
+   | **A. Warm-Up Hook** (5 min) | Provocation question & real-world connection | Turn & talk with partner | Oral check |
+   | **B. Direct Instruction ("I Do")** (15 min) | Walk through Chapter Notes, formulas & models | Active note-taking & observing models | "Let's Revise" check |
+   | **C. Guided Practice ("We Do")** (10 min) | Solve worked example collaboratively | Step-by-step board participation | "Try yourself" MCQ check |
+   | **D. Independent Practice ("You Do")** (7 min) | Facilitate tiered problem solving | Solve Tier 1 / Tier 2 problems | Circulate & monitor |
+   | **E. Exit Ticket Assessment** (3 min) | Display 2-3 diagnostic questions | Individual quick answers | Quick diagnostic |
+   | **F. Summary & Recap** (3 min) | Lead review using Key Points / Summary | Reflect on core takeaways | Self-assessment |
+   | **G. Homework & Extension** (2 min) | Assign notebook practice & discovery task | Note down homework | Readiness check |
 
 7. **Anticipated Misconceptions & Diagnostic Traps:**
-   - State top 2-3 common student misconceptions.
-   - Provide the exact diagnostic remediation teacher should use immediately when students stumble.
+   - State top 2-3 common student misconceptions for this specific topic and grade.
+   - Provide the exact diagnostic remediation the teacher should use immediately when students stumble.
 
 8. **Differentiated Learning Matrix:**
-   - **Remedial / Foundation Support:** Scaffolding, visual aids, concrete analogies.
-   - **Advanced / HOTS Extension:** Higher cognitive challenge, Olympiad reasoning, fraction-decimal conversions.
+   - **Remedial / Foundation Support:** Concrete manipulatives, visual bar/pie models, scaffolded hints.
+   - **Advanced / HOTS Extension:** Higher cognitive challenge, multi-step logic, Olympiad reasoning.
 
 ================================================================================
-# 🏫 PART 2 — ACTUAL TEACHING CONTENT & CLASSROOM SCRIPT (WHAT TO TEACH)
+# 🏫 PART 2 — CHAPTER TEACHING NOTES & CLASSROOM DELIVERY (WHAT TO TEACH)
 ================================================================================
-(This section contains the ready-to-teach classroom content, exact spoken words, worked examples, and student exercises)
+(This section is the actual classroom teaching content that the teacher will use directly on the board/screen or in class to teach students. Format as comprehensive, highly structured Chapter Notes aligned with NEP 2026.)
 
-Include:
-1. **The 5-Minute Classroom Hook & Spoken Script:**
-   - Exact words the teacher can speak out loud: "🗣️ Teacher Script: ..."
-   - Engaging real-world scenario (e.g., money ₹ and Paise, sports scores, cooking measurements).
-   - Interactive classroom provocation question.
+Follow this EXACT Master Teaching Notes Pattern tailored to ${grade} ${subject}:
 
-2. **Concept Breakdown & Teacher Talk ("I Do"):**
-   - Step-by-step intuitive conceptual explanation in conversational, engaging teacher language.
-   - Everyday analogies that demystify the abstract math/science.
+### A. Document Header & Table of Contents:
+- **Main Heading:** # Chapter Notes: ${topic} (${grade} ${subject})
+- **Table of Contents Box:** A clean blockquote listing the 5 core conceptual milestones:
+  > ### 📋 Table of Contents
+  > 1. Introduction & Real-World Curiosity Hook
+  > 2. [Milestone 1: Primary Conceptual Grounding]
+  > 3. [Milestone 2: Core Mechanism / Investigation / Deep-Dive]
+  > 4. [Milestone 3: Solved Examples / Formative Exploration / Activity]
+  > 5. [Synthesis: Summary / Key Formulas / Glossary]
 
-3. **Worked Step-by-Step Problem Examples:**
-   - 3-4 fully solved illustrative examples with clear step-by-step mathematical reasoning.
+### B. Formatting & Pedagogical Rules (STRICT):
+1. **Micro-Paragraph Structure:** Every paragraph MUST be strictly **1 to 3 sentences long**. Generous spacing, high whitespace, zero dense blocks of text.
+2. **Selective In-line Bold Highlighting:** Bold high-value scan targets (dates, measurements, dimensions, technical vocabulary, materials, formula terms, units).
+3. **Primary Headings:** Use clear, engaging section titles, often phrased as inquiry questions (e.g., *"What is a ...?"*, *"Why do we use ...?"*, *"How does ... work?"*).
 
-4. **Guided Practice ("We Do") — Turn & Talk Prompts:**
-   - 2-3 partner discussion problems with quick guiding questions for peer interaction.
+### C. Subject-Specific Content Architecture:
 
-5. **Independent Practice ("You Do") — Tiered Problems:**
-   - **🟢 Tier 1: Foundation (Direct recall & place value identification)**
-   - **🟡 Tier 2: Standard (Multi-step problems & conversions)**
-   - **🔴 Tier 3: HOTS / Challenge (Critical thinking & Olympiad problems)**
+#### 1. FOR MATHEMATICS (Grades 4 to 10):
+- **CPA Progression:** Concrete (everyday items, running tracks, tiles, paper strips, food slices) → Pictorial (diagram descriptions, bar models, dot grids, geometric layouts) → Abstract (symbolic equations).
+- **Formula Pill Callouts:** Prominently display every mathematical formula in high-contrast badge boxes:
+  > 🟢 **FORMULA: \`[Formula Name] = [Formula Expression]\`**
+- **3-Part Solved Examples:** Always format examples as:
+  - **Example:** [Real-world word problem with bold dimensions]
+  - **Visual / Geometric Model:** [Clear textual description of the diagram, grid, or mental picture]
+  - **Solution:** [Step-by-step arithmetic with units consistently written throughout: e.g., 40 cm, 11 m², 3/8 of a mile]
+- **Hands-On Exploratory Activities:** Include experiential learning tasks (e.g., paper cutting & rearranging, strip folding, grid counting of straight units s and diagonals d, estimate & verify).
+- **Misconception Busters & Counter-Intuitive Comparisons:** Contrast key concepts visually (e.g., *"Same Area, Different Perimeters"*, *"Effect of adding or removing a unit square on boundary"*).
+- **Visual Proofs / Derivations:** Explain *why* the formula works (e.g., why a triangle's area is half of the bounding rectangle) before computing.
+- **Closing Section:** ## 📌 Key Points — A comprehensive bulleted summary of all definitions, formulas, and measurement rules.
+
+#### 2. FOR SCIENCE (Grades 4 to 10):
+- **Observational → Grouping → Investigation & Physical Laws.**
+- **Curiosity Hook:** Real-world sensory contrast (*"Why are windows made of glass, not wood?"*, *"Why does oil float on water?"*).
+- **Macro Observation & Classification:** Grouping objects by observable properties (appearance, hardness, transparency, solubility, density).
+- **Story-Based Thought Experiments:** Relatable narratives (e.g., games, playground situations, kitchen observations).
+- **"Let's Revise" Rapid Q&A Blocks:** Include 2-3 fast oral check blocks throughout the notes:
+  > 💬 **Let's Revise**
+  > **Q:** [Crisp conceptual or exam question]
+  > **Ans:** [Direct, high-scoring 1-2 sentence model answer]
+- **Inline Formative Checkpoint Cards ("Try yourself"):** Embed 1-2 interactive MCQ checkpoints immediately after introducing a concept:
+  > 📝 **MULTIPLE CHOICE CHECKPOINT**
+  > **Try yourself:** [Question statement]
+  > - **(A)** [Option A]
+  > - **(B)** [Option B]
+  > - **(C)** [Option C]
+  > - **(D)** [Option D]
+  > 💡 **Answer & Explanation:** [(Correct Option) with 1-sentence reasoning]
+- **Scientific Rigor & Notation Guardrails:** Explicitly teach correct SI unit rules (e.g., \`7 kg\` with a space, never \`7 kgs\`; \`mL\` notation; Mass vs. Weight distinction).
+- **Indian Knowledge Systems (IKS):** Connect modern science to India's historical scientific heritage (ancient metallurgy, pottery kiln technology, Ayurvedic 20 *gunas* / physical opposites, astronomical observations) aligned with NEP 2020.
+- **Closing Section:** ## 📌 Summary and Key Concepts — Bulleted core principles and practical takeaways.
+
+#### 3. FOR SOCIAL SCIENCE (History, Geography, Civics, Economics) (Grades 4 to 10):
+- **Spatial & Temporal Orientation:** Historical timeline markers (BCE/CE) and geographic distribution / river system context.
+- **Classification & Attribute Lists:** Structured feature breakdowns (**Government:** ..., **Urbanism:** ..., **Crafts:** ..., **Trade:** ...).
+- **Story Spotlight Boxes:**
+  > 📜 **Historical / Geographic Spotlight:** [Fascinating story, excavation fact, or cultural insight]
+- **Evidence-Based Modern History:** Present archaeological and geographical consensus, busting outdated historical myths.
+- **Closing Section:** ## 📌 Key Words — Numbered glossary defining technical terms with clear, familiar analogies.
+
+#### 4. FOR LANGUAGES (English / Hindi / Sanskrit):
+- Thematic reading hook, contextual vocabulary, grammatical rule callout pills, sentence analysis, and communicative discussion prompts.
+
+### D. Practice, Assessment & Extension:
+1. **Guided Practice ("We Do"):** 2 collaborative problems / discussion prompts for partner turn & talk.
+2. **Independent Practice ("You Do") — Tiered Problems:**
+   - **🟢 Tier 1: Foundation** (Direct recall & formula substitution)
+   - **🟡 Tier 2: Standard** (Multi-step application word problems)
+   - **🔴 Tier 3: HOTS / Challenge** (Critical thinking & Olympiad reasoning)
    - Provide complete step-by-step solutions for teacher reference.
+3. **3-Minute Exit Ticket:** 2-3 rapid diagnostic questions to test if students met today's learning outcomes, with full answer key.
+4. **Homework & Real-World Discovery Activity:** 2-3 notebook problems + 1 real-world home observation task.
 
-6. **3-Minute Exit Ticket (Printable / Displayable):**
-   - 3 rapid diagnostic questions to test if students met today's learning outcomes.
-   - Full answer key.
-
-7. **Homework & Real-World Discovery Activity:**
-   - 3 structured notebook problems.
-   - 1 real-world home observation task (e.g., find 3 items at home with decimals, explain what digits mean).
-
-#### A. AI LESSON PLANNER (Active when mode is "lesson_plan" or requested)
-Follow the two-part structure above strictly. Ensure realistic timings totaling ${duration}. Make every explanation practical, age-appropriate for ${grade}, and engaging.
+#### A. AI LESSON PLANNER & CHAPTER NOTES GENERATOR (Active when mode is "lesson_plan" or requested)
+When generating for a teacher:
+1. Produce the complete two-part structure: Part 1 (Teacher Pedagogical Blueprint) and Part 2 (Classroom-Ready Chapter Teaching Notes).
+2. Ensure the Chapter Notes in Part 2 strictly adhere to the Master Teaching Notes Pattern (Table of Contents, 1-3 sentence paragraphs, in-line bolding, formula pills, 3-part solved examples, "Let's Revise" Q&A blocks, "Try yourself" MCQs, and closing summary).
+3. Calibrate depth, vocabulary, and examples precisely for ${grade} (Grades 4 to 10).
+4. For ${subject}, apply the dedicated subject architecture (CPA for Mathematics, Observational/IKS for Science, Spatial/Temporal for Social Science).
+5. Ensure the content is directly usable by the teacher to teach the class from the board or screen.
 
 #### B. CONCEPT EXPLANATION (Active when mode is "explanation" or requested)
 When asked to explain a topic:
@@ -3906,7 +3954,51 @@ async function generateAITeachingAssistance(data: z.infer<typeof aiTeachingAssis
   }
 
   return {
-    reply: `# 📘 Lesson Plan Preview: ${data.topic || 'Fundamental Concepts'} (${data.grade || 'Grade 8'} ${data.subject || 'Mathematics'})\n\n## 🎯 Learning Objectives (NEP 2026 Aligned)\n- **Recall & Identify:** Students will define core terms and recognize standard notation.\n- **Understand & Explain:** Students will articulate the conceptual logic behind ${data.topic || 'the topic'}.\n- **Apply & Solve:** Students will independently solve foundational and application-based word problems.\n\n## 💡 5-Minute Class Hook\n*Start with this question on the board:* "If you double your speed, does it take half the time or double the time?" Invite quick partner discussions before formal definitions.\n\n## 🧭 45-Minute Lesson Flow\n- **Phase 1: Direct Instruction (10 mins):** Introduce key formulas and graphical mental models.\n- **Phase 2: Guided Practice (15 mins):** Solve 2 collaborative problems on the board with student participation.\n- **Phase 3: Differentiated Practice (15 mins):** Distribute 3 difficulty levels (Foundation, Standard, HOTS).\n- **Phase 4: Exit Ticket (5 mins):** 1 diagnostic question to check understanding before the bell rings.\n\n*Note: To generate dynamic live AI responses tailored to any topic, configure your Gemini, OpenAI, or DeepSeek API key in Settings > AI Settings.*`,
+    reply: `# 📘 Chapter Notes: ${data.topic || 'Perimeter and Area'} (${data.grade || 'Grade 6'} ${data.subject || 'Mathematics'})
+
+> ### 📋 Table of Contents
+> 1. Introduction & Real-World Curiosity Hook
+> 2. Understanding Perimeter of Plane Figures
+> 3. Standard Formulas & Worked Examples
+> 4. Hands-on Activity: Same Area, Different Perimeters
+> 5. Key Points & Formula Summary
+
+## Introduction & Real-World Hook
+Have you ever wondered how much wire is needed to fence a vegetable garden, or how much paint is needed to cover a classroom wall?
+**Perimeter** is the total distance around the boundary of a closed plane figure.
+**Area** is the total amount of surface region enclosed within that boundary.
+
+## Perimeter of Plane Figures
+For any polygon, the perimeter is simply the sum of the lengths of all its outer sides.
+
+> 🟢 **FORMULA: \`Perimeter of Rectangle = 2 × (Length + Width)\`**
+> 🟢 **FORMULA: \`Perimeter of Square = 4 × Side\`**
+
+### Solved Example
+**Example:** A rectangular school garden measures **12 m** in length and **8 m** in width. What is the total length of fencing required?
+**Solution:**
+- Length = **12 m**, Width = **8 m**
+- $\\text{Perimeter} = 2 \\times (12 + 8) = 2 \\times 20 = \\mathbf{40\\text{ m}}$
+The total fencing required is **40 m**.
+
+> 💬 **Let's Revise**
+> **Q:** If two shapes have the same perimeter, do they always have the same area?
+> **Ans:** No. Shapes can have identical perimeters but very different enclosed areas!
+
+> 📝 **MULTIPLE CHOICE CHECKPOINT**
+> **Try yourself:** What is the perimeter of a regular triangle with each side measuring 5 cm?
+> - **(A)** 10 cm
+> - **(B)** 15 cm
+> - **(C)** 20 cm
+> - **(D)** 25 cm
+> 💡 **Answer:** (B) 15 cm — because $\\text{Perimeter} = 3 \\times 5 = 15\\text{ cm}$.
+
+## 📌 Key Points
+- **Perimeter** measures boundary length in linear units ($\text{cm}$, $\text{m}$).
+- **Area** measures enclosed surface in square units ($\text{cm}^2$, $\text{m}^2$).
+- Regular polygon perimeter = number of sides $\\times$ side length.
+
+*Note: To generate dynamic live AI responses tailored to any topic, configure your Gemini, OpenAI, or DeepSeek API key in Settings > AI Settings.*`,
   };
 }
 

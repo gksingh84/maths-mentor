@@ -420,15 +420,15 @@ const MODE_CONFIG: Record<
   { label: string; icon: any; placeholder: string; starterPrompts: string[]; description: string }
 > = {
   lesson_plan: {
-    label: 'Lesson Planner',
+    label: 'Lesson Planner & Chapter Notes',
     icon: BookOpen,
-    description: 'Structured 45-min NEP 2026 lesson plans with learning outcomes, hooks, worked examples & exit tickets.',
-    placeholder: 'e.g. Plan a 45-minute interactive lesson on Surface Area & Volume with real-life hook...',
+    description: 'Structured 45-min NEP 2026 lesson plans & classroom-ready chapter notes with real-world hooks, formula pills, "Try yourself" MCQs & exit tickets.',
+    placeholder: 'e.g. Plan complete chapter notes & lesson on Fractions with real-world hook, visual models & worked examples...',
     starterPrompts: [
-      'Create 45-min NEP 2026 lesson plan with learning outcomes',
-      'Design a 5-minute provocation hook & real-life puzzle',
-      'Generate worked examples & 3-minute exit ticket',
-      'Plan an inquiry-based lab or classroom demonstration',
+      'Create complete Chapter Notes & 45-min lesson plan with learning outcomes',
+      'Generate classroom teaching notes with real-world hook, formula pills & worked examples',
+      'Include "Try yourself" formative MCQs, "Let\'s Revise" Q&A & exit ticket',
+      'Design an inquiry-based hands-on activity with misconception alerts',
     ],
   },
   explanation: {
@@ -1156,11 +1156,11 @@ export function TeacherAIAssistant({
                         setNotice('⚠️ Please enter a Chapter / Topic first to generate a lesson plan.');
                         return;
                       }
-                      void handleSendMessage(`Create a complete 45-minute lesson plan for ${grade} ${subject} on "${topic.trim()}"`, topic.trim());
+                      void handleSendMessage(`Create complete Chapter Notes and a 45-minute lesson plan for ${grade} ${subject} on "${topic.trim()}"`, topic.trim());
                     }}
                   >
-                    <strong>📘 Full Lesson Plan</strong>
-                    <span>Learning outcomes, 5-min hook, board layout & exit ticket</span>
+                    <strong>📘 Full Lesson Plan & Chapter Notes</strong>
+                    <span>Learning outcomes, real-world hook, formula pills, worked examples & exit ticket</span>
                   </button>
                   <button
                     type="button"
@@ -1499,10 +1499,10 @@ export function TeacherAIAssistant({
                     type="button"
                     className="button button-primary"
                     style={{ background: '#0284c7', borderColor: '#0284c7', gap: '8px' }}
-                    onClick={() => void handleSendMessage(`Create a complete 45-minute lesson plan for ${grade} ${subject} on ${topic || 'Key Concepts'}`)}
+                    onClick={() => void handleSendMessage(`Create complete Chapter Notes and a 45-minute lesson plan for ${grade} ${subject} on ${topic || 'Key Concepts'}`)}
                   >
                     <Sparkles size={16} />
-                    <span>Generate Sample 45-Min Lesson Plan</span>
+                    <span>Generate Complete Lesson & Chapter Notes</span>
                   </button>
                 </div>
               </div>
