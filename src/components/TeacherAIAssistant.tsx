@@ -1136,10 +1136,10 @@ export function TeacherAIAssistant({
               fontWeight: 600,
             }}
             onClick={() => setShowLibraryModal(true)}
-            title="Open Textbook & Curriculum Library to manage uploaded books"
+            title="Open Shared School Curriculum Library (Shared across all teachers for each Grade & Subject)"
           >
             <BookOpen size={14} color={matchingActiveBooks.length > 0 ? '#16a34a' : '#0284c7'} />
-            <span>Textbooks ({matchingActiveBooks.length})</span>
+            <span>Curriculum Library ({matchingActiveBooks.length})</span>
           </button>
 
           {/* New Session Button */}
@@ -1385,7 +1385,7 @@ export function TeacherAIAssistant({
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden' }}>
                   <BookOpen size={13} color={useLibraryTextbooks ? '#16a34a' : '#94a3b8'} />
                   <span style={{ fontWeight: 700, whiteSpace: 'nowrap' }}>
-                    {useLibraryTextbooks ? 'AI Grounded in Textbook:' : 'Textbook Grounding Paused:'}
+                    {useLibraryTextbooks ? 'Shared Curriculum Grounding:' : 'Curriculum Grounding Paused:'}
                   </span>
                   <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {matchingActiveBooks.map((b) => b.title).join(', ')}

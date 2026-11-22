@@ -12,6 +12,8 @@ import {
   FileText,
   AlertCircle,
   FileCheck2,
+  Users,
+  ShieldCheck,
 } from 'lucide-react';
 import { ALL_STUDENT_GRADES } from '../App';
 import { STANDARD_SUBJECT_LIST } from './TeacherAIAssistant';
@@ -25,10 +27,13 @@ export interface TextbookItem {
   fileName: string;
   fileType: string;
   fileSize: number;
+  fileHash?: string;
   fileUrl: string;
   teacherName?: string;
   uploadedAt: string;
   activeForAI: boolean;
+  sharedAcrossTeachers?: boolean;
+  isSharedInstance?: boolean;
 }
 
 interface TextbookLibraryModalProps {
@@ -123,6 +128,18 @@ export function TextbookLibraryModal({
     reader.readAsDataURL(file);
   };
 
+  // Pre-upload duplicate hint for current Grade & Subject
+  const duplicateWarning = useMemo(() => {
+    if (!selectedFile && !newTitle.trim()) return null;
+    return books.find(
+      (b) =>
+        b.grade.toLowerCase() === newGrade.toLowerCase() &&
+        b.subject.toLowerCase() === newSubject.toLowerCase() &&
+        ((selectedFile && b.fileName.toLowerCase() === selectedFile.name.toLowerCase()) ||
+          (newTitle.trim() && b.title.toLowerCase() === newTitle.trim().toLowerCase()))
+    );
+  }, [books, newGrade, newSubject, selectedFile, newTitle]);
+
   const handleUpload = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTitle.trim()) {
@@ -159,7 +176,14 @@ export function TextbookLibraryModal({
         throw new Error(data.error || 'Failed to upload textbook.');
       }
 
-      setNotice(`✓ "${newTitle.trim()}" uploaded and active for AI grounding.`);
+      if (data.alreadyExists) {
+        setNotice(data.message || `ℹ️ "${newTitle.trim()}" is already in the Shared Library for ${newGrade}.`);
+      } else if (data.deduplicated) {
+        setNotice(data.message || `✓ "${newTitle.trim()}" added to Shared Library (SSD Deduplicated).`);
+      } else {
+        setNotice(data.message || `✓ "${newTitle.trim()}" uploaded to Shared Curriculum Library for all teachers.`);
+      }
+
       // Reset form
       setNewTitle('');
       setNewChapter('');
@@ -286,10 +310,10 @@ export function TextbookLibraryModal({
             </div>
             <div>
               <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: '#0f172a' }}>
-                Textbook & Curriculum Library
+                Shared School Curriculum Library
               </h2>
               <p style={{ margin: 0, fontSize: '13px', color: '#64748b' }}>
-                Upload textbooks and chapter PDFs to ground AI lesson notes and quizzes directly in your curriculum.
+                Curriculum textbooks uploaded for a Grade & Subject are automatically shared across all teachers with zero duplication.
               </p>
             </div>
           </div>
@@ -313,7 +337,64 @@ export function TextbookLibraryModal({
         </div>
 
         {/* Modal Scrollable Body */}
-        <div style={{ padding: '24px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '24px' }}>
+        <div style={{ padding: '24px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          {/* Shared Library Info Banner */}
+          <div
+            style={{
+              background: 'linear-gradient(135deg, #f0fdf4 0%, #eff6ff 100%)',
+              border: '1px solid #bbf7d0',
+              borderRadius: '12px',
+              padding: '12px 16px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '12px',
+              flexWrap: 'wrap',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div
+                style={{
+                  width: '34px',
+                  height: '34px',
+                  borderRadius: '8px',
+                  background: '#dcfce7',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                }}
+              >
+                <Users size={18} color="#15803d" />
+              </div>
+              <div>
+                <div style={{ fontSize: '13.5px', fontWeight: 700, color: '#14532d' }}>
+                  Shared Across All Teachers
+                </div>
+                <div style={{ fontSize: '12px', color: '#166534' }}>
+                  Books uploaded for a Grade & Subject are automatically shared with all teachers. Duplicate uploads are prevented to protect server SSD storage.
+                </div>
+              </div>
+            </div>
+            <div
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '5px',
+                background: '#ffffff',
+                border: '1px solid #86efac',
+                padding: '4px 10px',
+                borderRadius: '20px',
+                fontSize: '11.5px',
+                color: '#15803d',
+                fontWeight: 600,
+              }}
+            >
+              <ShieldCheck size={13} color="#16a34a" />
+              <span>SHA-256 Deduplication Active</span>
+            </div>
+          </div>
+
           {/* Upload New Book Card */}
           <div
             style={{
@@ -329,6 +410,28 @@ export function TextbookLibraryModal({
                 Upload New Textbook, Chapter, or Reference Material
               </h3>
             </div>
+
+            {duplicateWarning && (
+              <div
+                style={{
+                  background: '#fffbeb',
+                  border: '1px solid #fde68a',
+                  color: '#92400e',
+                  borderRadius: '8px',
+                  padding: '8px 12px',
+                  fontSize: '12px',
+                  marginBottom: '12px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
+              >
+                <AlertCircle size={15} color="#d97706" />
+                <span>
+                  Notice: <strong>"{duplicateWarning.title}"</strong> is already in the Shared Library for {newGrade} - {newSubject}. Submitting will ensure it is active for your AI Assistant without duplicating storage.
+                </span>
+              </div>
+            )}
 
             {formError && (
               <div
@@ -453,7 +556,7 @@ export function TextbookLibraryModal({
                     </>
                   ) : (
                     <>
-                      <UploadCloud size={15} /> Add to Textbook Library
+                      <UploadCloud size={15} /> Add to Shared Curriculum Library
                     </>
                   )}
                 </button>
@@ -560,6 +663,14 @@ export function TextbookLibraryModal({
                         <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 7px', borderRadius: '4px', background: '#ede9fe', color: '#6d28d9' }}>
                           {book.subject}
                         </span>
+                        <span style={{ fontSize: '11px', fontWeight: 600, padding: '2px 7px', borderRadius: '4px', background: '#f1f5f9', color: '#475569', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                          <Users size={11} color="#64748b" /> Shared Resource
+                        </span>
+                        {book.isSharedInstance && (
+                          <span style={{ fontSize: '11px', fontWeight: 600, padding: '2px 7px', borderRadius: '4px', background: '#ecfdf5', color: '#047857', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                            <ShieldCheck size={11} color="#059669" /> Zero Duplicate
+                          </span>
+                        )}
                         {book.activeForAI && (
                           <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 7px', borderRadius: '4px', background: '#dcfce7', color: '#15803d', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
                             <FileCheck2 size={11} /> AI Grounding Active
@@ -576,7 +687,7 @@ export function TextbookLibraryModal({
                         </p>
                       )}
                       <p style={{ margin: 0, fontSize: '11.5px', color: '#94a3b8' }}>
-                        {book.fileName} • {Math.round(book.fileSize / 1024)} KB
+                        {book.fileName} • {Math.round(book.fileSize / 1024)} KB • Added by {book.teacherName || 'Curriculum Teacher'}
                       </p>
                     </div>
 

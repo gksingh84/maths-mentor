@@ -6,7 +6,7 @@ import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 import jwt, { type JwtPayload } from 'jsonwebtoken';
 import { createServer } from 'node:http';
-import { createHmac, randomBytes } from 'node:crypto';
+import { createHash, createHmac, randomBytes } from 'node:crypto';
 import { resolve } from 'node:path';
 import { existsSync, mkdirSync, writeFileSync, readFileSync, unlinkSync } from 'node:fs';
 import { Prisma, PrismaClient, type QuizMode } from '@prisma/client';
@@ -3474,12 +3474,15 @@ export interface TextbookEntry {
   fileName: string;
   fileType: string;
   fileSize: number;
+  fileHash?: string; // SHA-256 content hash for instant zero-duplicate SSD storage
   fileUrl: string;
   storedFileName: string;
   teacherId?: string;
   teacherName?: string;
   uploadedAt: string;
   activeForAI: boolean;
+  sharedAcrossTeachers?: boolean;
+  isSharedInstance?: boolean;
 }
 
 export function getTextbooksDir(): string {
@@ -3496,7 +3499,25 @@ export function getTextbooksRegistry(): TextbookEntry[] {
     const raw = readFileSync(file, 'utf-8');
     const items = JSON.parse(raw);
     if (!Array.isArray(items)) return [];
-    return items.filter((it: any) => it?.storedFileName && existsSync(resolve(dir, it.storedFileName)));
+    let dirty = false;
+    const valid = items.filter((it: any) => it?.storedFileName && existsSync(resolve(dir, it.storedFileName)));
+    for (const item of valid) {
+      if (item.sharedAcrossTeachers !== true) {
+        item.sharedAcrossTeachers = true;
+        dirty = true;
+      }
+      if (!item.fileHash) {
+        try {
+          const buf = readFileSync(resolve(dir, item.storedFileName));
+          item.fileHash = createHash('sha256').update(buf).digest('hex');
+          dirty = true;
+        } catch {}
+      }
+    }
+    if (dirty) {
+      try { writeFileSync(file, JSON.stringify(valid, null, 2)); } catch {}
+    }
+    return valid;
   } catch {
     return [];
   }
@@ -7713,19 +7734,19 @@ app.get('/api/textbooks', adminOnly, async (req: AuthRequest, res: Response) => 
     const grade = typeof req.query.grade === 'string' ? req.query.grade.trim() : undefined;
     const subject = typeof req.query.subject === 'string' ? req.query.subject.trim() : undefined;
     let books = getTextbooksRegistry();
-    if (grade) {
+    if (grade && grade.toLowerCase() !== 'all') {
       books = books.filter((b) => b.grade.toLowerCase() === grade.toLowerCase());
     }
-    if (subject) {
+    if (subject && subject.toLowerCase() !== 'all') {
       books = books.filter((b) => b.subject.toLowerCase() === subject.toLowerCase());
     }
-    res.json({ textbooks: books });
+    res.json({ textbooks: books, sharedLibrary: true });
   } catch (error) {
     errorResponse(res, error);
   }
 });
 
-// POST /api/textbooks/upload (upload a book/chapter PDF or document)
+// POST /api/textbooks/upload (upload a book/chapter PDF or document with SHA-256 deduplication & automatic grade/subject sharing)
 app.post('/api/textbooks/upload', adminOnly, async (req: AuthRequest, res: Response) => {
   try {
     const schema = z.object({
@@ -7741,19 +7762,76 @@ app.post('/api/textbooks/upload', adminOnly, async (req: AuthRequest, res: Respo
     const data = parse(schema, req.body);
     const dir = getTextbooksDir();
 
-    const ext = data.fileName.includes('.') ? data.fileName.substring(data.fileName.lastIndexOf('.')) : '.pdf';
-    const safeBase = randomBytes(8).toString('hex');
-    const storedFileName = `${Date.now()}_${safeBase}${ext}`;
-    const filePath = resolve(dir, storedFileName);
-
     let base64Pure = data.fileData;
     if (base64Pure.includes(';base64,')) {
       base64Pure = base64Pure.split(';base64,')[1];
     }
     const buffer = Buffer.from(base64Pure, 'base64');
-    writeFileSync(filePath, buffer);
+    const fileHash = createHash('sha256').update(buffer).digest('hex');
+    const ext = data.fileName.includes('.') ? data.fileName.substring(data.fileName.lastIndexOf('.')) : '.pdf';
+    const books = getTextbooksRegistry();
 
-    const fileUrl = `/uploads/textbooks/${storedFileName}`;
+    const normGrade = data.grade.trim().toLowerCase();
+    const normSubject = data.subject.trim().toLowerCase();
+    const normTitle = data.title.trim().toLowerCase();
+    const normFileName = data.fileName.trim().toLowerCase();
+
+    // 1. Exact Duplicate Check for the same Grade & Subject:
+    // If a file with same SHA-256 hash OR (same title + same filename) already exists for this Grade & Subject
+    const exactExisting = books.find(
+      (b) =>
+        b.grade.trim().toLowerCase() === normGrade &&
+        b.subject.trim().toLowerCase() === normSubject &&
+        (b.fileHash === fileHash ||
+          (b.title.trim().toLowerCase() === normTitle && b.fileName.trim().toLowerCase() === normFileName))
+    );
+
+    if (exactExisting) {
+      let updated = false;
+      if (!exactExisting.activeForAI) {
+        exactExisting.activeForAI = true;
+        updated = true;
+      }
+      if (!exactExisting.fileHash) {
+        exactExisting.fileHash = fileHash;
+        updated = true;
+      }
+      if (updated) {
+        saveTextbooksRegistry(books);
+      }
+      return res.json({
+        success: true,
+        alreadyExists: true,
+        message: `This textbook ("${exactExisting.title}") is already active in the Shared Curriculum Library for ${exactExisting.grade} (${exactExisting.subject}). Shared automatically with all teachers without duplicating storage!`,
+        textbook: exactExisting,
+      });
+    }
+
+    // 2. Cross-Grade/Cross-Subject Zero-Duplicate SSD Storage:
+    // Check if identical binary content already exists on disk in another grade/subject
+    const existingFileInstance = books.find(
+      (b) => b.fileHash === fileHash && existsSync(resolve(dir, b.storedFileName))
+    );
+
+    let storedFileName: string;
+    let fileUrl: string;
+    let isSharedInstance = false;
+
+    if (existingFileInstance) {
+      // Re-use physical file on SSD! ZERO extra disk space consumed
+      storedFileName = existingFileInstance.storedFileName;
+      fileUrl = existingFileInstance.fileUrl;
+      isSharedInstance = true;
+    } else {
+      // Write new unique file to SSD
+      const safeBase = randomBytes(8).toString('hex');
+      storedFileName = `${Date.now()}_${safeBase}${ext}`;
+      const filePath = resolve(dir, storedFileName);
+      writeFileSync(filePath, buffer);
+      fileUrl = `/uploads/textbooks/${storedFileName}`;
+    }
+
+    const safeBase = randomBytes(8).toString('hex');
     const newEntry: TextbookEntry = {
       id: `tb_${Date.now()}_${safeBase}`,
       title: data.title,
@@ -7763,19 +7841,29 @@ app.post('/api/textbooks/upload', adminOnly, async (req: AuthRequest, res: Respo
       fileName: data.fileName,
       fileType: data.fileType || (ext === '.pdf' ? 'application/pdf' : 'application/octet-stream'),
       fileSize: buffer.length,
+      fileHash,
       fileUrl,
       storedFileName,
       teacherId: req.session?.id,
-      teacherName: req.session?.name,
+      teacherName: req.session?.name || 'Curriculum Teacher',
       uploadedAt: new Date().toISOString(),
       activeForAI: data.activeForAI ?? true,
+      sharedAcrossTeachers: true,
+      isSharedInstance,
     };
 
-    const books = getTextbooksRegistry();
     books.unshift(newEntry);
     saveTextbooksRegistry(books);
 
-    res.json({ success: true, textbook: newEntry });
+    res.json({
+      success: true,
+      alreadyExists: false,
+      deduplicated: isSharedInstance,
+      message: isSharedInstance
+        ? `"${data.title}" added to Shared Library for ${data.grade} (${data.subject}). [Zero Duplicate: Reused existing SSD copy to preserve disk space]`
+        : `"${data.title}" added to Shared Curriculum Library for ${data.grade} (${data.subject}). Shared automatically with all teachers.`,
+      textbook: newEntry,
+    });
   } catch (error) {
     errorResponse(res, error);
   }
@@ -7806,7 +7894,7 @@ app.patch('/api/textbooks/:id', adminOnly, async (req: AuthRequest, res: Respons
   }
 });
 
-// DELETE /api/textbooks/:id
+// DELETE /api/textbooks/:id (Smart delete: only delete physical file from SSD if no other curriculum entry references it)
 app.delete('/api/textbooks/:id', adminOnly, async (req: AuthRequest, res: Response) => {
   try {
     const id = req.params.id;
@@ -7814,9 +7902,13 @@ app.delete('/api/textbooks/:id', adminOnly, async (req: AuthRequest, res: Respon
     const target = books.find((b) => b.id === id);
     if (!target) return res.status(404).json({ error: 'Textbook not found.' });
 
-    const filePath = resolve(getTextbooksDir(), target.storedFileName);
-    if (existsSync(filePath)) {
-      try { unlinkSync(filePath); } catch {}
+    // Only physically unlink file if no other entry uses target.storedFileName
+    const otherReferences = books.filter((b) => b.id !== id && b.storedFileName === target.storedFileName);
+    if (otherReferences.length === 0) {
+      const filePath = resolve(getTextbooksDir(), target.storedFileName);
+      if (existsSync(filePath)) {
+        try { unlinkSync(filePath); } catch {}
+      }
     }
 
     const updated = books.filter((b) => b.id !== id);
