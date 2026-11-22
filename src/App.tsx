@@ -306,6 +306,18 @@ const emptyQuestion = (type: QuestionType = 'MCQ'): Question => {
 };
 
 
+export function stripTeacherAnswerKey(html: string): string {
+  if (!html) return '';
+  let cleaned = html.replace(/<!--\s*TEACHER_ANSWER_KEY_START\s*-->[\s\S]*?<!--\s*TEACHER_ANSWER_KEY_END\s*-->/gi, '');
+  cleaned = cleaned.replace(/<div[^>]*class=["'][^"']*teacher-answer-key-section[^"']*["'][\s\S]*$/gi, '');
+  cleaned = cleaned.replace(/<div[^>]*style="[^"]*page-break-before:\s*always[^"]*"[^>]*>[\s\S]*?TEACHER ANSWER KEY[\s\S]*$/gi, '');
+  cleaned = cleaned.replace(/<div[^>]*>[\s\S]*?🔑\s*(?:TEACHER\s+)?ANSWER\s+KEY[\s\S]*$/gi, '');
+  if (cleaned.startsWith('<div') && !cleaned.endsWith('</div>')) {
+    cleaned += '</div>';
+  }
+  return cleaned.trim();
+}
+
 function printHtmlContent(content: string) {
   const win = window.open('', '_blank');
   if (!win) return;
@@ -14032,7 +14044,7 @@ function StudentPaperModal({
         <div className="word-doc-modal-header">
           <h3><FileText size={20} color="#0284c7" /> {paper.title}</h3>
           <div style={{ display: 'flex', gap: '8px' }}>
-            <button className="button button-secondary" onClick={() => printHtmlContent(paper.content)}>
+            <button className="button button-secondary" onClick={() => printHtmlContent(stripTeacherAnswerKey(paper.content))}>
               <Printer size={15} /> Print Paper
             </button>
             <button className="icon-button quiet" onClick={onClose}><X size={16} /></button>
@@ -14144,7 +14156,7 @@ function StudentPaperModal({
             </div>
           )}
 
-          <div className="word-doc-canvas" style={{ margin: '0 auto 30px auto', boxShadow: 'none' }} dangerouslySetInnerHTML={{ __html: paper.content }} />
+          <div className="word-doc-canvas" style={{ margin: '0 auto 30px auto', boxShadow: 'none' }} dangerouslySetInnerHTML={{ __html: stripTeacherAnswerKey(paper.content) }} />
 
           <div style={{ background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '12px', padding: '20px', marginTop: '20px' }}>
             {sub?.status === 'GRADED' ? (
@@ -14273,8 +14285,9 @@ function PaperPreviewModal({
   onClose: () => void;
   onOpenInLiveCanvas?: (paper: { title: string; content: string; grade?: string | null; subject?: string | null }) => void;
 }) {
+  const [showAnswerKey, setShowAnswerKey] = useState(true);
   const isHtml = paper.content && paper.content.includes('<') && paper.content.includes('>');
-  const renderedHtml = isHtml
+  const baseHtml = isHtml
     ? paper.content
     : (paper.content || '')
       .split('\n')
@@ -14288,12 +14301,19 @@ function PaperPreviewModal({
       })
       .join('');
 
+  const studentHtml = stripTeacherAnswerKey(baseHtml);
+  const renderedHtml = showAnswerKey ? baseHtml : studentHtml;
+
   return createPortal(
     <div className="word-doc-modal-overlay">
       <div className="word-doc-modal-container" style={{ maxWidth: '850px' }}>
         <div className="word-doc-modal-header">
           <h3><Eye size={18} /> {paper.title}</h3>
-          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 600, color: '#0f172a', cursor: 'pointer', background: showAnswerKey ? '#f0fdf4' : '#f8fafc', padding: '4px 10px', borderRadius: '8px', border: showAnswerKey ? '1px solid #bbf7d0' : '1px solid #cbd5e1' }}>
+              <input type="checkbox" checked={showAnswerKey} onChange={(e) => setShowAnswerKey(e.target.checked)} />
+              <span>🔑 Teacher Key (Teacher Only)</span>
+            </label>
             {onOpenInLiveCanvas && (
               <button
                 type="button"
@@ -14307,9 +14327,14 @@ function PaperPreviewModal({
                 <Sparkles size={14} /> Open in Live Teaching Canvas
               </button>
             )}
-            <button className="button button-secondary" onClick={() => printHtmlContent(renderedHtml)}>
-              <Printer size={15} /> Print Paper
+            <button className="button button-secondary" title="Print pure student test paper without answers" onClick={() => printHtmlContent(studentHtml)}>
+              <Printer size={15} /> Print Student Paper
             </button>
+            {showAnswerKey && (
+              <button className="button button-secondary" title="Print full paper with teacher answers & marking scheme" onClick={() => printHtmlContent(baseHtml)}>
+                <Printer size={15} /> Print with Key
+              </button>
+            )}
             <button className="icon-button quiet" onClick={onClose}><X size={16} /></button>
           </div>
         </div>

@@ -5910,6 +5910,23 @@ app.delete('/api/calendar/events/:id', authenticate(['teacher', 'admin', 'supera
   }
 });
 
+// Strip confidential teacher answer key from student-facing question papers
+function stripTeacherAnswerKey(html: string): string {
+  if (!html) return '';
+  // 1. Remove delimited comment block
+  let cleaned = html.replace(/<!--\s*TEACHER_ANSWER_KEY_START\s*-->[\s\S]*?<!--\s*TEACHER_ANSWER_KEY_END\s*-->/gi, '');
+  // 2. Remove by class name
+  cleaned = cleaned.replace(/<div[^>]*class=["'][^"']*teacher-answer-key-section[^"']*["'][\s\S]*$/gi, '');
+  // 3. Fallback: match any section with TEACHER ANSWER KEY heading
+  cleaned = cleaned.replace(/<div[^>]*style="[^"]*page-break-before:\s*always[^"]*"[^>]*>[\s\S]*?TEACHER ANSWER KEY[\s\S]*$/gi, '');
+  cleaned = cleaned.replace(/<div[^>]*>[\s\S]*?🔑\s*(?:TEACHER\s+)?ANSWER\s+KEY[\s\S]*$/gi, '');
+  // Ensure the root container div is closed
+  if (cleaned.startsWith('<div') && !cleaned.endsWith('</div>')) {
+    cleaned += '</div>';
+  }
+  return cleaned.trim();
+}
+
 // --- WORKSHEET & QUESTION PAPER ROUTES ---
 
 app.get('/api/worksheets', authenticate(), async (req: AuthRequest, res: Response) => {
@@ -5967,6 +5984,7 @@ app.get('/api/worksheets', authenticate(), async (req: AuthRequest, res: Respons
 
     const studentWorksheets = worksheets.map((w) => ({
       ...w,
+      content: stripTeacherAnswerKey(w.content),
       submission: w.submissions[0] ?? null,
       submissions: undefined,
     }));
@@ -6001,7 +6019,7 @@ app.get('/api/worksheets/:id', authenticate(), async (req: AuthRequest, res: Res
         return res.status(403).json({ error: `This question paper is assigned for ${(worksheet as any).grade} students only.` });
       }
       const submission = worksheet.submissions?.[0] ?? null;
-      return res.json({ worksheet: { ...worksheet, submission, submissions: undefined } });
+      return res.json({ worksheet: { ...worksheet, content: stripTeacherAnswerKey(worksheet.content), submission, submissions: undefined } });
     }
 
     res.json({ worksheet });
@@ -6281,7 +6299,8 @@ ${generated.questions.map((q: any, idx: number) => `
 
   ${sectionsHtml}
 
-  <div style="margin-top: 40px; border-top: 2px solid #0f172a; padding-top: 20px; page-break-before: always;">
+  <!-- TEACHER_ANSWER_KEY_START -->
+  <div class="teacher-answer-key-section" style="margin-top: 40px; border-top: 2px solid #0f172a; padding-top: 20px; page-break-before: always;">
     <div style="text-align: center; margin-bottom: 18px; border-bottom: 1.5px solid #cbd5e1; padding-bottom: 10px;">
       <h2 style="font-size: 18px; color: #0f172a; margin: 0; text-transform: uppercase;">🔑 TEACHER ANSWER KEY & STEP-WISE MARKING SCHEME</h2>
       <p style="margin: 4px 0 0; font-size: 12px; color: #64748b; font-style: italic;">Confidential — For Evaluator / Teacher Use Only</p>
@@ -6309,6 +6328,7 @@ ${generated.questions.map((q: any, idx: number) => `
 `).join('')}
     </div>
   </div>
+  <!-- TEACHER_ANSWER_KEY_END -->
 </div>`.trim();
       }
     } else {
