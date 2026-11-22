@@ -6426,13 +6426,13 @@ app.post('/api/worksheets/ai-generate', adminOnly, async (req: AuthRequest, res:
         let sectionsHtml = '';
         sectionsMap.forEach((qList, secTitle) => {
           sectionsHtml += `
-  <div class="exam-section-header" style="margin-top: 24px; margin-bottom: 12px; padding: 6px 12px; background: #f1f5f9; border-left: 4px solid #0f172a; font-weight: 700; font-size: 14.5px; color: #0f172a; page-break-after: avoid !important; break-after: avoid !important; page-break-inside: avoid !important; break-inside: avoid !important; display: block !important;">
+  <div class="exam-section-header" style="margin-top: 10px; margin-bottom: 4px; padding: 4px 8px; background: #f1f5f9; border-left: 4px solid #0f172a; font-weight: 700; font-size: 13px; color: #0f172a; page-break-after: avoid !important; break-after: avoid !important; page-break-inside: avoid !important; break-inside: avoid !important; display: block !important;">
     ${secTitle}
   </div>
   <div class="exam-questions-list" style="display: block;">
     ${qList.map((q: any) => `
-    <div class="exam-question-card" style="display: block; margin: 0 0 14px 0; font-size: 14.5px; border-bottom: 1px dashed #cbd5e1; padding-bottom: 12px; page-break-inside: avoid !important; break-inside: avoid !important;">
-      <div class="exam-q-prompt-row" style="display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin: 0 0 6px 0; line-height: 1.6;">
+    <div class="exam-question-card" style="display: block; margin: 0 0 6px 0; font-size: 13.5px; border-bottom: 1px dashed #cbd5e1; padding-bottom: 4px; page-break-inside: avoid !important; break-inside: avoid !important;">
+      <div class="exam-q-prompt-row" style="display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin: 0 0 3px 0; line-height: 1.4;">
         <div style="flex: 1; min-width: 0;">
           <strong>प्रश्न ${q.displayNum}.</strong> ${q.prompt}
         </div>
@@ -6440,11 +6440,11 @@ app.post('/api/worksheets/ai-generate', adminOnly, async (req: AuthRequest, res:
       </div>
       ${(q.options && q.options.length > 0) ? (
         q.type === 'TRUE_FALSE' ? `
-      <div style="margin-left: 20px; display: block; font-size: 13.5px; color: #334155; margin-top: 6px;">
-        <span style="display: inline-block; min-width: 120px;">(क) सत्य</span>
-        <span style="display: inline-block; min-width: 120px;">(ख) असत्य</span>
+      <div style="margin-left: 14px; display: block; font-size: 12.5px; color: #334155; margin-top: 2px;">
+        <span style="display: inline-block; min-width: 100px;">(क) सत्य</span>
+        <span style="display: inline-block; min-width: 100px;">(ख) असत्य</span>
       </div>` : `
-      <div style="margin-left: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 6px; font-size: 13.5px; color: #334155; margin-top: 6px;">
+      <div style="margin-left: 14px; display: grid; grid-template-columns: 1fr 1fr; gap: 2px 10px; font-size: 12.5px; color: #334155; margin-top: 2px;">
         ${q.options.map((opt: any, oIdx: number) => `<div>${hindiOptionLabels[oIdx] || `(${String.fromCharCode(65 + oIdx)})`} ${cleanOptionText(opt.text ?? opt)}</div>`).join('')}
       </div>`
       ) : ''}
@@ -6453,34 +6453,30 @@ app.post('/api/worksheets/ai-generate', adminOnly, async (req: AuthRequest, res:
         });
 
         docHtml = `
-<div style="font-family: 'Segoe UI', 'Nirmala UI', Arial, sans-serif; line-height: 1.6; color: #1e293b; width: 100%;">
-  <div style="text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 12px; margin-bottom: 16px;">
-    <div style="font-size: 20px; font-weight: 800; color: #0f172a; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 4px;">EduAshram</div>
-    <h1 style="margin: 0; font-size: 23px; color: #0f172a; letter-spacing: 0.5px;">${data.subject} परीक्षा प्रश्न पत्र</h1>
-    <h3 style="margin: 4px 0 0 0; color: #475569; font-weight: 600; font-size: 15px;">कक्षा: ${data.grade} &nbsp;|&nbsp; प्रकरण: ${generated.title ? generated.title.replace(/^हिन्दी:\s*/i, '') : data.topic}</h3>
-    <div style="display: flex; justify-content: space-between; margin-top: 12px; font-weight: 600; font-size: 13.5px; color: #334155; border-top: 1px solid #e2e8f0; padding-top: 8px;">
+<div style="font-family: 'Segoe UI', 'Nirmala UI', Arial, sans-serif; line-height: 1.45; color: #1e293b; width: 100%;">
+  <div style="text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 6px; margin-bottom: 8px;">
+    <div style="font-size: 20px; font-weight: 800; color: #0f172a; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 2px;">EduAshram</div>
+    <h1 style="margin: 0; font-size: 20px; color: #0f172a; letter-spacing: 0.5px;">${data.subject} परीक्षा प्रश्न पत्र</h1>
+    <h3 style="margin: 2px 0 0 0; color: #475569; font-weight: 600; font-size: 13.5px;">कक्षा: ${data.grade} &nbsp;|&nbsp; प्रकरण: ${generated.title ? generated.title.replace(/^हिन्दी:\s*/i, '') : data.topic}</h3>
+    <div style="display: flex; justify-content: space-between; margin-top: 6px; font-weight: 600; font-size: 12.5px; color: #334155; border-top: 1px solid #e2e8f0; padding-top: 4px;">
       <span>समय: 60 मिनट</span>
       <span>कुल प्रश्न: ${generated.questions.length}</span>
       <span>पूर्णांक: ${data.totalMarks}</span>
     </div>
   </div>
 
-  <div style="display: flex; justify-content: space-between; font-size: 13.5px; color: #334155; margin-bottom: 16px; padding: 6px 0; border-bottom: 1px dashed #cbd5e1;">
+  <div style="display: flex; justify-content: space-between; font-size: 12.5px; color: #334155; margin-bottom: 8px; padding: 3px 0; border-bottom: 1px dashed #cbd5e1;">
     <span>विद्यार्थी का नाम: __________________________________</span>
     <span>अनुक्रमांक (Roll No): ____________</span>
     <span>दिनांक: ____________</span>
   </div>
 
-  <div style="background-color: #f8fafc; border-left: 4px solid #0f172a; padding: 10px 14px; margin-bottom: 20px; font-size: 13px; border-radius: 4px;">
+  <div style="background-color: #f8fafc; border-left: 4px solid #0f172a; padding: 5px 10px; margin-bottom: 8px; font-size: 12px; border-radius: 4px;">
     <strong style="color: #0f172a;">सामान्य निर्देश:</strong>
-    <ol style="margin: 4px 0 0 16px; padding-left: 4px; color: #334155; line-height: 1.5;">
+    <ol style="margin: 2px 0 0 14px; padding-left: 2px; color: #334155; line-height: 1.35;">
       <li>सभी प्रश्न अनिवार्य हैं। इस प्रश्न पत्र में कुल ${generated.questions.length} प्रश्न हैं तथा पूर्णांक ${data.totalMarks} है।</li>
       <li>प्रत्येक प्रश्न के लिए निर्धारित अंक उसके सम्मुख दाईं ओर अंकित हैं।</li>
-      <li><strong>खंड 'क':</strong> वस्तुनिष्ठ प्रश्न (बहुविकल्पीय, रिक्त स्थान, सत्य/असत्य)।</li>
-      <li><strong>खंड 'ख':</strong> अति लघु उत्तरीय प्रश्न।</li>
-      <li><strong>खंड 'ग':</strong> लघु उत्तरीय प्रश्न।</li>
-      <li><strong>खंड 'घ':</strong> दीर्घ उत्तरीय प्रश्न।</li>
-      <li><strong>खंड 'ङ':</strong> केस-स्टडी आधारित प्रश्न।</li>
+      <li><strong>खंड:</strong> खंड 'क' (वस्तुनिष्ठ, 1 अंक), खंड 'ख' (अति लघु, 2 अंक), खंड 'ग' (लघु, 3 अंक), खंड 'घ' (दीर्घ, 5 अंक), खंड 'ङ' (केस-स्टडी, 4 अंक)।</li>
       <li>सभी उत्तर अपनी उत्तर-पुस्तिका में स्पष्ट एवं स्वच्छ लेख में लिखें।</li>
     </ol>
   </div>
@@ -6522,13 +6518,13 @@ ${generated.questions.map((q: any) => `
         let sectionsHtml = '';
         sectionsMap.forEach((qList, secTitle) => {
           sectionsHtml += `
-  <div class="exam-section-header" style="margin-top: 24px; margin-bottom: 12px; padding: 6px 12px; background: #f1f5f9; border-left: 4px solid #0f172a; font-weight: 700; font-size: 14px; color: #0f172a; text-transform: uppercase; page-break-after: avoid !important; break-after: avoid !important; page-break-inside: avoid !important; break-inside: avoid !important; display: block !important;">
+  <div class="exam-section-header" style="margin-top: 10px; margin-bottom: 4px; padding: 4px 8px; background: #f1f5f9; border-left: 4px solid #0f172a; font-weight: 700; font-size: 13px; color: #0f172a; text-transform: uppercase; page-break-after: avoid !important; break-after: avoid !important; page-break-inside: avoid !important; break-inside: avoid !important; display: block !important;">
     ${secTitle}
   </div>
   <div class="exam-questions-list" style="display: block;">
     ${qList.map((q: any) => `
-    <div class="exam-question-card" style="display: block; margin: 0 0 14px 0; font-size: 14.5px; border-bottom: 1px dashed #cbd5e1; padding-bottom: 12px; page-break-inside: avoid !important; break-inside: avoid !important;">
-      <div class="exam-q-prompt-row" style="display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin: 0 0 6px 0; line-height: 1.6;">
+    <div class="exam-question-card" style="display: block; margin: 0 0 6px 0; font-size: 13.5px; border-bottom: 1px dashed #cbd5e1; padding-bottom: 4px; page-break-inside: avoid !important; break-inside: avoid !important;">
+      <div class="exam-q-prompt-row" style="display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin: 0 0 3px 0; line-height: 1.4;">
         <div style="flex: 1; min-width: 0;">
           <strong>Q${q.displayNum}.</strong> ${q.prompt}
         </div>
@@ -6536,11 +6532,11 @@ ${generated.questions.map((q: any) => `
       </div>
       ${(q.options && q.options.length > 0) ? (
         q.type === 'TRUE_FALSE' ? `
-      <div style="margin-left: 20px; display: block; font-size: 13.5px; color: #334155; margin-top: 6px;">
-        <span style="display: inline-block; min-width: 120px;">(A) True</span>
-        <span style="display: inline-block; min-width: 120px;">(B) False</span>
+      <div style="margin-left: 14px; display: block; font-size: 12.5px; color: #334155; margin-top: 2px;">
+        <span style="display: inline-block; min-width: 100px;">(A) True</span>
+        <span style="display: inline-block; min-width: 100px;">(B) False</span>
       </div>` : `
-      <div style="margin-left: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 6px; font-size: 13.5px; color: #334155; margin-top: 6px;">
+      <div style="margin-left: 14px; display: grid; grid-template-columns: 1fr 1fr; gap: 2px 10px; font-size: 12.5px; color: #334155; margin-top: 2px;">
         ${q.options.map((opt: any, oIdx: number) => `<div>(${String.fromCharCode(65 + oIdx)}) ${cleanOptionText(opt.text ?? opt)}</div>`).join('')}
       </div>`
       ) : ''}
@@ -6549,34 +6545,30 @@ ${generated.questions.map((q: any) => `
         });
 
         docHtml = `
-<div style="font-family: 'Segoe UI', Arial, sans-serif; line-height: 1.6; color: #1e293b; width: 100%;">
-  <div style="text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 12px; margin-bottom: 16px;">
-    <div style="font-size: 20px; font-weight: 800; color: #0f172a; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 4px;">EduAshram</div>
-    <h1 style="margin: 0; font-size: 23px; text-transform: uppercase; color: #0f172a; letter-spacing: 0.5px;">${data.subject.toUpperCase()} EXAMINATION</h1>
-    <h3 style="margin: 4px 0 0 0; color: #475569; font-weight: 600; font-size: 15px;">Class / Grade: ${data.grade} &nbsp;|&nbsp; Topic: ${data.topic}</h3>
-    <div style="display: flex; justify-content: space-between; margin-top: 12px; font-weight: 600; font-size: 13.5px; color: #334155; border-top: 1px solid #e2e8f0; padding-top: 8px;">
+<div style="font-family: 'Segoe UI', Arial, sans-serif; line-height: 1.45; color: #1e293b; width: 100%;">
+  <div style="text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 6px; margin-bottom: 8px;">
+    <div style="font-size: 20px; font-weight: 800; color: #0f172a; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 2px;">EduAshram</div>
+    <h1 style="margin: 0; font-size: 20px; text-transform: uppercase; color: #0f172a; letter-spacing: 0.5px;">${data.subject.toUpperCase()} EXAMINATION</h1>
+    <h3 style="margin: 2px 0 0 0; color: #475569; font-weight: 600; font-size: 13.5px;">Class / Grade: ${data.grade} &nbsp;|&nbsp; Topic: ${data.topic}</h3>
+    <div style="display: flex; justify-content: space-between; margin-top: 6px; font-weight: 600; font-size: 12.5px; color: #334155; border-top: 1px solid #e2e8f0; padding-top: 4px;">
       <span>Time Allowed: 60 Minutes</span>
       <span>Total Questions: ${generated.questions.length}</span>
       <span>Maximum Marks: ${data.totalMarks}</span>
     </div>
   </div>
 
-  <div style="display: flex; justify-content: space-between; font-size: 13.5px; color: #334155; margin-bottom: 16px; padding: 6px 0; border-bottom: 1px dashed #cbd5e1;">
+  <div style="display: flex; justify-content: space-between; font-size: 12.5px; color: #334155; margin-bottom: 8px; padding: 3px 0; border-bottom: 1px dashed #cbd5e1;">
     <span>Student's Name: __________________________________</span>
     <span>Roll No: ____________</span>
     <span>Date: ____________</span>
   </div>
 
-  <div style="background-color: #f8fafc; border-left: 4px solid #0f172a; padding: 10px 14px; margin-bottom: 20px; font-size: 13px; border-radius: 4px;">
+  <div style="background-color: #f8fafc; border-left: 4px solid #0f172a; padding: 5px 10px; margin-bottom: 8px; font-size: 12px; border-radius: 4px;">
     <strong style="color: #0f172a;">General Instructions:</strong>
-    <ol style="margin: 4px 0 0 16px; padding-left: 4px; color: #334155; line-height: 1.5;">
-      <li>All questions are compulsory. This question paper contains ${generated.questions.length} questions for a maximum of ${data.totalMarks} marks.</li>
+    <ol style="margin: 2px 0 0 14px; padding-left: 2px; color: #334155; line-height: 1.35;">
+      <li>All questions are compulsory. This question paper contains ${generated.questions.length} questions for maximum ${data.totalMarks} marks.</li>
       <li>Marks allotted to each question are indicated against it on the right.</li>
-      <li><strong>Section A:</strong> Objective Type Questions (MCQ, Fill in the blanks, True/False).</li>
-      <li><strong>Section B:</strong> Very Short Answer Type Questions.</li>
-      <li><strong>Section C:</strong> Short Answer Type Questions.</li>
-      <li><strong>Section D:</strong> Long Answer Type Questions.</li>
-      <li><strong>Section E:</strong> Case-Study / Source-Based Questions.</li>
+      <li><strong>Sections:</strong> Sec A (Objective, 1M), Sec B (VSA, 2M), Sec C (SA, 3M), Sec D (LA, 5M), Sec E (Case-Study, 4M).</li>
       <li>Write all steps clearly in your answer sheet. Diagrams must be neat and properly labelled.</li>
     </ol>
   </div>

@@ -375,23 +375,33 @@ function printHtmlContent(content: string) {
   // 7. Ensure EduAshram branding header is present, strictly center aligned and prominent
   processedContent = processedContent.replace(
     /<div[^>]*>\s*EduAshram(?:\s+Question\s+Paper)?\s*<\/div>/gi,
-    '<div style="font-size: 22px; font-weight: 800; color: #0f172a; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 6px; text-align: center;">EduAshram</div>'
+    '<div style="font-size: 20px; font-weight: 800; color: #0f172a; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 2px; text-align: center;">EduAshram</div>'
   );
   if (!processedContent.includes('EduAshram') && !processedContent.includes('eduashram')) {
     processedContent = processedContent.replace(
       /(<div style="text-align:\s*center[^>]*>)/i,
-      '$1<div style="font-size: 22px; font-weight: 800; color: #0f172a; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 6px; text-align: center;">EduAshram</div>'
+      '$1<div style="font-size: 20px; font-weight: 800; color: #0f172a; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 2px; text-align: center;">EduAshram</div>'
     );
   }
+
+  // 8. Compress verbose instructions so page 1 is not pushed down unnecessarily
+  processedContent = processedContent.replace(
+    /<li><strong>(?:Section|खंड)\s*[A-Ea-e'क-ङ]:<\/strong>[\s\S]*?<li><strong>(?:Section|खंड)\s*[Ee'ङ]:<\/strong>[\s\S]*?<\/li>/gi,
+    '<li><strong>Sections:</strong> Sec A (Objective, 1M), Sec B (VSA, 2M), Sec C (SA, 3M), Sec D (LA, 5M), Sec E (Case-Study, 4M).</li>'
+  );
+  processedContent = processedContent.replace(/margin-top:\s*24px;\s*margin-bottom:\s*12px;/gi, 'margin-top: 10px; margin-bottom: 4px;');
+  processedContent = processedContent.replace(/padding-bottom:\s*12px;\s*margin-bottom:\s*16px;/gi, 'padding-bottom: 6px; margin-bottom: 8px;');
+  processedContent = processedContent.replace(/margin-bottom:\s*16px;\s*padding:\s*6px\s*0;/gi, 'margin-bottom: 8px; padding: 3px 0;');
+  processedContent = processedContent.replace(/padding:\s*10px\s*14px;\s*margin-bottom:\s*20px;/gi, 'padding: 5px 10px; margin-bottom: 8px;');
 
   // Set document title to empty string so browser native print header does not print right-aligned title text
   const fullHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><title></title><style>
     @page {
       size: A4 portrait;
-      margin-top: 14mm;
-      margin-bottom: 14mm;
-      margin-left: 16mm;
-      margin-right: 16mm;
+      margin-top: 8mm;
+      margin-bottom: 8mm;
+      margin-left: 12mm;
+      margin-right: 12mm;
     }
     @media print {
       html, body {
@@ -420,7 +430,12 @@ function printHtmlContent(content: string) {
         break-inside: avoid !important;
         page-break-inside: avoid !important;
         contain: layout !important;
-        margin-bottom: 14px !important;
+        margin-top: 0 !important;
+        margin-bottom: 6px !important;
+        padding-top: 0 !important;
+        padding-bottom: 4px !important;
+        font-size: 13.5px !important;
+        line-height: 1.4 !important;
       }
       .exam-question-card > * {
         break-inside: avoid !important;
@@ -434,24 +449,92 @@ function printHtmlContent(content: string) {
         display: flex !important;
         justify-content: space-between !important;
         align-items: baseline !important;
-        gap: 12px !important;
-        margin-bottom: 6px !important;
+        gap: 10px !important;
+        margin-bottom: 3px !important;
+        line-height: 1.4 !important;
         break-after: avoid !important;
         page-break-after: avoid !important;
       }
       .exam-question-card p {
         break-after: avoid !important;
         page-break-after: avoid !important;
-        margin-bottom: 6px !important;
+        margin-bottom: 3px !important;
+        line-height: 1.4 !important;
+      }
+      .exam-question-card div[style*="grid-template-columns"],
+      .exam-question-card div[style*="display: grid"] {
+        margin-top: 2px !important;
+        margin-left: 14px !important;
+        gap: 2px 10px !important;
+        font-size: 12.5px !important;
+        line-height: 1.35 !important;
+      }
+      .exam-question-card div[style*="min-width: 120px"],
+      .exam-question-card div[style*="min-width: 100px"] {
+        margin-top: 2px !important;
+        margin-left: 14px !important;
+        font-size: 12.5px !important;
+        line-height: 1.35 !important;
       }
       .exam-section-header,
-      .section-header, h1, h2, h3, h4 {
+      .section-header {
         display: block !important;
+        margin-top: 10px !important;
+        margin-bottom: 4px !important;
+        padding: 3px 8px !important;
+        font-size: 12.5px !important;
+        line-height: 1.3 !important;
         break-after: avoid-page !important;
         break-after: avoid !important;
         page-break-after: avoid !important;
         break-inside: avoid !important;
         page-break-inside: avoid !important;
+      }
+      h1, h2, h3, h4 {
+        break-after: avoid-page !important;
+        break-after: avoid !important;
+        page-break-after: avoid !important;
+        break-inside: avoid !important;
+        page-break-inside: avoid !important;
+      }
+      div[style*="border-bottom: 2px solid #0f172a"] {
+        padding-bottom: 6px !important;
+        margin-bottom: 8px !important;
+      }
+      div[style*="border-bottom: 2px solid #0f172a"] h1 {
+        font-size: 19px !important;
+        margin: 2px 0 !important;
+        line-height: 1.2 !important;
+      }
+      div[style*="border-bottom: 2px solid #0f172a"] h3 {
+        font-size: 13px !important;
+        margin: 2px 0 !important;
+      }
+      div[style*="border-top: 1px solid #e2e8f0"] {
+        margin-top: 5px !important;
+        padding-top: 3px !important;
+        font-size: 12px !important;
+      }
+      div[style*="border-bottom: 1px dashed #cbd5e1"][style*="justify-content: space-between"] {
+        margin-bottom: 8px !important;
+        padding: 3px 0 !important;
+        font-size: 12px !important;
+      }
+      div[style*="background-color: #f8fafc; border-left: 4px solid #0f172a"],
+      div[style*="border-left: 4px solid #0f172a"][style*="padding: 10px 14px"] {
+        padding: 5px 10px !important;
+        margin-bottom: 8px !important;
+        font-size: 11.5px !important;
+      }
+      div[style*="background-color: #f8fafc; border-left: 4px solid #0f172a"] ol,
+      div[style*="border-left: 4px solid #0f172a"] ol {
+        margin: 2px 0 0 14px !important;
+        padding-left: 2px !important;
+        line-height: 1.35 !important;
+      }
+      div[style*="background-color: #f8fafc; border-left: 4px solid #0f172a"] li,
+      div[style*="border-left: 4px solid #0f172a"] li {
+        margin-bottom: 1.5px !important;
       }
       .teacher-answer-key-section,
       div[style*="page-break-before: always"],
