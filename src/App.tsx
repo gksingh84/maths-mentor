@@ -372,19 +372,24 @@ function printHtmlContent(content: string) {
     '<div class="exam-q-prompt-row" style="display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin: 0 0 6px 0; line-height: 1.6;"><div style="flex: 1; min-width: 0;">$1</div><span style="font-weight: 600; color: #475569; white-space: nowrap; flex-shrink: 0; text-align: right;">$2</span></div>'
   );
 
-  // 7. Ensure EduAshram branding header is present at the top of the question paper with increased font size
+  // 7. Ensure EduAshram branding header is present, strictly center aligned and prominent
+  processedContent = processedContent.replace(
+    /<div[^>]*>\s*EduAshram(?:\s+Question\s+Paper)?\s*<\/div>/gi,
+    '<div style="font-size: 22px; font-weight: 800; color: #0f172a; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 6px; text-align: center;">EduAshram</div>'
+  );
   if (!processedContent.includes('EduAshram') && !processedContent.includes('eduashram')) {
     processedContent = processedContent.replace(
       /(<div style="text-align:\s*center[^>]*>)/i,
-      '$1<div style="font-size: 20px; font-weight: 800; color: #0f172a; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 4px;">EduAshram</div>'
+      '$1<div style="font-size: 22px; font-weight: 800; color: #0f172a; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 6px; text-align: center;">EduAshram</div>'
     );
   }
 
-  const fullHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>EduAshram</title><style>
+  // Set document title to empty string so browser native print header does not print right-aligned title text
+  const fullHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><title></title><style>
     @page {
       size: A4 portrait;
-      margin-top: 16mm;
-      margin-bottom: 16mm;
+      margin-top: 14mm;
+      margin-bottom: 14mm;
       margin-left: 16mm;
       margin-right: 16mm;
     }
@@ -414,9 +419,14 @@ function printHtmlContent(content: string) {
         break-inside: avoid-page !important;
         break-inside: avoid !important;
         page-break-inside: avoid !important;
+        contain: layout !important;
         margin-bottom: 14px !important;
       }
       .exam-question-card > * {
+        break-inside: avoid !important;
+        page-break-inside: avoid !important;
+      }
+      .exam-question-card div {
         break-inside: avoid !important;
         page-break-inside: avoid !important;
       }
@@ -14237,81 +14247,133 @@ function StudentPaperModal({
           className="word-doc-modal-header"
           style={{
             background: '#ffffff',
-            borderBottom: '1px solid #e2e8f0',
-            padding: '14px 22px',
+            borderBottom: '1.5px solid #e2e8f0',
+            padding: '16px 24px',
             display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: '16px',
-            flexWrap: 'wrap',
+            flexDirection: 'column',
+            gap: '12px',
+            width: '100%',
+            boxSizing: 'border-box',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div
-              style={{
-                width: '40px',
-                height: '40px',
-                borderRadius: '12px',
-                background: 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)',
-                border: '1.5px solid #bfdbfe',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#0284c7',
-                flexShrink: 0,
-              }}
-            >
-              <FileText size={20} />
-            </div>
-            <div>
-              <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#0f172a' }}>{paper.title}</h3>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '3px', fontSize: '11.5px' }}>
-                {paper.subject && <span style={{ background: '#f0f9ff', color: '#0369a1', border: '1px solid #bae6fd', padding: '1px 7px', borderRadius: '6px', fontWeight: 600 }}>{paper.subject}</span>}
-                {paper.grade && <span style={{ background: '#faf5ff', color: '#7e22ce', border: '1px solid #e9d5ff', padding: '1px 7px', borderRadius: '6px', fontWeight: 600 }}>{paper.grade}</span>}
-                {paper.totalMarks ? <span style={{ background: '#f8fafc', color: '#475569', border: '1px solid #e2e8f0', padding: '1px 7px', borderRadius: '6px', fontWeight: 600 }}>{paper.totalMarks} Marks</span> : null}
+          {/* TOP ROW: Question Paper Heading + Close Button */}
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '16px', width: '100%' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
+              <div
+                style={{
+                  width: '42px',
+                  height: '42px',
+                  borderRadius: '10px',
+                  background: 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)',
+                  border: '1.5px solid #bfdbfe',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#0284c7',
+                  flexShrink: 0,
+                  boxShadow: '0 2px 6px rgba(2, 132, 199, 0.12)',
+                }}
+              >
+                <FileText size={22} />
+              </div>
+              <div style={{ minWidth: 0 }}>
+                <h2
+                  style={{
+                    margin: 0,
+                    fontSize: '18px',
+                    fontWeight: 800,
+                    color: '#0f172a',
+                    letterSpacing: '-0.3px',
+                    lineHeight: '1.3',
+                  }}
+                  title={paper.title}
+                >
+                  {paper.title}
+                </h2>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginTop: '4px', fontSize: '12px' }}>
+                  {paper.subject && (
+                    <span style={{ background: '#f0f9ff', color: '#0369a1', border: '1px solid #bae6fd', padding: '2px 8px', borderRadius: '6px', fontWeight: 600 }}>
+                      {paper.subject}
+                    </span>
+                  )}
+                  {paper.grade && (
+                    <span style={{ background: '#faf5ff', color: '#7e22ce', border: '1px solid #e9d5ff', padding: '2px 8px', borderRadius: '6px', fontWeight: 600 }}>
+                      {paper.grade}
+                    </span>
+                  )}
+                  {paper.totalMarks ? (
+                    <span style={{ background: '#f8fafc', color: '#475569', border: '1px solid #e2e8f0', padding: '2px 8px', borderRadius: '6px', fontWeight: 600 }}>
+                      {paper.totalMarks} Marks
+                    </span>
+                  ) : null}
+                </div>
               </div>
             </div>
-          </div>
-          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+
+            {/* Close Button on Top Right */}
             <button
               type="button"
               style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                fontSize: '12.5px',
-                fontWeight: 600,
-                padding: '6px 14px',
-                borderRadius: '9px',
-                border: '1px solid #cbd5e1',
-                background: '#ffffff',
-                color: '#1e293b',
-                cursor: 'pointer',
-                boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
-              }}
-              onClick={() => printHtmlContent(stripTeacherAnswerKey(paper.content))}
-            >
-              <Printer size={14} color="#0284c7" />
-              <span>Print Paper</span>
-            </button>
-            <button
-              type="button"
-              style={{
-                width: '32px',
-                height: '32px',
-                borderRadius: '8px',
+                width: '36px',
+                height: '36px',
+                borderRadius: '10px',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 color: '#64748b',
                 background: '#f8fafc',
-                border: '1px solid #e2e8f0',
+                border: '1.5px solid #e2e8f0',
                 cursor: 'pointer',
+                transition: 'all 0.15s ease',
+                flexShrink: 0,
               }}
+              title="Close"
               onClick={onClose}
             >
-              <X size={16} />
+              <X size={18} />
             </button>
+          </div>
+
+          {/* BOTTOM ROW: Actions Bar Below Heading */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: '12px',
+              paddingTop: '12px',
+              borderTop: '1px solid #f1f5f9',
+              width: '100%',
+            }}
+          >
+            <button
+              type="button"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                fontSize: '13px',
+                fontWeight: 700,
+                padding: '8px 18px',
+                borderRadius: '10px',
+                border: '1.5px solid #0284c7',
+                background: '#0284c7',
+                color: '#ffffff',
+                cursor: 'pointer',
+                boxShadow: '0 2px 6px rgba(2, 132, 199, 0.25)',
+                transition: 'all 0.15s ease',
+              }}
+              title="Print question paper"
+              onClick={() => printHtmlContent(stripTeacherAnswerKey(paper.content))}
+            >
+              <Printer size={16} />
+              <span>Print Question Paper</span>
+            </button>
+
+            <div style={{ fontSize: '12px', color: '#64748b', display: 'flex', alignItems: 'center', gap: '6px', background: '#f8fafc', padding: '6px 12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+              <span>💡 <strong>Tip for clean print:</strong> In print settings, uncheck "Headers and footers" to hide date/time and web address from page edges.</span>
+            </div>
           </div>
         </div>
 
@@ -14797,6 +14859,25 @@ function PaperPreviewModal({
                 <span>Open in Live Canvas</span>
               </button>
             )}
+
+            {/* Clean Print Tip Banner */}
+            <div
+              style={{
+                width: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                fontSize: '12px',
+                color: '#475569',
+                background: '#f8fafc',
+                padding: '6px 14px',
+                borderRadius: '8px',
+                border: '1px solid #e2e8f0',
+                marginTop: '4px',
+              }}
+            >
+              <span>💡 <strong>Tip for clean print:</strong> In the browser print dialog, click "More settings" and uncheck "Headers and footers" to remove date, time, and web address from page margins.</span>
+            </div>
           </div>
         </div>
         <div style={{ flex: 1, overflowY: 'auto', padding: '24px', background: '#f8fafc' }}>
