@@ -527,6 +527,62 @@ function clearSavedSession() {
   }
 }
 
+/**
+ * Automatically compress and downscale high-resolution images client-side
+ * before uploading to prevent "request entity too large" payloads while
+ * preserving sharp text/diagram readability for AI vision.
+ */
+export async function compressImageFile(file: File, maxDim = 1600, quality = 0.82): Promise<{ data: string; size: number }> {
+  if (!file.type.startsWith('image/')) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve({ data: reader.result as string, size: file.size });
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+        if (width > maxDim || height > maxDim) {
+          if (width > height) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          } else {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = 'high';
+          ctx.drawImage(img, 0, 0, width, height);
+          const compressedData = canvas.toDataURL('image/jpeg', quality);
+          const approxSize = Math.round((compressedData.length * 3) / 4);
+          resolve({ data: compressedData, size: approxSize });
+        } else {
+          resolve({ data: reader.result as string, size: file.size });
+        }
+      };
+      img.onerror = () => {
+        resolve({ data: reader.result as string, size: file.size });
+      };
+      img.src = reader.result as string;
+    };
+    reader.onerror = () => resolve({ data: '', size: 0 });
+    reader.readAsDataURL(file);
+  });
+}
+
 export function TeacherAIAssistant({
   user,
   setNotice,
@@ -613,30 +669,35 @@ export function TeacherAIAssistant({
     );
   }, [libraryBooks, grade, subject]);
 
-  const handleAttachFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAttachFiles = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
-    Array.from(files).forEach((file) => {
-      if (file.size > 25 * 1024 * 1024) {
-        setNotice(`⚠️ "${file.name}" exceeds the 25MB file size limit.`);
-        return;
+    const fileList = Array.from(files);
+    for (const file of fileList) {
+      if (file.size > 50 * 1024 * 1024) {
+        setNotice(`⚠️ "${file.name}" exceeds the 50MB file size limit.`);
+        continue;
       }
-      const reader = new FileReader();
-      reader.onload = () => {
-        const result = reader.result as string;
+      try {
+        const { data, size } = await compressImageFile(file);
+        if (!data) continue;
         setAttachedFiles((prev) => [
           ...prev,
           {
             name: file.name,
-            type: file.type || 'application/pdf',
-            data: result,
-            size: file.size,
+            type: file.type.startsWith('image/') ? 'image/jpeg' : (file.type || 'application/pdf'),
+            data,
+            size,
           },
         ]);
-        setNotice(`📎 Attached "${file.name}" for AI grounding.`);
-      };
-      reader.readAsDataURL(file);
-    });
+        const savingsText = file.type.startsWith('image/') && size < file.size
+          ? ` (${Math.round(file.size / 1024)} KB → ${Math.round(size / 1024)} KB optimized)`
+          : '';
+        setNotice(`📎 Attached "${file.name}"${savingsText} for AI grounding.`);
+      } catch {
+        setNotice(`⚠️ Could not process "${file.name}".`);
+      }
+    }
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -836,10 +897,18 @@ export function TeacherAIAssistant({
       setCanvasContent(aiReply);
     } catch (err) {
       const errText = err instanceof Error ? err.message : 'Failed to reach AI teaching assistant.';
+      const isPayloadTooLarge = /too large|payload|entity|413/i.test(errText);
+      const isAuthError = /key|auth|unauthorized|forbidden|401|403/i.test(errText);
+      let tip = '';
+      if (isPayloadTooLarge) {
+        tip = '\n\n*Tip: Attached images or files exceeded upload limits. Images are now automatically compressed, but please ensure individual PDFs are under 50MB.*';
+      } else if (isAuthError) {
+        tip = '\n\n*Tip: Check [Settings > AI Settings] to confirm your unique API key.*';
+      }
       const errorMessage: ChatMessage = {
         id: `msg-${Date.now() + 1}`,
         role: 'assistant',
-        content: `⚠️ **AI Assistant Notice:** ${errText}\n\n*Tip: Check [Settings > AI Settings] to confirm your unique API key.*`,
+        content: `⚠️ **AI Assistant Notice:** ${errText}${tip}`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         mode,
       };

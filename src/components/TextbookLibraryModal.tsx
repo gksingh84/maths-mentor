@@ -16,7 +16,7 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import { ALL_STUDENT_GRADES } from '../App';
-import { STANDARD_SUBJECT_LIST } from './TeacherAIAssistant';
+import { STANDARD_SUBJECT_LIST, compressImageFile } from './TeacherAIAssistant';
 
 export interface TextbookItem {
   id: string;
@@ -100,12 +100,12 @@ export function TextbookLibraryModal({
     }
   }, [isOpen]);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 30 * 1024 * 1024) {
-      setFormError('File size exceeds the 30MB maximum limit.');
+    if (file.size > 50 * 1024 * 1024) {
+      setFormError('File size exceeds the 50MB maximum limit. Please upload a chapter PDF under 50MB.');
       return;
     }
 
@@ -121,11 +121,16 @@ export function TextbookLibraryModal({
       setNewTitle(cleanName);
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      setFileBase64(reader.result as string);
-    };
-    reader.readAsDataURL(file);
+    try {
+      const { data } = await compressImageFile(file);
+      setFileBase64(data);
+    } catch {
+      const reader = new FileReader();
+      reader.onload = () => {
+        setFileBase64(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   // Pre-upload duplicate hint for current Grade & Subject
