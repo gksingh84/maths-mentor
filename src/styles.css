@@ -12748,6 +12748,11 @@ button:disabled {
   resize: vertical;
 }
 
+@page {
+  size: A4 portrait;
+  margin: 18mm 15mm 18mm 15mm;
+}
+
 @media print {
   body * {
     visibility: hidden;

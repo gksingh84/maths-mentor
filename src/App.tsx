@@ -326,10 +326,10 @@ export function stripTeacherAnswerKey(html: string): string {
 function printHtmlContent(content: string) {
   const win = window.open('', '_blank');
   if (!win) return;
-  win.document.write(`<!DOCTYPE html><html><head><title></title><style>
+  win.document.write(`<!DOCTYPE html><html><head><title>EduAshram Question Paper</title><style>
     @page {
-      margin: 0;
-      size: auto;
+      size: A4 portrait;
+      margin: 18mm 15mm 18mm 15mm;
     }
     @media print {
       html, body {
@@ -339,16 +339,28 @@ function printHtmlContent(content: string) {
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
       }
-      body {
-        padding: 15mm 18mm !important;
-        box-sizing: border-box !important;
+      div[style*="border-bottom: 1px dashed"],
+      div[style*="border-bottom:1px dashed"],
+      .question-item {
+        break-inside: avoid !important;
+        page-break-inside: avoid !important;
+      }
+      .section-header, h1, h2, h3, h4 {
+        break-after: avoid !important;
+        page-break-after: avoid !important;
+      }
+      .teacher-answer-key-section,
+      div[style*="page-break-before: always"],
+      div[style*="page-break-before:always"] {
+        break-before: page !important;
+        page-break-before: always !important;
       }
     }
     body {
-      font-family: 'Segoe UI', Arial, sans-serif;
+      font-family: 'Segoe UI', 'Nirmala UI', Arial, sans-serif;
       line-height: 1.6;
       color: #1e293b;
-      padding: 15mm 18mm;
+      padding: 16px 20px;
       margin: 0;
       background: #ffffff;
     }
@@ -366,7 +378,7 @@ function printHtmlContent(content: string) {
   win.focus();
   setTimeout(() => {
     win.print();
-  }, 250);
+  }, 350);
 }
 
 function QuestionTypeBadge({ type }: { type?: string }) {
