@@ -1469,6 +1469,9 @@ const aiTeachingAssistantInput = z.object({
   mode: z.enum(['lesson_plan', 'explanation', 'practice', 'socratic', 'evaluation', 'worksheet', 'general']).default('general'),
   provider: z.enum(['auto', 'gemini', 'openai', 'deepseek']).optional(),
   apiKey: z.string().trim().optional(),
+  uploadedFiles: z.array(uploadedFileSchema).max(15).optional(),
+  useLibraryTextbooks: z.boolean().optional(),
+  selectedTextbookIds: z.array(z.string()).optional(),
 });
 
 export function isHindiSubject(subject?: string): boolean {
@@ -3457,7 +3460,58 @@ app.post('/api/ai/generate-quiz', adminOnly, async (req: AuthRequest, res: Respo
   } catch (error) { errorResponse(res, error); }
 });
 
-function buildEduAshramAITeachingAssistantPrompt(data: z.infer<typeof aiTeachingAssistantInput>): string {
+/* ==========================================================================
+   TEXTBOOK & REFERENCE MATERIALS REGISTRY
+   Supports persistent library storage & AI groundings for Grades 4 to 10
+   ========================================================================== */
+
+export interface TextbookEntry {
+  id: string;
+  title: string;
+  grade: string;
+  subject: string;
+  chapter?: string;
+  fileName: string;
+  fileType: string;
+  fileSize: number;
+  fileUrl: string;
+  storedFileName: string;
+  teacherId?: string;
+  teacherName?: string;
+  uploadedAt: string;
+  activeForAI: boolean;
+}
+
+export function getTextbooksDir(): string {
+  const dir = resolve('public/uploads/textbooks');
+  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+  return dir;
+}
+
+export function getTextbooksRegistry(): TextbookEntry[] {
+  const dir = getTextbooksDir();
+  const file = resolve(dir, 'textbooks-index.json');
+  if (!existsSync(file)) return [];
+  try {
+    const raw = readFileSync(file, 'utf-8');
+    const items = JSON.parse(raw);
+    if (!Array.isArray(items)) return [];
+    return items.filter((it: any) => it?.storedFileName && existsSync(resolve(dir, it.storedFileName)));
+  } catch {
+    return [];
+  }
+}
+
+export function saveTextbooksRegistry(items: TextbookEntry[]) {
+  const dir = getTextbooksDir();
+  const file = resolve(dir, 'textbooks-index.json');
+  writeFileSync(file, JSON.stringify(items, null, 2));
+}
+
+function buildEduAshramAITeachingAssistantPrompt(
+  data: z.infer<typeof aiTeachingAssistantInput>,
+  effectiveFiles: Array<{ name: string; type: string; data: string; size?: number }> = []
+): string {
   const board = data.board || 'CBSE (NEP 2026 Aligned)';
   const grade = data.grade || 'Grade 8';
   const subject = data.subject || 'Mathematics';
@@ -3467,9 +3521,24 @@ function buildEduAshramAITeachingAssistantPrompt(data: z.infer<typeof aiTeaching
   const duration = data.duration || '45 minutes';
   const mode = data.mode || 'general';
 
+  let textbookGroundingSection = '';
+  if (effectiveFiles.length > 0) {
+    const fileList = effectiveFiles.map((f, i) => `  ${i + 1}. "${f.name}" (${f.type || 'Document'}, ${f.size ? Math.round(f.size / 1024) + ' KB' : 'PDF/Doc'})`).join('\n');
+    textbookGroundingSection = `\n================================================================================
+# 📚 MANDATORY UPLOADED TEXTBOOK & REFERENCE MATERIAL GROUNDING (ACTIVE)
+================================================================================
+The teacher has attached ${effectiveFiles.length} official curriculum reference textbook / chapter file(s):
+${fileList}
+
+CRITICAL GROUNDING DIRECTIVES:
+1. You MUST thoroughly analyze these uploaded textbook pages/documents and strictly ground your Chapter Notes, Lesson Plan, Definitions, Formulas, Worked Examples, "Try yourself" MCQs, and "Let's Revise" questions directly in the facts, terminology, formulas, problem patterns, and vocabulary found in these materials!
+2. Match the exact curriculum scope, chapter flow, and pedagogical examples from these uploaded resources.
+================================================================================\n`;
+  }
+
   return `# EDUASHRAM — AI TEACHING ASSISTANT
 ## Master System Prompt
-
+${textbookGroundingSection}
 ### 1. ROLE AND IDENTITY
 
 You are EduAshram AI Teaching Assistant, an expert teacher, instructional designer, subject-matter specialist and educational content creator.
@@ -3847,7 +3916,42 @@ async function generateAITeachingAssistance(data: z.infer<typeof aiTeachingAssis
     selectedProvider = 'gemini';
   }
 
-  const systemRole = buildEduAshramAITeachingAssistantPrompt(data);
+  // 1. Gather all effective files (session attachments + matching active library textbooks)
+  const effectiveFiles: Array<{ name: string; type: string; data: string; size?: number }> = [
+    ...(data.uploadedFiles || []),
+  ];
+
+  if (data.useLibraryTextbooks !== false) {
+    const library = getTextbooksRegistry();
+    const matching = library.filter((b) => {
+      if (data.selectedTextbookIds && data.selectedTextbookIds.length > 0) {
+        return data.selectedTextbookIds.includes(b.id);
+      }
+      if (!b.activeForAI) return false;
+      const matchGrade = !data.grade || b.grade.toLowerCase() === data.grade.toLowerCase();
+      const matchSubj = !data.subject || b.subject.toLowerCase() === data.subject.toLowerCase();
+      return matchGrade && matchSubj;
+    });
+
+    for (const book of matching) {
+      const filePath = resolve(getTextbooksDir(), book.storedFileName);
+      if (existsSync(filePath)) {
+        try {
+          const fileBuf = readFileSync(filePath);
+          effectiveFiles.push({
+            name: book.title || book.fileName,
+            type: book.fileType || 'application/pdf',
+            data: fileBuf.toString('base64'),
+            size: book.fileSize || fileBuf.length,
+          });
+        } catch (err) {
+          console.warn(`[Textbook Grounding] Could not load ${book.fileName}:`, err);
+        }
+      }
+    }
+  }
+
+  const systemRole = buildEduAshramAITeachingAssistantPrompt(data, effectiveFiles);
 
   const conversationMessages = [
     { role: 'system', content: systemRole },
@@ -3905,7 +4009,7 @@ async function generateAITeachingAssistance(data: z.infer<typeof aiTeachingAssis
 
     const contents = data.messages.map((m) => ({
       role: m.role === 'assistant' ? 'model' : 'user',
-      parts: [{ text: m.content }],
+      parts: [{ text: m.content }] as any[],
     }));
 
     if (contents.length > 0 && contents[0].role === 'user') {
@@ -3915,6 +4019,24 @@ async function generateAITeachingAssistance(data: z.infer<typeof aiTeachingAssis
         role: 'user',
         parts: [{ text: `${systemRole}\n\nPlease greet the teacher and ask what topic they would like to prepare.` }],
       });
+    }
+
+    // Attach PDF & image reference files as native Gemini inlineData parts on the first user message
+    if (effectiveFiles.length > 0 && contents.length > 0) {
+      for (const file of effectiveFiles) {
+        if (file.type.startsWith('image/') || file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
+          let pureBase64 = file.data;
+          if (pureBase64.includes(';base64,')) {
+            pureBase64 = pureBase64.split(';base64,')[1];
+          }
+          contents[0].parts.push({
+            inlineData: {
+              mimeType: file.type || 'application/pdf',
+              data: pureBase64,
+            },
+          });
+        }
+      }
     }
 
     for (const modelName of candidateModels) {
@@ -7583,6 +7705,126 @@ app.post('/api/study-materials/upload', superAdminOnly, async (req: Request, res
     const fileUrl = `/uploads/materials/${storedFileName}`;
     res.json({ fileUrl, fileName: data.fileName, fileSize: buffer.length });
   } catch (error) { errorResponse(res, error); }
+});
+
+// GET /api/textbooks (list textbooks with optional ?grade=...&subject=...)
+app.get('/api/textbooks', adminOnly, async (req: AuthRequest, res: Response) => {
+  try {
+    const grade = typeof req.query.grade === 'string' ? req.query.grade.trim() : undefined;
+    const subject = typeof req.query.subject === 'string' ? req.query.subject.trim() : undefined;
+    let books = getTextbooksRegistry();
+    if (grade) {
+      books = books.filter((b) => b.grade.toLowerCase() === grade.toLowerCase());
+    }
+    if (subject) {
+      books = books.filter((b) => b.subject.toLowerCase() === subject.toLowerCase());
+    }
+    res.json({ textbooks: books });
+  } catch (error) {
+    errorResponse(res, error);
+  }
+});
+
+// POST /api/textbooks/upload (upload a book/chapter PDF or document)
+app.post('/api/textbooks/upload', adminOnly, async (req: AuthRequest, res: Response) => {
+  try {
+    const schema = z.object({
+      title: z.string().trim().min(1).max(255),
+      grade: z.string().trim().min(1).max(100),
+      subject: z.string().trim().min(1).max(100),
+      chapter: z.string().trim().max(255).optional(),
+      fileName: z.string().min(1).max(255),
+      fileData: z.string().min(1), // base64
+      fileType: z.string().max(100).optional(),
+      activeForAI: z.boolean().optional(),
+    });
+    const data = parse(schema, req.body);
+    const dir = getTextbooksDir();
+
+    const ext = data.fileName.includes('.') ? data.fileName.substring(data.fileName.lastIndexOf('.')) : '.pdf';
+    const safeBase = randomBytes(8).toString('hex');
+    const storedFileName = `${Date.now()}_${safeBase}${ext}`;
+    const filePath = resolve(dir, storedFileName);
+
+    let base64Pure = data.fileData;
+    if (base64Pure.includes(';base64,')) {
+      base64Pure = base64Pure.split(';base64,')[1];
+    }
+    const buffer = Buffer.from(base64Pure, 'base64');
+    writeFileSync(filePath, buffer);
+
+    const fileUrl = `/uploads/textbooks/${storedFileName}`;
+    const newEntry: TextbookEntry = {
+      id: `tb_${Date.now()}_${safeBase}`,
+      title: data.title,
+      grade: data.grade,
+      subject: data.subject,
+      chapter: data.chapter || undefined,
+      fileName: data.fileName,
+      fileType: data.fileType || (ext === '.pdf' ? 'application/pdf' : 'application/octet-stream'),
+      fileSize: buffer.length,
+      fileUrl,
+      storedFileName,
+      teacherId: req.session?.id,
+      teacherName: req.session?.name,
+      uploadedAt: new Date().toISOString(),
+      activeForAI: data.activeForAI ?? true,
+    };
+
+    const books = getTextbooksRegistry();
+    books.unshift(newEntry);
+    saveTextbooksRegistry(books);
+
+    res.json({ success: true, textbook: newEntry });
+  } catch (error) {
+    errorResponse(res, error);
+  }
+});
+
+// PATCH /api/textbooks/:id (toggle activeForAI or edit metadata)
+app.patch('/api/textbooks/:id', adminOnly, async (req: AuthRequest, res: Response) => {
+  try {
+    const id = req.params.id;
+    const schema = z.object({
+      activeForAI: z.boolean().optional(),
+      title: z.string().trim().min(1).max(255).optional(),
+      chapter: z.string().trim().max(255).optional(),
+    });
+    const data = parse(schema, req.body);
+    const books = getTextbooksRegistry();
+    const idx = books.findIndex((b) => b.id === id);
+    if (idx === -1) return res.status(404).json({ error: 'Textbook not found.' });
+
+    if (typeof data.activeForAI === 'boolean') books[idx].activeForAI = data.activeForAI;
+    if (data.title) books[idx].title = data.title;
+    if (typeof data.chapter !== 'undefined') books[idx].chapter = data.chapter;
+
+    saveTextbooksRegistry(books);
+    res.json({ success: true, textbook: books[idx] });
+  } catch (error) {
+    errorResponse(res, error);
+  }
+});
+
+// DELETE /api/textbooks/:id
+app.delete('/api/textbooks/:id', adminOnly, async (req: AuthRequest, res: Response) => {
+  try {
+    const id = req.params.id;
+    const books = getTextbooksRegistry();
+    const target = books.find((b) => b.id === id);
+    if (!target) return res.status(404).json({ error: 'Textbook not found.' });
+
+    const filePath = resolve(getTextbooksDir(), target.storedFileName);
+    if (existsSync(filePath)) {
+      try { unlinkSync(filePath); } catch {}
+    }
+
+    const updated = books.filter((b) => b.id !== id);
+    saveTextbooksRegistry(updated);
+    res.json({ success: true });
+  } catch (error) {
+    errorResponse(res, error);
+  }
 });
 
 /* ==========================================================================

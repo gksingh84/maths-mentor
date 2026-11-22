@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   Sparkles,
   BookOpen,
@@ -18,7 +18,10 @@ import {
   CheckCircle2,
   Save,
   Archive,
+  Paperclip,
+  X,
 } from 'lucide-react';
+import { TextbookLibraryModal, type TextbookItem } from './TextbookLibraryModal';
 import {
   getDefaultGrade,
   getActiveGrades,
@@ -402,7 +405,7 @@ function renderRichEducationalContent(content: string): React.ReactNode {
   return elements;
 }
 
-const STANDARD_SUBJECT_LIST = [
+export const STANDARD_SUBJECT_LIST = [
   'Mathematics',
   'Science',
   'Physics',
@@ -579,6 +582,63 @@ export function TeacherAIAssistant({
   const chatEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const topicInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Textbook Library & Attachment Grounding state
+  const [showLibraryModal, setShowLibraryModal] = useState(false);
+  const [libraryBooks, setLibraryBooks] = useState<TextbookItem[]>([]);
+  const [useLibraryTextbooks, setUseLibraryTextbooks] = useState(true);
+  const [attachedFiles, setAttachedFiles] = useState<Array<{ name: string; type: string; data: string; size?: number }>>([]);
+
+  const loadLibraryBooks = useCallback(async () => {
+    try {
+      const res = await fetch('/api/textbooks', { credentials: 'same-origin' });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && Array.isArray(data.textbooks)) {
+        setLibraryBooks(data.textbooks);
+      }
+    } catch { }
+  }, []);
+
+  useEffect(() => {
+    void loadLibraryBooks();
+  }, [loadLibraryBooks]);
+
+  const matchingActiveBooks = useMemo(() => {
+    return libraryBooks.filter(
+      (b) =>
+        b.activeForAI &&
+        (!grade || b.grade.toLowerCase() === grade.toLowerCase()) &&
+        (!subject || b.subject.toLowerCase() === subject.toLowerCase())
+    );
+  }, [libraryBooks, grade, subject]);
+
+  const handleAttachFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    Array.from(files).forEach((file) => {
+      if (file.size > 25 * 1024 * 1024) {
+        setNotice(`⚠️ "${file.name}" exceeds the 25MB file size limit.`);
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result as string;
+        setAttachedFiles((prev) => [
+          ...prev,
+          {
+            name: file.name,
+            type: file.type || 'application/pdf',
+            data: result,
+            size: file.size,
+          },
+        ]);
+        setNotice(`📎 Attached "${file.name}" for AI grounding.`);
+      };
+      reader.readAsDataURL(file);
+    });
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
 
   // Persist session to sessionStorage whenever generated content or context changes
   useEffect(() => {
@@ -739,6 +799,8 @@ export function TeacherAIAssistant({
           mode,
           provider: activeProvider,
           apiKey: teacherApiKey || undefined,
+          uploadedFiles: attachedFiles.length > 0 ? attachedFiles : undefined,
+          useLibraryTextbooks,
         }),
       });
 
@@ -1059,6 +1121,27 @@ export function TeacherAIAssistant({
             />
           </label>
 
+          {/* Textbook Library Button */}
+          <button
+            type="button"
+            className="button button-secondary"
+            style={{
+              fontSize: '12.5px',
+              padding: '5px 12px',
+              minHeight: '32px',
+              gap: '6px',
+              borderColor: matchingActiveBooks.length > 0 ? '#86efac' : '#cbd5e1',
+              background: matchingActiveBooks.length > 0 ? '#f0fdf4' : '#ffffff',
+              color: matchingActiveBooks.length > 0 ? '#15803d' : '#334155',
+              fontWeight: 600,
+            }}
+            onClick={() => setShowLibraryModal(true)}
+            title="Open Textbook & Curriculum Library to manage uploaded books"
+          >
+            <BookOpen size={14} color={matchingActiveBooks.length > 0 ? '#16a34a' : '#0284c7'} />
+            <span>Textbooks ({matchingActiveBooks.length})</span>
+          </button>
+
           {/* New Session Button */}
           <button
             type="button"
@@ -1282,6 +1365,109 @@ export function TeacherAIAssistant({
 
           {/* Bottom Chat Input Form */}
           <div className="ai-chat-input-bar">
+            {/* Active Textbook Grounding Banner */}
+            {matchingActiveBooks.length > 0 && (
+              <div
+                style={{
+                  padding: '5px 10px',
+                  background: useLibraryTextbooks ? '#f0fdf4' : '#f8fafc',
+                  border: useLibraryTextbooks ? '1px solid #bbf7d0' : '1px solid #e2e8f0',
+                  borderRadius: '7px',
+                  marginBottom: '8px',
+                  fontSize: '11.5px',
+                  color: useLibraryTextbooks ? '#15803d' : '#64748b',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '8px',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden' }}>
+                  <BookOpen size={13} color={useLibraryTextbooks ? '#16a34a' : '#94a3b8'} />
+                  <span style={{ fontWeight: 700, whiteSpace: 'nowrap' }}>
+                    {useLibraryTextbooks ? 'AI Grounded in Textbook:' : 'Textbook Grounding Paused:'}
+                  </span>
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {matchingActiveBooks.map((b) => b.title).join(', ')}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                  <button
+                    type="button"
+                    onClick={() => setUseLibraryTextbooks(!useLibraryTextbooks)}
+                    style={{
+                      border: 'none',
+                      background: 'transparent',
+                      color: useLibraryTextbooks ? '#047857' : '#64748b',
+                      fontSize: '11px',
+                      cursor: 'pointer',
+                      padding: 0,
+                      fontWeight: 600,
+                    }}
+                    title="Toggle textbook grounding on/off"
+                  >
+                    {useLibraryTextbooks ? 'Pause' : 'Resume'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowLibraryModal(true)}
+                    style={{
+                      border: 'none',
+                      background: 'transparent',
+                      color: '#166534',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      fontSize: '11px',
+                      textDecoration: 'underline',
+                      padding: 0,
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    Manage Library
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Attached Session Files Chips */}
+            {attachedFiles.length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '8px' }}>
+                {attachedFiles.map((file, idx) => (
+                  <div
+                    key={idx}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                      background: '#e0f2fe',
+                      border: '1px solid #bae6fd',
+                      borderRadius: '6px',
+                      padding: '3px 8px',
+                      fontSize: '11px',
+                      color: '#0369a1',
+                      fontWeight: 600,
+                    }}
+                  >
+                    <Paperclip size={11} />
+                    <span style={{ maxWidth: '160px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {file.name}
+                    </span>
+                    <span style={{ fontSize: '10px', color: '#0284c7' }}>
+                      ({file.size ? Math.round(file.size / 1024) + ' KB' : 'File'})
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setAttachedFiles((prev) => prev.filter((_, i) => i !== idx))}
+                      style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#ef4444', padding: 0, display: 'flex', alignItems: 'center' }}
+                      title="Remove attachment"
+                    >
+                      <X size={11} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
             {/* Optional Topic Anchor */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
               <span style={{ fontSize: '11.5px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
@@ -1302,6 +1488,30 @@ export function TeacherAIAssistant({
               }}
               style={{ display: 'flex', gap: '8px', alignItems: 'flex-end' }}
             >
+              {/* File Attachment Input & Button */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept=".pdf,.png,.jpg,.jpeg,.txt,.md,.doc,.docx"
+                style={{ display: 'none' }}
+                onChange={handleAttachFiles}
+              />
+              <button
+                type="button"
+                className="button button-secondary"
+                style={{
+                  minHeight: '44px',
+                  padding: '0 12px',
+                  borderColor: attachedFiles.length > 0 ? '#38bdf8' : '#cbd5e1',
+                  background: attachedFiles.length > 0 ? '#f0f9ff' : '#ffffff',
+                }}
+                onClick={() => fileInputRef.current?.click()}
+                title="Attach chapter PDF, worksheet, or scans for AI grounding"
+              >
+                <Paperclip size={16} color={attachedFiles.length > 0 ? '#0284c7' : '#64748b'} />
+              </button>
+
               <textarea
                 ref={textareaRef}
                 value={input}
@@ -1320,7 +1530,7 @@ export function TeacherAIAssistant({
               <button
                 type="submit"
                 className="button button-primary"
-                disabled={!input.trim() || loading}
+                disabled={(!input.trim() && attachedFiles.length === 0) || loading}
                 style={{ minHeight: '44px', padding: '0 18px', background: '#0284c7', borderColor: '#0284c7' }}
                 title="Send query (Enter)"
               >
@@ -1510,6 +1720,16 @@ export function TeacherAIAssistant({
           </div>
         </div>
       </div>
+
+      {/* Textbook & Curriculum Library Modal */}
+      <TextbookLibraryModal
+        isOpen={showLibraryModal}
+        onClose={() => setShowLibraryModal(false)}
+        selectedGrade={grade}
+        selectedSubject={subject}
+        onTextbooksChanged={loadLibraryBooks}
+        setNotice={setNotice}
+      />
     </div>
   );
 }
