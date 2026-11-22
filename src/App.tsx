@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { io, type Socket } from 'socket.io-client';
-import { AppWindow, Archive, ArrowLeft, ArrowRight, Award, BarChart3, Bell, BookOpen, BookOpenCheck, Calculator, Calendar, CalendarCheck, Camera, Check, CheckCircle2, CheckCheck, CheckSquare, ChevronDown, ChevronUp, CircleHelp, Clock3, Copy, CreditCard, Download, ExternalLink, Eye, FileSpreadsheet, FileText, Filter, Hand, KeyRound, ListChecks, Lock, LogOut, Mail, Maximize2, MessageCircle, Minimize2, PanelLeftClose, PanelLeftOpen, Paperclip, Pause, Pencil, PenTool, Phone, Play, Plus, Printer, Radio, RefreshCw, RotateCcw, Save, Search, Send, Settings, ShieldCheck, SlidersHorizontal, Sparkles, Square, Table, Trash2, TrendingUp, Type, UploadCloud, UserCheck, Users, UserX, Volume2, VolumeX, X } from 'lucide-react';
+import { AppWindow, Archive, Layers, ArrowLeft, ArrowRight, Award, BarChart3, Bell, BookOpen, BookOpenCheck, Calculator, Calendar, CalendarCheck, Camera, Check, CheckCircle2, CheckCheck, CheckSquare, ChevronDown, ChevronUp, CircleHelp, Clock3, Copy, CreditCard, Download, ExternalLink, Eye, FileSpreadsheet, FileText, Filter, Hand, KeyRound, ListChecks, Lock, LogOut, Mail, Maximize2, MessageCircle, Minimize2, PanelLeftClose, PanelLeftOpen, Paperclip, Pause, Pencil, PenTool, Phone, Play, Plus, Printer, Radio, RefreshCw, RotateCcw, Save, Search, Send, Settings, ShieldCheck, SlidersHorizontal, Sparkles, Square, Table, Trash2, TrendingUp, Type, UploadCloud, UserCheck, Users, UserX, Volume2, VolumeX, X } from 'lucide-react';
 import { PublicPortal } from './components/PublicPortal';
 import { AuthModal, type AuthMode } from './components/AuthModal';
 import { SuperAdminConsole } from './components/SuperAdminConsole';
@@ -15,7 +15,7 @@ import { playCountdownWarningSound, playAnswerRevealChime, isQuizSoundEnabled, s
 export { getActiveGrades, getDefaultGrade, getActiveSubjects, getDefaultSubject };
 
 type Mode = 'LIVE' | 'SELF_PACED';
-type QuestionType = 'MCQ' | 'FILL_BLANK' | 'TRUE_FALSE' | 'SOLVE';
+type QuestionType = 'MCQ' | 'FILL_BLANK' | 'TRUE_FALSE' | 'SOLVE' | 'SHORT_ANSWER' | 'LONG_ANSWER' | 'CASE_STUDY';
 type Status = 'DRAFT' | 'ACTIVE' | 'CLOSED';
 type Option = { id?: string; text: string; isCorrect?: boolean; correct?: boolean };
 type Question = {
@@ -291,10 +291,16 @@ const emptyQuestion = (type: QuestionType = 'MCQ'): Question => {
     return { prompt: '', marks: 1, type: 'TRUE_FALSE', imageUrl: '', options: [{ text: 'True', isCorrect: true }, { text: 'False', isCorrect: false }] };
   }
   if (type === 'FILL_BLANK') {
-    return { prompt: 'Fill in the blank: ___', marks: 1, type: 'FILL_BLANK', imageUrl: '', options: [{ text: '', isCorrect: true }, { text: '', isCorrect: false }] };
+    return { prompt: 'Fill in the blank: _______', marks: 1, type: 'FILL_BLANK', imageUrl: '', options: [] };
   }
-  if (type === 'SOLVE') {
-    return { prompt: 'Solve: ', marks: 2, type: 'SOLVE', imageUrl: '', options: [{ text: '', isCorrect: true }, { text: '', isCorrect: false }] };
+  if (type === 'SHORT_ANSWER' || type === 'SOLVE') {
+    return { prompt: 'Answer the following: ', marks: 2, type: 'SHORT_ANSWER', imageUrl: '', options: [] };
+  }
+  if (type === 'LONG_ANSWER') {
+    return { prompt: 'Answer in detail with all steps: ', marks: 5, type: 'LONG_ANSWER', imageUrl: '', options: [] };
+  }
+  if (type === 'CASE_STUDY') {
+    return { prompt: 'Case Study: Read the scenario and answer the questions below:\n(i) \n(ii) \n(iii) ', marks: 4, type: 'CASE_STUDY', imageUrl: '', options: [] };
   }
   return { prompt: '', marks: 1, type: 'MCQ', imageUrl: '', options: [{ text: '', isCorrect: true }, { text: '', isCorrect: false }] };
 };
@@ -349,7 +355,9 @@ function printHtmlContent(content: string) {
 function QuestionTypeBadge({ type }: { type?: string }) {
   if (type === 'TRUE_FALSE') return <span className="q-type-badge badge-tf"><CheckCircle2 size={13} /> True / False</span>;
   if (type === 'FILL_BLANK') return <span className="q-type-badge badge-fb"><PenTool size={13} /> Fill in Blanks</span>;
-  if (type === 'SOLVE') return <span className="q-type-badge badge-solve"><Calculator size={13} /> Problem Solving</span>;
+  if (type === 'SHORT_ANSWER' || type === 'SOLVE') return <span className="q-type-badge badge-solve"><Calculator size={13} /> Short Answer</span>;
+  if (type === 'LONG_ANSWER') return <span className="q-type-badge" style={{ background: '#fdf2f8', color: '#9d174d', border: '1px solid #fbcfe8', padding: '2px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px' }}><BookOpen size={13} /> Long Answer</span>;
+  if (type === 'CASE_STUDY') return <span className="q-type-badge" style={{ background: '#f0fdf4', color: '#166534', border: '1px solid #bbf7d0', padding: '2px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px' }}><Layers size={13} /> Case Study</span>;
   return <span className="q-type-badge badge-mcq"><ListChecks size={13} /> Multiple Choice</span>;
 }
 
@@ -3691,7 +3699,7 @@ function AIQuizModal({ onClose, onGenerated, onNavigateToAISettings }: { onClose
   const [difficulty, setDifficulty] = useState<'Easy' | 'Moderate' | 'Hard'>('Moderate');
   const [assessmentStandard, setAssessmentStandard] = useState<'Basic' | 'Advanced'>('Basic');
   const [questionCount, setQuestionCount] = useState(10);
-  const [questionType, setQuestionType] = useState<'ALL' | 'MCQ' | 'FILL_BLANK' | 'TRUE_FALSE' | 'SOLVE'>('ALL');
+  const [questionType, setQuestionType] = useState<'ALL' | 'MCQ' | 'FILL_BLANK' | 'TRUE_FALSE' | 'SOLVE' | 'SHORT_ANSWER' | 'LONG_ANSWER' | 'CASE_STUDY'>('ALL');
   const [mode, setMode] = useState<Mode>('LIVE');
   const [hasTimer, setHasTimer] = useState(false);
   const [minutes, setMinutes] = useState(20);

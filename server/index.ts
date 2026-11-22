@@ -1765,6 +1765,8 @@ function generateTopicQuestions(subject: string, topic: string, subtopics: strin
   return generatedQuestions;
 }
 
+type QuestionType = 'MCQ' | 'FILL_BLANK' | 'TRUE_FALSE' | 'SOLVE' | 'SHORT_ANSWER' | 'LONG_ANSWER' | 'CASE_STUDY';
+
 function parseAIResponseJSON(rawText: string, data: z.infer<typeof aiQuizInput>) {
   try {
     const cleanJson = rawText.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '').trim();
@@ -1792,44 +1794,94 @@ function parseAIResponseJSON(rawText: string, data: z.infer<typeof aiQuizInput>)
 
     const questions = rawQuestions.map((q: any, idx: number) => {
       const promptText = q.question || q.prompt || q.text || '';
-      const rawOptions = Array.isArray(q.options) ? q.options.slice(0, 4) : [];
+      const rawOptions = Array.isArray(q.options) ? q.options : [];
       let correctIdx = 0;
 
-      if (typeof q.answer === 'string') {
-        const letter = q.answer.trim().toUpperCase();
-        if (letter === 'B' || letter === '2' || letter === 'ख' || letter.startsWith('B') || letter.includes('ख')) correctIdx = 1;
-        else if (letter === 'C' || letter === '3' || letter === 'ग' || letter.startsWith('C') || letter.includes('ग')) correctIdx = 2;
-        else if (letter === 'D' || letter === '4' || letter === 'घ' || letter.startsWith('D') || letter.includes('घ')) correctIdx = 3;
+      const rawType = String(q.questionType || q.type || '').toUpperCase();
+      let resolvedType: QuestionType = 'MCQ';
+      if (rawType.includes('TRUE') || rawType.includes('FALSE') || rawType === 'TF') {
+        resolvedType = 'TRUE_FALSE';
+      } else if (rawType.includes('BLANK') || rawType.includes('FIB') || promptText.includes('_______') || promptText.includes('_____')) {
+        resolvedType = 'FILL_BLANK';
+      } else if (rawType.includes('CASE') || rawType.includes('SOURCE')) {
+        resolvedType = 'CASE_STUDY';
+      } else if (rawType === 'LA' || rawType.includes('LONG')) {
+        resolvedType = 'LONG_ANSWER';
+      } else if (rawType === 'VSA' || rawType === 'SA' || rawType.includes('SHORT') || rawType === 'SOLVE' || (q.marks && q.marks > 1)) {
+        resolvedType = (q.marks && q.marks >= 4) ? 'LONG_ANSWER' : 'SHORT_ANSWER';
+      } else if (rawOptions.length > 0) {
+        resolvedType = 'MCQ';
       }
 
-      const options = rawOptions.map((opt: any, optIdx: number) => {
-        if (typeof opt === 'string') {
-          return { text: opt, isCorrect: optIdx === correctIdx };
+      let options: any[] = [];
+      if (resolvedType === 'MCQ') {
+        if (typeof q.answer === 'string') {
+          const letter = q.answer.trim().toUpperCase();
+          if (letter === 'B' || letter === '2' || letter === 'ख' || letter.startsWith('B') || letter.includes('ख')) correctIdx = 1;
+          else if (letter === 'C' || letter === '3' || letter === 'ग' || letter.startsWith('C') || letter.includes('ग')) correctIdx = 2;
+          else if (letter === 'D' || letter === '4' || letter === 'घ' || letter.startsWith('D') || letter.includes('घ')) correctIdx = 3;
         }
-        return { text: opt.text ?? String(opt), isCorrect: Boolean(opt.isCorrect ?? (optIdx === correctIdx)) };
-      });
 
-      if (!options.some((o: any) => o.isCorrect) && options.length > 0) {
-        options[0].isCorrect = true;
+        options = rawOptions.slice(0, 4).map((opt: any, optIdx: number) => {
+          if (typeof opt === 'string') {
+            return { text: opt, isCorrect: optIdx === correctIdx };
+          }
+          return { text: opt.text ?? String(opt), isCorrect: Boolean(opt.isCorrect ?? (optIdx === correctIdx)) };
+        });
+
+        if (!options.some((o: any) => o.isCorrect) && options.length > 0) {
+          options[0].isCorrect = true;
+        }
+      } else if (resolvedType === 'TRUE_FALSE') {
+        const ansStr = String(q.answer || '').trim().toLowerCase();
+        const isTrue = ansStr.includes('true') || ansStr.includes('सत्य') || ansStr === 't' || ansStr === 'a' || ansStr === '1';
+        options = isHindi ? [
+          { text: 'सत्य', isCorrect: isTrue },
+          { text: 'असत्य', isCorrect: !isTrue }
+        ] : [
+          { text: 'True', isCorrect: isTrue },
+          { text: 'False', isCorrect: !isTrue }
+        ];
+      } else {
+        // Non-MCQ: FILL_BLANK, SHORT_ANSWER, LONG_ANSWER, CASE_STUDY: options must be EMPTY!
+        options = [];
       }
 
-      const typeVal = (q.type && ['MCQ', 'FILL_BLANK', 'TRUE_FALSE', 'SOLVE'].includes(q.type))
-        ? q.type
-        : (data.questionType && data.questionType !== 'ALL' ? data.questionType : 'MCQ');
+      // Assign marks if missing
+      let parsedMarks = typeof q.marks === 'number' && q.marks > 0 ? q.marks : 1;
+      if (!q.marks) {
+        if (resolvedType === 'LONG_ANSWER') parsedMarks = 5;
+        else if (resolvedType === 'CASE_STUDY') parsedMarks = 4;
+        else if (resolvedType === 'SHORT_ANSWER') parsedMarks = 3;
+        else if (rawType === 'VSA') parsedMarks = 2;
+        else parsedMarks = 1;
+      }
 
-      const parsedMarks = (typeof q.marks === 'number' && q.marks > 0)
-        ? q.marks
-        : (data.difficulty === 'Hard' ? 2 : 1);
+      // Assign section if missing or vague
+      let sectionName = q.section || '';
+      if (!sectionName || (sectionName.toLowerCase().includes('section a') && parsedMarks > 1)) {
+        if (resolvedType === 'CASE_STUDY') {
+          sectionName = isHindi ? "खंड 'ङ' — केस-स्टडी आधारित प्रश्न" : "SECTION E — CASE-STUDY / SOURCE-BASED QUESTIONS";
+        } else if (parsedMarks >= 5 || resolvedType === 'LONG_ANSWER') {
+          sectionName = isHindi ? "खंड 'घ' — दीर्घ उत्तरीय प्रश्न (5 अंक)" : "SECTION D — LONG ANSWER QUESTIONS (5 MARKS EACH)";
+        } else if (parsedMarks >= 3 || resolvedType === 'SHORT_ANSWER') {
+          sectionName = isHindi ? "खंड 'ग' — लघु उत्तरीय प्रश्न (3 अंक)" : "SECTION C — SHORT ANSWER QUESTIONS (3 MARKS EACH)";
+        } else if (parsedMarks === 2 || rawType === 'VSA') {
+          sectionName = isHindi ? "खंड 'ख' — अति लघु उत्तरीय प्रश्न (2 अंक)" : "SECTION B — VERY SHORT ANSWER QUESTIONS (2 MARKS EACH)";
+        } else {
+          sectionName = isHindi ? "खंड 'क' — वस्तुनिष्ठ प्रश्न (1 अंक)" : "SECTION A — OBJECTIVE TYPE QUESTIONS (1 MARK EACH)";
+        }
+      }
 
       return {
         id: q.id || `Q${idx + 1}`,
         questionNumber: q.questionNumber || idx + 1,
-        section: q.section || (idx < 5 ? 'Section A: Objective' : idx < 10 ? 'Section B: Short Answer' : 'Section C: Application'),
+        section: sectionName,
         prompt: promptText,
         question: promptText,
         marks: parsedMarks,
         imageUrl: q.imageUrl && typeof q.imageUrl === 'string' ? q.imageUrl : null,
-        type: typeVal,
+        type: resolvedType,
         options,
         answer: q.answer || (options.findIndex((o: any) => o.isCorrect) >= 0 ? String.fromCharCode(65 + options.findIndex((o: any) => o.isCorrect)) : 'A'),
         explanation: q.explanation || '',
@@ -1838,8 +1890,8 @@ function parseAIResponseJSON(rawText: string, data: z.infer<typeof aiQuizInput>)
         competency: q.competency || '',
         assessmentAbility: q.assessmentAbility || (idx % 4 === 0 ? 'Sensitivity' : idx % 4 === 1 ? 'Creativity' : 'Awareness'),
         difficulty: q.difficulty || (data.difficulty === 'Hard' ? 'Difficult' : data.difficulty === 'Easy' ? 'Easy' : 'Medium'),
-        questionType: q.questionType || (typeVal === 'MCQ' ? 'O' : 'SA'),
-        estimatedTimeMinutes: q.estimatedTimeMinutes || 2,
+        questionType: resolvedType === 'MCQ' ? 'O' : resolvedType === 'TRUE_FALSE' ? 'TF' : resolvedType === 'FILL_BLANK' ? 'FIB' : resolvedType === 'CASE_STUDY' ? 'CASE' : resolvedType === 'LONG_ANSWER' ? 'LA' : 'SA',
+        estimatedTimeMinutes: q.estimatedTimeMinutes || (parsedMarks >= 4 ? 8 : parsedMarks === 3 ? 5 : parsedMarks === 2 ? 3 : 1),
         markingScheme: q.markingScheme || '',
       };
     });
@@ -2105,21 +2157,44 @@ ${gradeProgressionGuide}
 ### 5. SUBJECT-SPECIFIC ASSESSMENT REQUIREMENTS (${data.subject})
 ${subjectWeightageGuide}
 
-### 6. QUESTION TYPES & FORMATS
-• Categories: O (Objective), VSA (Very Short Answer), SA (Short Answer), LA (Long Answer).
-${data.questionType && data.questionType !== 'ALL'
-  ? `• Teacher-selected Question Type: "${data.questionType}". You must generate all questions matching this type while maintaining the PARAKH cognitive ability and difficulty distributions.`
-  : (data.mode === 'LIVE'
-    ? `• Live Classroom Mode: Generate questions as single-correct Multiple Choice Questions (MCQs) with 4 options each, suitable for live classroom screen presentation, while embedding the full range of cognitive abilities (Awareness, Sensitivity, Creativity).`
-    : `• Comprehensive Assessment Mode: Create a balanced set across Objective (MCQ / Assertion-Reason), VSA, SA, and LA formats.`
-  )
+### 6. QUESTION TYPES & MULTI-SECTION EXAMINATION STRUCTURE
+${data.mode === 'LIVE'
+  ? `• Live Classroom Mode: Generate questions as single-correct Multiple Choice Questions (MCQs) with 4 options each (A, B, C, D), suitable for live interactive screen response.`
+  : `• ACTUAL COMPLETE EXAMINATION PAPER STRUCTURE (MANDATORY DIVERSITY):
+You MUST formulate an authentic, multi-section school examination paper containing ALL of the following diverse question types:
+
+1. SECTION A — OBJECTIVE TYPE QUESTIONS (1 Mark each):
+   - Multiple Choice Questions (MCQ): 4 options [A, B, C, D] with exactly one correct option.
+   - Fill in the Blanks (FILL_IN_THE_BLANKS): Prompt MUST contain a blank space "_______". The "options" field MUST BE AN EMPTY ARRAY ([]). The "answer" field must state the exact missing word/term/formula.
+   - True / False (TRUE_FALSE): Statement where students evaluate truth or falsity. The "options" field MUST contain exactly ["True", "False"] (or ["सत्य", "असत्य"] for Hindi).
+   - Assertion & Reason: Statements testing conceptual cause-and-effect with 4 standard options.
+
+2. SECTION B — VERY SHORT ANSWER (VSA) QUESTIONS (2 Marks each):
+   - Direct conceptual questions, 2-step calculations, or definitions with examples.
+   - The "options" field MUST BE AN EMPTY ARRAY ([]).
+   - "marks": 2.
+
+3. SECTION C — SHORT ANSWER (SA) QUESTIONS (3 Marks each):
+   - Explanations, comparative distinctions, formulas with working steps, or 3-step numerical problems.
+   - The "options" field MUST BE AN EMPTY ARRAY ([]).
+   - "marks": 3.
+
+4. SECTION D — LONG ANSWER (LA) QUESTIONS (5 Marks each):
+   - In-depth multi-part questions (e.g. part (a) and (b)), derivations, geometric proofs, or complex problem-solving.
+   - The "options" field MUST BE AN EMPTY ARRAY ([]).
+   - "marks": 5.
+
+5. SECTION E — CASE-STUDY / SOURCE-BASED QUESTIONS (4 or 5 Marks each):
+   - A real-world context paragraph, scenario, experiment report, or data table, followed by 2 to 3 sub-questions: (i), (ii), (iii).
+   - The "options" field MUST BE AN EMPTY ARRAY ([]).
+   - "marks": 4 or 5.
+
+CRITICAL MANDATORY RULE: DO NOT generate all questions as MCQs! An actual question paper MUST have a balanced distribution across Section A (MCQs, Fill in Blanks, True/False), Section B (VSA 2M), Section C (SA 3M), Section D (LA 5M), and Section E (Case Study 4M/5M).`
 }
 
-### 7. DIAGNOSTIC DISTRACTOR DESIGN (FOR MCQS)
-• Exactly 4 options: A, B, C, D.
-• Exactly ONE option must be unambiguously correct.
-• The 3 distractors MUST represent authentic student misconceptions, common calculation pitfalls, or conceptual misunderstandings—never random or silly distractors.
-• Distribute correct answers naturally across A, B, C, and D.
+### 7. MULTIPLE CHOICE DISTRACTOR DESIGN (FOR MCQS ONLY)
+• For questions that are MCQs, provide 4 plausible options: A, B, C, D. Exactly ONE option must be correct. Distractors must bust common misconceptions.
+• For Fill in the Blanks, VSA, SA, LA, and Case Study questions: "options" MUST BE AN EMPTY ARRAY []. Do NOT invent artificial options for non-MCQ questions.
 
 ### 8. TWO-STAGE GENERATION MANDATE:
 **STAGE 1 — ASSESSMENT BLUEPRINT (PREPARED FIRST):**
@@ -2257,25 +2332,136 @@ Respond ONLY with a valid raw JSON object matching the exact schema below. Do no
     {
       "id": "Q1",
       "questionNumber": 1,
-      "section": "Section A - Objective & Conceptual Awareness",
-      "learningObjective": "${isHindi ? 'विद्यार्थी इस संकल्पना की पहचान एवं व्याख्या कर सकें...' : 'Expected student learning outcome...'}",
-      "competency": "${isHindi ? 'संकल्पनात्मक समझ एवं अनुप्रयोग क्षमता' : 'Specific competency assessed...'}",
+      "section": "${isHindi ? 'खंड क - वस्तुनिष्ठ प्रश्न' : 'Section A - Objective Type'}",
+      "learningObjective": "Specific learning outcome tested...",
+      "competency": "Specific competency assessed...",
       "assessmentAbility": "Awareness",
       "difficulty": "Easy",
-      "questionType": "O",
+      "questionType": "MCQ",
       "marks": 1,
-      "estimatedTimeMinutes": 2,
-      "question": "${isHindi ? 'शुद्ध मानक हिन्दी (देवनागरी लिपि) में पूछा गया प्रश्न...' : 'The transformed, context-rich question text testing a specific concept from the uploaded pages...'}",
+      "estimatedTimeMinutes": 1,
+      "question": "${isHindi ? 'निम्नलिखित में से कौन-सा कथन सत्य है?' : 'Which of the following is correct?'}",
       "options": [
-        "${isHindi ? 'पहला विकल्प' : 'First option'}",
-        "${isHindi ? 'दूसरा विकल्प' : 'Second option'}",
-        "${isHindi ? 'तीसरा विकल्प' : 'Third option'}",
-        "${isHindi ? 'चौथा विकल्प' : 'Fourth option'}"
+        "${isHindi ? 'विकल्प (क)' : 'Option A'}",
+        "${isHindi ? 'विकल्प (ख)' : 'Option B'}",
+        "${isHindi ? 'विकल्प (ग)' : 'Option C'}",
+        "${isHindi ? 'विकल्प (घ)' : 'Option D'}"
       ],
       "answer": "A",
-      "explanation": "${isHindi ? 'विस्तृत हिन्दी व्याख्या जिसमें सही उत्तर का कारण और भ्रांतियों का निवारण स्पष्ट किया गया हो।' : 'Detailed explanation citing the concept from the uploaded pages, clarifying the mechanism and addressing misconceptions.'}",
-      "hint": "${isHindi ? 'विद्यार्थियों के चिन्तन को सही दिशा देने वाला संकेत।' : 'Clue to prompt student critical thinking.'}",
-      "markingScheme": "${isHindi ? 'सही विकल्प (A) के चयन पर 1 अंक।' : '1 mark for selecting option (A).'}"
+      "explanation": "Detailed explanation...",
+      "hint": "Pedagogical hint...",
+      "markingScheme": "1 mark for correct option"
+    },
+    {
+      "id": "Q2",
+      "questionNumber": 2,
+      "section": "${isHindi ? 'खंड क - वस्तुनिष्ठ प्रश्न' : 'Section A - Objective Type'}",
+      "learningObjective": "Recall and exact identification...",
+      "competency": "Factual and conceptual precision...",
+      "assessmentAbility": "Awareness",
+      "difficulty": "Easy",
+      "questionType": "FILL_IN_THE_BLANKS",
+      "marks": 1,
+      "estimatedTimeMinutes": 1,
+      "question": "${isHindi ? 'रिक्त स्थान की पूर्ति कीजिए: जल का रासायनिक सूत्र _______ है।' : 'Fill in the blank: The SI unit of force is _______.'}",
+      "options": [],
+      "answer": "${isHindi ? 'H2O' : 'Newton (N)'}",
+      "explanation": "Explanation of the term...",
+      "hint": "Clue for student...",
+      "markingScheme": "1 mark for correct term"
+    },
+    {
+      "id": "Q3",
+      "questionNumber": 3,
+      "section": "${isHindi ? 'खंड क - वस्तुनिष्ठ प्रश्न' : 'Section A - Objective Type'}",
+      "learningObjective": "Evaluating validity...",
+      "competency": "Critical conceptual judgment...",
+      "assessmentAbility": "Sensitivity",
+      "difficulty": "Medium",
+      "questionType": "TRUE_FALSE",
+      "marks": 1,
+      "estimatedTimeMinutes": 1,
+      "question": "${isHindi ? 'सत्य अथवा असत्य बताइए: घर्षण बल गति की दिशा में कार्य करता है।' : 'State True or False: Friction always acts in the direction of motion.'}",
+      "options": [
+        "${isHindi ? 'सत्य' : 'True'}",
+        "${isHindi ? 'असत्य' : 'False'}"
+      ],
+      "answer": "${isHindi ? 'असत्य' : 'False'}",
+      "explanation": "Friction opposes motion...",
+      "hint": "Think of opposing forces...",
+      "markingScheme": "1 mark for correct judgment"
+    },
+    {
+      "id": "Q4",
+      "questionNumber": 4,
+      "section": "${isHindi ? 'खंड ख - अति लघु उत्तरीय प्रश्न' : 'Section B - Very Short Answer'}",
+      "learningObjective": "Concise conceptual explanation...",
+      "competency": "Application of principles...",
+      "assessmentAbility": "Awareness",
+      "difficulty": "Medium",
+      "questionType": "VSA",
+      "marks": 2,
+      "estimatedTimeMinutes": 3,
+      "question": "${isHindi ? 'पादप कोशिका एवं जन्तु कोशिका में कोई दो मुख्य अंतर लिखिए।' : 'State two main differences between physical and chemical changes with examples.'}",
+      "options": [],
+      "answer": "Concise 2-point model answer...",
+      "explanation": "Detailed explanation...",
+      "hint": "Compare key characteristics...",
+      "markingScheme": "1 mark for each valid point"
+    },
+    {
+      "id": "Q5",
+      "questionNumber": 5,
+      "section": "${isHindi ? 'खंड ग - लघु उत्तरीय प्रश्न' : 'Section C - Short Answer'}",
+      "learningObjective": "Analytical derivation or multi-step reasoning...",
+      "competency": "Problem-solving and reasoning...",
+      "assessmentAbility": "Creativity",
+      "difficulty": "Medium",
+      "questionType": "SA",
+      "marks": 3,
+      "estimatedTimeMinutes": 5,
+      "question": "${isHindi ? 'कारण सहित समझाइए कि...' : 'Explain with working steps and formulas how...'}",
+      "options": [],
+      "answer": "Step-by-step solution / 3-point explanation...",
+      "explanation": "Detailed explanation...",
+      "hint": "Apply the core theorem/formula...",
+      "markingScheme": "1 mark for principle, 1 mark for substitution, 1 mark for answer"
+    },
+    {
+      "id": "Q6",
+      "questionNumber": 6,
+      "section": "${isHindi ? 'खंड घ - दीर्घ उत्तरीय प्रश्न' : 'Section D - Long Answer'}",
+      "learningObjective": "In-depth multi-concept synthesis...",
+      "competency": "Comprehensive problem-solving...",
+      "assessmentAbility": "Creativity",
+      "difficulty": "Difficult",
+      "questionType": "LA",
+      "marks": 5,
+      "estimatedTimeMinutes": 8,
+      "question": "${isHindi ? '(क) ... के नियम की व्याख्या कीजिए। (ख) दिए गए परिपथ/स्थिति में गणना कीजिए...' : '(a) State and prove... (b) A particle of mass... calculate...'}",
+      "options": [],
+      "answer": "Comprehensive multi-part solution with all steps...",
+      "explanation": "Detailed derivation and calculation...",
+      "hint": "Break into part (a) and part (b)...",
+      "markingScheme": "3 marks for part (a), 2 marks for part (b)"
+    },
+    {
+      "id": "Q7",
+      "questionNumber": 7,
+      "section": "${isHindi ? 'खंड ङ - केस-स्टडी आधारित प्रश्न' : 'Section E - Case Study'}",
+      "learningObjective": "Application to real-world context...",
+      "competency": "Case analysis and critical evaluation...",
+      "assessmentAbility": "Sensitivity",
+      "difficulty": "Difficult",
+      "questionType": "CASE_STUDY",
+      "marks": 4,
+      "estimatedTimeMinutes": 8,
+      "question": "${isHindi ? 'केस-स्टडी: एक गाँव में किसानों ने देखा कि... इस संदर्भ के आधार पर निम्नलिखित प्रश्नों के उत्तर दीजिए: (i)... (ii)... (iii)...' : 'Case Study: Read the passage below and answer the following questions: A laboratory technician tests... (i) What causes...? (ii) Calculate the...? (iii) What precaution should be taken?'}",
+      "options": [],
+      "answer": "(i) Answer to part i (1 mark). (ii) Answer to part ii (1.5 marks). (iii) Answer to part iii (1.5 marks).",
+      "explanation": "Detailed context analysis...",
+      "hint": "Refer to the case data given in the prompt...",
+      "markingScheme": "1 mark for (i), 1.5 marks for (ii), 1.5 marks for (iii)"
     }
   ],
   "answerKey": [
@@ -2433,25 +2619,136 @@ Return ONLY a valid raw JSON object (no markdown formatting, no code block fence
     {
       "id": "Q1",
       "questionNumber": 1,
-      "section": "Section A - Objective & Conceptual Awareness",
-      "learningObjective": "${isHindi ? 'विद्यार्थी इस संकल्पना की पहचान एवं व्याख्या कर सकें...' : 'Specific learning outcome tested...'}",
-      "competency": "${isHindi ? 'संकल्पनात्मक समझ एवं अनुप्रयोग क्षमता' : 'Specific competency assessed...'}",
+      "section": "${isHindi ? 'खंड क - वस्तुनिष्ठ प्रश्न' : 'Section A - Objective Type'}",
+      "learningObjective": "Specific learning outcome tested...",
+      "competency": "Specific competency assessed...",
       "assessmentAbility": "Awareness",
       "difficulty": "Easy",
-      "questionType": "O",
+      "questionType": "MCQ",
       "marks": 1,
-      "estimatedTimeMinutes": 2,
-      "question": "${isHindi ? 'शुद्ध मानक हिन्दी (देवनागरी लिपि) में पूछा गया प्रश्न...' : 'Clear, contextual question text written like an authentic CBSE board exam question...'}",
+      "estimatedTimeMinutes": 1,
+      "question": "${isHindi ? 'निम्नलिखित में से कौन-सा कथन सत्य है?' : 'Which of the following is correct?'}",
       "options": [
-        "${isHindi ? 'पहला विकल्प' : 'Option A text'}",
-        "${isHindi ? 'दूसरा विकल्प' : 'Option B text'}",
-        "${isHindi ? 'तीसरा विकल्प' : 'Option C text'}",
-        "${isHindi ? 'चौथा विकल्प' : 'Option D text'}"
+        "${isHindi ? 'विकल्प (क)' : 'Option A'}",
+        "${isHindi ? 'विकल्प (ख)' : 'Option B'}",
+        "${isHindi ? 'विकल्प (ग)' : 'Option C'}",
+        "${isHindi ? 'विकल्प (घ)' : 'Option D'}"
       ],
       "answer": "A",
-      "explanation": "${isHindi ? 'विस्तृत शिक्षक व्याख्या जिसमें संकल्पना और भ्रांतियों का निवारण स्पष्ट किया गया हो।' : 'Detailed teacher explanation clarifying concepts and addressing misconceptions.'}",
-      "hint": "${isHindi ? 'विद्यार्थियों के चिन्तन को सही दिशा देने वाला संकेत।' : 'Pedagogical hint guiding student thinking without revealing the answer.'}",
-      "markingScheme": "${isHindi ? 'सही विकल्प (A) के चयन पर 1 अंक।' : '1 mark for selecting option (A).'}"
+      "explanation": "Detailed explanation...",
+      "hint": "Pedagogical hint...",
+      "markingScheme": "1 mark for correct option"
+    },
+    {
+      "id": "Q2",
+      "questionNumber": 2,
+      "section": "${isHindi ? 'खंड क - वस्तुनिष्ठ प्रश्न' : 'Section A - Objective Type'}",
+      "learningObjective": "Recall and exact identification...",
+      "competency": "Factual and conceptual precision...",
+      "assessmentAbility": "Awareness",
+      "difficulty": "Easy",
+      "questionType": "FILL_IN_THE_BLANKS",
+      "marks": 1,
+      "estimatedTimeMinutes": 1,
+      "question": "${isHindi ? 'रिक्त स्थान की पूर्ति कीजिए: जल का रासायनिक सूत्र _______ है।' : 'Fill in the blank: The SI unit of force is _______.'}",
+      "options": [],
+      "answer": "${isHindi ? 'H2O' : 'Newton (N)'}",
+      "explanation": "Explanation of the term...",
+      "hint": "Clue for student...",
+      "markingScheme": "1 mark for correct term"
+    },
+    {
+      "id": "Q3",
+      "questionNumber": 3,
+      "section": "${isHindi ? 'खंड क - वस्तुनिष्ठ प्रश्न' : 'Section A - Objective Type'}",
+      "learningObjective": "Evaluating validity...",
+      "competency": "Critical conceptual judgment...",
+      "assessmentAbility": "Sensitivity",
+      "difficulty": "Medium",
+      "questionType": "TRUE_FALSE",
+      "marks": 1,
+      "estimatedTimeMinutes": 1,
+      "question": "${isHindi ? 'सत्य अथवा असत्य बताइए: घर्षण बल गति की दिशा में कार्य करता है।' : 'State True or False: Friction always acts in the direction of motion.'}",
+      "options": [
+        "${isHindi ? 'सत्य' : 'True'}",
+        "${isHindi ? 'असत्य' : 'False'}"
+      ],
+      "answer": "${isHindi ? 'असत्य' : 'False'}",
+      "explanation": "Friction opposes motion...",
+      "hint": "Think of opposing forces...",
+      "markingScheme": "1 mark for correct judgment"
+    },
+    {
+      "id": "Q4",
+      "questionNumber": 4,
+      "section": "${isHindi ? 'खंड ख - अति लघु उत्तरीय प्रश्न' : 'Section B - Very Short Answer'}",
+      "learningObjective": "Concise conceptual explanation...",
+      "competency": "Application of principles...",
+      "assessmentAbility": "Awareness",
+      "difficulty": "Medium",
+      "questionType": "VSA",
+      "marks": 2,
+      "estimatedTimeMinutes": 3,
+      "question": "${isHindi ? 'पादप कोशिका एवं जन्तु कोशिका में कोई दो मुख्य अंतर लिखिए।' : 'State two main differences between physical and chemical changes with examples.'}",
+      "options": [],
+      "answer": "Concise 2-point model answer...",
+      "explanation": "Detailed explanation...",
+      "hint": "Compare key characteristics...",
+      "markingScheme": "1 mark for each valid point"
+    },
+    {
+      "id": "Q5",
+      "questionNumber": 5,
+      "section": "${isHindi ? 'खंड ग - लघु उत्तरीय प्रश्न' : 'Section C - Short Answer'}",
+      "learningObjective": "Analytical derivation or multi-step reasoning...",
+      "competency": "Problem-solving and reasoning...",
+      "assessmentAbility": "Creativity",
+      "difficulty": "Medium",
+      "questionType": "SA",
+      "marks": 3,
+      "estimatedTimeMinutes": 5,
+      "question": "${isHindi ? 'कारण सहित समझाइए कि...' : 'Explain with working steps and formulas how...'}",
+      "options": [],
+      "answer": "Step-by-step solution / 3-point explanation...",
+      "explanation": "Detailed explanation...",
+      "hint": "Apply the core theorem/formula...",
+      "markingScheme": "1 mark for principle, 1 mark for substitution, 1 mark for answer"
+    },
+    {
+      "id": "Q6",
+      "questionNumber": 6,
+      "section": "${isHindi ? 'खंड घ - दीर्घ उत्तरीय प्रश्न' : 'Section D - Long Answer'}",
+      "learningObjective": "In-depth multi-concept synthesis...",
+      "competency": "Comprehensive problem-solving...",
+      "assessmentAbility": "Creativity",
+      "difficulty": "Difficult",
+      "questionType": "LA",
+      "marks": 5,
+      "estimatedTimeMinutes": 8,
+      "question": "${isHindi ? '(क) ... के नियम की व्याख्या कीजिए। (ख) दिए गए परिपथ/स्थिति में गणना कीजिए...' : '(a) State and prove... (b) A particle of mass... calculate...'}",
+      "options": [],
+      "answer": "Comprehensive multi-part solution with all steps...",
+      "explanation": "Detailed derivation and calculation...",
+      "hint": "Break into part (a) and part (b)...",
+      "markingScheme": "3 marks for part (a), 2 marks for part (b)"
+    },
+    {
+      "id": "Q7",
+      "questionNumber": 7,
+      "section": "${isHindi ? 'खंड ङ - केस-स्टडी आधारित प्रश्न' : 'Section E - Case Study'}",
+      "learningObjective": "Application to real-world context...",
+      "competency": "Case analysis and critical evaluation...",
+      "assessmentAbility": "Sensitivity",
+      "difficulty": "Difficult",
+      "questionType": "CASE_STUDY",
+      "marks": 4,
+      "estimatedTimeMinutes": 8,
+      "question": "${isHindi ? 'केस-स्टडी: एक गाँव में किसानों ने देखा कि... इस संदर्भ के आधार पर निम्नलिखित प्रश्नों के उत्तर दीजिए: (i)... (ii)... (iii)...' : 'Case Study: Read the passage below and answer the following questions: A laboratory technician tests... (i) What causes...? (ii) Calculate the...? (iii) What precaution should be taken?'}",
+      "options": [],
+      "answer": "(i) Answer to part i (1 mark). (ii) Answer to part ii (1.5 marks). (iii) Answer to part iii (1.5 marks).",
+      "explanation": "Detailed context analysis...",
+      "hint": "Refer to the case data given in the prompt...",
+      "markingScheme": "1 mark for (i), 1.5 marks for (ii), 1.5 marks for (iii)"
     }
   ],
   "answerKey": [
@@ -5674,125 +5971,202 @@ app.post('/api/worksheets/ai-generate', adminOnly, async (req: AuthRequest, res:
       const diffMed = bp?.difficultyDistribution?.medium?.targetPercentage ?? (data.assessmentStandard === 'Advanced' ? 25 : 50);
       const diffDiff = bp?.difficultyDistribution?.difficult?.targetPercentage ?? (data.assessmentStandard === 'Advanced' ? 50 : 25);
 
+      // Group questions by section
+      const sectionsMap = new Map<string, any[]>();
+      generated.questions.forEach((q: any, idx: number) => {
+        let sec = q.section || '';
+        if (!sec || (sec.toLowerCase().includes('section a') && (q.marks || 1) > 1)) {
+          const qType = (q.type || q.questionType || '').toUpperCase();
+          if (qType.includes('CASE') || qType.includes('SOURCE')) {
+            sec = isHindi ? "खंड 'ङ' — केस-स्टडी आधारित प्रश्न" : "SECTION E — CASE-STUDY / SOURCE-BASED QUESTIONS";
+          } else if ((q.marks || 1) >= 5 || qType.includes('LONG')) {
+            sec = isHindi ? "खंड 'घ' — दीर्घ उत्तरीय प्रश्न (5 अंक प्रत्येक)" : "SECTION D — LONG ANSWER QUESTIONS (5 MARKS EACH)";
+          } else if ((q.marks || 1) >= 3 || qType.includes('SHORT')) {
+            sec = isHindi ? "खंड 'ग' — लघु उत्तरीय प्रश्न (3 अंक प्रत्येक)" : "SECTION C — SHORT ANSWER QUESTIONS (3 MARKS EACH)";
+          } else if ((q.marks || 1) === 2 || qType.includes('VSA')) {
+            sec = isHindi ? "खंड 'ख' — अति लघु उत्तरीय प्रश्न (2 अंक प्रत्येक)" : "SECTION B — VERY SHORT ANSWER QUESTIONS (2 MARKS EACH)";
+          } else {
+            sec = isHindi ? "खंड 'क' — वस्तुनिष्ठ प्रश्न (1 अंक प्रत्येक)" : "SECTION A — OBJECTIVE TYPE QUESTIONS (1 MARK EACH)";
+          }
+        }
+        if (!sectionsMap.has(sec)) sectionsMap.set(sec, []);
+        sectionsMap.get(sec)!.push({ ...q, displayNum: idx + 1 });
+      });
+
       if (isHindi) {
         const hindiOptionLabels = ['(क)', '(ख)', '(ग)', '(घ)'];
+        let sectionsHtml = '';
+        sectionsMap.forEach((qList, secTitle) => {
+          sectionsHtml += `
+  <div style="margin-top: 24px; margin-bottom: 12px; padding: 6px 12px; background: #f1f5f9; border-left: 4px solid #0f172a; font-weight: 700; font-size: 14.5px; color: #0f172a;">
+    ${secTitle}
+  </div>
+  <div style="display: flex; flex-direction: column; gap: 14px;">
+    ${qList.map((q: any) => `
+    <div style="margin: 0 0 10px 0; font-size: 14.5px; border-bottom: 1px dashed #cbd5e1; padding-bottom: 10px;">
+      <p style="margin: 0 0 6px 0; line-height: 1.6;">
+        <strong>प्रश्न ${q.displayNum}.</strong> ${q.prompt}
+        <span style="float: right; font-weight: 600; color: #475569;">[${q.marks ?? 1} अंक]</span>
+      </p>
+      ${(q.options && q.options.length > 0) ? (
+        q.type === 'TRUE_FALSE' ? `
+      <div style="margin-left: 20px; display: flex; gap: 24px; font-size: 13.5px; color: #334155; margin-top: 4px;">
+        <div>(क) सत्य</div>
+        <div>(ख) असत्य</div>
+      </div>` : `
+      <div style="margin-left: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 6px; font-size: 13.5px; color: #334155; margin-top: 4px;">
+        ${q.options.map((opt: any, oIdx: number) => `<div>${hindiOptionLabels[oIdx] || `(${String.fromCharCode(65 + oIdx)})`} ${opt.text}</div>`).join('')}
+      </div>`
+      ) : ''}
+    </div>`).join('')}
+  </div>`;
+        });
+
         docHtml = `
 <div style="font-family: 'Segoe UI', 'Nirmala UI', Arial, sans-serif; line-height: 1.6; color: #1e293b; width: 100%;">
   <div style="text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 12px; margin-bottom: 16px;">
-    <h1 style="margin: 0; font-size: 22px; color: #0f172a; letter-spacing: 0.5px;">हिन्दी प्रश्न पत्र (NCERT-PARAKH 2025 संरेखित)</h1>
-    <h3 style="margin: 4px 0 0 0; color: #475569; font-weight: 500; font-size: 15px;">कक्षा: ${data.grade} &nbsp;|&nbsp; प्रकरण: ${generated.title ? generated.title.replace(/^हिन्दी:\s*/i, '') : data.topic}</h3>
-    <div style="display: flex; justify-content: space-between; margin-top: 10px; font-weight: 600; font-size: 13px; color: #334155;">
+    <h1 style="margin: 0; font-size: 24px; color: #0f172a; letter-spacing: 0.5px;">${data.subject} परीक्षा प्रश्न पत्र</h1>
+    <h3 style="margin: 4px 0 0 0; color: #475569; font-weight: 600; font-size: 15px;">कक्षा: ${data.grade} &nbsp;|&nbsp; प्रकरण: ${generated.title ? generated.title.replace(/^हिन्दी:\s*/i, '') : data.topic}</h3>
+    <div style="display: flex; justify-content: space-between; margin-top: 12px; font-weight: 600; font-size: 13.5px; color: #334155; border-top: 1px solid #e2e8f0; padding-top: 8px;">
       <span>समय: 60 मिनट</span>
-      <span>मूल्यांकन मानक: ${data.assessmentStandard === 'Advanced' ? 'उन्नत मूल्यांकन (Advanced)' : 'बुनियादी एवं प्रवीण मूल्यांकन (Basic & Proficient)'}</span>
-      <span>कुल अंक: ${data.totalMarks}</span>
+      <span>पूर्णांक: ${data.totalMarks}</span>
     </div>
   </div>
 
-  <div style="background-color: #f0fdf4; border: 1.5px solid #86efac; border-radius: 8px; padding: 12px 14px; margin-bottom: 16px;">
-    <strong style="color: #166534; font-size: 13.5px; display: block; margin-bottom: 6px;">📋 NCERT-PARAKH 2025 मूल्यांकन ब्लूप्रिंट (Assessment Blueprint):</strong>
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; font-size: 12.5px; color: #166534;">
-      <div>• <strong>क्षमता भारिता:</strong> सजगता (Awareness) ${abilityAware}%, संवेदनशीलता (Sensitivity) ${abilitySens}%, सृजनात्मकता (Creativity) ${abilityCreat}%</div>
-      <div>• <strong>कठिनाई स्तर:</strong> सरल (Easy) ${diffEasy}%, मध्यम (Medium) ${diffMed}%, कठिन (Difficult) ${diffDiff}%</div>
-      <div>• <strong>दक्षता संरेखण:</strong> रटंत स्मृति के स्थान पर वास्तविक शिक्षण निष्पत्तियों एवं व्यावहारिक भाषाई दक्षताओं का मूल्यांकन।</div>
+  <div style="display: flex; justify-content: space-between; font-size: 13.5px; color: #334155; margin-bottom: 16px; padding: 6px 0; border-bottom: 1px dashed #cbd5e1;">
+    <span>विद्यार्थी का नाम: __________________________________</span>
+    <span>अनुक्रमांक (Roll No): ____________</span>
+    <span>दिनांक: ____________</span>
+  </div>
+
+  <div style="background-color: #f8fafc; border-left: 4px solid #0f172a; padding: 10px 14px; margin-bottom: 20px; font-size: 13px; border-radius: 4px;">
+    <strong style="color: #0f172a;">सामान्य निर्देश:</strong>
+    <ol style="margin: 4px 0 0 16px; padding-left: 4px; color: #334155; line-height: 1.5;">
+      <li>सभी प्रश्न अनिवार्य हैं। यह प्रश्न पत्र खंड 'क' से खंड 'ङ' तक विभाजित है।</li>
+      <li><strong>खंड 'क':</strong> वस्तुनिष्ठ प्रश्न (बहुविकल्पीय, रिक्त स्थान, सत्य/असत्य) - प्रत्येक प्रश्न 1 अंक का है।</li>
+      <li><strong>खंड 'ख':</strong> अति लघु उत्तरीय प्रश्न - प्रत्येक प्रश्न 2 अंक का है।</li>
+      <li><strong>खंड 'ग':</strong> लघु उत्तरीय प्रश्न - प्रत्येक प्रश्न 3 अंक का है।</li>
+      <li><strong>खंड 'घ':</strong> दीर्घ उत्तरीय प्रश्न - प्रत्येक प्रश्न 5 अंक का है।</li>
+      <li><strong>खंड 'ङ':</strong> केस-स्टडी आधारित प्रश्न - प्रत्येक प्रश्न 4-5 अंक का है।</li>
+      <li>सभी उत्तर अपनी उत्तर-पुस्तिका में स्पष्ट एवं स्वच्छ लेख में लिखें।</li>
+    </ol>
+  </div>
+
+  ${sectionsHtml}
+
+  <div style="margin-top: 40px; border-top: 2px solid #0f172a; padding-top: 20px; page-break-before: always;">
+    <div style="text-align: center; margin-bottom: 18px; border-bottom: 1.5px solid #cbd5e1; padding-bottom: 10px;">
+      <h2 style="font-size: 18px; color: #0f172a; margin: 0; text-transform: uppercase;">🔑 शिक्षक उत्तर-कुंजी एवं चरणबद्ध अंकन योजना (Marking Scheme)</h2>
+      <p style="margin: 4px 0 0; font-size: 12px; color: #64748b; font-style: italic;">केवल परीक्षक / शिक्षक के उपयोग हेतु (Confidential — For Evaluator Use Only)</p>
     </div>
-  </div>
 
-  <div style="background-color: #f8fafc; border-left: 4px solid #0284c7; padding: 10px 14px; margin-bottom: 18px; font-size: 13px; border-radius: 4px;">
-    <strong style="color: #0369a1;">विद्यार्थियों के लिए सामान्य निर्देश:</strong>
-    <ul style="margin: 4px 0 0 18px; padding-left: 16px; color: #334155;">
-      <li>सभी प्रश्नों के उत्तर अपनी अभ्यास पुस्तिका (Workbook) में स्पष्ट एवं स्वच्छ लेख में लिखें।</li>
-      <li>प्रत्येक प्रश्न की सही क्रम संख्या लिखकर ही उत्तर दें।</li>
-      <li>कार्य पूर्ण होने पर अपनी उत्तर-पुस्तिका के पृष्ठों की स्पष्ट फोटो/स्कैन अपलोड करें।</li>
-    </ul>
-  </div>
-
-  <div style="display: flex; flex-direction: column; gap: 14px;">
-${generated.questions.map((q: any, idx: number) => `
-    <div style="margin: 0 0 10px 0; font-size: 15px; border-bottom: 1px dashed #cbd5e1; padding-bottom: 10px;">
-      <p style="margin: 0 0 6px 0;">
-        <strong>प्रश्न ${idx + 1}.</strong> ${q.prompt}
-        <span style="color: #64748b; font-size: 13px; font-weight: normal; margin-left: 6px;">[${q.marks ?? 1} अंक]</span>
-        ${q.competency ? `<span style="display: inline-block; background: #e0f2fe; color: #0369a1; font-size: 11px; padding: 2px 6px; border-radius: 4px; margin-left: 8px;">दक्षता: ${q.competency}</span>` : ''}
-      </p>
-      ${q.options && q.options.length > 0 ? `
-      <div style="margin-left: 20px; font-size: 14px; color: #334155; display: flex; flex-direction: column; gap: 4px;">
-        ${q.options.map((opt: any, oIdx: number) => `<div>${hindiOptionLabels[oIdx] || `(${String.fromCharCode(65 + oIdx)})`} ${opt.text}</div>`).join('')}
+    <div style="background-color: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; padding: 12px; margin-bottom: 18px;">
+      <strong style="color: #0f172a; font-size: 13px; display: block; margin-bottom: 6px;">📋 मूल्यांकन ब्लूप्रिंट सारांश (Assessment Blueprint):</strong>
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; font-size: 12px; color: #334155;">
+        <div>• <strong>क्षमता भारिता:</strong> सजगता (Awareness) ${abilityAware}%, संवेदनशीलता (Sensitivity) ${abilitySens}%, सृजनात्मकता (Creativity) ${abilityCreat}%</div>
+        <div>• <strong>कठिनाई स्तर:</strong> सरल (Easy) ${diffEasy}%, मध्यम (Medium) ${diffMed}%, कठिन (Difficult) ${diffDiff}%</div>
+        <div>• <strong>मानक:</strong> ${data.assessmentStandard === 'Advanced' ? 'Standard 2: Advanced' : 'Standard 1: Basic & Proficient'}</div>
       </div>
-      ` : ''}
     </div>
-`).join('')}
-  </div>
 
-  <div style="margin-top: 36px; border-top: 2px solid #0f172a; padding-top: 18px; page-break-before: always;">
-    <h2 style="font-size: 18px; color: #0f172a; margin: 0 0 12px 0;">🔑 शिक्षक उत्तर-कुंजी एवं चरणबद्ध अंकन योजना (Answer Key & Marking Scheme)</h2>
     <div style="display: flex; flex-direction: column; gap: 12px; font-size: 13.5px;">
 ${generated.questions.map((q: any, idx: number) => `
       <div style="padding: 10px 14px; background: #f8fafc; border-left: 3px solid #10b981; border-radius: 4px;">
-        <strong>प्र. ${idx + 1}:</strong> <em>सही उत्तर:</em> ${q.answer || 'निर्दिष्ट हल'} <br/>
-        ${q.explanation ? `<div style="margin-top: 4px; color: #334155;"><strong>व्याख्या:</strong> ${q.explanation}</div>` : ''}
-        ${q.markingScheme ? `<div style="margin-top: 4px; color: #0f766e;"><strong>अंकन योजना:</strong> ${q.markingScheme}</div>` : ''}
+        <div style="font-weight: 600; color: #0f172a; margin-bottom: 4px;">
+          प्र. ${idx + 1} (${q.section || 'प्रश्न'} - ${q.marks ?? 1} अंक):
+          <span style="color: #059669; margin-left: 8px;">सही उत्तर: ${q.answer || 'निर्दिष्ट हल'}</span>
+        </div>
+        ${q.markingScheme ? `<div style="margin-top: 4px; color: #0f766e; font-size: 13px;"><strong>अंकन योजना एवं अंक वितरण:</strong> ${q.markingScheme}</div>` : ''}
+        ${q.explanation ? `<div style="margin-top: 4px; color: #334155; font-size: 13px;"><strong>विस्तृत व्याख्या:</strong> ${q.explanation}</div>` : ''}
       </div>
 `).join('')}
     </div>
   </div>
 </div>`.trim();
       } else {
-        docHtml = `
-<div style="font-family: 'Segoe UI', Arial, sans-serif; line-height: 1.5; color: #1e293b; width: 100%;">
-  <div style="text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 12px; margin-bottom: 16px;">
-    <h1 style="margin: 0; font-size: 22px; text-transform: uppercase; color: #0f172a; letter-spacing: 0.5px;">${data.subject.toUpperCase()} QUESTION PAPER</h1>
-    <p style="margin: 2px 0 0; font-size: 13px; color: #0284c7; font-weight: 600;">ALIGNED WITH NCERT-PARAKH 2025 COMPETENCY-BASED ASSESSMENT GUIDELINES</p>
-    <h3 style="margin: 4px 0 0 0; color: #475569; font-weight: 500; font-size: 15px;">Grade: ${data.grade} &nbsp;|&nbsp; Topic: ${data.topic}</h3>
-    <div style="display: flex; justify-content: space-between; margin-top: 10px; font-weight: 600; font-size: 13px; color: #334155;">
-      <span>Time Allowed: 60 Minutes</span>
-      <span>Assessment Standard: ${data.assessmentStandard === 'Advanced' ? 'Standard 2: Advanced' : 'Standard 1: Basic & Proficient'}</span>
-      <span>Total Marks: ${data.totalMarks}</span>
-    </div>
+        let sectionsHtml = '';
+        sectionsMap.forEach((qList, secTitle) => {
+          sectionsHtml += `
+  <div style="margin-top: 24px; margin-bottom: 12px; padding: 6px 12px; background: #f1f5f9; border-left: 4px solid #0f172a; font-weight: 700; font-size: 14px; color: #0f172a; text-transform: uppercase;">
+    ${secTitle}
   </div>
-
-  <div style="background-color: #f0fdf4; border: 1.5px solid #86efac; border-radius: 8px; padding: 12px 14px; margin-bottom: 16px;">
-    <strong style="color: #166534; font-size: 13.5px; display: block; margin-bottom: 6px;">📋 NCERT-PARAKH 2025 Assessment Blueprint:</strong>
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; font-size: 12.5px; color: #166534;">
-      <div>• <strong>Assessment Abilities:</strong> Awareness ${abilityAware}%, Sensitivity ${abilitySens}%, Creativity ${abilityCreat}%</div>
-      <div>• <strong>Cognitive Difficulty:</strong> Easy ${diffEasy}%, Medium ${diffMed}%, Difficult ${diffDiff}%</div>
-      <div>• <strong>Competency Focus:</strong> Direct conceptual inquiry, application, logical analysis, and multi-step reasoning.</div>
-    </div>
-  </div>
-
-  <div style="background-color: #f8fafc; border-left: 4px solid #0284c7; padding: 10px 14px; margin-bottom: 18px; font-size: 13px; border-radius: 4px;">
-    <strong style="color: #0369a1;">Instructions for Students:</strong>
-    <ul style="margin: 4px 0 0 18px; padding-left: 16px; color: #334155;">
-      <li>Solve these questions neatly on paper in your physical workbook.</li>
-      <li>Write your answers with clear question numbers matching the paper.</li>
-      <li>Upload clear photos/scans of your answer sheet pages when finished.</li>
-    </ul>
-  </div>
-
   <div style="display: flex; flex-direction: column; gap: 14px;">
-${generated.questions.map((q: any, idx: number) => `
-    <div style="margin: 0 0 10px 0; font-size: 15px; border-bottom: 1px dashed #cbd5e1; padding-bottom: 10px;">
-      <p style="margin: 0 0 6px 0;">
-        <strong>Q${idx + 1}.</strong> ${q.prompt}
-        <span style="color: #64748b; font-size: 13px; font-weight: normal; margin-left: 6px;">[${q.marks ?? 1} Mark${(q.marks ?? 1) > 1 ? 's' : ''}]</span>
-        ${q.competency ? `<span style="display: inline-block; background: #e0f2fe; color: #0369a1; font-size: 11px; padding: 2px 6px; border-radius: 4px; margin-left: 8px;">Competency: ${q.competency}</span>` : ''}
+    ${qList.map((q: any) => `
+    <div style="margin: 0 0 10px 0; font-size: 14.5px; border-bottom: 1px dashed #cbd5e1; padding-bottom: 10px;">
+      <p style="margin: 0 0 6px 0; line-height: 1.6;">
+        <strong>Q${q.displayNum}.</strong> ${q.prompt}
+        <span style="float: right; font-weight: 600; color: #475569;">[${q.marks ?? 1} Mark${(q.marks ?? 1) > 1 ? 's' : ''}]</span>
       </p>
-      ${q.options && q.options.length > 0 ? `
-      <div style="margin-left: 20px; font-size: 14px; color: #334155; display: flex; flex-direction: column; gap: 4px;">
+      ${(q.options && q.options.length > 0) ? (
+        q.type === 'TRUE_FALSE' ? `
+      <div style="margin-left: 20px; display: flex; gap: 24px; font-size: 13.5px; color: #334155; margin-top: 4px;">
+        <div>(A) True</div>
+        <div>(B) False</div>
+      </div>` : `
+      <div style="margin-left: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 6px; font-size: 13.5px; color: #334155; margin-top: 4px;">
         ${q.options.map((opt: any, oIdx: number) => `<div>(${String.fromCharCode(65 + oIdx)}) ${opt.text}</div>`).join('')}
-      </div>
-      ` : ''}
+      </div>`
+      ) : ''}
+    </div>`).join('')}
+  </div>`;
+        });
+
+        docHtml = `
+<div style="font-family: 'Segoe UI', Arial, sans-serif; line-height: 1.6; color: #1e293b; width: 100%;">
+  <div style="text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 12px; margin-bottom: 16px;">
+    <h1 style="margin: 0; font-size: 24px; text-transform: uppercase; color: #0f172a; letter-spacing: 0.5px;">${data.subject.toUpperCase()} EXAMINATION</h1>
+    <h3 style="margin: 4px 0 0 0; color: #475569; font-weight: 600; font-size: 15px;">Class / Grade: ${data.grade} &nbsp;|&nbsp; Topic: ${data.topic}</h3>
+    <div style="display: flex; justify-content: space-between; margin-top: 12px; font-weight: 600; font-size: 13.5px; color: #334155; border-top: 1px solid #e2e8f0; padding-top: 8px;">
+      <span>Time Allowed: 60 Minutes</span>
+      <span>Maximum Marks: ${data.totalMarks}</span>
     </div>
-`).join('')}
   </div>
 
-  <div style="margin-top: 36px; border-top: 2px solid #0f172a; padding-top: 18px; page-break-before: always;">
-    <h2 style="font-size: 18px; color: #0f172a; margin: 0 0 12px 0;">🔑 TEACHER ANSWER KEY & STEP-WISE MARKING SCHEME</h2>
+  <div style="display: flex; justify-content: space-between; font-size: 13.5px; color: #334155; margin-bottom: 16px; padding: 6px 0; border-bottom: 1px dashed #cbd5e1;">
+    <span>Student's Name: __________________________________</span>
+    <span>Roll No: ____________</span>
+    <span>Date: ____________</span>
+  </div>
+
+  <div style="background-color: #f8fafc; border-left: 4px solid #0f172a; padding: 10px 14px; margin-bottom: 20px; font-size: 13px; border-radius: 4px;">
+    <strong style="color: #0f172a;">General Instructions:</strong>
+    <ol style="margin: 4px 0 0 16px; padding-left: 4px; color: #334155; line-height: 1.5;">
+      <li>All questions are compulsory. This question paper is divided into Section A to Section E.</li>
+      <li><strong>Section A:</strong> Objective Type Questions (MCQ, Fill in the blanks, True/False) carrying 1 mark each.</li>
+      <li><strong>Section B:</strong> Very Short Answer Type Questions carrying 2 marks each.</li>
+      <li><strong>Section C:</strong> Short Answer Type Questions carrying 3 marks each.</li>
+      <li><strong>Section D:</strong> Long Answer Type Questions carrying 5 marks each.</li>
+      <li><strong>Section E:</strong> Case-Study / Source-Based Questions carrying 4-5 marks each.</li>
+      <li>Write all steps clearly in your answer sheet. Diagrams must be neat and properly labelled.</li>
+    </ol>
+  </div>
+
+  ${sectionsHtml}
+
+  <div style="margin-top: 40px; border-top: 2px solid #0f172a; padding-top: 20px; page-break-before: always;">
+    <div style="text-align: center; margin-bottom: 18px; border-bottom: 1.5px solid #cbd5e1; padding-bottom: 10px;">
+      <h2 style="font-size: 18px; color: #0f172a; margin: 0; text-transform: uppercase;">🔑 TEACHER ANSWER KEY & STEP-WISE MARKING SCHEME</h2>
+      <p style="margin: 4px 0 0; font-size: 12px; color: #64748b; font-style: italic;">Confidential — For Evaluator / Teacher Use Only</p>
+    </div>
+
+    <div style="background-color: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; padding: 12px; margin-bottom: 18px;">
+      <strong style="color: #0f172a; font-size: 13px; display: block; margin-bottom: 6px;">📋 Assessment Blueprint Summary:</strong>
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; font-size: 12px; color: #334155;">
+        <div>• <strong>Abilities:</strong> Awareness ${abilityAware}%, Sensitivity ${abilitySens}%, Creativity ${abilityCreat}%</div>
+        <div>• <strong>Difficulty:</strong> Easy ${diffEasy}%, Medium ${diffMed}%, Difficult ${diffDiff}%</div>
+        <div>• <strong>Standard:</strong> ${data.assessmentStandard === 'Advanced' ? 'Standard 2: Advanced' : 'Standard 1: Basic & Proficient'}</div>
+      </div>
+    </div>
+
     <div style="display: flex; flex-direction: column; gap: 12px; font-size: 13.5px;">
 ${generated.questions.map((q: any, idx: number) => `
       <div style="padding: 10px 14px; background: #f8fafc; border-left: 3px solid #10b981; border-radius: 4px;">
-        <strong>Q${idx + 1}:</strong> <em>Correct Key/Answer:</em> ${q.answer || 'Refer solution'} <br/>
-        ${q.explanation ? `<div style="margin-top: 4px; color: #334155;"><strong>Explanation:</strong> ${q.explanation}</div>` : ''}
-        ${q.markingScheme ? `<div style="margin-top: 4px; color: #0f766e;"><strong>Marking Scheme & Value Points:</strong> ${q.markingScheme}</div>` : ''}
+        <div style="font-weight: 600; color: #0f172a; margin-bottom: 4px;">
+          Q${idx + 1} (${q.section || 'Question'} - ${q.marks ?? 1} Mark${(q.marks ?? 1) > 1 ? 's' : ''}):
+          <span style="color: #059669; margin-left: 8px;">Key/Answer: ${q.answer || 'Refer solution steps'}</span>
+        </div>
+        ${q.markingScheme ? `<div style="margin-top: 4px; color: #0f766e; font-size: 13px;"><strong>Marking Scheme & Value Points:</strong> ${q.markingScheme}</div>` : ''}
+        ${q.explanation ? `<div style="margin-top: 4px; color: #334155; font-size: 13px;"><strong>Explanation:</strong> ${q.explanation}</div>` : ''}
       </div>
 `).join('')}
     </div>
@@ -5803,15 +6177,15 @@ ${generated.questions.map((q: any, idx: number) => `
       docHtml = isHindi ? `
 <div style="font-family: 'Segoe UI', 'Nirmala UI', Arial, sans-serif; line-height: 1.6; color: #1e293b; width: 100%;">
   <div style="text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 10px; margin-bottom: 14px;">
-    <h1 style="margin: 0; font-size: 22px;">हिन्दी अभ्यास कार्य-पत्रक (PARAKH 2025)</h1>
+    <h1 style="margin: 0; font-size: 24px;">हिन्दी परीक्षा प्रश्न पत्र</h1>
     <h3 style="margin: 4px 0 0 0; color: #475569;">कक्षा: ${data.grade} | प्रकरण: ${data.topic}</h3>
   </div>
-  <p style="margin-bottom: 10px;"><strong>कुल अंक:</strong> ${data.totalMarks}</p>
+  <p style="margin-bottom: 10px;"><strong>पूर्णांक:</strong> ${data.totalMarks}</p>
   <p>नीचे दिए गए प्रश्नों के उत्तर अपनी अभ्यास पुस्तिका में लिखें तथा अपनी उत्तर-पुस्तिका की फोटो अपलोड करें।</p>
 </div>`.trim() : `
 <div style="font-family: 'Segoe UI', Arial, sans-serif; line-height: 1.5; color: #1e293b; width: 100%;">
   <div style="text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 10px; margin-bottom: 14px;">
-    <h1 style="margin: 0; font-size: 22px;">${data.subject.toUpperCase()} WORKSHEET (PARAKH 2025)</h1>
+    <h1 style="margin: 0; font-size: 24px;">${data.subject.toUpperCase()} EXAMINATION</h1>
     <h3 style="margin: 4px 0 0 0; color: #475569;">Grade: ${data.grade} | Topic: ${data.topic}</h3>
   </div>
   <p style="margin-bottom: 10px;"><strong>Total Marks:</strong> ${data.totalMarks}</p>
