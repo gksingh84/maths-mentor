@@ -1644,6 +1644,7 @@ function TeacherSettingsPanel({ setNotice, user }: { setNotice: (msg: string) =>
 }
 
 function AISettingsPanel({ setNotice, user }: { setNotice: (msg: string) => void; user?: User }) {
+  const apiKeyInputRef = useRef<HTMLInputElement>(null);
   const [provider, setProvider] = useState(() => localStorage.getItem('livequiz_ai_provider') || 'auto');
   const [apiKey, setApiKey] = useState('');
   const [showKey, setShowKey] = useState(false);
@@ -1748,6 +1749,7 @@ function AISettingsPanel({ setNotice, user }: { setNotice: (msg: string) => void
             <span>Personal API Key *</span>
             <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
               <input
+                ref={apiKeyInputRef}
                 type={showKey ? 'text' : 'password'}
                 value={apiKey}
                 onChange={(e) => { setApiKey(e.target.value); setKeyError(''); }}
@@ -1761,6 +1763,35 @@ function AISettingsPanel({ setNotice, user }: { setNotice: (msg: string) => void
                 onClick={() => setShowKey(!showKey)}
               >
                 {showKey ? 'Hide' : 'Show'}
+              </button>
+              <button
+                type="button"
+                className="button button-secondary"
+                style={{
+                  padding: '0 12px',
+                  minHeight: '44px',
+                  fontSize: '13px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  color: apiKey ? '#dc2626' : '#9ca3af',
+                  borderColor: apiKey ? '#fca5a5' : '#e5e7eb',
+                  background: apiKey ? '#fef2f2' : '#f9fafb',
+                  cursor: apiKey ? 'pointer' : 'not-allowed',
+                  opacity: apiKey ? 1 : 0.6,
+                  transition: 'all 0.15s ease',
+                }}
+                disabled={!apiKey}
+                onClick={() => {
+                  setApiKey('');
+                  setKeyError('');
+                  apiKeyInputRef.current?.focus();
+                  setNotice('API key field cleared. Paste your new key and click Save AI Settings.');
+                }}
+                title="Clear API key field so you can enter a new key"
+              >
+                <X size={14} />
+                <span>Clear</span>
               </button>
             </div>
             <small className="muted" style={{ marginTop: '4px' }}>
