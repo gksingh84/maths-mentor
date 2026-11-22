@@ -12750,7 +12750,7 @@ button:disabled {
 
 @page {
   size: A4 portrait;
-  margin: 14mm 15mm 14mm 15mm;
+  margin: 18mm 16mm 18mm 16mm;
 }
 
 @media print {
@@ -12773,14 +12773,28 @@ button:disabled {
   .exam-question-card,
   div[style*="border-bottom: 1px dashed"],
   div[style*="border-bottom:1px dashed"],
+  div[style*="dashed #cbd5e1"],
+  div[style*="dashed#cbd5e1"],
   .question-item {
     display: block !important;
+    break-inside: avoid-page !important;
     break-inside: avoid !important;
     page-break-inside: avoid !important;
+    margin-bottom: 14px !important;
+  }
+  .exam-question-card > * {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+  .exam-question-card p {
+    break-after: avoid !important;
+    page-break-after: avoid !important;
+    margin-bottom: 6px !important;
   }
   .exam-section-header,
   .section-header, h1, h2, h3, h4 {
     display: block !important;
+    break-after: avoid-page !important;
     break-after: avoid !important;
     page-break-after: avoid !important;
     break-inside: avoid !important;

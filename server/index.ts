@@ -1780,41 +1780,112 @@ function cleanOptionText(text: any): string {
 function getSectionRank(q: any): number {
   const sec = (q.section || '').toLowerCase();
   const qType = (q.type || q.questionType || '').toUpperCase();
-  const marks = Number(q.marks) || 1;
+  const diff = String(q.difficulty || '').toLowerCase();
 
   if (sec.includes('section e') || sec.includes('खंड ङ') || sec.includes('खंड ‘ङ’') || sec.includes("खंड 'ङ'") || sec.includes('case') || qType.includes('CASE') || qType.includes('SOURCE')) return 5;
-  if (sec.includes('section d') || sec.includes('खंड घ') || sec.includes('खंड ‘घ’') || sec.includes("खंड 'घ'") || sec.includes('long') || qType.includes('LONG') || marks >= 5) return 4;
-  if (sec.includes('section c') || sec.includes('खंड ग') || sec.includes('खंड ‘ग’') || sec.includes("खंड 'ग'") || marks === 3 || (qType.includes('SHORT') && !qType.includes('VERY'))) return 3;
-  if (sec.includes('section b') || sec.includes('खंड ख') || sec.includes('खंड ‘ख’') || sec.includes("खंड 'ख'") || marks === 2 || qType.includes('VSA') || qType.includes('VERY')) return 2;
-  if (sec.includes('section a') || sec.includes('खंड क') || sec.includes('खंड ‘क’') || sec.includes("खंड 'क'") || marks === 1 || qType.includes('MCQ') || qType.includes('BLANK') || qType.includes('TRUE') || qType.includes('TF')) return 1;
+  if (sec.includes('section d') || sec.includes('खंड घ') || sec.includes('खंड ‘घ’') || sec.includes("खंड 'घ'") || sec.includes('long') || qType.includes('LONG')) return 4;
+  if (sec.includes('section c') || sec.includes('खंड ग') || sec.includes('खंड ‘ग’') || sec.includes("खंड 'ग'") || (qType.includes('SHORT') && !qType.includes('VERY'))) return 3;
+  if (sec.includes('section b') || sec.includes('खंड ख') || sec.includes('खंड ‘ख’') || sec.includes("खंड 'ख'") || qType.includes('VSA') || qType.includes('VERY')) return 2;
+  if (sec.includes('section a') || sec.includes('खंड क') || sec.includes('खंड ‘क’') || sec.includes("खंड 'क'") || qType.includes('MCQ') || qType.includes('BLANK') || qType.includes('TRUE') || qType.includes('TF')) return 1;
 
-  if (marks >= 5) return 4;
-  if (marks === 4) return 5;
-  if (marks === 3) return 3;
-  if (marks === 2) return 2;
+  if (qType === 'LA' || (diff.includes('diff') && !qType.includes('MCQ'))) return 4;
+  if (qType === 'SA' || diff.includes('med')) return 3;
+  if (qType === 'VSA') return 2;
   return 1;
 }
 
 function getSectionTitle(rank: number, isHindi: boolean): string {
   if (isHindi) {
     switch (rank) {
-      case 1: return "खंड 'क' — वस्तुनिष्ठ प्रश्न (1 अंक प्रत्येक)";
-      case 2: return "खंड 'ख' — अति लघु उत्तरीय प्रश्न (2 अंक प्रत्येक)";
-      case 3: return "खंड 'ग' — लघु उत्तरीय प्रश्न (3 अंक प्रत्येक)";
-      case 4: return "खंड 'घ' — दीर्घ उत्तरीय प्रश्न (5 अंक प्रत्येक)";
+      case 1: return "खंड 'क' — वस्तुनिष्ठ प्रश्न";
+      case 2: return "खंड 'ख' — अति लघु उत्तरीय प्रश्न";
+      case 3: return "खंड 'ग' — लघु उत्तरीय प्रश्न";
+      case 4: return "खंड 'घ' — दीर्घ उत्तरीय प्रश्न";
       case 5: return "खंड 'ङ' — केस-स्टडी आधारित प्रश्न";
-      default: return "खंड 'क' — वस्तुनिष्ठ प्रश्न (1 अंक प्रत्येक)";
+      default: return "खंड 'क' — वस्तुनिष्ठ प्रश्न";
     }
   } else {
     switch (rank) {
-      case 1: return "SECTION A — OBJECTIVE TYPE QUESTIONS (1 MARK EACH)";
-      case 2: return "SECTION B — VERY SHORT ANSWER QUESTIONS (2 MARKS EACH)";
-      case 3: return "SECTION C — SHORT ANSWER QUESTIONS (3 MARKS EACH)";
-      case 4: return "SECTION D — LONG ANSWER QUESTIONS (5 MARKS EACH)";
+      case 1: return "SECTION A — OBJECTIVE TYPE QUESTIONS";
+      case 2: return "SECTION B — VERY SHORT ANSWER QUESTIONS";
+      case 3: return "SECTION C — SHORT ANSWER QUESTIONS";
+      case 4: return "SECTION D — LONG ANSWER QUESTIONS";
       case 5: return "SECTION E — CASE-STUDY / SOURCE-BASED QUESTIONS";
-      default: return "SECTION A — OBJECTIVE TYPE QUESTIONS (1 MARK EACH)";
+      default: return "SECTION A — OBJECTIVE TYPE QUESTIONS";
     }
   }
+}
+
+function distributeMarksByDifficulty(questions: any[], totalMarks: number): void {
+  const N = questions.length;
+  if (N === 0) return;
+  const T = Math.max(N, Number(totalMarks) || N);
+
+  function getLevel(q: any): number {
+    const diff = String(q.difficulty || '').toLowerCase();
+    const type = String(q.type || q.questionType || '').toUpperCase();
+    const rank = getSectionRank(q);
+    if (diff.includes('diff') || diff.includes('hard') || rank >= 4 || type === 'LONG_ANSWER' || type === 'CASE_STUDY') {
+      return 3; // Difficult
+    }
+    if (diff.includes('med') || rank === 2 || rank === 3 || type === 'SHORT_ANSWER' || type === 'VSA') {
+      return 2; // Medium
+    }
+    return 1; // Easy
+  }
+
+  // Weight multipliers for difficulty levels
+  const weights = questions.map(q => {
+    const lvl = getLevel(q);
+    return lvl === 3 ? 3.5 : lvl === 2 ? 2.0 : 1.0;
+  });
+
+  const totalWeight = weights.reduce((sum, w) => sum + w, 0);
+  const targets = weights.map(w => (w / totalWeight) * T);
+  const marks = targets.map(t => Math.max(1, Math.floor(t)));
+  let currentSum = marks.reduce((sum, m) => sum + m, 0);
+
+  if (currentSum < T) {
+    const remainderIndices = targets
+      .map((t, idx) => ({ idx, rem: t - Math.floor(t), lvl: getLevel(questions[idx]) }))
+      .sort((a, b) => (b.rem - a.rem) || (b.lvl - a.lvl) || (b.idx - a.idx));
+
+    let toAdd = T - currentSum;
+    for (let i = 0; i < remainderIndices.length && toAdd > 0; i++) {
+      marks[remainderIndices[i].idx] += 1;
+      toAdd--;
+    }
+    let idx = 0;
+    while (toAdd > 0) {
+      marks[remainderIndices[idx % remainderIndices.length].idx] += 1;
+      toAdd--;
+      idx++;
+    }
+  } else if (currentSum > T) {
+    const deductIndices = targets
+      .map((t, idx) => ({ idx, rem: t - Math.floor(t), lvl: getLevel(questions[idx]) }))
+      .sort((a, b) => (a.rem - b.rem) || (a.lvl - b.lvl) || (a.idx - b.idx));
+
+    let toSub = currentSum - T;
+    for (let i = 0; i < deductIndices.length && toSub > 0; i++) {
+      if (marks[deductIndices[i].idx] > 1) {
+        marks[deductIndices[i].idx] -= 1;
+        toSub--;
+      }
+    }
+  }
+
+  // Assign calculated marks to questions
+  questions.forEach((q, idx) => {
+    q.marks = marks[idx];
+    if (q.markingScheme && typeof q.markingScheme === 'string') {
+      if (q.marks === 1) {
+        q.markingScheme = q.markingScheme.replace(/\b\d+\s*marks?\b/i, '1 mark');
+      } else {
+        q.markingScheme = q.markingScheme.replace(/\b\d+\s*marks?\b/i, `${q.marks} marks`);
+      }
+    }
+  });
 }
 
 function robustParseJSON(rawText: string): any {
@@ -1992,7 +2063,7 @@ function parseAIResponseJSON(rawText: string, data: z.infer<typeof aiQuizInput>)
       return null;
     }
 
-    const questions = rawQuestions.map((q: any, idx: number) => {
+    let questions = rawQuestions.map((q: any, idx: number) => {
       const promptText = q.question || q.prompt || q.text || '';
       const rawOptions = Array.isArray(q.options) ? q.options : [];
       let correctIdx = 0;
@@ -2096,10 +2167,22 @@ function parseAIResponseJSON(rawText: string, data: z.infer<typeof aiQuizInput>)
       };
     });
 
-    // Sort questions strictly by examination section: Section A -> Section B -> Section C -> Section D -> Section E
+    // 1. Ensure exact question count matching user entry
+    if (questions.length > data.questionCount) {
+      questions = questions.slice(0, data.questionCount);
+    }
+    while (questions.length < data.questionCount) {
+      const src = questions[questions.length % questions.length];
+      questions.push({ ...src } as any);
+    }
+
+    // 2. Sort questions strictly by examination section: Section A -> Section B -> Section C -> Section D -> Section E
     questions.sort((a: any, b: any) => getSectionRank(a) - getSectionRank(b));
 
-    // Re-number questions strictly consecutively: 1, 2, 3, ... N
+    // 3. Distribute total marks strictly according to difficulty level to guarantee exact total marks
+    distributeMarksByDifficulty(questions, data.totalMarks || (data.questionCount * (data.difficulty === 'Hard' ? 2 : 1)));
+
+    // 4. Re-number questions strictly consecutively: 1, 2, 3, ... N
     questions.forEach((q: any, idx: number) => {
       const num = idx + 1;
       q.id = `Q${num}`;
@@ -2374,39 +2457,44 @@ ${gradeProgressionGuide}
 ### 5. SUBJECT-SPECIFIC ASSESSMENT REQUIREMENTS (${data.subject})
 ${subjectWeightageGuide}
 
-### 6. QUESTION TYPES & MULTI-SECTION EXAMINATION STRUCTURE
+### 6. QUESTION TYPES, MULTI-SECTION EXAMINATION STRUCTURE & TOTAL MARKS ALLOCATION
 ${data.mode === 'LIVE'
   ? `• Live Classroom Mode: Generate questions as single-correct Multiple Choice Questions (MCQs) with 4 options each (A, B, C, D), suitable for live interactive screen response.`
-  : `• ACTUAL COMPLETE EXAMINATION PAPER STRUCTURE (MANDATORY DIVERSITY):
-You MUST formulate an authentic, multi-section school examination paper containing ALL of the following diverse question types:
+  : `• ACTUAL COMPLETE EXAMINATION PAPER STRUCTURE (MANDATORY DIVERSITY & STRICT MARKS ALLOCATION):
+USER MANDATE FOR THIS PAPER:
+- Total Number of Questions: EXACTLY ${data.questionCount} questions in the "questions" array.
+- Total Marks: EXACTLY ${targetTotalMarks} marks across all questions.
+- MATHEMATICAL MANDATE: The exact sum of marks of all ${data.questionCount} questions MUST EQUAL EXACTLY ${targetTotalMarks}.
 
-1. SECTION A — OBJECTIVE TYPE QUESTIONS (1 Mark each):
+You MUST divide the total ${targetTotalMarks} marks across the ${data.questionCount} questions strictly based on cognitive difficulty level:
+- Easy questions (Section A): lowest marks (e.g. 1 mark or baseline).
+- Medium questions (Section B & C): moderate marks.
+- Difficult questions (Section D & E): highest marks.
+
+Multi-Section Breakdown:
+1. SECTION A — OBJECTIVE TYPE QUESTIONS (Easy Cognitive Demand):
    - Multiple Choice Questions (MCQ): 4 options [A, B, C, D] with exactly one correct option.
    - Fill in the Blanks (FILL_IN_THE_BLANKS): Prompt MUST contain a blank space "_______". The "options" field MUST BE AN EMPTY ARRAY ([]). The "answer" field must state the exact missing word/term/formula.
    - True / False (TRUE_FALSE): Statement where students evaluate truth or falsity. The "options" field MUST contain exactly ["True", "False"] (or ["सत्य", "असत्य"] for Hindi).
    - Assertion & Reason: Statements testing conceptual cause-and-effect with 4 standard options.
 
-2. SECTION B — VERY SHORT ANSWER (VSA) QUESTIONS (2 Marks each):
+2. SECTION B — VERY SHORT ANSWER (VSA) QUESTIONS (Medium Cognitive Demand):
    - Direct conceptual questions, 2-step calculations, or definitions with examples.
    - The "options" field MUST BE AN EMPTY ARRAY ([]).
-   - "marks": 2.
 
-3. SECTION C — SHORT ANSWER (SA) QUESTIONS (3 Marks each):
+3. SECTION C — SHORT ANSWER (SA) QUESTIONS (Medium Cognitive Demand):
    - Explanations, comparative distinctions, formulas with working steps, or 3-step numerical problems.
    - The "options" field MUST BE AN EMPTY ARRAY ([]).
-   - "marks": 3.
 
-4. SECTION D — LONG ANSWER (LA) QUESTIONS (5 Marks each):
+4. SECTION D — LONG ANSWER (LA) QUESTIONS (Difficult Cognitive Demand):
    - In-depth multi-part questions (e.g. part (a) and (b)), derivations, geometric proofs, or complex problem-solving.
    - The "options" field MUST BE AN EMPTY ARRAY ([]).
-   - "marks": 5.
 
-5. SECTION E — CASE-STUDY / SOURCE-BASED QUESTIONS (4 or 5 Marks each):
+5. SECTION E — CASE-STUDY / SOURCE-BASED QUESTIONS (Difficult Cognitive Demand):
    - A real-world context paragraph, scenario, experiment report, or data table, followed by 2 to 3 sub-questions: (i), (ii), (iii).
    - The "options" field MUST BE AN EMPTY ARRAY ([]).
-   - "marks": 4 or 5.
 
-CRITICAL MANDATORY RULE: DO NOT generate all questions as MCQs! An actual question paper MUST have a balanced distribution across Section A (MCQs, Fill in Blanks, True/False), Section B (VSA 2M), Section C (SA 3M), Section D (LA 5M), and Section E (Case Study 4M/5M).
+CRITICAL MANDATORY RULE: DO NOT generate all questions as MCQs! Formulate a balanced paper with diverse questions, while ensuring the SUM OF ALL MARKS EQUALS EXACTLY ${targetTotalMarks}.
 
 CRITICAL MANDATORY SECTION ORDERING & CONSECUTIVE NUMBERING:
 All questions MUST be grouped and ordered strictly by Section from A to E, and consecutively numbered from 1 to ${data.questionCount}:
@@ -6168,7 +6256,7 @@ app.post('/api/worksheets/ai-generate', adminOnly, async (req: AuthRequest, res:
       topic: z.string().trim().min(1).max(300),
       subtopics: z.string().trim().max(500).optional(),
       questionCount: z.number().int().min(3).max(30).default(10),
-      totalMarks: z.number().int().min(10).max(200).default(100),
+      totalMarks: z.number().int().min(5).max(200).default(100),
       details: z.string().trim().max(500).optional(),
       apiKey: z.string().trim().optional(),
       provider: z.enum(['auto', 'gemini', 'openai', 'deepseek']).optional(),
@@ -6243,10 +6331,22 @@ app.post('/api/worksheets/ai-generate', adminOnly, async (req: AuthRequest, res:
       const diffMed = bp?.difficultyDistribution?.medium?.targetPercentage ?? (data.assessmentStandard === 'Advanced' ? 25 : 50);
       const diffDiff = bp?.difficultyDistribution?.difficult?.targetPercentage ?? (data.assessmentStandard === 'Advanced' ? 50 : 25);
 
-      // 1. Sort questions strictly by examination section: Section A -> Section B -> Section C -> Section D -> Section E
+      // 1. Force exact question count (slice if more, pad if fewer)
+      if (generated.questions.length > data.questionCount) {
+        generated.questions = generated.questions.slice(0, data.questionCount);
+      }
+      while (generated.questions.length < data.questionCount) {
+        const src = generated.questions[generated.questions.length % (generated.questions.length || 1)];
+        generated.questions.push({ ...src } as any);
+      }
+
+      // 2. Sort questions strictly by examination section: Section A -> Section B -> Section C -> Section D -> Section E
       generated.questions.sort((a: any, b: any) => getSectionRank(a) - getSectionRank(b));
 
-      // 2. Re-number questions strictly consecutively: 1, 2, 3, ... N
+      // 3. Strictly distribute total marks according to difficulty level to guarantee sum(marks) === data.totalMarks
+      distributeMarksByDifficulty(generated.questions, data.totalMarks);
+
+      // 4. Re-number questions strictly consecutively: 1, 2, 3, ... N
       generated.questions.forEach((q: any, idx: number) => {
         const num = idx + 1;
         q.displayNum = num;
@@ -6261,7 +6361,7 @@ app.post('/api/worksheets/ai-generate', adminOnly, async (req: AuthRequest, res:
         }
       });
 
-      // 3. Group questions by section
+      // 5. Group questions by section
       const sectionsMap = new Map<string, any[]>();
       generated.questions.forEach((q: any) => {
         const sec = q.section;
@@ -6305,6 +6405,7 @@ app.post('/api/worksheets/ai-generate', adminOnly, async (req: AuthRequest, res:
     <h3 style="margin: 4px 0 0 0; color: #475569; font-weight: 600; font-size: 15px;">कक्षा: ${data.grade} &nbsp;|&nbsp; प्रकरण: ${generated.title ? generated.title.replace(/^हिन्दी:\s*/i, '') : data.topic}</h3>
     <div style="display: flex; justify-content: space-between; margin-top: 12px; font-weight: 600; font-size: 13.5px; color: #334155; border-top: 1px solid #e2e8f0; padding-top: 8px;">
       <span>समय: 60 मिनट</span>
+      <span>कुल प्रश्न: ${generated.questions.length}</span>
       <span>पूर्णांक: ${data.totalMarks}</span>
     </div>
   </div>
@@ -6318,12 +6419,13 @@ app.post('/api/worksheets/ai-generate', adminOnly, async (req: AuthRequest, res:
   <div style="background-color: #f8fafc; border-left: 4px solid #0f172a; padding: 10px 14px; margin-bottom: 20px; font-size: 13px; border-radius: 4px;">
     <strong style="color: #0f172a;">सामान्य निर्देश:</strong>
     <ol style="margin: 4px 0 0 16px; padding-left: 4px; color: #334155; line-height: 1.5;">
-      <li>सभी प्रश्न अनिवार्य हैं। यह प्रश्न पत्र खंड 'क' से खंड 'ङ' तक विभाजित है।</li>
-      <li><strong>खंड 'क':</strong> वस्तुनिष्ठ प्रश्न (बहुविकल्पीय, रिक्त स्थान, सत्य/असत्य) - प्रत्येक प्रश्न 1 अंक का है।</li>
-      <li><strong>खंड 'ख':</strong> अति लघु उत्तरीय प्रश्न - प्रत्येक प्रश्न 2 अंक का है।</li>
-      <li><strong>खंड 'ग':</strong> लघु उत्तरीय प्रश्न - प्रत्येक प्रश्न 3 अंक का है।</li>
-      <li><strong>खंड 'घ':</strong> दीर्घ उत्तरीय प्रश्न - प्रत्येक प्रश्न 5 अंक का है।</li>
-      <li><strong>खंड 'ङ':</strong> केस-स्टडी आधारित प्रश्न - प्रत्येक प्रश्न 4-5 अंक का है।</li>
+      <li>सभी प्रश्न अनिवार्य हैं। इस प्रश्न पत्र में कुल ${generated.questions.length} प्रश्न हैं तथा पूर्णांक ${data.totalMarks} है।</li>
+      <li>प्रत्येक प्रश्न के लिए निर्धारित अंक उसके सम्मुख दाईं ओर अंकित हैं।</li>
+      <li><strong>खंड 'क':</strong> वस्तुनिष्ठ प्रश्न (बहुविकल्पीय, रिक्त स्थान, सत्य/असत्य)।</li>
+      <li><strong>खंड 'ख':</strong> अति लघु उत्तरीय प्रश्न।</li>
+      <li><strong>खंड 'ग':</strong> लघु उत्तरीय प्रश्न।</li>
+      <li><strong>खंड 'घ':</strong> दीर्घ उत्तरीय प्रश्न।</li>
+      <li><strong>खंड 'ङ':</strong> केस-स्टडी आधारित प्रश्न।</li>
       <li>सभी उत्तर अपनी उत्तर-पुस्तिका में स्पष्ट एवं स्वच्छ लेख में लिखें।</li>
     </ol>
   </div>
@@ -6396,6 +6498,7 @@ ${generated.questions.map((q: any) => `
     <h3 style="margin: 4px 0 0 0; color: #475569; font-weight: 600; font-size: 15px;">Class / Grade: ${data.grade} &nbsp;|&nbsp; Topic: ${data.topic}</h3>
     <div style="display: flex; justify-content: space-between; margin-top: 12px; font-weight: 600; font-size: 13.5px; color: #334155; border-top: 1px solid #e2e8f0; padding-top: 8px;">
       <span>Time Allowed: 60 Minutes</span>
+      <span>Total Questions: ${generated.questions.length}</span>
       <span>Maximum Marks: ${data.totalMarks}</span>
     </div>
   </div>
@@ -6409,12 +6512,13 @@ ${generated.questions.map((q: any) => `
   <div style="background-color: #f8fafc; border-left: 4px solid #0f172a; padding: 10px 14px; margin-bottom: 20px; font-size: 13px; border-radius: 4px;">
     <strong style="color: #0f172a;">General Instructions:</strong>
     <ol style="margin: 4px 0 0 16px; padding-left: 4px; color: #334155; line-height: 1.5;">
-      <li>All questions are compulsory. This question paper is divided into Section A to Section E.</li>
-      <li><strong>Section A:</strong> Objective Type Questions (MCQ, Fill in the blanks, True/False) carrying 1 mark each.</li>
-      <li><strong>Section B:</strong> Very Short Answer Type Questions carrying 2 marks each.</li>
-      <li><strong>Section C:</strong> Short Answer Type Questions carrying 3 marks each.</li>
-      <li><strong>Section D:</strong> Long Answer Type Questions carrying 5 marks each.</li>
-      <li><strong>Section E:</strong> Case-Study / Source-Based Questions carrying 4-5 marks each.</li>
+      <li>All questions are compulsory. This question paper contains ${generated.questions.length} questions for a maximum of ${data.totalMarks} marks.</li>
+      <li>Marks allotted to each question are indicated against it on the right.</li>
+      <li><strong>Section A:</strong> Objective Type Questions (MCQ, Fill in the blanks, True/False).</li>
+      <li><strong>Section B:</strong> Very Short Answer Type Questions.</li>
+      <li><strong>Section C:</strong> Short Answer Type Questions.</li>
+      <li><strong>Section D:</strong> Long Answer Type Questions.</li>
+      <li><strong>Section E:</strong> Case-Study / Source-Based Questions.</li>
       <li>Write all steps clearly in your answer sheet. Diagrams must be neat and properly labelled.</li>
     </ol>
   </div>

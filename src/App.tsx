@@ -330,32 +330,37 @@ function printHtmlContent(content: string) {
   // Preprocess HTML content to ensure older/existing papers and flex containers format cleanly for pagination:
   let processedContent = content || '';
 
-  // 1. Convert flex containers of question items to block layout for reliable CSS page fragmentation in Chromium
+  // 1. Strip any legacy table wrappers from previous versions
+  processedContent = processedContent
+    .replace(/<table class="print-layout-table">[\s\S]*?<td class="print-content-cell">/gi, '')
+    .replace(/<\/td>\s*<\/tr>\s*<\/tbody>\s*<tfoot>[\s\S]*?<\/table>/gi, '');
+
+  // 2. Convert flex containers of question items to block layout for reliable CSS page fragmentation in Chromium
   processedContent = processedContent.replace(/<div\s+style="display:\s*flex;\s*flex-direction:\s*column;\s*gap:\s*1[24]px;"/gi,
     '<div class="exam-questions-list" style="display: block;">');
   processedContent = processedContent.replace(/<div\s+style="display:\s*flex;\s*flex-direction:\s*column;/gi,
     '<div class="exam-questions-list" style="display: block;');
 
-  // 2. Ensure every question card has the exam-question-card class and page-break-inside: avoid
+  // 3. Ensure every question card has the exam-question-card class and break-inside: avoid
   processedContent = processedContent.replace(/(<div[^>]*style="[^"]*border-bottom:\s*1px\s*dashed[^"]*")/gi, (match) => {
     let m = match;
     if (!m.includes('exam-question-card')) {
       m = m.replace('<div', '<div class="exam-question-card"');
     }
     if (!m.includes('break-inside')) {
-      m = m.replace('style="', 'style="display: block !important; break-inside: avoid !important; page-break-inside: avoid !important; ');
+      m = m.replace('style="', 'style="display: block !important; break-inside: avoid-page !important; break-inside: avoid !important; page-break-inside: avoid !important; ');
     }
     return m;
   });
 
-  // 3. Ensure section headers have exam-section-header class and break-after: avoid
+  // 4. Ensure section headers have exam-section-header class and break-after: avoid
   processedContent = processedContent.replace(/(<div[^>]*style="[^"]*border-left:\s*4px\s*solid[^"]*")/gi, (match) => {
     let m = match;
     if (!m.includes('exam-section-header')) {
       m = m.replace('<div', '<div class="exam-section-header"');
     }
     if (!m.includes('break-after')) {
-      m = m.replace('style="', 'style="display: block !important; break-after: avoid !important; page-break-after: avoid !important; break-inside: avoid !important; page-break-inside: avoid !important; ');
+      m = m.replace('style="', 'style="display: block !important; break-after: avoid-page !important; break-after: avoid !important; page-break-after: avoid !important; break-inside: avoid !important; page-break-inside: avoid !important; ');
     }
     return m;
   });
@@ -363,10 +368,10 @@ function printHtmlContent(content: string) {
   win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>EduAshram Question Paper</title><style>
     @page {
       size: A4 portrait;
-      margin-top: 10mm;
-      margin-bottom: 10mm;
-      margin-left: 15mm;
-      margin-right: 15mm;
+      margin-top: 18mm;
+      margin-bottom: 18mm;
+      margin-left: 16mm;
+      margin-right: 16mm;
     }
     @media print {
       html, body {
@@ -376,26 +381,10 @@ function printHtmlContent(content: string) {
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
       }
-      .print-layout-table {
+      .print-document {
         width: 100% !important;
-        border-collapse: collapse !important;
-        border: none !important;
         margin: 0 !important;
         padding: 0 !important;
-      }
-      thead {
-        display: table-header-group !important;
-      }
-      tfoot {
-        display: table-footer-group !important;
-      }
-      .print-page-header-spacer {
-        height: 10mm !important;
-        display: block !important;
-      }
-      .print-page-footer-spacer {
-        height: 10mm !important;
-        display: block !important;
       }
       .exam-questions-list {
         display: block !important;
@@ -407,12 +396,24 @@ function printHtmlContent(content: string) {
       div[style*="dashed#cbd5e1"],
       .question-item {
         display: block !important;
+        break-inside: avoid-page !important;
         break-inside: avoid !important;
         page-break-inside: avoid !important;
+        margin-bottom: 14px !important;
+      }
+      .exam-question-card > * {
+        break-inside: avoid !important;
+        page-break-inside: avoid !important;
+      }
+      .exam-question-card p {
+        break-after: avoid !important;
+        page-break-after: avoid !important;
+        margin-bottom: 6px !important;
       }
       .exam-section-header,
       .section-header, h1, h2, h3, h4 {
         display: block !important;
+        break-after: avoid-page !important;
         break-after: avoid !important;
         page-break-after: avoid !important;
         break-inside: avoid !important;
@@ -434,29 +435,9 @@ function printHtmlContent(content: string) {
       margin: 0;
       background: #ffffff;
     }
-    .print-layout-table {
+    .print-document {
       width: 100%;
-      border-collapse: collapse;
-      border: none;
-      margin: 0;
-      padding: 0;
-    }
-    .print-header-space {
-      height: 10mm;
-      border: none !important;
-      padding: 0 !important;
-      margin: 0 !important;
-    }
-    .print-footer-space {
-      height: 10mm;
-      border: none !important;
-      padding: 0 !important;
-      margin: 0 !important;
-    }
-    .print-content-cell {
-      border: none !important;
-      padding: 0 15mm !important;
-      vertical-align: top;
+      box-sizing: border-box;
     }
     ul { list-style-type: disc !important; padding-left: 20px !important; margin: 12px 0 !important; }
     ol { list-style-type: decimal !important; margin: 12px 0 !important; padding-left: 20px !important; }
@@ -464,30 +445,14 @@ function printHtmlContent(content: string) {
     p { margin: 0 0 8px 0; }
     h1, h2, h3 { margin: 14px 0 8px 0; color: #0f172a; }
     img { max-width: 100% !important; height: auto !important; margin: 14px auto; display: block; border-radius: 4px; }
-    table:not(.print-layout-table) { width: 100% !important; border-collapse: collapse !important; margin: 14px 0 !important; table-layout: fixed !important; }
-    table:not(.print-layout-table) th, table:not(.print-layout-table) td { border: 1px solid #cbd5e1 !important; padding: 6px 10px !important; text-align: left; }
-    table:not(.print-layout-table) th { background: #f1f5f9 !important; font-weight: 600; }
+    table { width: 100% !important; border-collapse: collapse !important; margin: 14px 0 !important; table-layout: fixed !important; }
+    th, td { border: 1px solid #cbd5e1 !important; padding: 6px 10px !important; text-align: left; }
+    th { background: #f1f5f9 !important; font-weight: 600; }
   </style></head>
   <body>
-    <table class="print-layout-table">
-      <thead>
-        <tr>
-          <td class="print-header-space"><div class="print-page-header-spacer"></div></td>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td class="print-content-cell">
-            ${processedContent}
-          </td>
-        </tr>
-      </tbody>
-      <tfoot>
-        <tr>
-          <td class="print-footer-space"><div class="print-page-footer-spacer"></div></td>
-        </tr>
-      </tfoot>
-    </table>
+    <div class="print-document">
+      ${processedContent}
+    </div>
   </body>
   </html>`);
   win.document.close();
@@ -12655,6 +12620,10 @@ function AIWorksheetModal({ onClose, onGenerated, onNavigateToAISettings }: { on
       setError('Please enter your custom subject name.');
       return;
     }
+    if (totalMarks < questionCount) {
+      setError(`Total Marks (${totalMarks}) cannot be less than Total Questions (${questionCount}). Each question requires at least 1 mark.`);
+      return;
+    }
     if (strictMode && sourceFiles.length === 0) {
       setError('Please upload at least one sample paper, chapter scan, or image to generate strictly from uploaded content.');
       return;
@@ -12874,7 +12843,16 @@ function AIWorksheetModal({ onClose, onGenerated, onNavigateToAISettings }: { on
       <div className="form-grid-2">
         <label className="field compact-field">
           <span>Number of Questions</span>
-          <select value={questionCount} onChange={(e) => setQuestionCount(Number(e.target.value))}>
+          <select
+            value={questionCount}
+            onChange={(e) => {
+              const count = Number(e.target.value);
+              setQuestionCount(count);
+              if (totalMarks < count) {
+                setTotalMarks(count);
+              }
+            }}
+          >
             <option value={5}>5 Questions</option>
             <option value={10}>10 Questions</option>
             <option value={15}>15 Questions</option>
@@ -12884,8 +12862,14 @@ function AIWorksheetModal({ onClose, onGenerated, onNavigateToAISettings }: { on
           </select>
         </label>
         <label className="field compact-field">
-          <span>Total Marks</span>
-          <input type="number" value={totalMarks} onChange={(e) => setTotalMarks(Number(e.target.value))} />
+          <span>Total Marks (Exact sum distributed by difficulty)</span>
+          <input
+            type="number"
+            min={questionCount}
+            max={200}
+            value={totalMarks}
+            onChange={(e) => setTotalMarks(Number(e.target.value))}
+          />
         </label>
       </div>
 
@@ -14623,7 +14607,6 @@ function PaperPreviewModal({
             style={{
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'space-between',
               flexWrap: 'wrap',
               gap: '12px',
               paddingTop: '12px',
@@ -14631,87 +14614,55 @@ function PaperPreviewModal({
               width: '100%',
             }}
           >
-            {/* Print Buttons & Canvas */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-              {/* Print Student Paper Button */}
-              <button
-                type="button"
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  fontSize: '13px',
-                  fontWeight: 700,
-                  padding: '8px 18px',
-                  borderRadius: '10px',
-                  border: '1.5px solid #0284c7',
-                  background: '#0284c7',
-                  color: '#ffffff',
-                  cursor: 'pointer',
-                  boxShadow: '0 2px 6px rgba(2, 132, 199, 0.25)',
-                  transition: 'all 0.15s ease',
-                }}
-                title="Print student question paper without answers"
-                onClick={() => printHtmlContent(studentHtml)}
-              >
-                <Printer size={16} />
-                <span>Print Student Paper</span>
-              </button>
+            {/* Print Student Paper Button */}
+            <button
+              type="button"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                fontSize: '13px',
+                fontWeight: 700,
+                padding: '8px 18px',
+                borderRadius: '10px',
+                border: '1.5px solid #0284c7',
+                background: '#0284c7',
+                color: '#ffffff',
+                cursor: 'pointer',
+                boxShadow: '0 2px 6px rgba(2, 132, 199, 0.25)',
+                transition: 'all 0.15s ease',
+              }}
+              title="Print student question paper without answers"
+              onClick={() => printHtmlContent(studentHtml)}
+            >
+              <Printer size={16} />
+              <span>Print Student Paper</span>
+            </button>
 
-              {/* Print with Key Button */}
-              <button
-                type="button"
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  fontSize: '13px',
-                  fontWeight: 700,
-                  padding: '8px 18px',
-                  borderRadius: '10px',
-                  border: '1.5px solid #10b981',
-                  background: '#ecfdf5',
-                  color: '#047857',
-                  cursor: 'pointer',
-                  boxShadow: '0 1px 3px rgba(16, 185, 129, 0.15)',
-                  transition: 'all 0.15s ease',
-                }}
-                title="Print full examination paper with teacher answers & marking scheme"
-                onClick={() => printHtmlContent(baseHtml)}
-              >
-                <KeyRound size={16} color="#059669" />
-                <span>Print with Key</span>
-              </button>
-
-              {/* Optional: Open in Live Teaching Canvas */}
-              {onOpenInLiveCanvas && (
-                <button
-                  type="button"
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    fontSize: '13px',
-                    fontWeight: 600,
-                    padding: '8px 14px',
-                    borderRadius: '10px',
-                    border: '1px solid #cbd5e1',
-                    background: '#ffffff',
-                    color: '#334155',
-                    cursor: 'pointer',
-                    transition: 'all 0.15s ease',
-                  }}
-                  title="Open this paper in the interactive Live Teaching Canvas"
-                  onClick={() => {
-                    onClose();
-                    onOpenInLiveCanvas(paper);
-                  }}
-                >
-                  <Sparkles size={15} color="#0284c7" />
-                  <span>Open in Live Canvas</span>
-                </button>
-              )}
-            </div>
+            {/* Print with Key Button */}
+            <button
+              type="button"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                fontSize: '13px',
+                fontWeight: 700,
+                padding: '8px 18px',
+                borderRadius: '10px',
+                border: '1.5px solid #10b981',
+                background: '#ecfdf5',
+                color: '#047857',
+                cursor: 'pointer',
+                boxShadow: '0 1px 3px rgba(16, 185, 129, 0.15)',
+                transition: 'all 0.15s ease',
+              }}
+              title="Print full examination paper with teacher answers & marking scheme"
+              onClick={() => printHtmlContent(baseHtml)}
+            >
+              <KeyRound size={16} color="#059669" />
+              <span>Print with Key</span>
+            </button>
 
             {/* Teacher Key Selection Box */}
             <label
@@ -14741,6 +14692,36 @@ function PaperPreviewModal({
               />
               <span>🔑 Teacher Key (Teacher Only)</span>
             </label>
+
+            {/* Optional: Open in Live Teaching Canvas */}
+            {onOpenInLiveCanvas && (
+              <button
+                type="button"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  padding: '8px 14px',
+                  borderRadius: '10px',
+                  border: '1px solid #cbd5e1',
+                  background: '#ffffff',
+                  color: '#334155',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                  marginLeft: 'auto',
+                }}
+                title="Open this paper in the interactive Live Teaching Canvas"
+                onClick={() => {
+                  onClose();
+                  onOpenInLiveCanvas(paper);
+                }}
+              >
+                <Sparkles size={15} color="#0284c7" />
+                <span>Open in Live Canvas</span>
+              </button>
+            )}
           </div>
         </div>
         <div style={{ flex: 1, overflowY: 'auto', padding: '24px', background: '#f8fafc' }}>
