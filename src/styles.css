@@ -12786,6 +12786,15 @@ button:disabled {
     break-inside: avoid !important;
     page-break-inside: avoid !important;
   }
+  .exam-q-prompt-row {
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: baseline !important;
+    gap: 12px !important;
+    margin-bottom: 6px !important;
+    break-after: avoid !important;
+    page-break-after: avoid !important;
+  }
   .exam-question-card p {
     break-after: avoid !important;
     page-break-after: avoid !important;

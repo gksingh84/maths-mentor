@@ -6380,10 +6380,12 @@ app.post('/api/worksheets/ai-generate', adminOnly, async (req: AuthRequest, res:
   <div class="exam-questions-list" style="display: block;">
     ${qList.map((q: any) => `
     <div class="exam-question-card" style="display: block; margin: 0 0 14px 0; font-size: 14.5px; border-bottom: 1px dashed #cbd5e1; padding-bottom: 12px; page-break-inside: avoid !important; break-inside: avoid !important;">
-      <p style="margin: 0 0 6px 0; line-height: 1.6;">
-        <strong>प्रश्न ${q.displayNum}.</strong> ${q.prompt}
-        <span style="float: right; font-weight: 600; color: #475569;">[${q.marks ?? 1} अंक]</span>
-      </p>
+      <div class="exam-q-prompt-row" style="display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin: 0 0 6px 0; line-height: 1.6;">
+        <div style="flex: 1; min-width: 0;">
+          <strong>प्रश्न ${q.displayNum}.</strong> ${q.prompt}
+        </div>
+        <span style="font-weight: 600; color: #475569; white-space: nowrap; flex-shrink: 0; text-align: right;">[${q.marks ?? 1} अंक]</span>
+      </div>
       ${(q.options && q.options.length > 0) ? (
         q.type === 'TRUE_FALSE' ? `
       <div style="margin-left: 20px; display: block; font-size: 13.5px; color: #334155; margin-top: 6px;">
@@ -6401,7 +6403,8 @@ app.post('/api/worksheets/ai-generate', adminOnly, async (req: AuthRequest, res:
         docHtml = `
 <div style="font-family: 'Segoe UI', 'Nirmala UI', Arial, sans-serif; line-height: 1.6; color: #1e293b; width: 100%;">
   <div style="text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 12px; margin-bottom: 16px;">
-    <h1 style="margin: 0; font-size: 24px; color: #0f172a; letter-spacing: 0.5px;">${data.subject} परीक्षा प्रश्न पत्र</h1>
+    <div style="font-size: 20px; font-weight: 800; color: #0f172a; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 4px;">EduAshram</div>
+    <h1 style="margin: 0; font-size: 23px; color: #0f172a; letter-spacing: 0.5px;">${data.subject} परीक्षा प्रश्न पत्र</h1>
     <h3 style="margin: 4px 0 0 0; color: #475569; font-weight: 600; font-size: 15px;">कक्षा: ${data.grade} &nbsp;|&nbsp; प्रकरण: ${generated.title ? generated.title.replace(/^हिन्दी:\s*/i, '') : data.topic}</h3>
     <div style="display: flex; justify-content: space-between; margin-top: 12px; font-weight: 600; font-size: 13.5px; color: #334155; border-top: 1px solid #e2e8f0; padding-top: 8px;">
       <span>समय: 60 मिनट</span>
@@ -6473,10 +6476,12 @@ ${generated.questions.map((q: any) => `
   <div class="exam-questions-list" style="display: block;">
     ${qList.map((q: any) => `
     <div class="exam-question-card" style="display: block; margin: 0 0 14px 0; font-size: 14.5px; border-bottom: 1px dashed #cbd5e1; padding-bottom: 12px; page-break-inside: avoid !important; break-inside: avoid !important;">
-      <p style="margin: 0 0 6px 0; line-height: 1.6;">
-        <strong>Q${q.displayNum}.</strong> ${q.prompt}
-        <span style="float: right; font-weight: 600; color: #475569;">[${q.marks ?? 1} Mark${(q.marks ?? 1) > 1 ? 's' : ''}]</span>
-      </p>
+      <div class="exam-q-prompt-row" style="display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin: 0 0 6px 0; line-height: 1.6;">
+        <div style="flex: 1; min-width: 0;">
+          <strong>Q${q.displayNum}.</strong> ${q.prompt}
+        </div>
+        <span style="font-weight: 600; color: #475569; white-space: nowrap; flex-shrink: 0; text-align: right;">[${q.marks ?? 1} Mark${(q.marks ?? 1) > 1 ? 's' : ''}]</span>
+      </div>
       ${(q.options && q.options.length > 0) ? (
         q.type === 'TRUE_FALSE' ? `
       <div style="margin-left: 20px; display: block; font-size: 13.5px; color: #334155; margin-top: 6px;">
@@ -6494,7 +6499,8 @@ ${generated.questions.map((q: any) => `
         docHtml = `
 <div style="font-family: 'Segoe UI', Arial, sans-serif; line-height: 1.6; color: #1e293b; width: 100%;">
   <div style="text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 12px; margin-bottom: 16px;">
-    <h1 style="margin: 0; font-size: 24px; text-transform: uppercase; color: #0f172a; letter-spacing: 0.5px;">${data.subject.toUpperCase()} EXAMINATION</h1>
+    <div style="font-size: 20px; font-weight: 800; color: #0f172a; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 4px;">EduAshram</div>
+    <h1 style="margin: 0; font-size: 23px; text-transform: uppercase; color: #0f172a; letter-spacing: 0.5px;">${data.subject.toUpperCase()} EXAMINATION</h1>
     <h3 style="margin: 4px 0 0 0; color: #475569; font-weight: 600; font-size: 15px;">Class / Grade: ${data.grade} &nbsp;|&nbsp; Topic: ${data.topic}</h3>
     <div style="display: flex; justify-content: space-between; margin-top: 12px; font-weight: 600; font-size: 13.5px; color: #334155; border-top: 1px solid #e2e8f0; padding-top: 8px;">
       <span>Time Allowed: 60 Minutes</span>

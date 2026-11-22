@@ -324,9 +324,6 @@ export function stripTeacherAnswerKey(html: string): string {
 }
 
 function printHtmlContent(content: string) {
-  const win = window.open('', '_blank');
-  if (!win) return;
-
   // Preprocess HTML content to ensure older/existing papers and flex containers format cleanly for pagination:
   let processedContent = content || '';
 
@@ -335,13 +332,17 @@ function printHtmlContent(content: string) {
     .replace(/<table class="print-layout-table">[\s\S]*?<td class="print-content-cell">/gi, '')
     .replace(/<\/td>\s*<\/tr>\s*<\/tbody>\s*<tfoot>[\s\S]*?<\/table>/gi, '');
 
-  // 2. Convert flex containers of question items to block layout for reliable CSS page fragmentation in Chromium
-  processedContent = processedContent.replace(/<div\s+style="display:\s*flex;\s*flex-direction:\s*column;\s*gap:\s*1[24]px;"/gi,
+  // 2. Remove any stray '>' characters created by older regex or templates
+  processedContent = processedContent.replace(/<div class="exam-questions-list"[^>]*>\s*>/gi,
     '<div class="exam-questions-list" style="display: block;">');
-  processedContent = processedContent.replace(/<div\s+style="display:\s*flex;\s*flex-direction:\s*column;/gi,
-    '<div class="exam-questions-list" style="display: block;');
+  processedContent = processedContent.replace(/<\/div>\s*>\s*(<div class="exam-question-card"|<div class="exam-questions-list"|<p|<div class="exam-q-prompt-row")/gi,
+    '</div>$1');
 
-  // 3. Ensure every question card has the exam-question-card class and break-inside: avoid
+  // 3. Convert flex containers of question items to block layout for reliable CSS page fragmentation in Chromium
+  processedContent = processedContent.replace(/<div\s+style="display:\s*flex;\s*flex-direction:\s*column[^"]*">/gi,
+    '<div class="exam-questions-list" style="display: block;">');
+
+  // 4. Ensure every question card has the exam-question-card class and break-inside: avoid
   processedContent = processedContent.replace(/(<div[^>]*style="[^"]*border-bottom:\s*1px\s*dashed[^"]*")/gi, (match) => {
     let m = match;
     if (!m.includes('exam-question-card')) {
@@ -353,7 +354,7 @@ function printHtmlContent(content: string) {
     return m;
   });
 
-  // 4. Ensure section headers have exam-section-header class and break-after: avoid
+  // 5. Ensure section headers have exam-section-header class and break-after: avoid
   processedContent = processedContent.replace(/(<div[^>]*style="[^"]*border-left:\s*4px\s*solid[^"]*")/gi, (match) => {
     let m = match;
     if (!m.includes('exam-section-header')) {
@@ -365,11 +366,25 @@ function printHtmlContent(content: string) {
     return m;
   });
 
-  win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>EduAshram Question Paper</title><style>
+  // 6. Fix marks alignment for Section D (and any section): align marks strictly on the same baseline as question text
+  processedContent = processedContent.replace(
+    /<p[^>]*>\s*(<strong>(?:Q\d+|प्रश्न\s*\d+)\.?<\/strong>[\s\S]*?)\s*<span[^>]*float:\s*right[^>]*>([\s\S]*?)<\/span>\s*<\/p>/gi,
+    '<div class="exam-q-prompt-row" style="display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin: 0 0 6px 0; line-height: 1.6;"><div style="flex: 1; min-width: 0;">$1</div><span style="font-weight: 600; color: #475569; white-space: nowrap; flex-shrink: 0; text-align: right;">$2</span></div>'
+  );
+
+  // 7. Ensure EduAshram branding header is present at the top of the question paper with increased font size
+  if (!processedContent.includes('EduAshram') && !processedContent.includes('eduashram')) {
+    processedContent = processedContent.replace(
+      /(<div style="text-align:\s*center[^>]*>)/i,
+      '$1<div style="font-size: 20px; font-weight: 800; color: #0f172a; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 4px;">EduAshram</div>'
+    );
+  }
+
+  const fullHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>EduAshram</title><style>
     @page {
       size: A4 portrait;
-      margin-top: 18mm;
-      margin-bottom: 18mm;
+      margin-top: 16mm;
+      margin-bottom: 16mm;
       margin-left: 16mm;
       margin-right: 16mm;
     }
@@ -405,6 +420,15 @@ function printHtmlContent(content: string) {
         break-inside: avoid !important;
         page-break-inside: avoid !important;
       }
+      .exam-q-prompt-row {
+        display: flex !important;
+        justify-content: space-between !important;
+        align-items: baseline !important;
+        gap: 12px !important;
+        margin-bottom: 6px !important;
+        break-after: avoid !important;
+        page-break-after: avoid !important;
+      }
       .exam-question-card p {
         break-after: avoid !important;
         page-break-after: avoid !important;
@@ -439,6 +463,14 @@ function printHtmlContent(content: string) {
       width: 100%;
       box-sizing: border-box;
     }
+    .exam-q-prompt-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 12px;
+      margin-bottom: 6px;
+      line-height: 1.6;
+    }
     ul { list-style-type: disc !important; padding-left: 20px !important; margin: 12px 0 !important; }
     ol { list-style-type: decimal !important; margin: 12px 0 !important; padding-left: 20px !important; }
     li { margin-bottom: 6px !important; }
@@ -454,12 +486,50 @@ function printHtmlContent(content: string) {
       ${processedContent}
     </div>
   </body>
-  </html>`);
-  win.document.close();
-  win.focus();
-  setTimeout(() => {
-    win.print();
-  }, 400);
+  </html>`;
+
+  // Use hidden iframe to avoid 'about:blank' footer in browsers
+  try {
+    let iframe = document.getElementById('eduashram-print-iframe') as HTMLIFrameElement;
+    if (iframe) iframe.remove();
+
+    iframe = document.createElement('iframe');
+    iframe.id = 'eduashram-print-iframe';
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    iframe.style.visibility = 'hidden';
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentWindow?.document;
+    if (!doc) throw new Error('Cannot access iframe document');
+
+    doc.open();
+    doc.write(fullHtml);
+    doc.close();
+
+    iframe.contentWindow?.focus();
+    setTimeout(() => {
+      iframe.contentWindow?.print();
+    }, 400);
+  } catch {
+    // Popup fallback
+    const win = window.open('', '_blank');
+    if (!win) return;
+    try {
+      win.history.replaceState(null, 'EduAshram', '/');
+    } catch {}
+    win.document.open();
+    win.document.write(fullHtml);
+    win.document.close();
+    win.focus();
+    setTimeout(() => {
+      win.print();
+    }, 400);
+  }
 }
 
 function QuestionTypeBadge({ type }: { type?: string }) {
