@@ -14511,256 +14511,236 @@ function PaperPreviewModal({
 
   return createPortal(
     <div className="word-doc-modal-overlay">
-      <div className="word-doc-modal-container" style={{ maxWidth: '1040px', width: '96vw', borderRadius: '18px', overflow: 'hidden', boxShadow: '0 25px 60px -15px rgba(15, 23, 42, 0.3)' }}>
-        {/* Modern Top Header Card */}
+      <div className="word-doc-modal-container" style={{ maxWidth: '1060px', width: '96vw', borderRadius: '16px', overflow: 'hidden', boxShadow: '0 25px 60px -15px rgba(15, 23, 42, 0.3)' }}>
+        {/* Top Header Card: 2-Tier Stacked Layout */}
         <div
           className="word-doc-modal-header"
           style={{
             background: '#ffffff',
-            borderBottom: '1px solid #e2e8f0',
-            padding: '14px 22px',
+            borderBottom: '1.5px solid #e2e8f0',
+            padding: '16px 24px',
             display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: '16px',
-            flexWrap: 'wrap',
+            flexDirection: 'column',
+            gap: '12px',
+            width: '100%',
+            boxSizing: 'border-box',
           }}
         >
-          {/* Document Identity (Left) */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: '240px', flex: '1 1 300px' }}>
-            <div
-              style={{
-                width: '42px',
-                height: '42px',
-                borderRadius: '12px',
-                background: 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)',
-                border: '1.5px solid #bfdbfe',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#0284c7',
-                flexShrink: 0,
-                boxShadow: '0 2px 6px rgba(2, 132, 199, 0.12)',
-              }}
-            >
-              <FileText size={22} />
-            </div>
-            <div style={{ minWidth: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '3px' }}>
-                <h3
+          {/* TOP ROW: Question Paper Heading + Close Button */}
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '16px', width: '100%' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
+              <div
+                style={{
+                  width: '42px',
+                  height: '42px',
+                  borderRadius: '10px',
+                  background: 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)',
+                  border: '1.5px solid #bfdbfe',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#0284c7',
+                  flexShrink: 0,
+                  boxShadow: '0 2px 6px rgba(2, 132, 199, 0.12)',
+                }}
+              >
+                <FileText size={22} />
+              </div>
+              <div style={{ minWidth: 0 }}>
+                <h2
                   style={{
                     margin: 0,
-                    fontSize: '16px',
-                    fontWeight: 700,
+                    fontSize: '18px',
+                    fontWeight: 800,
                     color: '#0f172a',
-                    letterSpacing: '-0.2px',
+                    letterSpacing: '-0.3px',
                     lineHeight: '1.3',
                   }}
                   title={paper.title}
                 >
                   {paper.title}
-                </h3>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', fontSize: '11.5px' }}>
-                {paper.subject && (
-                  <span style={{ background: '#f0f9ff', color: '#0369a1', border: '1px solid #bae6fd', padding: '1px 7px', borderRadius: '6px', fontWeight: 600 }}>
-                    {paper.subject}
+                </h2>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginTop: '4px', fontSize: '12px' }}>
+                  {paper.subject && (
+                    <span style={{ background: '#f0f9ff', color: '#0369a1', border: '1px solid #bae6fd', padding: '2px 8px', borderRadius: '6px', fontWeight: 600 }}>
+                      {paper.subject}
+                    </span>
+                  )}
+                  {paper.grade && (
+                    <span style={{ background: '#faf5ff', color: '#7e22ce', border: '1px solid #e9d5ff', padding: '2px 8px', borderRadius: '6px', fontWeight: 600 }}>
+                      {paper.grade}
+                    </span>
+                  )}
+                  {paper.totalMarks ? (
+                    <span style={{ background: '#f8fafc', color: '#475569', border: '1px solid #e2e8f0', padding: '2px 8px', borderRadius: '6px', fontWeight: 600 }}>
+                      {paper.totalMarks} Marks
+                    </span>
+                  ) : null}
+                  <span
+                    style={{
+                      background: paper.status === 'PUBLISHED' ? '#ecfdf5' : '#f8fafc',
+                      color: paper.status === 'PUBLISHED' ? '#047857' : '#64748b',
+                      border: `1px solid ${paper.status === 'PUBLISHED' ? '#a7f3d0' : '#e2e8f0'}`,
+                      padding: '2px 8px',
+                      borderRadius: '6px',
+                      fontWeight: 600,
+                      textTransform: 'uppercase',
+                      fontSize: '11px',
+                    }}
+                  >
+                    {paper.status || 'PUBLISHED'}
                   </span>
-                )}
-                {paper.grade && (
-                  <span style={{ background: '#faf5ff', color: '#7e22ce', border: '1px solid #e9d5ff', padding: '1px 7px', borderRadius: '6px', fontWeight: 600 }}>
-                    {paper.grade}
-                  </span>
-                )}
-                {paper.totalMarks ? (
-                  <span style={{ background: '#f8fafc', color: '#475569', border: '1px solid #e2e8f0', padding: '1px 7px', borderRadius: '6px', fontWeight: 600 }}>
-                    {paper.totalMarks} Marks
-                  </span>
-                ) : null}
-                <span
-                  style={{
-                    background: paper.status === 'PUBLISHED' ? '#ecfdf5' : '#f8fafc',
-                    color: paper.status === 'PUBLISHED' ? '#047857' : '#64748b',
-                    border: `1px solid ${paper.status === 'PUBLISHED' ? '#a7f3d0' : '#e2e8f0'}`,
-                    padding: '1px 7px',
-                    borderRadius: '6px',
-                    fontWeight: 600,
-                    textTransform: 'uppercase',
-                    fontSize: '10.5px',
-                    letterSpacing: '0.3px',
-                  }}
-                >
-                  {paper.status || 'PUBLISHED'}
-                </span>
+                </div>
               </div>
             </div>
-          </div>
 
-          {/* Action Toolbar (Right) */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', justifyContent: 'flex-end', flex: '0 1 auto' }}>
-            {/* View Mode Segmented Switch */}
-            <div
+            {/* Close Button on Top Right */}
+            <button
+              type="button"
               style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                background: '#f1f5f9',
-                padding: '3px',
+                width: '36px',
+                height: '36px',
                 borderRadius: '10px',
-                border: '1px solid #e2e8f0',
-              }}
-              title="Toggle preview mode on screen"
-            >
-              <button
-                type="button"
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '5px',
-                  padding: '5px 10px',
-                  fontSize: '12px',
-                  fontWeight: 600,
-                  borderRadius: '7px',
-                  border: 'none',
-                  cursor: 'pointer',
-                  transition: 'all 0.15s ease',
-                  background: !showAnswerKey ? '#ffffff' : 'transparent',
-                  color: !showAnswerKey ? '#0f172a' : '#64748b',
-                  boxShadow: !showAnswerKey ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-                }}
-                onClick={() => setShowAnswerKey(false)}
-              >
-                <FileText size={13} color={!showAnswerKey ? '#0284c7' : '#94a3b8'} />
-                <span>Student View</span>
-              </button>
-              <button
-                type="button"
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '5px',
-                  padding: '5px 10px',
-                  fontSize: '12px',
-                  fontWeight: 600,
-                  borderRadius: '7px',
-                  border: 'none',
-                  cursor: 'pointer',
-                  transition: 'all 0.15s ease',
-                  background: showAnswerKey ? '#ffffff' : 'transparent',
-                  color: showAnswerKey ? '#047857' : '#64748b',
-                  boxShadow: showAnswerKey ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-                }}
-                onClick={() => setShowAnswerKey(true)}
-              >
-                <KeyRound size={13} color={showAnswerKey ? '#059669' : '#94a3b8'} />
-                <span>Teacher Key</span>
-              </button>
-            </div>
-
-            {/* Live Canvas Action (if available) */}
-            {onOpenInLiveCanvas && (
-              <button
-                type="button"
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  fontSize: '12.5px',
-                  fontWeight: 600,
-                  padding: '6px 12px',
-                  borderRadius: '9px',
-                  border: '1px solid #bfdbfe',
-                  background: '#f0f9ff',
-                  color: '#0284c7',
-                  cursor: 'pointer',
-                  transition: 'all 0.15s ease',
-                  boxShadow: '0 1px 2px rgba(2, 132, 199, 0.05)',
-                }}
-                title="Open this paper in the interactive Live Teaching Canvas"
-                onClick={() => {
-                  onClose();
-                  onOpenInLiveCanvas(paper);
-                }}
-              >
-                <Sparkles size={14} color="#0284c7" />
-                <span>Live Canvas</span>
-              </button>
-            )}
-
-            {/* Print Student Paper Button */}
-            <button
-              type="button"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                fontSize: '12.5px',
-                fontWeight: 600,
-                padding: '6px 13px',
-                borderRadius: '9px',
-                border: '1px solid #cbd5e1',
-                background: '#ffffff',
-                color: '#1e293b',
-                cursor: 'pointer',
-                transition: 'all 0.15s ease',
-                boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
-                whiteSpace: 'nowrap',
-              }}
-              title="Print clean test paper for students (without answers)"
-              onClick={() => printHtmlContent(studentHtml)}
-            >
-              <Printer size={14} color="#0284c7" />
-              <span>Print Student Paper</span>
-            </button>
-
-            {/* Print with Key Button */}
-            <button
-              type="button"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                fontSize: '12.5px',
-                fontWeight: 600,
-                padding: '6px 13px',
-                borderRadius: '9px',
-                border: '1px solid #a7f3d0',
-                background: 'linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%)',
-                color: '#047857',
-                cursor: 'pointer',
-                transition: 'all 0.15s ease',
-                boxShadow: '0 1px 2px rgba(16, 185, 129, 0.08)',
-                whiteSpace: 'nowrap',
-              }}
-              title="Print full examination paper with teacher answers & marking scheme"
-              onClick={() => printHtmlContent(baseHtml)}
-            >
-              <KeyRound size={14} color="#059669" />
-              <span>Print with Key</span>
-            </button>
-
-            {/* Close Button */}
-            <button
-              type="button"
-              style={{
-                width: '32px',
-                height: '32px',
-                borderRadius: '8px',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 color: '#64748b',
                 background: '#f8fafc',
-                border: '1px solid #e2e8f0',
+                border: '1.5px solid #e2e8f0',
                 cursor: 'pointer',
                 transition: 'all 0.15s ease',
-                marginLeft: '4px',
                 flexShrink: 0,
               }}
               title="Close Preview"
               onClick={onClose}
             >
-              <X size={16} />
+              <X size={18} />
             </button>
+          </div>
+
+          {/* BOTTOM ROW: Actions Bar Below Heading */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: '12px',
+              paddingTop: '12px',
+              borderTop: '1px solid #f1f5f9',
+              width: '100%',
+            }}
+          >
+            {/* Print Buttons & Canvas */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+              {/* Print Student Paper Button */}
+              <button
+                type="button"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  padding: '8px 18px',
+                  borderRadius: '10px',
+                  border: '1.5px solid #0284c7',
+                  background: '#0284c7',
+                  color: '#ffffff',
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 6px rgba(2, 132, 199, 0.25)',
+                  transition: 'all 0.15s ease',
+                }}
+                title="Print student question paper without answers"
+                onClick={() => printHtmlContent(studentHtml)}
+              >
+                <Printer size={16} />
+                <span>Print Student Paper</span>
+              </button>
+
+              {/* Print with Key Button */}
+              <button
+                type="button"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  padding: '8px 18px',
+                  borderRadius: '10px',
+                  border: '1.5px solid #10b981',
+                  background: '#ecfdf5',
+                  color: '#047857',
+                  cursor: 'pointer',
+                  boxShadow: '0 1px 3px rgba(16, 185, 129, 0.15)',
+                  transition: 'all 0.15s ease',
+                }}
+                title="Print full examination paper with teacher answers & marking scheme"
+                onClick={() => printHtmlContent(baseHtml)}
+              >
+                <KeyRound size={16} color="#059669" />
+                <span>Print with Key</span>
+              </button>
+
+              {/* Optional: Open in Live Teaching Canvas */}
+              {onOpenInLiveCanvas && (
+                <button
+                  type="button"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    padding: '8px 14px',
+                    borderRadius: '10px',
+                    border: '1px solid #cbd5e1',
+                    background: '#ffffff',
+                    color: '#334155',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease',
+                  }}
+                  title="Open this paper in the interactive Live Teaching Canvas"
+                  onClick={() => {
+                    onClose();
+                    onOpenInLiveCanvas(paper);
+                  }}
+                >
+                  <Sparkles size={15} color="#0284c7" />
+                  <span>Open in Live Canvas</span>
+                </button>
+              )}
+            </div>
+
+            {/* Teacher Key Selection Box */}
+            <label
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                fontSize: '13px',
+                fontWeight: 600,
+                color: showAnswerKey ? '#047857' : '#475569',
+                cursor: 'pointer',
+                background: showAnswerKey ? '#f0fdf4' : '#f8fafc',
+                padding: '7px 14px',
+                borderRadius: '10px',
+                border: `1.5px solid ${showAnswerKey ? '#86efac' : '#cbd5e1'}`,
+                userSelect: 'none',
+                boxShadow: showAnswerKey ? '0 1px 3px rgba(16, 185, 129, 0.12)' : 'none',
+                transition: 'all 0.15s ease',
+              }}
+              title="Check to preview the confidential Teacher Answer Key on screen"
+            >
+              <input
+                type="checkbox"
+                checked={showAnswerKey}
+                onChange={(e) => setShowAnswerKey(e.target.checked)}
+                style={{ width: '16px', height: '16px', accentColor: '#059669', cursor: 'pointer' }}
+              />
+              <span>🔑 Teacher Key (Teacher Only)</span>
+            </label>
           </div>
         </div>
         <div style={{ flex: 1, overflowY: 'auto', padding: '24px', background: '#f8fafc' }}>
