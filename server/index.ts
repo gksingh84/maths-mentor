@@ -3649,24 +3649,15 @@ Include:
    - Tangible/visual aids (e.g., fraction strips, geometric cutouts, measuring tape, dot grid, real objects).
    - Digital whiteboard tools, charts, and diagrams.
 
-6. **Classroom Procedure & Time Allotment (Clean Markdown Table):**
-   | Stage & Time | Teacher Activities (Pedagogical Strategy) | Student Activities (Active Learning) | Formative Check |
-   | :--- | :--- | :--- | :--- |
-   | **A. Warm-Up Hook** (5 min) | Provocation question & real-world connection | Turn & talk with partner | Oral check |
-   | **B. Direct Instruction ("I Do")** (15 min) | Walk through Chapter Notes, formulas & models | Active note-taking & observing models | "Let's Revise" check |
-   | **C. Guided Practice ("We Do")** (10 min) | Solve worked example collaboratively | Step-by-step board participation | "Try yourself" MCQ check |
-   | **D. Independent Practice ("You Do")** (7 min) | Facilitate tiered problem solving | Solve Tier 1 / Tier 2 problems | Circulate & monitor |
-   | **E. Exit Ticket Assessment** (3 min) | Display 2-3 diagnostic questions | Individual quick answers | Quick diagnostic |
-   | **F. Summary & Recap** (3 min) | Lead review using Key Points / Summary | Reflect on core takeaways | Self-assessment |
-   | **G. Homework & Extension** (2 min) | Assign notebook practice & discovery task | Note down homework | Readiness check |
-
-7. **Anticipated Misconceptions & Diagnostic Traps:**
+6. **Anticipated Misconceptions & Diagnostic Traps:**
    - State top 2-3 common student misconceptions for this specific topic and grade.
    - Provide the exact diagnostic remediation the teacher should use immediately when students stumble.
 
-8. **Differentiated Learning Matrix:**
+7. **Differentiated Learning Matrix:**
    - **Remedial / Foundation Support:** Concrete manipulatives, visual bar/pie models, scaffolded hints.
    - **Advanced / HOTS Extension:** Higher cognitive challenge, multi-step logic, Olympiad reasoning.
+
+(Note: Do NOT include any Classroom Procedure & Time Allotment table in Part 1.)
 
 ================================================================================
 # 🏫 PART 2 — CHAPTER TEACHING NOTES & CLASSROOM DELIVERY (WHAT TO TEACH)

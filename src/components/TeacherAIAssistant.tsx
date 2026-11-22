@@ -150,7 +150,7 @@ function renderRichEducationalContent(content: string): React.ReactNode {
           </div>
           <h2 className="part-title">PART 1: TEACHER INSTRUCTIONS & PEDAGOGICAL BLUEPRINT</h2>
           <p className="part-desc">
-            Curriculum alignment, prerequisites, lesson timing table, misconceptions & differentiation strategies.
+            Curriculum alignment, prerequisites, learning competencies, misconceptions & differentiation strategies.
           </p>
         </div>
       );
