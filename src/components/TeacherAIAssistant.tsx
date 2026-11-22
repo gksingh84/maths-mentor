@@ -626,6 +626,7 @@ export function TeacherAIAssistant({
   const [activeProvider, setActiveProvider] = useState(() => (typeof window !== 'undefined'
     ? (localStorage.getItem('livequiz_ai_provider') || 'auto')
     : 'auto'));
+  const [teacherApiKey, setTeacherApiKey] = useState('');
 
   // Check teacher profile on mount for configured personal API key
   useEffect(() => {
@@ -633,6 +634,9 @@ export function TeacherAIAssistant({
       .then((r) => r.json())
       .then((d) => {
         setHasTeacherKey(Boolean(d.teacher?.apiKey || d.teacher?.hasApiKey));
+        if (d.teacher?.apiKey) {
+          setTeacherApiKey(d.teacher.apiKey);
+        }
         const savedProv = localStorage.getItem('livequiz_ai_provider');
         if (!savedProv || savedProv === 'auto') {
           if (d.teacher?.apiKey?.startsWith('sk-')) {
@@ -734,6 +738,7 @@ export function TeacherAIAssistant({
           topic: targetTopic,
           mode,
           provider: activeProvider,
+          apiKey: teacherApiKey || undefined,
         }),
       });
 

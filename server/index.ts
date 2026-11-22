@@ -3094,6 +3094,66 @@ function cleanApiKey(key?: string | null): string {
   return String(key).trim().replace(/^["'`\s]+|["'`\s]+$/g, '').trim();
 }
 
+interface CachedGeminiModels {
+  models: string[];
+  expiresAt: number;
+}
+const geminiModelCache = new Map<string, CachedGeminiModels>();
+
+async function getAvailableGeminiModels(geminiKey?: string | null): Promise<string[]> {
+  const preferredOrder = [
+    'gemini-2.5-flash',
+    'gemini-2.0-flash',
+    'gemini-2.0-flash-001',
+    'gemini-1.5-flash',
+    'gemini-1.5-flash-latest',
+    'gemini-1.5-flash-002',
+    'gemini-1.5-flash-8b',
+    'gemini-2.5-pro',
+    'gemini-2.0-pro-exp-02-05',
+    'gemini-1.5-pro',
+    'gemini-1.5-pro-latest',
+    'gemini-1.5-pro-002',
+    'gemini-pro',
+  ];
+
+  if (!geminiKey) return preferredOrder;
+  const cached = geminiModelCache.get(geminiKey);
+  if (cached && Date.now() < cached.expiresAt && cached.models.length > 0) {
+    return cached.models;
+  }
+
+  try {
+    const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${geminiKey}`);
+    if (listRes.ok) {
+      const data: any = await listRes.json();
+      if (Array.isArray(data?.models)) {
+        const supported = data.models
+          .filter((m: any) => Array.isArray(m?.supportedGenerationMethods) && m.supportedGenerationMethods.includes('generateContent'))
+          .map((m: any) => (m?.name || '').replace(/^models\//, ''))
+          .filter(Boolean);
+
+        if (supported.length > 0) {
+          const sorted = [
+            ...preferredOrder.filter((p) => supported.includes(p)),
+            ...supported.filter((s: string) => !preferredOrder.includes(s)),
+          ];
+          geminiModelCache.set(geminiKey, {
+            models: sorted,
+            expiresAt: Date.now() + 30 * 60 * 1000,
+          });
+          console.log(`[Gemini] Discovered ${sorted.length} active models via ListModels for key (${sorted.slice(0, 5).join(', ')}...)`);
+          return sorted;
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[Gemini] ListModels discovery error, falling back to preferred list:', err);
+  }
+
+  return preferredOrder;
+}
+
 async function generateAIQuiz(data: z.infer<typeof aiQuizInput>) {
   const customKey = cleanApiKey(data.apiKey);
   let selectedProvider = data.provider || 'auto';
@@ -3269,12 +3329,7 @@ async function generateAIQuiz(data: z.infer<typeof aiQuizInput>) {
   }
 
   if (selectedProvider === 'gemini' || (selectedProvider === 'auto' && geminiKey && !openaiKey && !deepseekKey)) {
-    const candidateModels = [
-      'gemini-2.0-flash',
-      'gemini-1.5-flash',
-      'gemini-1.5-flash-8b',
-      'gemini-1.5-pro',
-    ];
+    const candidateModels = await getAvailableGeminiModels(geminiKey);
     let lastError = '';
 
     const parts: Array<any> = [];
@@ -3303,33 +3358,44 @@ async function generateAIQuiz(data: z.infer<typeof aiQuizInput>) {
     parts.push({ text: `${systemRole}\n\n${prompt}` });
 
     for (const modelName of candidateModels) {
-      try {
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${geminiKey}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts }],
-            generationConfig: { responseMimeType: 'application/json' },
-          }),
-        });
-        const jsonResult: any = await response.json().catch(() => ({}));
-        if (!response.ok) {
-          lastError = jsonResult?.error?.message ?? response.statusText;
-          if (lastError.includes('not found') || lastError.includes('no longer available') || response.status === 404) {
-            continue;
+      const endpoints = [
+        `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${geminiKey}`,
+        `https://generativelanguage.googleapis.com/v1/models/${modelName}:generateContent?key=${geminiKey}`,
+      ];
+
+      for (const url of endpoints) {
+        try {
+          const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{ parts }],
+              generationConfig: { responseMimeType: 'application/json' },
+            }),
+          });
+          const jsonResult: any = await response.json().catch(() => ({}));
+          if (!response.ok) {
+            lastError = jsonResult?.error?.message ?? response.statusText;
+            if (lastError.includes('not found') || lastError.includes('no longer available') || response.status === 404) {
+              continue;
+            }
+            if (response.status === 429 || lastError.includes('quota') || lastError.includes('ResourceExhausted')) {
+              console.warn(`[Gemini Quiz] Model ${modelName} quota limit, falling back...`);
+              break;
+            }
+            throw new Error(`Google Gemini Error: ${lastError}`);
           }
-          throw new Error(`Google Gemini Error: ${lastError}`);
+          const textOutput = jsonResult.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (textOutput) {
+            const parsed = parseAIResponseJSON(textOutput, data);
+            if (parsed && parsed.questions.length > 0) return parsed;
+          }
+        } catch (err) {
+          if (err instanceof Error && err.message.startsWith('Google Gemini Error:')) {
+            throw err;
+          }
+          lastError = err instanceof Error ? err.message : String(err);
         }
-        const textOutput = jsonResult.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (textOutput) {
-          const parsed = parseAIResponseJSON(textOutput, data);
-          if (parsed && parsed.questions.length > 0) return parsed;
-        }
-      } catch (err) {
-        if (err instanceof Error && err.message.startsWith('Google Gemini Error:')) {
-          throw err;
-        }
-        lastError = err instanceof Error ? err.message : String(err);
       }
     }
     throw new Error(`Google Gemini Error: ${lastError || 'No supported Gemini model found for your API Key.'}`);
@@ -3786,12 +3852,7 @@ async function generateAITeachingAssistance(data: z.infer<typeof aiTeachingAssis
 
   if (selectedProvider === 'gemini' || (selectedProvider === 'auto' && geminiKey && !openaiKey && !deepseekKey)) {
     if (!geminiKey) throw new Error('Google Gemini API Key is missing. Configure it in Settings > AI Settings.');
-    const candidateModels = [
-      'gemini-2.0-flash',
-      'gemini-1.5-flash',
-      'gemini-1.5-flash-8b',
-      'gemini-1.5-pro',
-    ];
+    const candidateModels = await getAvailableGeminiModels(geminiKey);
     let lastError = '';
 
     const contents = data.messages.map((m) => ({
@@ -3809,23 +3870,36 @@ async function generateAITeachingAssistance(data: z.infer<typeof aiTeachingAssis
     }
 
     for (const modelName of candidateModels) {
-      try {
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${geminiKey}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ contents }),
-        });
-        const jsonResult: any = await response.json().catch(() => ({}));
-        if (!response.ok) {
-          lastError = jsonResult?.error?.message ?? response.statusText;
-          if (lastError.includes('not found') || lastError.includes('no longer available') || response.status === 404) continue;
-          throw new Error(`Google Gemini Error: ${lastError}`);
+      const endpoints = [
+        `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${geminiKey}`,
+        `https://generativelanguage.googleapis.com/v1/models/${modelName}:generateContent?key=${geminiKey}`,
+      ];
+
+      for (const url of endpoints) {
+        try {
+          const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contents }),
+          });
+          const jsonResult: any = await response.json().catch(() => ({}));
+          if (!response.ok) {
+            lastError = jsonResult?.error?.message ?? response.statusText;
+            if (lastError.includes('not found') || lastError.includes('no longer available') || response.status === 404) {
+              continue;
+            }
+            if (response.status === 429 || lastError.includes('quota') || lastError.includes('ResourceExhausted')) {
+              console.warn(`[Gemini Assistant] Model ${modelName} quota limit, falling back...`);
+              break;
+            }
+            throw new Error(`Google Gemini Error: ${lastError}`);
+          }
+          const textOutput = jsonResult.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (textOutput) return { reply: textOutput };
+        } catch (err) {
+          if (err instanceof Error && err.message.startsWith('Google Gemini Error:')) throw err;
+          lastError = err instanceof Error ? err.message : String(err);
         }
-        const textOutput = jsonResult.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (textOutput) return { reply: textOutput };
-      } catch (err) {
-        if (err instanceof Error && err.message.startsWith('Google Gemini Error:')) throw err;
-        lastError = err instanceof Error ? err.message : String(err);
       }
     }
     throw new Error(`Google Gemini Error: ${lastError || 'No supported Gemini model found for your key.'}`);
