@@ -1767,30 +1767,150 @@ function generateTopicQuestions(subject: string, topic: string, subtopics: strin
 
 type QuestionType = 'MCQ' | 'FILL_BLANK' | 'TRUE_FALSE' | 'SOLVE' | 'SHORT_ANSWER' | 'LONG_ANSWER' | 'CASE_STUDY';
 
+function robustParseJSON(rawText: string): any {
+  let text = (rawText || '').trim();
+
+  // 1. Strip markdown fences if present
+  const fenceMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (fenceMatch) {
+    text = fenceMatch[1].trim();
+  } else {
+    text = text.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '').trim();
+  }
+
+  // 2. Direct JSON.parse
+  try {
+    return JSON.parse(text);
+  } catch {}
+
+  // 3. Slice from first '{' to last '}'
+  const firstBrace = text.indexOf('{');
+  const lastBrace = text.lastIndexOf('}');
+  if (firstBrace !== -1 && lastBrace > firstBrace) {
+    const candidate = text.slice(firstBrace, lastBrace + 1);
+    try {
+      return JSON.parse(candidate);
+    } catch {
+      try {
+        const cleaned = candidate.replace(/,\s*([}\]])/g, '$1');
+        return JSON.parse(cleaned);
+      } catch {}
+    }
+  }
+
+  // 4. Slice from first '[' to last ']'
+  const firstBracket = text.indexOf('[');
+  const lastBracket = text.lastIndexOf(']');
+  if (firstBracket !== -1 && lastBracket > firstBracket) {
+    const candidate = text.slice(firstBracket, lastBracket + 1);
+    try {
+      return JSON.parse(candidate);
+    } catch {
+      try {
+        const cleaned = candidate.replace(/,\s*([}\]])/g, '$1');
+        return JSON.parse(cleaned);
+      } catch {}
+    }
+  }
+
+  // 5. Truncated recovery / bracket balancing
+  try {
+    let inString = false;
+    let escape = false;
+    const stack: string[] = [];
+    let trimmed = text.slice(firstBrace !== -1 ? firstBrace : 0).trim();
+
+    const lastObjectClose = trimmed.lastIndexOf('}');
+    if (lastObjectClose !== -1) {
+      const candidates = [
+        trimmed.slice(0, lastObjectClose + 1) + ']}',
+        trimmed.slice(0, lastObjectClose + 1) + '}',
+        trimmed.slice(0, lastObjectClose + 1) + ']}',
+      ];
+      for (const cand of candidates) {
+        try {
+          const res = JSON.parse(cand.replace(/,\s*([}\]])/g, '$1'));
+          if (res) return res;
+        } catch {}
+      }
+    }
+
+    for (let i = 0; i < trimmed.length; i++) {
+      const ch = trimmed[i];
+      if (escape) { escape = false; continue; }
+      if (ch === '\\') { escape = true; continue; }
+      if (ch === '"') { inString = !inString; continue; }
+      if (!inString) {
+        if (ch === '{' || ch === '[') stack.push(ch);
+        else if (ch === '}' || ch === ']') stack.pop();
+      }
+    }
+
+    if (inString) trimmed += '"';
+    trimmed = trimmed.replace(/,\s*$/, '');
+    while (stack.length > 0) {
+      const open = stack.pop();
+      if (open === '{') trimmed += '}';
+      else if (open === '[') trimmed += ']';
+    }
+
+    return JSON.parse(trimmed.replace(/,\s*([}\]])/g, '$1'));
+  } catch {
+    return null;
+  }
+}
+
 function parseAIResponseJSON(rawText: string, data: z.infer<typeof aiQuizInput>) {
   try {
-    const cleanJson = rawText.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '').trim();
-    let parsed: any;
-    try {
-      parsed = JSON.parse(cleanJson);
-    } catch {
-      const firstBrace = cleanJson.indexOf('{');
-      const lastBrace = cleanJson.lastIndexOf('}');
-      if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-        parsed = JSON.parse(cleanJson.slice(firstBrace, lastBrace + 1));
-      } else {
-        const firstBracket = cleanJson.indexOf('[');
-        const lastBracket = cleanJson.lastIndexOf(']');
-        if (firstBracket !== -1 && lastBracket !== -1 && lastBracket > firstBracket) {
-          parsed = { questions: JSON.parse(cleanJson.slice(firstBracket, lastBracket + 1)) };
-        } else {
-          return null;
+    const parsed = robustParseJSON(rawText);
+    if (!parsed) {
+      console.warn('parseAIResponseJSON: robustParseJSON returned null. Text preview:', (rawText || '').slice(0, 300));
+      return null;
+    }
+
+    let rawQuestions: any[] = [];
+    if (Array.isArray(parsed)) {
+      rawQuestions = parsed;
+    } else if (Array.isArray(parsed.questions)) {
+      rawQuestions = parsed.questions;
+    } else if (Array.isArray(parsed.paper?.questions)) {
+      rawQuestions = parsed.paper.questions;
+    } else if (Array.isArray(parsed.questionPaper?.questions)) {
+      rawQuestions = parsed.questionPaper.questions;
+    } else if (Array.isArray(parsed.question_paper?.questions)) {
+      rawQuestions = parsed.question_paper.questions;
+    } else if (Array.isArray(parsed.quiz?.questions)) {
+      rawQuestions = parsed.quiz.questions;
+    } else if (Array.isArray(parsed.exam?.questions)) {
+      rawQuestions = parsed.exam.questions;
+    } else if (Array.isArray(parsed.data?.questions)) {
+      rawQuestions = parsed.data.questions;
+    } else if (Array.isArray(parsed.sections)) {
+      for (const sec of parsed.sections) {
+        const secQuestions = Array.isArray(sec.questions) ? sec.questions : (Array.isArray(sec.items) ? sec.items : []);
+        for (const sq of secQuestions) {
+          rawQuestions.push({
+            ...sq,
+            section: sq.section || sec.section || sec.name || sec.title || '',
+          });
+        }
+      }
+    } else {
+      for (const key of Object.keys(parsed)) {
+        if (Array.isArray(parsed[key]) && parsed[key].length > 0) {
+          const first = parsed[key][0];
+          if (first && typeof first === 'object' && (first.question || first.prompt || first.text || first.questionNumber || first.id)) {
+            rawQuestions = parsed[key];
+            break;
+          }
         }
       }
     }
 
-    const rawQuestions = Array.isArray(parsed) ? parsed : (Array.isArray(parsed.questions) ? parsed.questions : []);
-    if (!rawQuestions || rawQuestions.length === 0) return null;
+    if (!rawQuestions || rawQuestions.length === 0) {
+      console.warn('parseAIResponseJSON: parsed object has keys:', Object.keys(parsed), 'but no questions array found.');
+      return null;
+    }
 
     const questions = rawQuestions.map((q: any, idx: number) => {
       const promptText = q.question || q.prompt || q.text || '';
@@ -2301,7 +2421,7 @@ ${textDocs}
 ---
 
 ## OUTPUT FORMAT (STRICT RAW JSON ONLY)
-Respond ONLY with a valid raw JSON object matching the exact schema below. Do not wrap in markdown code blocks or add introductory/concluding text:
+Respond ONLY with a valid raw JSON object matching the exact schema below. The root object MUST contain the "questions" array directly at top-level. Do not wrap in markdown code blocks or add introductory/concluding text:
 {
   "title": "${isHindi ? `हिन्दी: ${data.topic} (कक्षा ${data.grade} - PARAKH 2025)` : `${data.subject}: ${data.topic} (${data.grade} - NCERT-PARAKH 2025)`}",
   "blueprint": {
@@ -2588,7 +2708,7 @@ Before returning the final JSON object, review every single question against the
 
 # OUTPUT FORMAT (STRICT RAW JSON ONLY)
 
-Return ONLY a valid raw JSON object (no markdown formatting, no code block fences, no conversational text before or after JSON) using this exact schema:
+Return ONLY a valid raw JSON object (no markdown formatting, no code block fences, no conversational text before or after JSON). The root object MUST have the "questions" array directly at top-level. Use this exact schema:
 {
   "title": "${isHindi ? `हिन्दी: ${data.topic} (कक्षा ${data.grade} - PARAKH 2025)` : `${data.subject}: ${data.topic} (${data.grade} - NCERT-PARAKH 2025)`}",
   "blueprint": {
@@ -2858,10 +2978,12 @@ async function generateAIQuiz(data: z.infer<typeof aiQuizInput>) {
       body: JSON.stringify({
         model: 'gpt-4o-mini',
         messages: [
-          { role: 'system', content: systemRole },
+          { role: 'system', content: `${systemRole}\n\nCRITICAL MANDATORY JSON OUTPUT INSTRUCTION: Return a single valid JSON object. The root object MUST have the 'questions' array directly at top level: { "title": "...", "blueprint": {...}, "questions": [...] }. Do not wrap questions in sub-objects.` },
           { role: 'user', content: userContent }
         ],
-        response_format: { type: 'json_object' }
+        response_format: { type: 'json_object' },
+        max_tokens: 8192,
+        temperature: 0.3,
       })
     });
     const jsonResult: any = await response.json().catch(() => ({}));
@@ -2873,6 +2995,8 @@ async function generateAIQuiz(data: z.infer<typeof aiQuizInput>) {
     if (content) {
       const parsed = parseAIResponseJSON(content, data);
       if (parsed && parsed.questions.length > 0) return parsed;
+      console.error('ChatGPT OpenAI returned unparseable content. First 1500 chars:');
+      console.error(content.slice(0, 1500));
     }
     throw new Error('ChatGPT returned an unparseable response. Please try again.');
   }
