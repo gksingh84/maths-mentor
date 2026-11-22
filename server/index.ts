@@ -2782,14 +2782,24 @@ async function generateAIQuiz(data: z.infer<typeof aiQuizInput>) {
   if (customKey) {
     if (customKey.startsWith('AIza')) {
       selectedProvider = 'gemini';
-    } else if (customKey.startsWith('sk-proj-') || customKey.startsWith('sk-admin-')) {
-      selectedProvider = 'openai';
+    } else if (customKey.startsWith('sk-')) {
+      if (selectedProvider !== 'deepseek') {
+        selectedProvider = 'openai';
+      }
     }
   }
 
-  const geminiKey = selectedProvider === 'gemini' ? (customKey || process.env.GEMINI_API_KEY) : (process.env.GEMINI_API_KEY || (selectedProvider === 'auto' ? customKey : undefined));
-  const openaiKey = selectedProvider === 'openai' ? (customKey || process.env.OPENAI_API_KEY) : (process.env.OPENAI_API_KEY || (selectedProvider === 'auto' ? customKey : undefined));
-  const deepseekKey = selectedProvider === 'deepseek' ? (customKey || process.env.DEEPSEEK_API_KEY) : (process.env.DEEPSEEK_API_KEY || (selectedProvider === 'auto' ? customKey : undefined));
+  const geminiKey = selectedProvider === 'gemini'
+    ? (customKey?.startsWith('AIza') ? customKey : process.env.GEMINI_API_KEY)
+    : (selectedProvider === 'auto' ? (customKey?.startsWith('AIza') ? customKey : process.env.GEMINI_API_KEY) : undefined);
+
+  const openaiKey = selectedProvider === 'openai'
+    ? (customKey?.startsWith('sk-') ? customKey : (process.env.OPENAI_API_KEY || customKey))
+    : (selectedProvider === 'auto' ? (customKey?.startsWith('sk-') ? customKey : process.env.OPENAI_API_KEY) : undefined);
+
+  const deepseekKey = selectedProvider === 'deepseek'
+    ? (customKey || process.env.DEEPSEEK_API_KEY)
+    : undefined;
 
   // Enforce API Key requirements per provider selection
   if (selectedProvider === 'gemini' && !geminiKey) {
@@ -2820,7 +2830,7 @@ async function generateAIQuiz(data: z.infer<typeof aiQuizInput>) {
     ? buildUploadedContentPrompt(data)
     : buildMasterCBSEPrompt(data);
 
-  if (selectedProvider === 'openai' || (selectedProvider === 'auto' && openaiKey && !geminiKey)) {
+  if (selectedProvider === 'openai' || (selectedProvider === 'auto' && openaiKey)) {
     let userContent: any = prompt;
     if (data.uploadedFiles && data.uploadedFiles.length > 0) {
       const imageFiles = data.uploadedFiles.filter(f => f.type.startsWith('image/'));
@@ -2867,7 +2877,7 @@ async function generateAIQuiz(data: z.infer<typeof aiQuizInput>) {
     throw new Error('ChatGPT returned an unparseable response. Please try again.');
   }
 
-  if (selectedProvider === 'deepseek' || (selectedProvider === 'auto' && deepseekKey && !geminiKey && !openaiKey)) {
+  if (selectedProvider === 'deepseek' || (selectedProvider === 'auto' && deepseekKey && !openaiKey)) {
     const candidateModels = ['deepseek-chat', 'deepseek-reasoner'];
     let lastError = '';
 
@@ -2911,15 +2921,12 @@ async function generateAIQuiz(data: z.infer<typeof aiQuizInput>) {
     throw new Error(`DeepSeek API Error: ${lastError || 'DeepSeek returned an unparseable response. Please try again.'}`);
   }
 
-  if (selectedProvider === 'gemini' || (selectedProvider === 'auto' && geminiKey)) {
+  if (selectedProvider === 'gemini' || (selectedProvider === 'auto' && geminiKey && !openaiKey && !deepseekKey)) {
     const candidateModels = [
-      'gemini-2.5-flash',
-      'gemini-2.5-pro',
-      'gemini-flash-latest',
-      'gemini-2.5-flash-lite',
-      'gemini-3.8-flash',
       'gemini-2.0-flash',
       'gemini-1.5-flash',
+      'gemini-1.5-flash-8b',
+      'gemini-1.5-pro',
     ];
     let lastError = '';
 
@@ -3340,14 +3347,24 @@ async function generateAITeachingAssistance(data: z.infer<typeof aiTeachingAssis
   if (customKey) {
     if (customKey.startsWith('AIza')) {
       selectedProvider = 'gemini';
-    } else if (customKey.startsWith('sk-proj-') || customKey.startsWith('sk-admin-')) {
-      selectedProvider = 'openai';
+    } else if (customKey.startsWith('sk-')) {
+      if (selectedProvider !== 'deepseek') {
+        selectedProvider = 'openai';
+      }
     }
   }
 
-  const geminiKey = selectedProvider === 'gemini' ? (customKey || process.env.GEMINI_API_KEY) : (process.env.GEMINI_API_KEY || (selectedProvider === 'auto' ? customKey : undefined));
-  const openaiKey = selectedProvider === 'openai' ? (customKey || process.env.OPENAI_API_KEY) : (process.env.OPENAI_API_KEY || (selectedProvider === 'auto' ? customKey : undefined));
-  const deepseekKey = selectedProvider === 'deepseek' ? (customKey || process.env.DEEPSEEK_API_KEY) : (process.env.DEEPSEEK_API_KEY || (selectedProvider === 'auto' ? customKey : undefined));
+  const geminiKey = selectedProvider === 'gemini'
+    ? (customKey?.startsWith('AIza') ? customKey : process.env.GEMINI_API_KEY)
+    : (selectedProvider === 'auto' ? (customKey?.startsWith('AIza') ? customKey : process.env.GEMINI_API_KEY) : undefined);
+
+  const openaiKey = selectedProvider === 'openai'
+    ? (customKey?.startsWith('sk-') ? customKey : (process.env.OPENAI_API_KEY || customKey))
+    : (selectedProvider === 'auto' ? (customKey?.startsWith('sk-') ? customKey : process.env.OPENAI_API_KEY) : undefined);
+
+  const deepseekKey = selectedProvider === 'deepseek'
+    ? (customKey || process.env.DEEPSEEK_API_KEY)
+    : undefined;
 
   const systemRole = buildEduAshramAITeachingAssistantPrompt(data);
 
@@ -3356,7 +3373,7 @@ async function generateAITeachingAssistance(data: z.infer<typeof aiTeachingAssis
     ...data.messages.map((m) => ({ role: m.role, content: m.content })),
   ];
 
-  if (selectedProvider === 'openai' || (selectedProvider === 'auto' && openaiKey && !geminiKey)) {
+  if (selectedProvider === 'openai' || (selectedProvider === 'auto' && openaiKey)) {
     if (!openaiKey) throw new Error('ChatGPT (OpenAI) API Key is missing. Configure it in Settings > AI Settings.');
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -3378,7 +3395,7 @@ async function generateAITeachingAssistance(data: z.infer<typeof aiTeachingAssis
     throw new Error('ChatGPT returned an empty response.');
   }
 
-  if (selectedProvider === 'deepseek' || (selectedProvider === 'auto' && deepseekKey && !geminiKey && !openaiKey)) {
+  if (selectedProvider === 'deepseek' || (selectedProvider === 'auto' && deepseekKey && !openaiKey)) {
     if (!deepseekKey) throw new Error('DeepSeek API Key is missing. Configure it in Settings > AI Settings.');
     const response = await fetch('https://api.deepseek.com/chat/completions', {
       method: 'POST',
@@ -3400,16 +3417,13 @@ async function generateAITeachingAssistance(data: z.infer<typeof aiTeachingAssis
     throw new Error('DeepSeek returned an empty response.');
   }
 
-  if (selectedProvider === 'gemini' || (selectedProvider === 'auto' && geminiKey)) {
+  if (selectedProvider === 'gemini' || (selectedProvider === 'auto' && geminiKey && !openaiKey && !deepseekKey)) {
     if (!geminiKey) throw new Error('Google Gemini API Key is missing. Configure it in Settings > AI Settings.');
     const candidateModels = [
-      'gemini-2.5-flash',
-      'gemini-2.5-pro',
-      'gemini-flash-latest',
-      'gemini-2.5-flash-lite',
-      'gemini-3.8-flash',
       'gemini-2.0-flash',
       'gemini-1.5-flash',
+      'gemini-1.5-flash-8b',
+      'gemini-1.5-pro',
     ];
     let lastError = '';
 

@@ -1387,6 +1387,16 @@ function AISettingsPanel({ setNotice, user }: { setNotice: (msg: string) => void
         if (d.teacher) {
           setApiKey(d.teacher.apiKey || '');
           if (user) user.hasApiKey = Boolean(d.teacher.apiKey);
+          const currentProv = localStorage.getItem('livequiz_ai_provider');
+          if (!currentProv || currentProv === 'auto') {
+            if (d.teacher.apiKey?.startsWith('sk-')) {
+              setProvider('openai');
+              localStorage.setItem('livequiz_ai_provider', 'openai');
+            } else if (d.teacher.apiKey?.startsWith('AIza')) {
+              setProvider('gemini');
+              localStorage.setItem('livequiz_ai_provider', 'gemini');
+            }
+          }
         }
       })
       .catch(() => { })
@@ -3712,7 +3722,7 @@ function AIQuizModal({ onClose, onGenerated, onNavigateToAISettings }: { onClose
   const [error, setError] = useState('');
   const [hasTeacherKey, setHasTeacherKey] = useState<boolean | null>(null);
 
-  const provider = localStorage.getItem('livequiz_ai_provider') || 'auto';
+  const [provider, setProvider] = useState(() => localStorage.getItem('livequiz_ai_provider') || 'auto');
   const activeSubject = subject === 'Other' ? (customSubject.trim() || 'General') : subject;
   const isHindi = activeSubject.toLowerCase().includes('hindi') || activeSubject.includes('हिंदी') || activeSubject.includes('हिन्दी');
 
@@ -3720,7 +3730,19 @@ function AIQuizModal({ onClose, onGenerated, onNavigateToAISettings }: { onClose
     localStorage.removeItem('livequiz_ai_key');
     fetch('/api/teacher/profile', { credentials: 'same-origin' })
       .then((r) => r.json())
-      .then((d) => setHasTeacherKey(Boolean(d.teacher?.apiKey || d.teacher?.hasApiKey)))
+      .then((d) => {
+        setHasTeacherKey(Boolean(d.teacher?.apiKey || d.teacher?.hasApiKey));
+        const savedProv = localStorage.getItem('livequiz_ai_provider');
+        if (!savedProv || savedProv === 'auto') {
+          if (d.teacher?.apiKey?.startsWith('sk-')) {
+            setProvider('openai');
+            localStorage.setItem('livequiz_ai_provider', 'openai');
+          } else if (d.teacher?.apiKey?.startsWith('AIza')) {
+            setProvider('gemini');
+            localStorage.setItem('livequiz_ai_provider', 'gemini');
+          }
+        }
+      })
       .catch(() => setHasTeacherKey(false));
   }, []);
 
@@ -3776,10 +3798,27 @@ function AIQuizModal({ onClose, onGenerated, onNavigateToAISettings }: { onClose
 
   return (
     <form onSubmit={handleSubmit} className="ai-form-grid">
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: hasTeacherKey === false ? '#fffbeb' : '#f0f9ff', border: hasTeacherKey === false ? '1px solid #fde68a' : '1px solid #bae6fd', borderRadius: '12px', color: hasTeacherKey === false ? '#92400e' : '#0369a1', fontSize: '13.5px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: hasTeacherKey === false ? '#fffbeb' : '#f0f9ff', border: hasTeacherKey === false ? '1px solid #fde68a' : '1px solid #bae6fd', borderRadius: '12px', color: hasTeacherKey === false ? '#92400e' : '#0369a1', fontSize: '13.5px', flexWrap: 'wrap', gap: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
           <Sparkles size={16} />
-          <span>AI Engine Settings: <strong>{provider === 'gemini' ? 'Google Gemini AI' : provider === 'openai' ? 'ChatGPT (OpenAI)' : provider === 'deepseek' ? 'DeepSeek AI' : 'Auto Select'}</strong> {hasTeacherKey ? '(Personal Key Active ✓)' : '(No Key Configured ⚠️)'}</span>
+          <span style={{ fontWeight: 600 }}>AI Engine:</span>
+          <select
+            value={provider}
+            onChange={(e) => {
+              const val = e.target.value;
+              setProvider(val);
+              localStorage.setItem('livequiz_ai_provider', val);
+            }}
+            style={{ padding: '3px 8px', borderRadius: '7px', border: '1px solid #93c5fd', fontWeight: 700, fontSize: '12.5px', background: '#fff', color: '#0f172a' }}
+          >
+            <option value="openai">ChatGPT (OpenAI GPT-4o)</option>
+            <option value="gemini">Google Gemini AI</option>
+            <option value="deepseek">DeepSeek AI</option>
+            <option value="auto">Auto Select (Detect from Key)</option>
+          </select>
+          <span style={{ fontSize: '12px', color: hasTeacherKey ? '#15803d' : '#b45309', fontWeight: 600 }}>
+            {hasTeacherKey ? '(Personal Key Active ✓)' : '(No Key Configured ⚠️)'}
+          </span>
         </div>
         {onNavigateToAISettings && (
           <button type="button" className="text-button" style={{ fontSize: '12.5px', color: hasTeacherKey === false ? '#b45309' : '#0284c7', fontWeight: 600, padding: 0 }} onClick={onNavigateToAISettings}>
@@ -12440,7 +12479,7 @@ function AIWorksheetModal({ onClose, onGenerated, onNavigateToAISettings }: { on
   const [error, setError] = useState('');
   const [hasTeacherKey, setHasTeacherKey] = useState<boolean | null>(null);
 
-  const provider = localStorage.getItem('livequiz_ai_provider') || 'auto';
+  const [provider, setProvider] = useState(() => localStorage.getItem('livequiz_ai_provider') || 'auto');
   const activeSubject = selectedSubject === 'Other / Custom Subject' ? (customSubject.trim() || 'General') : selectedSubject;
   const isHindi = activeSubject.toLowerCase().includes('hindi') || activeSubject.includes('हिंदी') || activeSubject.includes('हिन्दी');
 
@@ -12448,7 +12487,19 @@ function AIWorksheetModal({ onClose, onGenerated, onNavigateToAISettings }: { on
     localStorage.removeItem('livequiz_ai_key');
     fetch('/api/teacher/profile', { credentials: 'same-origin' })
       .then((r) => r.json())
-      .then((d) => setHasTeacherKey(Boolean(d.teacher?.apiKey || d.teacher?.hasApiKey)))
+      .then((d) => {
+        setHasTeacherKey(Boolean(d.teacher?.apiKey || d.teacher?.hasApiKey));
+        const savedProv = localStorage.getItem('livequiz_ai_provider');
+        if (!savedProv || savedProv === 'auto') {
+          if (d.teacher?.apiKey?.startsWith('sk-')) {
+            setProvider('openai');
+            localStorage.setItem('livequiz_ai_provider', 'openai');
+          } else if (d.teacher?.apiKey?.startsWith('AIza')) {
+            setProvider('gemini');
+            localStorage.setItem('livequiz_ai_provider', 'gemini');
+          }
+        }
+      })
       .catch(() => setHasTeacherKey(false));
   }, []);
 
@@ -12496,10 +12547,27 @@ function AIWorksheetModal({ onClose, onGenerated, onNavigateToAISettings }: { on
 
   return (
     <form onSubmit={generate} className="ai-form-grid">
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: hasTeacherKey === false ? '#fffbeb' : '#f0f9ff', border: hasTeacherKey === false ? '1px solid #fde68a' : '1px solid #bae6fd', borderRadius: '12px', color: hasTeacherKey === false ? '#92400e' : '#0369a1', fontSize: '13.5px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: hasTeacherKey === false ? '#fffbeb' : '#f0f9ff', border: hasTeacherKey === false ? '1px solid #fde68a' : '1px solid #bae6fd', borderRadius: '12px', color: hasTeacherKey === false ? '#92400e' : '#0369a1', fontSize: '13.5px', flexWrap: 'wrap', gap: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
           <Sparkles size={16} />
-          <span>AI Engine Settings: <strong>{provider === 'gemini' ? 'Google Gemini AI' : provider === 'openai' ? 'ChatGPT (OpenAI)' : provider === 'deepseek' ? 'DeepSeek AI' : 'Auto Select'}</strong> {hasTeacherKey ? '(Personal Key Active ✓)' : '(No Key Configured ⚠️)'}</span>
+          <span style={{ fontWeight: 600 }}>AI Engine:</span>
+          <select
+            value={provider}
+            onChange={(e) => {
+              const val = e.target.value;
+              setProvider(val);
+              localStorage.setItem('livequiz_ai_provider', val);
+            }}
+            style={{ padding: '3px 8px', borderRadius: '7px', border: '1px solid #93c5fd', fontWeight: 700, fontSize: '12.5px', background: '#fff', color: '#0f172a' }}
+          >
+            <option value="openai">ChatGPT (OpenAI GPT-4o)</option>
+            <option value="gemini">Google Gemini AI</option>
+            <option value="deepseek">DeepSeek AI</option>
+            <option value="auto">Auto Select (Detect from Key)</option>
+          </select>
+          <span style={{ fontSize: '12px', color: hasTeacherKey ? '#15803d' : '#b45309', fontWeight: 600 }}>
+            {hasTeacherKey ? '(Personal Key Active ✓)' : '(No Key Configured ⚠️)'}
+          </span>
         </div>
         {onNavigateToAISettings && (
           <button type="button" className="text-button" style={{ fontSize: '12.5px', color: hasTeacherKey === false ? '#b45309' : '#0284c7', fontWeight: 600, padding: 0 }} onClick={onNavigateToAISettings}>

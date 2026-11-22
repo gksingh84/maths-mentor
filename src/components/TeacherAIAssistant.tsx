@@ -623,15 +623,27 @@ export function TeacherAIAssistant({
   }, [initialCanvasData]);
 
   // Provider info from localStorage
-  const activeProvider = typeof window !== 'undefined'
+  const [activeProvider, setActiveProvider] = useState(() => (typeof window !== 'undefined'
     ? (localStorage.getItem('livequiz_ai_provider') || 'auto')
-    : 'auto';
+    : 'auto'));
 
   // Check teacher profile on mount for configured personal API key
   useEffect(() => {
     fetch('/api/teacher/profile', { credentials: 'same-origin' })
       .then((r) => r.json())
-      .then((d) => setHasTeacherKey(Boolean(d.teacher?.apiKey || d.teacher?.hasApiKey)))
+      .then((d) => {
+        setHasTeacherKey(Boolean(d.teacher?.apiKey || d.teacher?.hasApiKey));
+        const savedProv = localStorage.getItem('livequiz_ai_provider');
+        if (!savedProv || savedProv === 'auto') {
+          if (d.teacher?.apiKey?.startsWith('sk-')) {
+            setActiveProvider('openai');
+            localStorage.setItem('livequiz_ai_provider', 'openai');
+          } else if (d.teacher?.apiKey?.startsWith('AIza')) {
+            setActiveProvider('gemini');
+            localStorage.setItem('livequiz_ai_provider', 'gemini');
+          }
+        }
+      })
       .catch(() => setHasTeacherKey(false));
   }, []);
 
@@ -923,12 +935,26 @@ export function TeacherAIAssistant({
           </div>
 
           {/* Top Right Hand Corner: AI Provider Status */}
-          <div style={{ fontSize: '12px', color: '#64748b', display: 'flex', alignItems: 'center', gap: '8px', background: '#f8fafc', padding: '6px 12px', borderRadius: '10px', border: '1px solid #e2e8f0', marginLeft: 'auto', whiteSpace: 'nowrap' }}>
+          <div style={{ fontSize: '12px', color: '#64748b', display: 'flex', alignItems: 'center', gap: '8px', background: '#f8fafc', padding: '5px 10px', borderRadius: '10px', border: '1px solid #e2e8f0', marginLeft: 'auto', whiteSpace: 'nowrap' }}>
             <Zap size={14} color={hasTeacherKey === false ? '#d97706' : '#0284c7'} />
-            <span>AI Provider: <strong>{activeProvider === 'auto' ? 'Auto (Gemini / GPT / DeepSeek)' : activeProvider.toUpperCase()}</strong></span>
+            <span>AI:</span>
+            <select
+              value={activeProvider}
+              onChange={(e) => {
+                const val = e.target.value;
+                setActiveProvider(val);
+                localStorage.setItem('livequiz_ai_provider', val);
+              }}
+              style={{ padding: '2px 6px', borderRadius: '6px', border: '1px solid #cbd5e1', fontWeight: 700, fontSize: '11.5px', background: '#fff', color: '#0f172a' }}
+            >
+              <option value="openai">ChatGPT (GPT-4o)</option>
+              <option value="gemini">Google Gemini</option>
+              <option value="deepseek">DeepSeek</option>
+              <option value="auto">Auto Select</option>
+            </select>
             {hasTeacherKey === true && (
               <span style={{ fontSize: '11px', background: '#dcfce7', color: '#15803d', padding: '2px 8px', borderRadius: '12px', fontWeight: 700 }}>
-                ● API Key Active
+                ● Active
               </span>
             )}
             {hasTeacherKey === false && onNavigateToTab && (
@@ -938,7 +964,7 @@ export function TeacherAIAssistant({
                 onClick={() => onNavigateToTab('settings')}
                 style={{ fontSize: '11px', background: '#fef3c7', color: '#92400e', padding: '2px 8px', borderRadius: '12px', fontWeight: 700, border: '1px solid #fde68a' }}
               >
-                ⚠️ Add API Key in Settings →
+                ⚠️ Add Key →
               </button>
             )}
           </div>
