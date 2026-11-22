@@ -1449,6 +1449,9 @@ const aiQuizInput = z.object({
   apiKey: z.string().trim().optional(),
   strictSourceContent: z.boolean().optional(),
   uploadedFiles: z.array(uploadedFileSchema).max(15).optional(),
+  assessmentStandard: z.enum(['Basic', 'Advanced']).optional(),
+  totalMarks: z.number().int().min(1).max(200).optional(),
+  durationMinutes: z.number().int().min(5).max(300).optional(),
 });
 
 const aiTeachingAssistantInput = z.object({
@@ -1472,6 +1475,12 @@ export function isHindiSubject(subject?: string): boolean {
   if (!subject) return false;
   const s = subject.trim().toLowerCase();
   return s.includes('hindi') || s.includes('हिंदी') || s.includes('हिन्दी');
+}
+
+export function isSanskritSubject(subject?: string): boolean {
+  if (!subject) return false;
+  const s = subject.trim().toLowerCase();
+  return s.includes('sanskrit') || s.includes('संस्कृत');
 }
 
 function generateTopicQuestions(subject: string, topic: string, subtopics: string | undefined, grade: string, difficulty: string, count: number) {
@@ -1759,13 +1768,30 @@ function generateTopicQuestions(subject: string, topic: string, subtopics: strin
 function parseAIResponseJSON(rawText: string, data: z.infer<typeof aiQuizInput>) {
   try {
     const cleanJson = rawText.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '').trim();
-    const parsed = JSON.parse(cleanJson);
-    const rawQuestions = Array.isArray(parsed) ? parsed : (Array.isArray(parsed.questions) ? parsed.questions : []);
+    let parsed: any;
+    try {
+      parsed = JSON.parse(cleanJson);
+    } catch {
+      const firstBrace = cleanJson.indexOf('{');
+      const lastBrace = cleanJson.lastIndexOf('}');
+      if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+        parsed = JSON.parse(cleanJson.slice(firstBrace, lastBrace + 1));
+      } else {
+        const firstBracket = cleanJson.indexOf('[');
+        const lastBracket = cleanJson.lastIndexOf(']');
+        if (firstBracket !== -1 && lastBracket !== -1 && lastBracket > firstBracket) {
+          parsed = { questions: JSON.parse(cleanJson.slice(firstBracket, lastBracket + 1)) };
+        } else {
+          return null;
+        }
+      }
+    }
 
+    const rawQuestions = Array.isArray(parsed) ? parsed : (Array.isArray(parsed.questions) ? parsed.questions : []);
     if (!rawQuestions || rawQuestions.length === 0) return null;
 
-    const questions = rawQuestions.map((q: any) => {
-      const promptText = q.question || q.prompt || '';
+    const questions = rawQuestions.map((q: any, idx: number) => {
+      const promptText = q.question || q.prompt || q.text || '';
       const rawOptions = Array.isArray(q.options) ? q.options.slice(0, 4) : [];
       let correctIdx = 0;
 
@@ -1776,11 +1802,11 @@ function parseAIResponseJSON(rawText: string, data: z.infer<typeof aiQuizInput>)
         else if (letter === 'D' || letter === '4' || letter === 'घ' || letter.startsWith('D') || letter.includes('घ')) correctIdx = 3;
       }
 
-      const options = rawOptions.map((opt: any, idx: number) => {
+      const options = rawOptions.map((opt: any, optIdx: number) => {
         if (typeof opt === 'string') {
-          return { text: opt, isCorrect: idx === correctIdx };
+          return { text: opt, isCorrect: optIdx === correctIdx };
         }
-        return { text: opt.text ?? String(opt), isCorrect: Boolean(opt.isCorrect ?? (idx === correctIdx)) };
+        return { text: opt.text ?? String(opt), isCorrect: Boolean(opt.isCorrect ?? (optIdx === correctIdx)) };
       });
 
       if (!options.some((o: any) => o.isCorrect) && options.length > 0) {
@@ -1791,22 +1817,98 @@ function parseAIResponseJSON(rawText: string, data: z.infer<typeof aiQuizInput>)
         ? q.type
         : (data.questionType && data.questionType !== 'ALL' ? data.questionType : 'MCQ');
 
+      const parsedMarks = (typeof q.marks === 'number' && q.marks > 0)
+        ? q.marks
+        : (data.difficulty === 'Hard' ? 2 : 1);
+
       return {
+        id: q.id || `Q${idx + 1}`,
+        questionNumber: q.questionNumber || idx + 1,
+        section: q.section || (idx < 5 ? 'Section A: Objective' : idx < 10 ? 'Section B: Short Answer' : 'Section C: Application'),
         prompt: promptText,
-        marks: data.difficulty === 'Hard' ? 2 : 1,
+        question: promptText,
+        marks: parsedMarks,
         imageUrl: q.imageUrl && typeof q.imageUrl === 'string' ? q.imageUrl : null,
         type: typeVal,
         options,
+        answer: q.answer || (options.findIndex((o: any) => o.isCorrect) >= 0 ? String.fromCharCode(65 + options.findIndex((o: any) => o.isCorrect)) : 'A'),
+        explanation: q.explanation || '',
+        hint: q.hint || '',
+        learningObjective: q.learningObjective || '',
+        competency: q.competency || '',
+        assessmentAbility: q.assessmentAbility || (idx % 4 === 0 ? 'Sensitivity' : idx % 4 === 1 ? 'Creativity' : 'Awareness'),
+        difficulty: q.difficulty || (data.difficulty === 'Hard' ? 'Difficult' : data.difficulty === 'Easy' ? 'Easy' : 'Medium'),
+        questionType: q.questionType || (typeVal === 'MCQ' ? 'O' : 'SA'),
+        estimatedTimeMinutes: q.estimatedTimeMinutes || 2,
+        markingScheme: q.markingScheme || '',
       };
     });
 
     const isHindi = isHindiSubject(data.subject);
     const fallbackTitle = isHindi
-      ? `हिन्दी: ${data.topic} (कक्षा ${data.grade} - सीबीएसई)`
-      : `${data.subject}: ${data.topic} (${data.grade} - CBSE NEP)`;
+      ? `हिन्दी: ${data.topic} (कक्षा ${data.grade} - NCERT-PARAKH 2025)`
+      : `${data.subject}: ${data.topic} (${data.grade} - NCERT-PARAKH 2025)`;
+
+    // Construct or guarantee PARAKH assessment blueprint
+    const totalCalcMarks = questions.reduce((sum: number, q: any) => sum + (q.marks || 1), 0);
+    const standard = data.assessmentStandard === 'Advanced' ? 'Advanced' : 'Basic';
+    const isAdv = standard === 'Advanced';
+
+    const abilityCounts = { awareness: 0, sensitivity: 0, creativity: 0 };
+    const diffCounts = { easy: 0, medium: 0, difficult: 0 };
+    const typeCounts = { objective: 0, vsa: 0, sa: 0, la: 0 };
+
+    questions.forEach((q: any) => {
+      const ab = (q.assessmentAbility || '').toLowerCase();
+      if (ab.includes('sens')) abilityCounts.sensitivity += q.marks;
+      else if (ab.includes('creat')) abilityCounts.creativity += q.marks;
+      else abilityCounts.awareness += q.marks;
+
+      const df = (q.difficulty || '').toLowerCase();
+      if (df.includes('easy')) diffCounts.easy += q.marks;
+      else if (df.includes('diff') || df.includes('hard')) diffCounts.difficult += q.marks;
+      else diffCounts.medium += q.marks;
+
+      const qt = (q.questionType || '').toUpperCase();
+      if (qt === 'O' || q.type === 'MCQ') typeCounts.objective += 1;
+      else if (qt === 'VSA') typeCounts.vsa += 1;
+      else if (qt === 'LA') typeCounts.la += 1;
+      else typeCounts.sa += 1;
+    });
+
+    const blueprint = parsed.blueprint || {
+      grade: data.grade,
+      subject: data.subject,
+      assessmentStandard: isAdv ? 'Standard 2: Advanced Assessment' : 'Standard 1: Basic and Proficient Assessment',
+      totalMarks: totalCalcMarks,
+      durationMinutes: data.durationMinutes || (questions.length <= 5 ? 15 : questions.length <= 10 ? 30 : 60),
+      chapters: [
+        { name: data.topic, marks: totalCalcMarks, percentage: 100 }
+      ],
+      abilityDistribution: {
+        awareness: { marks: abilityCounts.awareness, targetPercentage: isAdv ? 25 : 50, actualPercentage: Math.round((abilityCounts.awareness / (totalCalcMarks || 1)) * 100) },
+        sensitivity: { marks: abilityCounts.sensitivity, targetPercentage: 25, actualPercentage: Math.round((abilityCounts.sensitivity / (totalCalcMarks || 1)) * 100) },
+        creativity: { marks: abilityCounts.creativity, targetPercentage: isAdv ? 50 : 25, actualPercentage: Math.round((abilityCounts.creativity / (totalCalcMarks || 1)) * 100) },
+      },
+      difficultyDistribution: {
+        easy: { marks: diffCounts.easy, targetPercentage: 25, actualPercentage: Math.round((diffCounts.easy / (totalCalcMarks || 1)) * 100) },
+        medium: { marks: diffCounts.medium, targetPercentage: isAdv ? 25 : 50, actualPercentage: Math.round((diffCounts.medium / (totalCalcMarks || 1)) * 100) },
+        difficult: { marks: diffCounts.difficult, targetPercentage: isAdv ? 50 : 25, actualPercentage: Math.round((diffCounts.difficult / (totalCalcMarks || 1)) * 100) },
+      },
+      questionTypeDistribution: {
+        objective: { count: typeCounts.objective, marks: typeCounts.objective },
+        vsa: { count: typeCounts.vsa, marks: typeCounts.vsa * 1 },
+        sa: { count: typeCounts.sa, marks: typeCounts.sa * 2 },
+        la: { count: typeCounts.la, marks: typeCounts.la * 4 },
+      },
+      summary: `Assessment blueprint prepared following NCERT-PARAKH 2025 guidelines for ${data.grade} ${data.subject}.`,
+    };
 
     return {
       title: parsed.title || fallbackTitle,
+      blueprint,
+      answerKey: parsed.answerKey || null,
+      qualityReport: parsed.qualityReport || null,
       questions,
     };
   } catch (err) {
@@ -1815,10 +1917,235 @@ function parseAIResponseJSON(rawText: string, data: z.infer<typeof aiQuizInput>)
   }
 }
 
+function buildPARAKHAssessmentFramework(data: z.infer<typeof aiQuizInput>): string {
+  const isHindi = isHindiSubject(data.subject);
+  const standard = data.assessmentStandard === 'Advanced' ? 'Advanced' : 'Basic';
+  const isAdvanced = standard === 'Advanced';
+
+  // Extract numerical grade if possible
+  const gradeMatch = data.grade.match(/\d+/);
+  const gradeNum = gradeMatch ? parseInt(gradeMatch[0], 10) : 8;
+
+  // Ability distributions per PARAKH 2025
+  const abilityTarget = isAdvanced
+    ? { awareness: '25%', sensitivity: '25%', creativity: '50%' }
+    : { awareness: '50%', sensitivity: '25%', creativity: '25%' };
+
+  // Difficulty distributions per PARAKH 2025
+  const difficultyTarget = isAdvanced
+    ? { easy: '25%', medium: '25%', difficult: '50%' }
+    : { easy: '25%', medium: '50%', difficult: '25%' };
+
+  // Determine total marks and duration if not provided
+  const targetTotalMarks = data.totalMarks || (data.questionCount * (data.difficulty === 'Hard' ? 2 : 1));
+  const targetDuration = data.durationMinutes || (data.questionCount <= 5 ? 15 : data.questionCount <= 10 ? 30 : data.questionCount <= 20 ? 45 : 60);
+
+  // Subject-specific question type weightage guideline per PARAKH 2025
+  let subjectWeightageGuide = '';
+  const subjLower = data.subject.toLowerCase();
+  const isSanskrit = isSanskritSubject(data.subject);
+
+  if (subjLower.includes('evs') || subjLower.includes('environment')) {
+    subjectWeightageGuide = `
+• PARAKH Environmental Studies (EVS) Assessment Focus (NCERT Preparatory Stage - Grade 5):
+  - Core NCERT EVS Themes: Family and Friends (relationships, work, animals, plants), Food (tasting to digesting, preservation, hunger), Shelter (types of houses, disaster shelters), Water (every drop counts, water sources, conservation), Travel (experiments with water, reaching places, space), and Things We Make and Do.
+  - Cognitive Competencies:
+    * Concrete observation of immediate environment (home, school, locality, flora, fauna).
+    * Cause-and-effect reasoning (e.g. why water scarcity occurs, how food spoils, why seed dispersal is vital for forests).
+    * Environmental sensitivity and conservation habits (saving water, preventing food wastage, avoiding single-use plastic, respecting sanitization workers, caring for birds and animals).
+  - Assessment Abilities:
+    * Awareness (50%): Identifying plants/animals, describing basic bodily/natural processes, recognizing environmental helpers and community roles.
+    * Sensitivity (25%): Empathy towards living creatures, appreciation of community diversity, conservation responsibility, fairness and inclusivity.
+    * Creativity (25%): Suggesting simple practical solutions for everyday challenges (e.g. home composting ideas, creative water-saving methods, eco-friendly celebrations).
+  - Question Style: Warm, relatable real-life stories, pictorial/diagrammatic clues, conversational situations. Avoid abstract ecological definitions or secondary-stage biology/chemistry jargon.`;
+  } else if (subjLower.includes('sci') || subjLower.includes('phys') || subjLower.includes('chem') || subjLower.includes('bio')) {
+    subjectWeightageGuide = `
+• PARAKH Science Template Reference (Grades 6 to 10): Objective: 25%, Very Short Answer (VSA): 20%, Short Answer (SA): 30%, Long Answer (LA): 25%.
+• Science Inquiry & Scientific Method Focus:
+  - Observation & Scientific Principles: Application of concepts to explain natural phenomena and everyday observations.
+  - Experimental Inquiry: Hypothesis formulation, variable identification (independent, dependent, controlled variables), predicting experimental outcomes, identifying errors in laboratory setups.
+  - Data, Diagrams & Models: Interpreting ray diagrams, electric circuit diagrams, chemical apparatus setups, organ systems, biological life cycle diagrams, reaction pathways, and experimental graph plots.
+  - Grade Progression:
+    * Grade 6: Living vs non-living, components of food, sorting materials, motion and measurement of distances, light/shadows/reflections, electricity and circuits, fun with magnets.
+    * Grade 7: Nutrition in plants & animals, heat and temperature, acids bases and salts, physical & chemical changes, respiration in organisms, transportation in animals & plants, reproduction in plants, motion & time, electric current and its effects, light.
+    * Grade 8: Crop production & management, micro-organisms (friend & foe), coal & petroleum, combustion & flame, cell structure & functions, reproduction in animals, reaching age of adolescence, force & pressure, friction, sound, light, chemical effects of electric current.
+    * Grade 9: Matter in our surroundings, is matter around us pure, atoms and molecules, structure of the atom, fundamental unit of life (cell), tissues, motion, force and laws of motion, gravitation, work and energy, sound, improvement in food resources.
+    * Grade 10: Chemical reactions & equations, acids bases & salts, metals & non-metals, carbon & its compounds, life processes, control & coordination, how do organisms reproduce, heredity, light reflection & refraction, human eye & colourful world, electricity, magnetic effects of electric current, our environment.
+• Scientific Validity: 100% correct scientific facts, balanced chemical equations, standard SI units, and accurate physical/biological terminology.`;
+  } else if (subjLower.includes('soc') || subjLower.includes('hist') || subjLower.includes('geog') || subjLower.includes('civic') || subjLower.includes('pol') || subjLower.includes('econ') || subjLower.includes('sst')) {
+    subjectWeightageGuide = `
+• PARAKH Social Science Template Reference (Grades 6 to 10): Objective: 20%, Very Short Answer (VSA): 20%, Short Answer (SA): 30%, Long Answer (LA): 30%.
+• Social Science Disciplinary Inquiries:
+  - History: Source interpretation (inscriptions, traveler accounts, primary documents, archaeological evidence), chronology and timeline understanding, cause-and-consequence analysis, continuity and change over historical periods.
+  - Geography: Map reading and spatial analysis, weather/climate data, resource management, sustainable development, physical landforms, agricultural patterns, and human-environment interactions.
+  - Political Science / Civics: Constitutional values, democratic institutions, Fundamental Rights and Duties, diversity and inclusion, local self-government (Panchayati Raj / Municipalities), rule of law, and civic decision-making in real-world scenarios.
+  - Economics (Grades 9-10): Economic concepts (development indicators, sectors of the Indian economy, money and credit, food security, poverty as a challenge, globalization), data interpretation from tables and bar charts.
+• Move beyond rote textbook recall: Demand analysis, comparison, and evaluation rather than reproducing memorised paragraphs.`;
+  } else if (subjLower.includes('eng') || subjLower.includes('hindi') || subjLower.includes('language') || subjLower.includes('sanskrit')) {
+    subjectWeightageGuide = `
+• PARAKH Language Template Reference (R2 Standard - Grades 5 to 10): Objective: 20%, Very Short Answer (VSA): 15%, Short Answer (SA): 30%, Long Answer (LA): 35%.
+• Language Competencies:
+  - Reading Comprehension: Identifying central themes, factual retrieval, inferential reasoning, context clues for vocabulary, authorial intent, tone, and critical appreciation.
+  - Applied Contextual Grammar: Sentence transformation, editing/omission, correct usage of tenses, voice, modals, determiners, clauses, and conjunctions in communicative sentences rather than dry rote definition memorisation.
+  - Creative & Functional Expression: Clear criteria for content relevance, logical organisation, coherence, style, and grammatical accuracy (notices, letters, analytical paragraphs, dialogues).
+${isHindi ? `  - MANDATORY FOR HINDI (हिन्दी): 100% Pure Standard Hindi in Devanagari script (देवनागरी लिपि). All titles, questions, options, explanations, and hints must be strictly in Devanagari Hindi. Convert Hinglish inputs into proper Devanagari terminology. Cover अपठित गद्यांश, व्यावहारिक व्याकरण (वर्ण, संज्ञा, सर्वनाम, विशेषण, क्रिया, काल, कारक, संधि, समास, मुहावरे-लोकोक्तियाँ), और रचनात्मक अभिव्यक्ति।` : ''}
+${isSanskrit ? `  - MANDATORY FOR SANSKRIT (संस्कृतम्): Strictly in Devanagari script (देवनागरी लिपि). Focus on अपठित-अवबोधनम्, चित्रवर्णनम्/पत्रलेखनम्, सन्धिः, शब्दरूपाणि, धातुरूपाणि, उपपदविभक्तयः, प्रत्ययाः, श्लोकान्वयः, and contextual translation.` : ''}`;
+  } else if (subjLower.includes('comput') || subjLower.includes('it') || subjLower.includes('information technology') || subjLower.includes('ai') || subjLower.includes('coding')) {
+    subjectWeightageGuide = `
+• PARAKH Computer Science & Information Technology Focus (Grades 5 to 10):
+  - Computational Thinking: Algorithmic problem-solving, stepwise logic, flowcharts, pseudocode, and debugging.
+  - Programming Fundamentals: Block-based programming concepts (Scratch) for lower grades; Python syntax, variables, conditionals, loops, lists, and functions for Grades 8-10.
+  - Digital Literacy & Tools: Office productivity (documents, spreadsheets, presentations), operating systems, search strategies.
+  - Cyber Ethics & Safety: Digital citizenship, cyberbullying awareness, data privacy, password security, phishing protection, intellectual property rights, and ethical AI usage.`;
+  } else if (subjLower.includes('gk') || subjLower.includes('general knowledge') || subjLower.includes('moral') || subjLower.includes('ethic')) {
+    subjectWeightageGuide = `
+• General Knowledge & Value Education Focus:
+  - Critical awareness of current global and national events, scientific discoveries, geography, sports, cultural heritage, and constitutional values.
+  - Moral dilemmas, empathy, respect for diversity, environmental stewardship, conflict resolution, and ethical decision-making.`;
+  } else {
+    // Mathematics / general
+    subjectWeightageGuide = `
+• PARAKH Mathematics Assessment Focus (Grades 5 to 10):
+  - Conceptual understanding, direct numerical calculations, application word problems, mathematical reasoning, multi-step problem solving, and higher-order thinking (HOTS).
+  - Curriculum Progression:
+    * Grade 5: Number operations up to large numbers, factors & multiples (HCF/LCM basics), fractions, decimals, unitary method, measurement (length, weight, capacity, time, money), perimeter and area of rectangles/squares, volume using unit cubes, 2D/3D shapes, symmetry, angles, pictographs and simple bar charts.
+    * Grade 6: Knowing our numbers, whole numbers, playing with numbers, basic geometrical ideas, understanding elementary shapes, integers, fractions, decimals, data handling, mensuration, algebra introduction, ratio and proportion.
+    * Grade 7: Integers, fractions and decimals, data handling, simple equations, lines and angles, the triangle and its properties, comparing quantities (percentage, profit/loss, simple interest), rational numbers, perimeter and area, algebraic expressions, exponents and powers.
+    * Grade 8: Rational numbers, linear equations in one variable, understanding quadrilaterals, data handling (bar graphs, pie charts, probability), squares and square roots, cubes and cube roots, comparing quantities (compound interest), algebraic expressions and identities, mensuration, exponents and powers, direct and inverse proportions, factorisation, introduction to graphs.
+    * Grade 9: Number systems, polynomials, coordinate geometry, linear equations in two variables, introduction to Euclid's geometry, lines and angles, triangles, quadrilaterals, circles, Heron's formula, surface areas and volumes, statistics.
+    * Grade 10: Real numbers, polynomials, pair of linear equations in two variables, quadratic equations, arithmetic progressions, triangles, coordinate geometry, introduction to trigonometry, some applications of trigonometry (heights and distances), circles, areas related to circles, surface areas and volumes, statistics, probability.
+  - MANDATORY INDEPENDENT CALCULATION VERIFICATION: Every single numerical problem MUST have a mathematically verified, exact solution. Calculations, formulas, substitutions, and units MUST be 100% correct. Ensure exactly ONE option is correct. Avoid concepts from higher grades.`;
+  }
+
+  // Grade progression guideline
+  let gradeProgressionGuide = '';
+  if (gradeNum <= 5) {
+    gradeProgressionGuide = `
+• GRADE 5 FOCUS (Preparatory Stage - NCERT Classes 3 to 5):
+  - Primary focus: Concrete conceptual understanding, experiential and observational learning, foundational literacy and numeracy, intuitive problem-solving using familiar everyday contexts (home, family, neighborhood, nature, playground).
+  - Question characteristics:
+    * Clear, warm, child-friendly vocabulary; avoid dense academic jargon.
+    * Concrete, relatable real-life scenarios; use visual/pictorial representations or diagrams where appropriate.
+    * Direct single-step or straightforward two-step operations.
+    * Gentle inquiry asking "what do you observe?", "how would you find?", or "which is the best way?".
+  - Strictly avoid: Abstract algebraic variables (like x, y), complex multi-clause sentences, advanced formulas, or multi-step theoretical deductions beyond Grade 5 NCERT syllabus.`;
+  } else if (gradeNum === 6) {
+    gradeProgressionGuide = `
+• GRADE 6 FOCUS (Middle Stage Transition - Foundation & Understanding):
+  - Primary focus: Smooth transition from primary/EVS to formal subject disciplines (Mathematics, Science, History, Civics, Geography). Basic conceptual understanding, knowledge and recall, recognition and identification, simple application, basic logical reasoning, familiar real-life examples.
+  - Question characteristics: Clear and simple language, short and understandable situations, direct application of textbook concepts, simple numerical calculations, basic interpretation of diagrams and tables, introductory competency-based questions.
+  - Strictly avoid: Excessively complicated case studies, abstract reasoning beyond the syllabus, advanced terminology, or unnecessarily lengthy prompts.`;
+  } else if (gradeNum === 7) {
+    gradeProgressionGuide = `
+• GRADE 7 FOCUS (Middle Stage - Application & Relational Reasoning):
+  - Primary focus: Conceptual understanding, application of previously learned knowledge to familiar and moderately unfamiliar situations, comparison and classification, logical reasoning, simple problem-solving.
+  - Question characteristics: Questions requiring students to explain "how" and "why", multi-step calculations appropriate to the syllabus, interpretation of diagrams, tables, and graphical information, introductory analytical questions.`;
+  } else if (gradeNum === 8) {
+    gradeProgressionGuide = `
+• GRADE 8 FOCUS (Middle Stage - Analysis & Higher Application):
+  - Primary focus: Strong conceptual understanding, application in diverse contexts, analytical thinking, logical reasoning, multi-step problem solving, interpretation and evaluation of information.
+  - Question characteristics: Case-based questions, real-life applications, data interpretation, questions requiring explanations and justifications, integration of concepts from different chapters, higher-order thinking questions.`;
+  } else if (gradeNum === 9) {
+    gradeProgressionGuide = `
+• GRADE 9 FOCUS (Secondary-Stage Competency Development):
+  - Primary focus: Disciplinary rigour, independent application, analytical reasoning, conceptual integration, problem-solving, evaluation of information, application of subject knowledge to unfamiliar situations.
+  - Question characteristics: Competency-based questions, case and source-based questions, numerical problems requiring multiple connected steps, data interpretation, scientific reasoning and experimental analysis, analytical and explanatory questions.`;
+  } else if (gradeNum === 10) {
+    gradeProgressionGuide = `
+• GRADE 10 FOCUS (Advanced Board Competency & Analysis):
+  - Primary focus: Comprehensive conceptual understanding, higher-order thinking (HOTS), complex real-world application, critical analysis, multi-concept integration, independent problem-solving, evaluation and justification aligned with CBSE Board Examination standards.
+  - Question characteristics: Challenging competency-based questions, complex real-life applications, case-based and source-based questions, multi-step numerical problems, questions requiring structured and logically justified answers.`;
+  } else {
+    gradeProgressionGuide = `
+• GRADE ${gradeNum} PEDAGOGICAL PROGRESSION:
+  - Maintain rigorous age-appropriate cognitive demand matching NCERT/CBSE curriculum standards for ${data.grade}. Balance foundational conceptual clarity with analytical problem-solving.`;
+  }
+  return `
+================================================================================
+# MINISTRY OF EDUCATION / NCERT-PARAKH 2025 ASSESSMENT GUIDELINES
+================================================================================
+Reference Standard: "Guidelines for Setting Balanced Question Papers to Promote Equivalence in Assessment Practices of School Boards" (NCERT/PARAKH, 2025).
+
+You are acting as a Senior Curriculum Designer, NCERT-PARAKH Assessment Specialist, and Chief Board Examination Question Author.
+All questions must strictly embody the NCERT-PARAKH 2025 competency-based assessment philosophy:
+
+### 1. CORE ASSESSMENT PHILOSOPHY
+Move completely beyond traditional memory and rote textbook recall. A question paper must assess authentic student competencies:
+1. Recall and understand knowledge.
+2. Apply knowledge in familiar and unfamiliar situations.
+3. Analyse information and identify relationships.
+4. Solve problems using logical reasoning.
+5. Evaluate information and justify conclusions.
+6. Generate creative ideas and explore alternative solutions.
+
+### 2. THREE ASSESSMENT ABILITIES & MANDATORY WEIGHTAGES
+Every question must be explicitly mapped to one of the three PARAKH assessment abilities:
+A. **AWARENESS** (${abilityTarget.awareness} weightage):
+   - Knowledge and recall; understanding of concepts and definitions; understanding of processes and sequences; recognition and identification; explanation of concepts and relationships.
+B. **SENSITIVITY** (${abilityTarget.sensitivity} weightage):
+   - Conflict resolution; open-mindedness; collaboration; consideration of different perspectives; critical evaluation of information and data; logical decision-making.
+C. **CREATIVITY** (${abilityTarget.creativity} weightage):
+   - Generating innovative ideas; flexibility in approaching problems; fluency in producing relevant ideas; exploration of alternative solutions; combining different concepts; applying knowledge in new and unfamiliar situations.
+   *(Note: Do not classify a question as Creative merely because it contains a real-life situation. Its actual cognitive demand must justify the classification.)*
+
+Assessment Standard Selected: **${standard === 'Advanced' ? 'Standard 2: Advanced Assessment' : 'Standard 1: Basic and Proficient Assessment (Default)'}**
+• Target Ability Distribution: Awareness = ${abilityTarget.awareness}, Sensitivity = ${abilityTarget.sensitivity}, Creativity = ${abilityTarget.creativity}.
+• Total Marks: ${targetTotalMarks} | Examination Duration: ${targetDuration} Minutes.
+
+### 3. DIFFICULTY LEVEL DISTRIBUTION (COGNITIVE DEMAND)
+Difficulty level must be determined by the actual cognitive demand of the question, NOT simply by its marks or answer length:
+• **EASY** (${difficultyTarget.easy} target): Direct conceptual understanding, simple recall and identification, straightforward applications, familiar examples, single-step calculations.
+• **MEDIUM** (${difficultyTarget.medium} target): Application of concepts, questions requiring logical reasoning, comparison and classification, two or more connected steps, interpretation of tables/graphs/diagrams, application in moderately unfamiliar situations.
+• **DIFFICULT** (${difficultyTarget.difficult} target): Multi-step problem-solving, higher-order reasoning, analysis of unfamiliar situations, integration of multiple concepts, evaluation and justification, complex data interpretation, creative application of knowledge.
+• Target Difficulty Distribution: Easy = ${difficultyTarget.easy}, Medium = ${difficultyTarget.medium}, Difficult = ${difficultyTarget.difficult}.
+
+### 4. GRADE-WISE PROGRESSION (${data.grade})
+${gradeProgressionGuide}
+
+### 5. SUBJECT-SPECIFIC ASSESSMENT REQUIREMENTS (${data.subject})
+${subjectWeightageGuide}
+
+### 6. QUESTION TYPES & FORMATS
+• Categories: O (Objective), VSA (Very Short Answer), SA (Short Answer), LA (Long Answer).
+${data.questionType && data.questionType !== 'ALL'
+  ? `• Teacher-selected Question Type: "${data.questionType}". You must generate all questions matching this type while maintaining the PARAKH cognitive ability and difficulty distributions.`
+  : (data.mode === 'LIVE'
+    ? `• Live Classroom Mode: Generate questions as single-correct Multiple Choice Questions (MCQs) with 4 options each, suitable for live classroom screen presentation, while embedding the full range of cognitive abilities (Awareness, Sensitivity, Creativity).`
+    : `• Comprehensive Assessment Mode: Create a balanced set across Objective (MCQ / Assertion-Reason), VSA, SA, and LA formats.`
+  )
+}
+
+### 7. DIAGNOSTIC DISTRACTOR DESIGN (FOR MCQS)
+• Exactly 4 options: A, B, C, D.
+• Exactly ONE option must be unambiguously correct.
+• The 3 distractors MUST represent authentic student misconceptions, common calculation pitfalls, or conceptual misunderstandings—never random or silly distractors.
+• Distribute correct answers naturally across A, B, C, and D.
+
+### 8. TWO-STAGE GENERATION MANDATE:
+**STAGE 1 — ASSESSMENT BLUEPRINT (PREPARED FIRST):**
+Before generating any questions, you MUST internally construct and output a comprehensive Assessment Blueprint:
+- Total Marks: ${targetTotalMarks} | Duration: ${targetDuration} Minutes
+- Chapter/Topic weightage
+- Ability distribution (Awareness ${abilityTarget.awareness}, Sensitivity ${abilityTarget.sensitivity}, Creativity ${abilityTarget.creativity})
+- Difficulty distribution (Easy ${difficultyTarget.easy}, Medium ${difficultyTarget.medium}, Difficult ${difficultyTarget.difficult})
+- Question type distribution (O, VSA, SA, LA)
+- Pedagogical summary of the blueprint
+
+**STAGE 2 — QUESTION GENERATION & QUALITY CONTROL:**
+- Generate exactly ${data.questionCount} questions strictly mapped to your prepared blueprint.
+- Provide full question-level metadata for every question (Learning Objective, Competency, Assessment Ability, Difficulty, Question Type, Marks, Estimated Time).
+- Independently verify calculations, units, and scientific accuracy.
+- Formulate a detailed Answer Key and step-wise Marking Scheme.
+`;
+}
+
 function buildUploadedContentPrompt(data: z.infer<typeof aiQuizInput>) {
   const isStrict = Boolean(data.strictSourceContent);
   const fileCount = data.uploadedFiles?.length || 0;
   const isHindi = isHindiSubject(data.subject);
+  const parakhFramework = buildPARAKHAssessmentFramework(data);
+  const targetTotalMarks = data.totalMarks || (data.questionCount * (data.difficulty === 'Hard' ? 2 : 1));
+  const targetDuration = data.durationMinutes || (data.questionCount <= 5 ? 15 : data.questionCount <= 10 ? 30 : data.questionCount <= 20 ? 45 : 60);
 
   let textDocs = '';
   if (data.uploadedFiles) {
@@ -1840,32 +2167,32 @@ function buildUploadedContentPrompt(data: z.infer<typeof aiQuizInput>) {
     }
   }
 
-  return `# CRITICAL ASSESSMENT MISSION: CHAPTER-BASED QUIZ & QUESTION PAPER GENERATION
+  return `# CRITICAL ASSESSMENT MISSION: PARAKH 2025 QUESTION PAPER GENERATION FROM UPLOADED MATERIAL
 
-You are an expert curriculum designer, CBSE master teacher, and senior question paper author.
+You are an expert curriculum designer, CBSE master teacher, and senior question paper author strictly aligned with the Ministry of Education & NCERT-PARAKH 2025 Assessment Guidelines.
 You have been provided with ${fileCount} attached file(s) (scanned textbook pages, chapter photographs, sample papers, or lesson notes).
+
+${parakhFramework}
+
 ${isHindi ? `
 ======================================================================
 # MANDATORY LANGUAGE REQUIREMENT: PURE HINDI (देवनागरी लिपि)
 ======================================================================
 CRITICAL RULES FOR HINDI SUBJECT (MANDATORY & STRICT):
 1. The subject being assessed is HINDI (हिन्दी).
-2. The ENTIRE output — including the quiz title, ALL question prompts, ALL options, ALL explanations, and hints — MUST BE WRITTEN EXCLUSIVELY IN PURE HINDI IN DEVANAGARI SCRIPT (देवनागरी लिपि).
-3. HINGLISH INPUT TRANSLATION: The teacher has entered or may enter the topic, subtopics, or instructions in Hinglish (e.g., "Karak aur uske bhed", "Sandhi vichhed", "Samas", "Muhavare", "Alankar", "Surdas ke Pad", "Vachan badlo", "Netaji ka Chashma", etc.). You MUST interpret and convert these Hinglish inputs into their authentic Devanagari Hindi terminology (e.g., "कारक और उसके भेद", "संधि विच्छेद", "समास", "मुहावरे", "अलंकार", "सूरदास के पद") and formulate all questions and options entirely in Devanagari Hindi.
-4. STRICT PROHIBITION: NO English words, NO Romanized/Hinglish text, and NO mixed scripts in the questions, options, explanations, or title.
+2. The ENTIRE output — including the quiz title, ALL question prompts, ALL options, ALL explanations, hints, and marking schemes — MUST BE WRITTEN EXCLUSIVELY IN PURE HINDI IN DEVANAGARI SCRIPT (देवनागरी लिपि).
+3. HINGLISH INPUT TRANSLATION: If the teacher entered the topic, subtopics, or instructions in Hinglish (e.g. "Karak aur uske bhed", "Sandhi vichhed", "Surdas ke Pad"), convert these inputs into their authentic Devanagari Hindi terminology and formulate all questions entirely in Devanagari Hindi.
+4. STRICT PROHIBITION: NO English words, NO Romanized/Hinglish text, and NO mixed scripts.
 5. All grammatical terminology, rules, definitions, and literary references must strictly follow CBSE/NCERT Hindi standards.
 ======================================================================
 ` : ''}
+
 ---
 
-## 1. SOURCE MATERIAL INVENTORY & COMPREHENSIVE TOPIC COVERAGE (MANDATORY)
+## SOURCE MATERIAL INVENTORY & COMPREHENSIVE TOPIC COVERAGE
 The attached files are your PRIMARY SOURCE OF KNOWLEDGE. You must:
-1. **Examine every attached image, scan, and page systematically**:
-   - Carefully read all headings, sub-headings, section texts, definitions, diagrams, charts, worked examples, and footnotes visible across ALL attached files.
-2. **Comprehensive Topic Coverage (NO TOPIC OMITTED)**:
-   - Identify every distinct concept, topic, and sub-topic covered across the uploaded material.
-   - Distribute the ${data.questionCount} questions proportionally across ALL the topics present in the uploaded pages.
-   - Do NOT concentrate all questions on just one page or the opening paragraph. Every section/topic from the uploaded material must be assessed.
+1. **Examine every attached image, scan, and page systematically**: Carefully read all headings, definitions, diagrams, charts, worked examples, and footnotes visible across ALL attached files.
+2. **Comprehensive Topic Coverage (NO TOPIC OMITTED)**: Identify every distinct concept, topic, and sub-topic across the uploaded material. Distribute the ${data.questionCount} questions proportionally across ALL topics present. Do NOT concentrate all questions on just one page or opening paragraph.
 3. **Strict Content Boundary**:
    ${isStrict
       ? '• STRICT MODE IS ACTIVE: All questions, correct answers, and options MUST be grounded exclusively in the concepts, laws, terms, and phenomena present in the uploaded material. DO NOT introduce topics from unattached chapters or external unmentioned syllabi.'
@@ -1874,39 +2201,23 @@ The attached files are your PRIMARY SOURCE OF KNOWLEDGE. You must:
 
 ---
 
-## 2. TRANSFORM HOW QUESTIONS ARE ASKED (DO NOT MERELY COPY THE FORMAT)
-CRITICAL INSTRUCTION: Do NOT simply duplicate, rephrase, or mimic the back-of-the-chapter exercise questions, end-of-textbook quizzes, or rote definition prompts!
-Instead, transform every topic from the uploaded pages into FRESH, NOVEL, AND COMPETENCY-BASED questions by fundamentally changing the way questions are formulated:
-
-1. **Situational & Everyday Application Scenarios**:
-   - Reframe abstract concepts into real-world scenarios, everyday situations, or classroom experiments described in the text.
-   - Example style: Instead of asking "What is transpiration?", present: "A student wraps a transparent plastic bag around a leafy branch of a potted plant in direct sunlight. After 3 hours, water droplets form inside the bag. Which concept from the chapter explains this observation?"
-
-2. **Cause-and-Effect & Mechanism Questions**:
-   - Ask what happens when a specific condition changes: "If variable X increases while Y is kept constant, what effect is observed on Z according to the chapter?"
-   - Test the 'Why' and 'How' behind processes, rather than just naming terms.
-
-3. **Comparative & Analytical Thinking**:
-   - Create questions that require comparing two concepts, classifications, or reactions discussed on the pages (e.g. similarities, distinguishing characteristics, boundary conditions).
-
-4. **Hypothetical & Predictive "What If" Questions**:
-   - "What would happen if step 2 in this process was omitted?" or "If an organism lacked this specific structure mentioned in the text, which function would be compromised?"
-
-5. **Diagnostic Distractors (Misconception-Busting Options)**:
-   - For Multiple Choice Questions, provide 4 plausible, well-thought-out options (A, B, C, D).
-   - The 3 incorrect options must reflect authentic student misconceptions or common conceptual pitfalls related to the chapter, not obvious absurdities.
-
-6. **Rich Pedagogical Explanations**:
-   - For every question, write a comprehensive teacher explanation that directly references the concept from the uploaded pages and explains why the correct option is right and why other options are incorrect.
+## TRANSFORM HOW QUESTIONS ARE ASKED (DO NOT MERELY COPY THE FORMAT)
+CRITICAL INSTRUCTION: Do NOT simply duplicate or rephrase rote back-of-the-chapter exercise questions!
+Instead, transform topics from the uploaded pages into FRESH, NOVEL, AND COMPETENCY-BASED questions:
+1. Reframe abstract concepts into real-world scenarios or classroom experiments described in the text.
+2. Test cause-and-effect and the "Why" and "How" behind processes.
+3. Require comparative and analytical thinking between related concepts.
+4. Use diagnostic distractors busting authentic student misconceptions.
 
 ---
 
-## 3. ASSESSMENT SPECIFICATIONS
+## ASSESSMENT SPECIFICATIONS
 - Subject: ${data.subject}
 - Target Grade: ${data.grade}
 - Topic: ${data.topic}${data.subtopics ? ` (Subtopics: ${data.subtopics})` : ''}
 - Total Questions: ${data.questionCount}
 - Difficulty Level: ${data.difficulty}
+- Assessment Standard: ${data.assessmentStandard || 'Basic'}
 - Language: ${isHindi ? 'HINDI ONLY (देवनागरी लिपि - Pure Devanagari Hindi)' : 'ENGLISH'}
 - Target Question Type: ${data.questionType || 'ALL'}
 - Teacher Instructions: ${data.details || 'None specified'}
@@ -1914,12 +2225,46 @@ ${textDocs}
 
 ---
 
-## 4. OUTPUT FORMAT (STRICT RAW JSON ONLY)
+## OUTPUT FORMAT (STRICT RAW JSON ONLY)
 Respond ONLY with a valid raw JSON object matching the exact schema below. Do not wrap in markdown code blocks or add introductory/concluding text:
 {
-  "title": "${isHindi ? `हिन्दी: ${data.topic} (कक्षा ${data.grade} - अध्याय मूल्यांकन)` : `${data.subject}: ${data.topic} (${data.grade} - Chapter Assessment)`}",
+  "title": "${isHindi ? `हिन्दी: ${data.topic} (कक्षा ${data.grade} - PARAKH 2025)` : `${data.subject}: ${data.topic} (${data.grade} - NCERT-PARAKH 2025)`}",
+  "blueprint": {
+    "grade": "${data.grade}",
+    "subject": "${data.subject}",
+    "assessmentStandard": "${data.assessmentStandard === 'Advanced' ? 'Standard 2: Advanced Assessment' : 'Standard 1: Basic and Proficient Assessment'}",
+    "totalMarks": ${targetTotalMarks},
+    "durationMinutes": ${targetDuration},
+    "chapters": [
+      { "name": "${data.topic}", "marks": ${targetTotalMarks}, "percentage": 100 }
+    ],
+    "abilityDistribution": {
+      "awareness": { "marks": ${Math.round(targetTotalMarks * (data.assessmentStandard === 'Advanced' ? 0.25 : 0.50))}, "targetPercentage": ${data.assessmentStandard === 'Advanced' ? 25 : 50}, "actualPercentage": ${data.assessmentStandard === 'Advanced' ? 25 : 50} },
+      "sensitivity": { "marks": ${Math.round(targetTotalMarks * 0.25)}, "targetPercentage": 25, "actualPercentage": 25 },
+      "creativity": { "marks": ${Math.round(targetTotalMarks * (data.assessmentStandard === 'Advanced' ? 0.50 : 0.25))}, "targetPercentage": ${data.assessmentStandard === 'Advanced' ? 50 : 25}, "actualPercentage": ${data.assessmentStandard === 'Advanced' ? 50 : 25} }
+    },
+    "difficultyDistribution": {
+      "easy": { "marks": ${Math.round(targetTotalMarks * 0.25)}, "targetPercentage": 25, "actualPercentage": 25 },
+      "medium": { "marks": ${Math.round(targetTotalMarks * (data.assessmentStandard === 'Advanced' ? 0.25 : 0.50))}, "targetPercentage": ${data.assessmentStandard === 'Advanced' ? 25 : 50}, "actualPercentage": ${data.assessmentStandard === 'Advanced' ? 25 : 50} },
+      "difficult": { "marks": ${Math.round(targetTotalMarks * (data.assessmentStandard === 'Advanced' ? 0.50 : 0.25))}, "targetPercentage": ${data.assessmentStandard === 'Advanced' ? 50 : 25}, "actualPercentage": ${data.assessmentStandard === 'Advanced' ? 50 : 25} }
+    },
+    "questionTypeDistribution": {
+      "objective": { "count": ${data.questionCount}, "marks": ${targetTotalMarks} }
+    },
+    "summary": "Assessment blueprint prepared strictly following NCERT-PARAKH 2025 guidelines from uploaded material."
+  },
   "questions": [
     {
+      "id": "Q1",
+      "questionNumber": 1,
+      "section": "Section A - Objective & Conceptual Awareness",
+      "learningObjective": "${isHindi ? 'विद्यार्थी इस संकल्पना की पहचान एवं व्याख्या कर सकें...' : 'Expected student learning outcome...'}",
+      "competency": "${isHindi ? 'संकल्पनात्मक समझ एवं अनुप्रयोग क्षमता' : 'Specific competency assessed...'}",
+      "assessmentAbility": "Awareness",
+      "difficulty": "Easy",
+      "questionType": "O",
+      "marks": 1,
+      "estimatedTimeMinutes": 2,
       "question": "${isHindi ? 'शुद्ध मानक हिन्दी (देवनागरी लिपि) में पूछा गया प्रश्न...' : 'The transformed, context-rich question text testing a specific concept from the uploaded pages...'}",
       "options": [
         "${isHindi ? 'पहला विकल्प' : 'First option'}",
@@ -1929,9 +2274,27 @@ Respond ONLY with a valid raw JSON object matching the exact schema below. Do no
       ],
       "answer": "A",
       "explanation": "${isHindi ? 'विस्तृत हिन्दी व्याख्या जिसमें सही उत्तर का कारण और भ्रांतियों का निवारण स्पष्ट किया गया हो।' : 'Detailed explanation citing the concept from the uploaded pages, clarifying the mechanism and addressing misconceptions.'}",
-      "hint": "${isHindi ? 'विद्यार्थियों के चिन्तन को सही दिशा देने वाला संकेत।' : 'Clue to prompt student critical thinking.'}"
+      "hint": "${isHindi ? 'विद्यार्थियों के चिन्तन को सही दिशा देने वाला संकेत।' : 'Clue to prompt student critical thinking.'}",
+      "markingScheme": "${isHindi ? 'सही विकल्प (A) के चयन पर 1 अंक।' : '1 mark for selecting option (A).'}"
     }
-  ]
+  ],
+  "answerKey": [
+    {
+      "questionNumber": 1,
+      "correctOption": "A",
+      "answer": "${isHindi ? 'पहला विकल्प' : 'First option'}",
+      "solutionSteps": "${isHindi ? 'चरणबद्ध हल अथवा तार्किक व्याख्या।' : 'Step-by-step reasoning or mathematical solution.'}",
+      "valuePoints": "${isHindi ? 'सही उत्तर का चयन (1 अंक)' : 'Selection of correct option (1 mark)'}"
+    }
+  ],
+  "qualityReport": {
+    "totalMarksValid": true,
+    "syllabusValid": true,
+    "difficultyValid": true,
+    "abilityDistributionValid": true,
+    "calculationsVerified": true,
+    "deviations": "None. Fully compliant with NCERT-PARAKH 2025 guidelines."
+  }
 }
 
 Ensure the questions array contains EXACTLY ${data.questionCount} questions covering all sections of the uploaded pages.`;
@@ -1939,6 +2302,10 @@ Ensure the questions array contains EXACTLY ${data.questionCount} questions cove
 
 function buildMasterCBSEPrompt(data: z.infer<typeof aiQuizInput>) {
   const isHindi = isHindiSubject(data.subject);
+  const parakhFramework = buildPARAKHAssessmentFramework(data);
+  const targetTotalMarks = data.totalMarks || (data.questionCount * (data.difficulty === 'Hard' ? 2 : 1));
+  const targetDuration = data.durationMinutes || (data.questionCount <= 5 ? 15 : data.questionCount <= 10 ? 30 : data.questionCount <= 20 ? 45 : 60);
+
   let uploadedContext = '';
   if (data.uploadedFiles && data.uploadedFiles.length > 0) {
     const fileSummary = data.uploadedFiles.map((f, i) => `  ${i + 1}. "${f.name}" (${f.type})`).join('\n');
@@ -1949,7 +2316,7 @@ The teacher has attached ${data.uploadedFiles.length} file(s) (sample question p
 ${fileSummary}
 
 CRITICAL STRICT RULES (MANDATORY):
-1. You MUST generate ALL questions, options, and explanations STRICTLY AND EXCLUSIVELY based on the facts, concepts, problems, and questions found in the uploaded content provided (chapter scans, sample papers, images, or documents).
+1. You MUST generate ALL questions, options, and explanations STRICTLY AND EXCLUSIVELY based on the facts, concepts, problems, and questions found in the uploaded content provided.
 2. DO NOT introduce external topics, unmentioned formulas, or concepts from other chapters that do not appear in the uploaded source content.
 3. If the uploaded material contains specific sample questions or textbook exercises, adapt, paraphrase, or faithfully format them into the requested question structure.
 4. If a fact or question is not supported by the uploaded files, DO NOT invent or extrapolate it.
@@ -1983,364 +2350,98 @@ You may generate questions using your broader AI pedagogical knowledge and curri
     }
   }
 
-  return `# ROLE
+  return `# CRITICAL ASSESSMENT MISSION: NCERT-PARAKH 2025 QUESTION PAPER GENERATOR
 
-You are an experienced CBSE school teacher, examination question-paper setter and competency-based assessment expert.
+You are an expert curriculum designer, CBSE master teacher, and senior question paper author strictly aligned with the Ministry of Education & NCERT-PARAKH 2025 Assessment Guidelines.
 
-Your task is to generate high-quality quiz questions for a CBSE-based online learning and live quiz platform.
-
-Questions must reflect the current teaching and assessment approach followed in CBSE schools and should be aligned with the competency-based education principles of NEP 2020 and the latest applicable CBSE curriculum and Sample Question Paper pattern.
-
-Do NOT create questions that merely test rote memorisation unless factual recall is genuinely required for the topic.
-
-The primary objective is to test:
-
-1. Conceptual understanding
-2. Application of knowledge
-3. Reasoning
-4. Critical thinking
-5. Problem solving
-6. Analysis
-7. Interpretation
-8. Evaluation
-9. Real-life application
-10. Ability to identify and correct misconceptions
+${parakhFramework}
 
 ---
 
-# INPUTS
-
-The quiz generator will receive the following information:
+# INPUTS FOR THIS ASSESSMENT
 
 Class/Grade: ${data.grade}
 Subject: ${data.subject}
 Chapter/Topic: ${data.topic}
+Sub-Topics: ${data.subtopics || 'Core chapter concepts'}
 Number of Questions: ${data.questionCount}
-Difficulty: ${data.difficulty}
-Quiz Type: ${data.mode === 'LIVE' ? 'LIVE TEACHER-LED' : 'COMPLETE TIMED QUIZ'}
+Target Difficulty: ${data.difficulty}
+Assessment Standard: ${data.assessmentStandard || 'Basic'}
+Quiz Delivery Mode: ${data.mode === 'LIVE' ? 'LIVE TEACHER-LED CLASSROOM' : 'COMPLETE TIMED ASSESSMENT'}
 Language: ${isHindi ? 'HINDI (देवनागरी लिपि - PURE DEVANAGARI HINDI ONLY)' : 'ENGLISH'}
-Question Type: ${data.questionType || 'ALL'}
-Sub-Topics: ${data.subtopics || 'Core concepts'}
-Additional Details: ${data.details || 'None'}
+Question Type Selected: ${data.questionType || 'ALL'}
+Teacher Additional Details: ${data.details || 'None'}
 Strict Mode (Generate Strictly from Uploaded Content): ${data.strictSourceContent ? 'YES - STRICTLY FROM UPLOADED CONTENT ONLY' : 'NO - STANDARD LLM KNOWLEDGE'}
 Uploaded Files Count: ${data.uploadedFiles?.length || 0}
 ${uploadedContext}
+
 ${isHindi ? `
 ======================================================================
 # MANDATORY LANGUAGE REQUIREMENT: PURE HINDI (देवनागरी लिपि)
 ======================================================================
 CRITICAL RULES FOR HINDI SUBJECT (STRICT):
 1. SUBJECT IS HINDI (हिन्दी).
-2. The entire output — quiz title, EVERY question prompt, ALL options, ALL explanations, and hints — MUST BE WRITTEN EXCLUSIVELY IN AUTHENTIC HINDI IN DEVANAGARI SCRIPT (देवनागरी लिपि).
-3. HINGLISH INPUT TRANSLATION: The teacher has provided or may provide the Chapter/Topic ("${data.topic}"), Sub-Topics ("${data.subtopics || ''}"), and Additional Details in Hinglish (e.g. "Karak aur uske bhed", "Sandhi vichhed", "Samas", "Muhavare", "Alankar", "Vachan", "Ling", "Paryayvachi", "Vilom shabd", "Surdas ke Pad", "Netaji ka Chashma", "Kabir ki Saakhi", etc.). You MUST automatically recognize, interpret, and convert these Hinglish inputs into their authentic Devanagari Hindi equivalents (e.g. "कारक और उसके भेद", "संधि विच्छेद", "समास", "मुहावरे", "अलंकार", "सूरदास के पद") and generate all questions, options, and explanations in proper Devanagari Hindi.
-4. STRICT PROHIBITION: NO English words, NO Romanized/Hinglish text, and NO mixed scripts anywhere in the questions, options, explanations, or title.
-5. CURRICULUM ALIGNMENT: Strictly align with CBSE Hindi Course A / Course B curriculum (Kshitij, Kritika, Sparsh, Sanchayan, Vasant, Bal Ramkatha, Bharat ki Khoj, etc.) and CBSE Hindi Vyakaran (व्याकरण).
+2. The entire output — quiz title, blueprint summary, EVERY question prompt, ALL options, ALL explanations, hints, and marking schemes — MUST BE WRITTEN EXCLUSIVELY IN AUTHENTIC HINDI IN DEVANAGARI SCRIPT (देवनागरी लिपि).
+3. HINGLISH INPUT TRANSLATION: If the teacher provided the Chapter/Topic ("${data.topic}"), Sub-Topics ("${data.subtopics || ''}"), or Additional Details in Hinglish (e.g. "Karak aur uske bhed", "Sandhi vichhed", "Samas", "Surdas ke Pad", "Netaji ka Chashma"), automatically interpret and convert these inputs into authentic Devanagari Hindi equivalents (e.g. "कारक और उसके भेद", "संधि विच्छेद", "समास", "सूरदास के पद") and generate all questions, options, and explanations in proper Devanagari Hindi.
+4. STRICT PROHIBITION: NO English words, NO Romanized/Hinglish text, and NO mixed scripts anywhere in questions, options, explanations, or title.
+5. CURRICULUM ALIGNMENT: Strictly align with CBSE Hindi Course A / Course B curriculum and CBSE Hindi Vyakaran (व्याकरण).
 ======================================================================
 ` : ''}
-If any of these inputs are not provided, use sensible defaults appropriate for the selected class and subject.
 
 ---
 
-# 1. CBSE ALIGNMENT
-
-Generate questions according to the latest applicable CBSE curriculum and examination style.
-
-Use the latest CBSE Sample Question Papers and question-paper design as the primary reference for Classes X and XII.
-
-For lower classes, follow the same competency-based philosophy but adapt the complexity, vocabulary and reasoning level to the age of the learner.
-
-Do not incorrectly apply the Class X/XII board-paper structure to primary or middle-school students.
-
-Questions must remain within the prescribed syllabus.
-
-Do not introduce advanced concepts simply to make a question difficult.
+# QUALITY & INTEGRITY VALIDATION CHECKLIST (STAGE 2)
+Before returning the final JSON object, review every single question against these non-negotiable rules:
+1. **Syllabus & Grade Accuracy:** Every question must strictly fall within the syllabus of ${data.grade} for ${data.subject}. Do NOT introduce higher-grade concepts just to add difficulty.
+2. **Mathematical & Scientific Precision:** Every numerical calculation must be double-checked and mathematically verified. Ensure all values and units are realistic and correct.
+3. **Plurality & Plausibility:** Every question must have exactly ONE unambiguous correct answer (or designated key). Distractors must bust common misconceptions.
+4. **Competency Mapping:** Every question must have complete metadata (Learning Objective, Competency, Assessment Ability: Awareness/Sensitivity/Creativity, Difficulty: Easy/Medium/Difficult, Question Type: O/VSA/SA/LA, Marks, Estimated Time, Marking Scheme).
+5. **Detailed Answer Key:** Provide step-wise solutions, value points, formulas, substitutions, and partial marks criteria.
 
 ---
 
-# 2. COMPETENCY DISTRIBUTION
+# OUTPUT FORMAT (STRICT RAW JSON ONLY)
 
-Do not make the quiz entirely recall-based.
-
-Prefer a balanced distribution such as:
-
-• Knowledge & Understanding: approximately 30–40%
-• Application: approximately 25–30%
-• Analysis/Reasoning: approximately 20–25%
-• Higher-order thinking/Evaluation: approximately 10–20%
-
-The exact distribution may be adjusted according to the class, subject, chapter and nature of the topic.
-
-For Classes IX–XII, increase the proportion of application, analysis and competency-based questions.
-
-For Classes III–V, maintain age-appropriate conceptual and application-based questions without making the language unnecessarily difficult.
-
----
-
-# 3. QUESTION TYPES
-
-When "MIXED" is selected, intelligently combine suitable question formats.
-
-Use:
-
-### A. Standard MCQ
-
-Four options:
-A
-B
-C
-D
-
-Only ONE option must be correct.
-
-Questions should test understanding rather than merely recognition.
-
-Example style:
-
-Instead of:
-"What is the formula for the area of a rectangle?"
-
-Prefer:
-"Riya wants to cover a rectangular notice board measuring 2 m × 1.5 m with coloured paper. How much paper is required?"
-
-The second question tests application of the concept.
-
----
-
-### B. Assertion–Reason
-
-Use the standard CBSE-style structure when appropriate.
-
-Assertion (A): [statement]
-
-Reason (R): [statement]
-
-Options:
-
-A. Both A and R are true and R is the correct explanation of A.
-B. Both A and R are true but R is not the correct explanation of A.
-C. A is true but R is false.
-D. A is false but R is true.
-
-Do not create artificial or ambiguous Assertion–Reason questions.
-
-The Reason must have a meaningful logical relationship with the Assertion.
-
----
-
-### C. Case-Based Questions
-
-Present a short real-life situation, experiment, table, data set, scenario or passage.
-
-Then ask one or more questions based on it.
-
-The case should contain enough information for students to solve the question.
-
-Do not make the case unnecessarily long.
-
-Examples of contexts:
-Shopping, Banking, School activities, Sports, Environment, Transportation, Household situations, Science experiments, Business, Technology, Data interpretation, Everyday mathematical situations.
-
----
-
-### D. Competency/Application Question
-
-Give a situation where the student must apply a known concept in a slightly unfamiliar context.
-
-Avoid simply changing numbers in a textbook question.
-
-The question should require the student to decide WHICH concept or method should be used.
-
----
-
-### E. Data/Graph/Table-Based Question
-
-Where appropriate, provide tables, graphs, charts, measurements, experimental observations, numerical data.
-
-Ask students to interpret the information rather than merely read a value.
-
----
-
-### F. HOTS / Reasoning Question
-
-Use questions beginning with ideas such as:
-
-• Which conclusion is most reasonable?
-• What would happen if...?
-• Which method would be most appropriate?
-• Why would this result occur?
-• Which statement best explains...?
-• Which option provides the strongest evidence?
-• What can you infer from the information?
-• Which solution is more efficient and why?
-
-Do not use "HOTS" merely as a label. The actual question must require reasoning.
-
----
-
-# 4. DISTRACTOR DESIGN
-
-This is extremely important.
-
-Incorrect options must NOT be random or silly.
-
-Each distractor should represent a realistic student misconception, calculation error or misunderstanding.
-
-Every option must be independently checked to ensure that only one option is correct.
-
----
-
-# 5. REAL-LIFE APPLICATION
-
-Whenever naturally possible, connect concepts to real-life situations.
-
----
-
-# 6. DIFFICULTY LEVEL
-
-Difficulty must be controlled intelligently.
-
-EASY: Tests basic understanding directly.
-MODERATE: Requires application, interpretation or 1-2 reasoning steps.
-DIFFICULT: Requires multiple steps, comparison, inference, analysis or application in an unfamiliar situation.
-
----
-
-# 7. LANGUAGE
-
-Use clear, natural CBSE-style language.
-
-Questions should be:
-• grammatically correct
-• age appropriate
-• concise
-• unambiguous
-• free from unnecessary jargon
-
----
-
-# 8. MATHEMATICS QUESTIONS
-
-For Mathematics:
-• Verify every calculation independently.
-• Ensure exactly one answer is correct.
-• Use realistic numerical values.
-• Avoid unnecessary calculations.
-• Test conceptual understanding wherever possible.
-• Include application-based problems.
-• Include reasoning questions.
-• Include error-analysis questions where appropriate.
-• Use units correctly.
-
----
-
-# 9. SCIENCE QUESTIONS
-
-For Science:
-Include a suitable mixture of conceptual understanding, everyday applications, experiments, observation-based questions, cause-and-effect reasoning, data interpretation, Assertion–Reason, case-based questions.
-
----
-
-# 10. SOCIAL SCIENCE QUESTIONS
-
-For Social Science:
-Include source-based questions, case studies, map/data interpretation, cause-effect relationships, comparison, Assertion–Reason.
-
----
-
-# 11. ENGLISH / LANGUAGES
-
-For language subjects: reading comprehension, grammar in context, vocabulary in context, inference, critical reading.
-
----
-
-# 12. QUESTION QUALITY RULES
-
-Before returning ANY question, verify syllabus alignment, factual accuracy, unambiguous wording, exactly one correct answer, plausible distractors, assessing understanding over memorisation.
-
----
-
-# 13. LIVE QUIZ MODE
-
-When "LIVE TEACHER-LED": Generate concise questions suitable for displaying one at a time for live classroom participation.
-
----
-
-# 14. COMPLETE TIMED QUIZ MODE
-
-When "COMPLETE TIMED QUIZ": Generate a balanced examination-style question set.
-
----
-
-# 15. QUESTION SEQUENCING
-
-Vary order and test different competencies progressively.
-
----
-
-# 16. FEEDBACK
-
-For every question, generate a teacher-quality explanation detailing why the correct answer is right and common misconceptions involved.
-
----
-
-# 17. HINT
-
-Every question should optionally have a pedagogical hint guiding student thinking without revealing the answer.
-
----
-
-# 18. AVOID QUESTION REPETITION
-
-Maintain awareness of previously generated questions. Do not repeat questions or numerical structures.
-
----
-
-# 19. ANSWER DISTRIBUTION
-
-Distribute correct answers naturally across A, B, C and D.
-
----
-
-# 20. TEACHER/ADMIN METADATA
-
-Maintain internal metadata including Learning Outcome and Misconception Tested.
-
----
-
-# 21. LEARNING OUTCOME ALIGNMENT
-
-Every question should map to an appropriate learning outcome.
-
----
-
-# 22. FINAL VALIDATION
-
-Act as a strict CBSE examiner. Review every question once more. Reject and regenerate any question that contains errors or ambiguous wording.
-
-The final quiz must be classroom-ready and suitable for use by a CBSE teacher.
-
----
-
-# IMPORTANT PRINCIPLE
-
-Do not try to make every question "difficult".
-A good CBSE competency-based quiz measures whether students can:
-UNDERSTAND -> APPLY -> REASON -> ANALYSE -> EVALUATE
-rather than simply:
-MEMORISE -> REPEAT
-
-Generate questions like an experienced CBSE teacher, not like a generic AI question generator.
-
----
-
-# OUTPUT FORMAT (STRICT JSON ONLY)
-
-Return ONLY a valid raw JSON object (no markdown formatting, no code block fences, no extra text before or after JSON) using this exact schema:
+Return ONLY a valid raw JSON object (no markdown formatting, no code block fences, no conversational text before or after JSON) using this exact schema:
 {
-  "title": "${isHindi ? `हिन्दी: ${data.topic} (कक्षा ${data.grade} - सीबीएसई)` : `${data.subject}: ${data.topic} (${data.grade} - CBSE NEP)`}",
+  "title": "${isHindi ? `हिन्दी: ${data.topic} (कक्षा ${data.grade} - PARAKH 2025)` : `${data.subject}: ${data.topic} (${data.grade} - NCERT-PARAKH 2025)`}",
+  "blueprint": {
+    "grade": "${data.grade}",
+    "subject": "${data.subject}",
+    "assessmentStandard": "${data.assessmentStandard === 'Advanced' ? 'Standard 2: Advanced Assessment' : 'Standard 1: Basic and Proficient Assessment'}",
+    "totalMarks": ${targetTotalMarks},
+    "durationMinutes": ${targetDuration},
+    "chapters": [
+      { "name": "${data.topic}", "marks": ${targetTotalMarks}, "percentage": 100 }
+    ],
+    "abilityDistribution": {
+      "awareness": { "marks": ${Math.round(targetTotalMarks * (data.assessmentStandard === 'Advanced' ? 0.25 : 0.50))}, "targetPercentage": ${data.assessmentStandard === 'Advanced' ? 25 : 50}, "actualPercentage": ${data.assessmentStandard === 'Advanced' ? 25 : 50} },
+      "sensitivity": { "marks": ${Math.round(targetTotalMarks * 0.25)}, "targetPercentage": 25, "actualPercentage": 25 },
+      "creativity": { "marks": ${Math.round(targetTotalMarks * (data.assessmentStandard === 'Advanced' ? 0.50 : 0.25))}, "targetPercentage": ${data.assessmentStandard === 'Advanced' ? 50 : 25}, "actualPercentage": ${data.assessmentStandard === 'Advanced' ? 50 : 25} }
+    },
+    "difficultyDistribution": {
+      "easy": { "marks": ${Math.round(targetTotalMarks * 0.25)}, "targetPercentage": 25, "actualPercentage": 25 },
+      "medium": { "marks": ${Math.round(targetTotalMarks * (data.assessmentStandard === 'Advanced' ? 0.25 : 0.50))}, "targetPercentage": ${data.assessmentStandard === 'Advanced' ? 25 : 50}, "actualPercentage": ${data.assessmentStandard === 'Advanced' ? 25 : 50} },
+      "difficult": { "marks": ${Math.round(targetTotalMarks * (data.assessmentStandard === 'Advanced' ? 0.50 : 0.25))}, "targetPercentage": ${data.assessmentStandard === 'Advanced' ? 50 : 25}, "actualPercentage": ${data.assessmentStandard === 'Advanced' ? 50 : 25} }
+    },
+    "questionTypeDistribution": {
+      "objective": { "count": ${data.questionCount}, "marks": ${targetTotalMarks} }
+    },
+    "summary": "Assessment blueprint prepared strictly following NCERT-PARAKH 2025 guidelines."
+  },
   "questions": [
     {
-      "question": "${isHindi ? 'सीबीएसई परीक्षा प्रारूप के अनुसार शुद्ध मानक हिन्दी (देवनागरी) में लिखा गया स्पष्ट प्रश्न...' : 'Clear, contextual question text written like an authentic CBSE exam paper question...'}",
+      "id": "Q1",
+      "questionNumber": 1,
+      "section": "Section A - Objective & Conceptual Awareness",
+      "learningObjective": "${isHindi ? 'विद्यार्थी इस संकल्पना की पहचान एवं व्याख्या कर सकें...' : 'Specific learning outcome tested...'}",
+      "competency": "${isHindi ? 'संकल्पनात्मक समझ एवं अनुप्रयोग क्षमता' : 'Specific competency assessed...'}",
+      "assessmentAbility": "Awareness",
+      "difficulty": "Easy",
+      "questionType": "O",
+      "marks": 1,
+      "estimatedTimeMinutes": 2,
+      "question": "${isHindi ? 'शुद्ध मानक हिन्दी (देवनागरी लिपि) में पूछा गया प्रश्न...' : 'Clear, contextual question text written like an authentic CBSE board exam question...'}",
       "options": [
         "${isHindi ? 'पहला विकल्प' : 'Option A text'}",
         "${isHindi ? 'दूसरा विकल्प' : 'Option B text'}",
@@ -2348,12 +2449,33 @@ Return ONLY a valid raw JSON object (no markdown formatting, no code block fence
         "${isHindi ? 'चौथा विकल्प' : 'Option D text'}"
       ],
       "answer": "A",
-      "explanation": "${isHindi ? 'विस्तृत शिक्षक व्याख्या जिसमें संकल्पना और भ्रांतियों का निवारण स्पष्ट किया गया हो।' : 'Detailed teacher explanation clarifying concepts and misconceptions.'}",
-      "hint": "${isHindi ? 'विद्यार्थियों के चिन्तन को सही दिशा देने वाला संकेत।' : 'Pedagogical hint guiding student thinking.'}"
+      "explanation": "${isHindi ? 'विस्तृत शिक्षक व्याख्या जिसमें संकल्पना और भ्रांतियों का निवारण स्पष्ट किया गया हो।' : 'Detailed teacher explanation clarifying concepts and addressing misconceptions.'}",
+      "hint": "${isHindi ? 'विद्यार्थियों के चिन्तन को सही दिशा देने वाला संकेत।' : 'Pedagogical hint guiding student thinking without revealing the answer.'}",
+      "markingScheme": "${isHindi ? 'सही विकल्प (A) के चयन पर 1 अंक।' : '1 mark for selecting option (A).'}"
     }
-  ]
-}`;
+  ],
+  "answerKey": [
+    {
+      "questionNumber": 1,
+      "correctOption": "A",
+      "answer": "${isHindi ? 'पहला विकल्प' : 'Option A text'}",
+      "solutionSteps": "${isHindi ? 'चरणबद्ध हल अथवा तार्किक व्याख्या।' : 'Step-by-step reasoning or mathematical solution.'}",
+      "valuePoints": "${isHindi ? 'सही उत्तर का चयन (1 अंक)' : 'Selection of correct option (1 mark)'}"
+    }
+  ],
+  "qualityReport": {
+    "totalMarksValid": true,
+    "syllabusValid": true,
+    "difficultyValid": true,
+    "abilityDistributionValid": true,
+    "calculationsVerified": true,
+    "deviations": "None. Fully compliant with NCERT-PARAKH 2025 guidelines."
+  }
 }
+
+Ensure the questions array contains EXACTLY ${data.questionCount} questions strictly mapped to the assessment blueprint.`;
+}
+
 
 async function generateAIQuiz(data: z.infer<typeof aiQuizInput>) {
   const customKey = data.apiKey?.trim();
@@ -2387,12 +2509,16 @@ async function generateAIQuiz(data: z.infer<typeof aiQuizInput>) {
   }
 
   const isHindi = isHindiSubject(data.subject);
+  const isSanskrit = isSanskritSubject(data.subject);
   const hasUploadedFiles = Boolean(data.uploadedFiles && data.uploadedFiles.length > 0);
+  const standardLabel = data.assessmentStandard === 'Advanced' ? 'Standard 2: Advanced Assessment (25% Aware, 25% Sens, 50% Creat)' : 'Standard 1: Basic & Proficient Assessment (50% Aware, 25% Sens, 25% Creat)';
   const systemRole = isHindi
-    ? `You are an expert CBSE Hindi teacher, senior board examiner, and Hindi language assessment specialist. You must generate all quiz titles, question prompts, options, explanations, and hints strictly and exclusively in pure Hindi in Devanagari script (देवनागरी लिपि). Even if the teacher inputs topics, subtopics, or instructions in Hinglish (e.g. "Karak aur uske bhed", "Sandhi vichhed", "Surdas ke Pad"), interpret the concepts accurately and formulate 100% pure Devanagari Hindi questions, options, and explanations.`
-    : (hasUploadedFiles
-      ? `You are an expert curriculum designer, CBSE question paper author and pedagogical assessment specialist. Thoroughly inspect all attached chapter pages and formulate fresh, transformed, competency-based questions covering all topics without copying textbook question formats.`
-      : `You are an experienced CBSE school teacher, examination question-paper setter and competency-based assessment expert. Generate high-quality quiz questions aligned with NEP 2020/2026 principles.`);
+    ? `You are an expert CBSE Hindi master teacher, senior board examiner, and Hindi language assessment specialist strictly aligned with the Ministry of Education & NCERT-PARAKH 2025 Assessment Guidelines ("Guidelines for Setting Balanced Question Papers to Promote Equivalence in Assessment Practices of School Boards"). Assessment standard: ${standardLabel}. You construct an internal assessment blueprint before generating questions, ensuring balanced competency mapping across Awareness (50%/25%), Sensitivity (25%/25%), and Creativity (25%/50%). All titles, question prompts, options, explanations, hints, and marking schemes must be generated strictly and exclusively in pure Hindi in Devanagari script (देवनागरी लिपि). Interpret Hinglish inputs into proper Devanagari Hindi.`
+    : (isSanskrit
+      ? `You are an expert CBSE Sanskrit master teacher, senior board examiner, and Sanskrit language assessment specialist strictly aligned with the Ministry of Education & NCERT-PARAKH 2025 Assessment Guidelines ("Guidelines for Setting Balanced Question Papers to Promote Equivalence in Assessment Practices of School Boards"). Assessment standard: ${standardLabel}. You construct an internal assessment blueprint before generating questions. All titles, question prompts, options, explanations, hints, and marking schemes must be generated strictly in Devanagari script (देवनागरी लिपि).`
+      : (hasUploadedFiles
+        ? `You are an expert curriculum designer, CBSE question paper author and senior pedagogical assessment specialist strictly aligned with the Ministry of Education & NCERT-PARAKH 2025 Assessment Guidelines. Assessment standard: ${standardLabel}. Inspect all attached chapter pages, formulate a balanced assessment blueprint first, and generate fresh, transformed, competency-based questions mapping Awareness, Sensitivity, and Creativity without copying rote textbook questions.`
+        : `You are an experienced CBSE examination question-paper author, senior curriculum designer, and assessment specialist strictly aligned with the NCERT-PARAKH 2025 Assessment Guidelines ("Guidelines for Setting Balanced Question Papers to Promote Equivalence in Assessment Practices of School Boards"). Assessment standard: ${standardLabel}. You construct an internal assessment blueprint first, then generate balanced, competency-driven questions assessing Awareness, Sensitivity, and Creativity across Easy, Medium, and Difficult cognitive tiers, independently verifying all calculations.`));
   const prompt = hasUploadedFiles
     ? buildUploadedContentPrompt(data)
     : buildMasterCBSEPrompt(data);
@@ -2561,6 +2687,9 @@ async function generateAIQuiz(data: z.infer<typeof aiQuizInput>) {
   const questions = generateTopicQuestions(data.subject, data.topic, data.subtopics, data.grade, data.difficulty, data.questionCount);
   return {
     title: isHindi ? `हिन्दी: ${data.topic} (कक्षा ${data.grade} - सीबीएसई)` : `${data.subject}: ${data.topic} (${data.grade} - CBSE NEP)`,
+    blueprint: null,
+    answerKey: null,
+    qualityReport: null,
     questions,
   };
 }
@@ -5474,6 +5603,7 @@ app.post('/api/worksheets/ai-generate', adminOnly, async (req: AuthRequest, res:
       details: z.string().trim().max(500).optional(),
       apiKey: z.string().trim().optional(),
       provider: z.enum(['auto', 'gemini', 'openai', 'deepseek']).optional(),
+      assessmentStandard: z.enum(['Basic', 'Advanced']).optional(),
       strictSourceContent: z.boolean().optional(),
       uploadedFiles: z.array(uploadedFileSchema).max(15).optional(),
     });
@@ -5522,7 +5652,9 @@ app.post('/api/worksheets/ai-generate', adminOnly, async (req: AuthRequest, res:
       grade: data.grade,
       topic: data.topic,
       subtopics: data.subtopics,
-      difficulty: 'Moderate',
+      difficulty: data.assessmentStandard === 'Advanced' ? 'Hard' : 'Moderate',
+      assessmentStandard: data.assessmentStandard,
+      totalMarks: data.totalMarks,
       questionCount: data.questionCount,
       questionType: 'ALL',
       details: detailsPrompt,
@@ -5533,16 +5665,35 @@ app.post('/api/worksheets/ai-generate', adminOnly, async (req: AuthRequest, res:
     });
 
     if (generated && generated.questions?.length > 0) {
+      const bp = (generated as any).blueprint;
+      const abilityAware = bp?.abilityDistribution?.awareness?.targetPercentage ?? (data.assessmentStandard === 'Advanced' ? 25 : 50);
+      const abilitySens = bp?.abilityDistribution?.sensitivity?.targetPercentage ?? 25;
+      const abilityCreat = bp?.abilityDistribution?.creativity?.targetPercentage ?? (data.assessmentStandard === 'Advanced' ? 50 : 25);
+
+      const diffEasy = bp?.difficultyDistribution?.easy?.targetPercentage ?? 25;
+      const diffMed = bp?.difficultyDistribution?.medium?.targetPercentage ?? (data.assessmentStandard === 'Advanced' ? 25 : 50);
+      const diffDiff = bp?.difficultyDistribution?.difficult?.targetPercentage ?? (data.assessmentStandard === 'Advanced' ? 50 : 25);
+
       if (isHindi) {
         const hindiOptionLabels = ['(क)', '(ख)', '(ग)', '(घ)'];
         docHtml = `
 <div style="font-family: 'Segoe UI', 'Nirmala UI', Arial, sans-serif; line-height: 1.6; color: #1e293b; width: 100%;">
-  <div style="text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 10px; margin-bottom: 14px;">
-    <h1 style="margin: 0; font-size: 22px; color: #0f172a; letter-spacing: 0.5px;">हिन्दी प्रश्न पत्र</h1>
+  <div style="text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 12px; margin-bottom: 16px;">
+    <h1 style="margin: 0; font-size: 22px; color: #0f172a; letter-spacing: 0.5px;">हिन्दी प्रश्न पत्र (NCERT-PARAKH 2025 संरेखित)</h1>
     <h3 style="margin: 4px 0 0 0; color: #475569; font-weight: 500; font-size: 15px;">कक्षा: ${data.grade} &nbsp;|&nbsp; प्रकरण: ${generated.title ? generated.title.replace(/^हिन्दी:\s*/i, '') : data.topic}</h3>
     <div style="display: flex; justify-content: space-between; margin-top: 10px; font-weight: 600; font-size: 13px; color: #334155;">
       <span>समय: 60 मिनट</span>
+      <span>मूल्यांकन मानक: ${data.assessmentStandard === 'Advanced' ? 'उन्नत मूल्यांकन (Advanced)' : 'बुनियादी एवं प्रवीण मूल्यांकन (Basic & Proficient)'}</span>
       <span>कुल अंक: ${data.totalMarks}</span>
+    </div>
+  </div>
+
+  <div style="background-color: #f0fdf4; border: 1.5px solid #86efac; border-radius: 8px; padding: 12px 14px; margin-bottom: 16px;">
+    <strong style="color: #166534; font-size: 13.5px; display: block; margin-bottom: 6px;">📋 NCERT-PARAKH 2025 मूल्यांकन ब्लूप्रिंट (Assessment Blueprint):</strong>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; font-size: 12.5px; color: #166534;">
+      <div>• <strong>क्षमता भारिता:</strong> सजगता (Awareness) ${abilityAware}%, संवेदनशीलता (Sensitivity) ${abilitySens}%, सृजनात्मकता (Creativity) ${abilityCreat}%</div>
+      <div>• <strong>कठिनाई स्तर:</strong> सरल (Easy) ${diffEasy}%, मध्यम (Medium) ${diffMed}%, कठिन (Difficult) ${diffDiff}%</div>
+      <div>• <strong>दक्षता संरेखण:</strong> रटंत स्मृति के स्थान पर वास्तविक शिक्षण निष्पत्तियों एवं व्यावहारिक भाषाई दक्षताओं का मूल्यांकन।</div>
     </div>
   </div>
 
@@ -5555,29 +5706,56 @@ app.post('/api/worksheets/ai-generate', adminOnly, async (req: AuthRequest, res:
     </ul>
   </div>
 
-  <div style="display: flex; flex-direction: column; gap: 12px;">
+  <div style="display: flex; flex-direction: column; gap: 14px;">
 ${generated.questions.map((q: any, idx: number) => `
-    <p style="margin: 0 0 12px 0; font-size: 15px; border-bottom: 1px dashed #cbd5e1; padding-bottom: 8px;">
-      <strong>प्रश्न ${idx + 1}.</strong> ${q.prompt} <span style="color: #64748b; font-size: 13px; font-weight: normal;">[${q.marks ?? 1} अंक]</span>
+    <div style="margin: 0 0 10px 0; font-size: 15px; border-bottom: 1px dashed #cbd5e1; padding-bottom: 10px;">
+      <p style="margin: 0 0 6px 0;">
+        <strong>प्रश्न ${idx + 1}.</strong> ${q.prompt}
+        <span style="color: #64748b; font-size: 13px; font-weight: normal; margin-left: 6px;">[${q.marks ?? 1} अंक]</span>
+        ${q.competency ? `<span style="display: inline-block; background: #e0f2fe; color: #0369a1; font-size: 11px; padding: 2px 6px; border-radius: 4px; margin-left: 8px;">दक्षता: ${q.competency}</span>` : ''}
+      </p>
       ${q.options && q.options.length > 0 ? `
-      <br/>
-      <span style="display: block; margin-left: 20px; margin-top: 6px; font-size: 14px; color: #334155; font-weight: normal;">
-        ${q.options.map((opt: any, oIdx: number) => `${hindiOptionLabels[oIdx] || `(${String.fromCharCode(65 + oIdx)})`} ${opt.text}`).join(' &nbsp;&nbsp;&nbsp; ')}
-      </span>
+      <div style="margin-left: 20px; font-size: 14px; color: #334155; display: flex; flex-direction: column; gap: 4px;">
+        ${q.options.map((opt: any, oIdx: number) => `<div>${hindiOptionLabels[oIdx] || `(${String.fromCharCode(65 + oIdx)})`} ${opt.text}</div>`).join('')}
+      </div>
       ` : ''}
-    </p>
+    </div>
 `).join('')}
+  </div>
+
+  <div style="margin-top: 36px; border-top: 2px solid #0f172a; padding-top: 18px; page-break-before: always;">
+    <h2 style="font-size: 18px; color: #0f172a; margin: 0 0 12px 0;">🔑 शिक्षक उत्तर-कुंजी एवं चरणबद्ध अंकन योजना (Answer Key & Marking Scheme)</h2>
+    <div style="display: flex; flex-direction: column; gap: 12px; font-size: 13.5px;">
+${generated.questions.map((q: any, idx: number) => `
+      <div style="padding: 10px 14px; background: #f8fafc; border-left: 3px solid #10b981; border-radius: 4px;">
+        <strong>प्र. ${idx + 1}:</strong> <em>सही उत्तर:</em> ${q.answer || 'निर्दिष्ट हल'} <br/>
+        ${q.explanation ? `<div style="margin-top: 4px; color: #334155;"><strong>व्याख्या:</strong> ${q.explanation}</div>` : ''}
+        ${q.markingScheme ? `<div style="margin-top: 4px; color: #0f766e;"><strong>अंकन योजना:</strong> ${q.markingScheme}</div>` : ''}
+      </div>
+`).join('')}
+    </div>
   </div>
 </div>`.trim();
       } else {
         docHtml = `
 <div style="font-family: 'Segoe UI', Arial, sans-serif; line-height: 1.5; color: #1e293b; width: 100%;">
-  <div style="text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 10px; margin-bottom: 14px;">
+  <div style="text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 12px; margin-bottom: 16px;">
     <h1 style="margin: 0; font-size: 22px; text-transform: uppercase; color: #0f172a; letter-spacing: 0.5px;">${data.subject.toUpperCase()} QUESTION PAPER</h1>
+    <p style="margin: 2px 0 0; font-size: 13px; color: #0284c7; font-weight: 600;">ALIGNED WITH NCERT-PARAKH 2025 COMPETENCY-BASED ASSESSMENT GUIDELINES</p>
     <h3 style="margin: 4px 0 0 0; color: #475569; font-weight: 500; font-size: 15px;">Grade: ${data.grade} &nbsp;|&nbsp; Topic: ${data.topic}</h3>
     <div style="display: flex; justify-content: space-between; margin-top: 10px; font-weight: 600; font-size: 13px; color: #334155;">
       <span>Time Allowed: 60 Minutes</span>
+      <span>Assessment Standard: ${data.assessmentStandard === 'Advanced' ? 'Standard 2: Advanced' : 'Standard 1: Basic & Proficient'}</span>
       <span>Total Marks: ${data.totalMarks}</span>
+    </div>
+  </div>
+
+  <div style="background-color: #f0fdf4; border: 1.5px solid #86efac; border-radius: 8px; padding: 12px 14px; margin-bottom: 16px;">
+    <strong style="color: #166534; font-size: 13.5px; display: block; margin-bottom: 6px;">📋 NCERT-PARAKH 2025 Assessment Blueprint:</strong>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; font-size: 12.5px; color: #166534;">
+      <div>• <strong>Assessment Abilities:</strong> Awareness ${abilityAware}%, Sensitivity ${abilitySens}%, Creativity ${abilityCreat}%</div>
+      <div>• <strong>Cognitive Difficulty:</strong> Easy ${diffEasy}%, Medium ${diffMed}%, Difficult ${diffDiff}%</div>
+      <div>• <strong>Competency Focus:</strong> Direct conceptual inquiry, application, logical analysis, and multi-step reasoning.</div>
     </div>
   </div>
 
@@ -5590,18 +5768,34 @@ ${generated.questions.map((q: any, idx: number) => `
     </ul>
   </div>
 
-  <div style="display: flex; flex-direction: column; gap: 12px;">
+  <div style="display: flex; flex-direction: column; gap: 14px;">
 ${generated.questions.map((q: any, idx: number) => `
-    <p style="margin: 0 0 12px 0; font-size: 15px; border-bottom: 1px dashed #cbd5e1; padding-bottom: 8px;">
-      <strong>Q${idx + 1}.</strong> ${q.prompt} <span style="color: #64748b; font-size: 13px; font-weight: normal;">[${q.marks ?? 1} Mark${(q.marks ?? 1) > 1 ? 's' : ''}]</span>
+    <div style="margin: 0 0 10px 0; font-size: 15px; border-bottom: 1px dashed #cbd5e1; padding-bottom: 10px;">
+      <p style="margin: 0 0 6px 0;">
+        <strong>Q${idx + 1}.</strong> ${q.prompt}
+        <span style="color: #64748b; font-size: 13px; font-weight: normal; margin-left: 6px;">[${q.marks ?? 1} Mark${(q.marks ?? 1) > 1 ? 's' : ''}]</span>
+        ${q.competency ? `<span style="display: inline-block; background: #e0f2fe; color: #0369a1; font-size: 11px; padding: 2px 6px; border-radius: 4px; margin-left: 8px;">Competency: ${q.competency}</span>` : ''}
+      </p>
       ${q.options && q.options.length > 0 ? `
-      <br/>
-      <span style="display: block; margin-left: 20px; margin-top: 6px; font-size: 14px; color: #334155; font-weight: normal;">
-        ${q.options.map((opt: any, oIdx: number) => `(${String.fromCharCode(65 + oIdx)}) ${opt.text}`).join(' &nbsp;&nbsp;&nbsp; ')}
-      </span>
+      <div style="margin-left: 20px; font-size: 14px; color: #334155; display: flex; flex-direction: column; gap: 4px;">
+        ${q.options.map((opt: any, oIdx: number) => `<div>(${String.fromCharCode(65 + oIdx)}) ${opt.text}</div>`).join('')}
+      </div>
       ` : ''}
-    </p>
+    </div>
 `).join('')}
+  </div>
+
+  <div style="margin-top: 36px; border-top: 2px solid #0f172a; padding-top: 18px; page-break-before: always;">
+    <h2 style="font-size: 18px; color: #0f172a; margin: 0 0 12px 0;">🔑 TEACHER ANSWER KEY & STEP-WISE MARKING SCHEME</h2>
+    <div style="display: flex; flex-direction: column; gap: 12px; font-size: 13.5px;">
+${generated.questions.map((q: any, idx: number) => `
+      <div style="padding: 10px 14px; background: #f8fafc; border-left: 3px solid #10b981; border-radius: 4px;">
+        <strong>Q${idx + 1}:</strong> <em>Correct Key/Answer:</em> ${q.answer || 'Refer solution'} <br/>
+        ${q.explanation ? `<div style="margin-top: 4px; color: #334155;"><strong>Explanation:</strong> ${q.explanation}</div>` : ''}
+        ${q.markingScheme ? `<div style="margin-top: 4px; color: #0f766e;"><strong>Marking Scheme & Value Points:</strong> ${q.markingScheme}</div>` : ''}
+      </div>
+`).join('')}
+    </div>
   </div>
 </div>`.trim();
       }
@@ -5609,7 +5803,7 @@ ${generated.questions.map((q: any, idx: number) => `
       docHtml = isHindi ? `
 <div style="font-family: 'Segoe UI', 'Nirmala UI', Arial, sans-serif; line-height: 1.6; color: #1e293b; width: 100%;">
   <div style="text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 10px; margin-bottom: 14px;">
-    <h1 style="margin: 0; font-size: 22px;">हिन्दी अभ्यास कार्य-पत्रक</h1>
+    <h1 style="margin: 0; font-size: 22px;">हिन्दी अभ्यास कार्य-पत्रक (PARAKH 2025)</h1>
     <h3 style="margin: 4px 0 0 0; color: #475569;">कक्षा: ${data.grade} | प्रकरण: ${data.topic}</h3>
   </div>
   <p style="margin-bottom: 10px;"><strong>कुल अंक:</strong> ${data.totalMarks}</p>
@@ -5617,7 +5811,7 @@ ${generated.questions.map((q: any, idx: number) => `
 </div>`.trim() : `
 <div style="font-family: 'Segoe UI', Arial, sans-serif; line-height: 1.5; color: #1e293b; width: 100%;">
   <div style="text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 10px; margin-bottom: 14px;">
-    <h1 style="margin: 0; font-size: 22px;">${data.subject.toUpperCase()} WORKSHEET</h1>
+    <h1 style="margin: 0; font-size: 22px;">${data.subject.toUpperCase()} WORKSHEET (PARAKH 2025)</h1>
     <h3 style="margin: 4px 0 0 0; color: #475569;">Grade: ${data.grade} | Topic: ${data.topic}</h3>
   </div>
   <p style="margin-bottom: 10px;"><strong>Total Marks:</strong> ${data.totalMarks}</p>

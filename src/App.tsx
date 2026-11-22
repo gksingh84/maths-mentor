@@ -18,7 +18,27 @@ type Mode = 'LIVE' | 'SELF_PACED';
 type QuestionType = 'MCQ' | 'FILL_BLANK' | 'TRUE_FALSE' | 'SOLVE';
 type Status = 'DRAFT' | 'ACTIVE' | 'CLOSED';
 type Option = { id?: string; text: string; isCorrect?: boolean; correct?: boolean };
-type Question = { id?: string; prompt: string; marks: number; imageUrl?: string | null; type?: QuestionType; options: Option[] };
+type Question = {
+  id?: string;
+  questionNumber?: number;
+  section?: string;
+  prompt: string;
+  question?: string;
+  marks: number;
+  imageUrl?: string | null;
+  type?: QuestionType;
+  options: Option[];
+  answer?: string;
+  explanation?: string;
+  hint?: string;
+  learningObjective?: string;
+  competency?: string;
+  assessmentAbility?: string;
+  difficulty?: string;
+  questionType?: string;
+  estimatedTimeMinutes?: number;
+  markingScheme?: string;
+};
 type Quiz = { id: string; title: string; grade?: string | null; mode: Mode; status: Status; timeLimitSeconds: number | null; showResults: boolean; currentQuestionIndex: number; currentAnswerRevealed: boolean; createdAt?: string; updatedAt?: string; questions?: Question[]; _count?: { questions: number; attempts: number } };
 type Student = { id: string; name: string; grade?: string | null; passkey?: string | null; parentPhone?: string | null; parentName?: string | null; active: boolean; joiningDate?: string | null; createdAt?: string; _count: { attempts: number } };
 type User = { id?: string; role: 'admin' | 'teacher' | 'superadmin' | 'student'; name?: string; email?: string; username?: string; hasApiKey?: boolean; school?: string | null; subject?: string | null; grade?: string | null; teacherId?: string | null; teacherName?: string | null };
@@ -30,7 +50,17 @@ export type LiveTimerState = {
   phase: 'question' | 'revealing' | 'gap' | 'advancing' | 'idle';
   gapRemainingSeconds: number;
 };
-type QuizDraft = { title: string; grade?: string; mode: Mode; hasTimer: boolean; minutes: number; liveTimerSeconds?: number | null; showResults: boolean; questions: Question[] };
+type QuizDraft = {
+  title: string;
+  grade?: string;
+  mode: Mode;
+  hasTimer: boolean;
+  minutes: number;
+  liveTimerSeconds?: number | null;
+  showResults: boolean;
+  questions: Question[];
+  blueprint?: any;
+};
 import { TeacherAIAssistant } from './components/TeacherAIAssistant';
 export const ALL_STUDENT_GRADES = ['Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12'];
 export const ALL_ACADEMIC_SUBJECTS = [
@@ -3652,13 +3682,14 @@ function ContentSourceUploadSection({
   );
 }
 
-function AIQuizModal({ onClose, onGenerated, onNavigateToAISettings }: { onClose: () => void; onGenerated: (quiz: { title: string; mode: Mode; hasTimer?: boolean; minutes?: number; liveTimerSeconds?: number | null; questions: Question[]; grade?: string }) => void; onNavigateToAISettings?: () => void }) {
+function AIQuizModal({ onClose, onGenerated, onNavigateToAISettings }: { onClose: () => void; onGenerated: (quiz: { title: string; mode: Mode; hasTimer?: boolean; minutes?: number; liveTimerSeconds?: number | null; questions: Question[]; grade?: string; blueprint?: any }) => void; onNavigateToAISettings?: () => void }) {
   const [subject, setSubject] = useState(() => getDefaultSubject());
   const [customSubject, setCustomSubject] = useState('');
   const [grade, setGrade] = useState(() => getDefaultGrade());
   const [topic, setTopic] = useState('');
   const [subtopics, setSubtopics] = useState('');
   const [difficulty, setDifficulty] = useState<'Easy' | 'Moderate' | 'Hard'>('Moderate');
+  const [assessmentStandard, setAssessmentStandard] = useState<'Basic' | 'Advanced'>('Basic');
   const [questionCount, setQuestionCount] = useState(10);
   const [questionType, setQuestionType] = useState<'ALL' | 'MCQ' | 'FILL_BLANK' | 'TRUE_FALSE' | 'SOLVE'>('ALL');
   const [mode, setMode] = useState<Mode>('LIVE');
@@ -3700,7 +3731,7 @@ function AIQuizModal({ onClose, onGenerated, onNavigateToAISettings }: { onClose
     setGenerating(true);
     try {
       const finalSubject = subject === 'Other' ? (customSubject || 'General') : subject;
-      const res = await api<{ title: string; questions: Question[] }>('/api/ai/generate-quiz', {
+      const res = await api<{ title: string; blueprint?: any; questions: Question[] }>('/api/ai/generate-quiz', {
         method: 'POST',
         body: JSON.stringify({
           subject: finalSubject,
@@ -3708,6 +3739,7 @@ function AIQuizModal({ onClose, onGenerated, onNavigateToAISettings }: { onClose
           topic,
           subtopics,
           difficulty,
+          assessmentStandard,
           questionCount,
           questionType,
           mode,
@@ -3724,7 +3756,8 @@ function AIQuizModal({ onClose, onGenerated, onNavigateToAISettings }: { onClose
         hasTimer,
         minutes,
         liveTimerSeconds: (mode === 'LIVE' && hasTimer) ? liveTimerSeconds : null,
-        questions: res.questions
+        questions: res.questions,
+        blueprint: res.blueprint,
       });
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Unable to generate quiz.');
@@ -3796,6 +3829,65 @@ function AIQuizModal({ onClose, onGenerated, onNavigateToAISettings }: { onClose
               </button>
             ))}
           </div>
+        </div>
+      </div>
+
+      <div style={{
+        padding: '12px 14px',
+        background: '#f8fafc',
+        border: '1.5px solid #e2e8f0',
+        borderRadius: '12px',
+        marginBottom: '6px'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+          <span style={{ fontSize: '13px', fontWeight: 700, color: '#1e293b', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <Sparkles size={15} color="#059669" /> NCERT-PARAKH 2025 Assessment Standard
+          </span>
+          <span style={{ fontSize: '11px', color: '#0369a1', background: '#e0f2fe', padding: '2px 8px', borderRadius: '12px', fontWeight: 600 }}>
+            Blueprint-First Assessment
+          </span>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '8px' }}>
+          <button
+            type="button"
+            className={`pill ${assessmentStandard === 'Basic' ? 'active-moderate' : ''}`}
+            style={{
+              padding: '8px 12px',
+              textAlign: 'left',
+              borderRadius: '8px',
+              border: assessmentStandard === 'Basic' ? '2px solid #0284c7' : '1px solid #cbd5e1',
+              background: assessmentStandard === 'Basic' ? '#f0f9ff' : '#ffffff',
+              cursor: 'pointer'
+            }}
+            onClick={() => setAssessmentStandard('Basic')}
+          >
+            <strong style={{ display: 'block', fontSize: '12px', color: assessmentStandard === 'Basic' ? '#0369a1' : '#334155' }}>
+              Standard 1: Basic & Proficient (Default)
+            </strong>
+            <span style={{ fontSize: '11px', color: '#64748b' }}>
+              50% Awareness · 25% Sensitivity · 25% Creativity
+            </span>
+          </button>
+          <button
+            type="button"
+            className={`pill ${assessmentStandard === 'Advanced' ? 'active-hard' : ''}`}
+            style={{
+              padding: '8px 12px',
+              textAlign: 'left',
+              borderRadius: '8px',
+              border: assessmentStandard === 'Advanced' ? '2px solid #7c3aed' : '1px solid #cbd5e1',
+              background: assessmentStandard === 'Advanced' ? '#f5f3ff' : '#ffffff',
+              cursor: 'pointer'
+            }}
+            onClick={() => setAssessmentStandard('Advanced')}
+          >
+            <strong style={{ display: 'block', fontSize: '12px', color: assessmentStandard === 'Advanced' ? '#6d28d9' : '#334155' }}>
+              Standard 2: Advanced Assessment
+            </strong>
+            <span style={{ fontSize: '11px', color: '#64748b' }}>
+              25% Awareness · 25% Sensitivity · 50% Creativity
+            </span>
+          </button>
         </div>
       </div>
 
@@ -4151,7 +4243,7 @@ function QuizManager({ quizzes, selectedQuiz, setSelectedQuiz, liveQuiz, refresh
     }
   }
 
-  function handleAIGenerated(result: { title: string; mode: Mode; hasTimer?: boolean; minutes?: number; liveTimerSeconds?: number | null; questions: Question[]; grade?: string }) {
+  function handleAIGenerated(result: { title: string; mode: Mode; hasTimer?: boolean; minutes?: number; liveTimerSeconds?: number | null; questions: Question[]; grade?: string; blueprint?: any }) {
     setEditingId('');
     setDraft({
       title: result.title,
@@ -4162,9 +4254,10 @@ function QuizManager({ quizzes, selectedQuiz, setSelectedQuiz, liveQuiz, refresh
       liveTimerSeconds: result.liveTimerSeconds ?? 30,
       showResults: true,
       questions: result.questions,
+      blueprint: result.blueprint,
     });
     setShowAIModal(false);
-    setNotice(`✨ AI Quiz generated for ${result.grade || getDefaultGrade()} with NEP 2026 alignment! Review and save below.`);
+    setNotice(`✨ AI Assessment generated for ${result.grade || getDefaultGrade()} aligned with NCERT-PARAKH 2025 guidelines! Review and save below.`);
   }
 
   if (draft) return <section className="view-enter"><div className="page-heading compact-heading"><div><button className="back-link" onClick={() => setDraft(null)}><ArrowLeft size={15} /> All quizzes</button><h1>{editingId ? 'Edit your quiz' : 'Build a quiz'}</h1><p>Keep each question clear and focused.</p></div><button className="button button-primary" onClick={(event) => void saveQuiz(event as unknown as React.FormEvent)} disabled={saving}>{saving ? 'Saving...' : <><Check size={16} /> Save quiz</>}</button></div>
@@ -4225,12 +4318,78 @@ function QuizManager({ quizzes, selectedQuiz, setSelectedQuiz, liveQuiz, refresh
             )}
           </div>
         )}{draft.mode === 'SELF_PACED' && draft.hasTimer && <label className="field short-field" style={{ marginTop: '16px' }}><span>Time limit</span><div className="input-suffix"><input type="number" min={1} max={1440} value={draft.minutes} onChange={(event) => setDraft({ ...draft, minutes: Number(event.target.value) })} /><span>minutes</span></div></label>}<label className="check-row"><input type="checkbox" checked={draft.showResults} onChange={(event) => setDraft({ ...draft, showResults: event.target.checked })} /><span><strong>Show results to students</strong></span></label></div>
+
+        {draft.blueprint && (
+          <div style={{
+            marginBottom: '20px',
+            padding: '16px 20px',
+            background: 'linear-gradient(135deg, #f0fdf4 0%, #e0f2fe 100%)',
+            border: '1.5px solid #86efac',
+            borderRadius: '14px',
+            color: '#0f172a'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Sparkles size={18} color="#059669" />
+                <strong style={{ fontSize: '15px', color: '#065f46' }}>
+                  NCERT-PARAKH 2025 Assessment Blueprint & Competency Matrix
+                </strong>
+              </div>
+              <span style={{ fontSize: '12px', background: '#dcfce7', color: '#166534', padding: '3px 10px', borderRadius: '16px', fontWeight: 600 }}>
+                {draft.blueprint.assessmentStandard || 'Standard 1: Basic & Proficient'}
+              </span>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px', fontSize: '13px' }}>
+              <div style={{ background: 'rgba(255,255,255,0.7)', padding: '10px 14px', borderRadius: '10px' }}>
+                <span style={{ color: '#64748b', display: 'block', fontSize: '11px', textTransform: 'uppercase', fontWeight: 600 }}>PARAKH Assessment Abilities</span>
+                <div style={{ marginTop: '4px', fontWeight: 600, color: '#0f172a' }}>
+                  🧠 Awareness: <strong>{draft.blueprint.abilityDistribution?.awareness?.targetPercentage ?? 50}%</strong> &nbsp;|&nbsp;
+                  🤝 Sensitivity: <strong>{draft.blueprint.abilityDistribution?.sensitivity?.targetPercentage ?? 25}%</strong> &nbsp;|&nbsp;
+                  💡 Creativity: <strong>{draft.blueprint.abilityDistribution?.creativity?.targetPercentage ?? 25}%</strong>
+                </div>
+              </div>
+              <div style={{ background: 'rgba(255,255,255,0.7)', padding: '10px 14px', borderRadius: '10px' }}>
+                <span style={{ color: '#64748b', display: 'block', fontSize: '11px', textTransform: 'uppercase', fontWeight: 600 }}>Cognitive Demand / Difficulty</span>
+                <div style={{ marginTop: '4px', fontWeight: 600, color: '#0f172a' }}>
+                  🟢 Easy: <strong>{draft.blueprint.difficultyDistribution?.easy?.targetPercentage ?? 25}%</strong> &nbsp;|&nbsp;
+                  🟡 Medium: <strong>{draft.blueprint.difficultyDistribution?.medium?.targetPercentage ?? 50}%</strong> &nbsp;|&nbsp;
+                  🔴 Difficult: <strong>{draft.blueprint.difficultyDistribution?.difficult?.targetPercentage ?? 25}%</strong>
+                </div>
+              </div>
+            </div>
+            {draft.blueprint.summary && (
+              <p style={{ margin: '8px 0 0', fontSize: '12px', color: '#334155', fontStyle: 'italic' }}>
+                {draft.blueprint.summary}
+              </p>
+            )}
+          </div>
+        )}
+
         {draft.questions.map((question, index) => <div className="form-panel question-editor" key={index}>
           <div className="panel-title">
             <span className="step-count">{String(index + 2).padStart(2, '0')}</span>
             <div>
               <h2>Question {index + 1}</h2>
               <p>Write prompt and set multiple choice options.</p>
+              {(question.assessmentAbility || question.competency || question.difficulty) && (
+                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '6px' }}>
+                  {question.assessmentAbility && (
+                    <span style={{ fontSize: '11px', background: '#ecfdf5', color: '#065f46', border: '1px solid #a7f3d0', padding: '2px 8px', borderRadius: '12px', fontWeight: 600 }}>
+                      Ability: {question.assessmentAbility}
+                    </span>
+                  )}
+                  {question.difficulty && (
+                    <span style={{ fontSize: '11px', background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a', padding: '2px 8px', borderRadius: '12px', fontWeight: 600 }}>
+                      Difficulty: {question.difficulty}
+                    </span>
+                  )}
+                  {question.competency && (
+                    <span style={{ fontSize: '11px', background: '#eff6ff', color: '#1e40af', border: '1px solid #bfdbfe', padding: '2px 8px', borderRadius: '12px' }}>
+                      🎯 Competency: {question.competency}
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
             {draft.questions.length > 1 && (
               <button
@@ -12264,6 +12423,7 @@ function AIWorksheetModal({ onClose, onGenerated, onNavigateToAISettings }: { on
   const [subtopics, setSubtopics] = useState('');
   const [questionCount, setQuestionCount] = useState(10);
   const [totalMarks, setTotalMarks] = useState(100);
+  const [assessmentStandard, setAssessmentStandard] = useState<'Basic' | 'Advanced'>('Basic');
   const [details, setDetails] = useState('');
   const [sourceFiles, setSourceFiles] = useState<UploadedSourceFile[]>([]);
   const [strictMode, setStrictMode] = useState(false);
@@ -12311,6 +12471,7 @@ function AIWorksheetModal({ onClose, onGenerated, onNavigateToAISettings }: { on
           subtopics,
           questionCount,
           totalMarks,
+          assessmentStandard,
           details,
           provider,
           strictSourceContent: strictMode,
@@ -12337,6 +12498,65 @@ function AIWorksheetModal({ onClose, onGenerated, onNavigateToAISettings }: { on
             {hasTeacherKey === false ? 'Add Your API Key →' : 'Configure AI Settings →'}
           </button>
         )}
+      </div>
+
+      <div style={{
+        padding: '12px 14px',
+        background: '#f8fafc',
+        border: '1.5px solid #e2e8f0',
+        borderRadius: '12px',
+        margin: '2px 0 6px 0'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+          <span style={{ fontSize: '13px', fontWeight: 700, color: '#1e293b', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <Sparkles size={15} color="#059669" /> NCERT-PARAKH 2025 Assessment Standard
+          </span>
+          <span style={{ fontSize: '11px', color: '#0369a1', background: '#e0f2fe', padding: '2px 8px', borderRadius: '12px', fontWeight: 600 }}>
+            Blueprint-First Matrix
+          </span>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '8px' }}>
+          <button
+            type="button"
+            className={`pill ${assessmentStandard === 'Basic' ? 'active-moderate' : ''}`}
+            style={{
+              padding: '8px 12px',
+              textAlign: 'left',
+              borderRadius: '8px',
+              border: assessmentStandard === 'Basic' ? '2px solid #0284c7' : '1px solid #cbd5e1',
+              background: assessmentStandard === 'Basic' ? '#f0f9ff' : '#ffffff',
+              cursor: 'pointer'
+            }}
+            onClick={() => setAssessmentStandard('Basic')}
+          >
+            <strong style={{ display: 'block', fontSize: '12px', color: assessmentStandard === 'Basic' ? '#0369a1' : '#334155' }}>
+              Standard 1: Basic & Proficient (Default)
+            </strong>
+            <span style={{ fontSize: '11px', color: '#64748b' }}>
+              50% Awareness · 25% Sensitivity · 25% Creativity
+            </span>
+          </button>
+          <button
+            type="button"
+            className={`pill ${assessmentStandard === 'Advanced' ? 'active-hard' : ''}`}
+            style={{
+              padding: '8px 12px',
+              textAlign: 'left',
+              borderRadius: '8px',
+              border: assessmentStandard === 'Advanced' ? '2px solid #7c3aed' : '1px solid #cbd5e1',
+              background: assessmentStandard === 'Advanced' ? '#f5f3ff' : '#ffffff',
+              cursor: 'pointer'
+            }}
+            onClick={() => setAssessmentStandard('Advanced')}
+          >
+            <strong style={{ display: 'block', fontSize: '12px', color: assessmentStandard === 'Advanced' ? '#6d28d9' : '#334155' }}>
+              Standard 2: Advanced Assessment
+            </strong>
+            <span style={{ fontSize: '11px', color: '#64748b' }}>
+              25% Awareness · 25% Sensitivity · 50% Creativity
+            </span>
+          </button>
+        </div>
       </div>
 
       {error && <div className="inline-error">{error}</div>}
