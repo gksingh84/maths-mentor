@@ -1767,6 +1767,56 @@ function generateTopicQuestions(subject: string, topic: string, subtopics: strin
 
 type QuestionType = 'MCQ' | 'FILL_BLANK' | 'TRUE_FALSE' | 'SOLVE' | 'SHORT_ANSWER' | 'LONG_ANSWER' | 'CASE_STUDY';
 
+function cleanOptionText(text: any): string {
+  if (!text) return '';
+  return String(text)
+    .replace(/^[A-Da-d][.)\s-]+\s*/, '')
+    .replace(/^\([A-Da-d]\)\s*/, '')
+    .replace(/^[क-घ][.)\s-]+\s*/, '')
+    .replace(/^\([क-घ]\)\s*/, '')
+    .trim();
+}
+
+function getSectionRank(q: any): number {
+  const sec = (q.section || '').toLowerCase();
+  const qType = (q.type || q.questionType || '').toUpperCase();
+  const marks = Number(q.marks) || 1;
+
+  if (sec.includes('section e') || sec.includes('खंड ङ') || sec.includes('खंड ‘ङ’') || sec.includes("खंड 'ङ'") || sec.includes('case') || qType.includes('CASE') || qType.includes('SOURCE')) return 5;
+  if (sec.includes('section d') || sec.includes('खंड घ') || sec.includes('खंड ‘घ’') || sec.includes("खंड 'घ'") || sec.includes('long') || qType.includes('LONG') || marks >= 5) return 4;
+  if (sec.includes('section c') || sec.includes('खंड ग') || sec.includes('खंड ‘ग’') || sec.includes("खंड 'ग'") || marks === 3 || (qType.includes('SHORT') && !qType.includes('VERY'))) return 3;
+  if (sec.includes('section b') || sec.includes('खंड ख') || sec.includes('खंड ‘ख’') || sec.includes("खंड 'ख'") || marks === 2 || qType.includes('VSA') || qType.includes('VERY')) return 2;
+  if (sec.includes('section a') || sec.includes('खंड क') || sec.includes('खंड ‘क’') || sec.includes("खंड 'क'") || marks === 1 || qType.includes('MCQ') || qType.includes('BLANK') || qType.includes('TRUE') || qType.includes('TF')) return 1;
+
+  if (marks >= 5) return 4;
+  if (marks === 4) return 5;
+  if (marks === 3) return 3;
+  if (marks === 2) return 2;
+  return 1;
+}
+
+function getSectionTitle(rank: number, isHindi: boolean): string {
+  if (isHindi) {
+    switch (rank) {
+      case 1: return "खंड 'क' — वस्तुनिष्ठ प्रश्न (1 अंक प्रत्येक)";
+      case 2: return "खंड 'ख' — अति लघु उत्तरीय प्रश्न (2 अंक प्रत्येक)";
+      case 3: return "खंड 'ग' — लघु उत्तरीय प्रश्न (3 अंक प्रत्येक)";
+      case 4: return "खंड 'घ' — दीर्घ उत्तरीय प्रश्न (5 अंक प्रत्येक)";
+      case 5: return "खंड 'ङ' — केस-स्टडी आधारित प्रश्न";
+      default: return "खंड 'क' — वस्तुनिष्ठ प्रश्न (1 अंक प्रत्येक)";
+    }
+  } else {
+    switch (rank) {
+      case 1: return "SECTION A — OBJECTIVE TYPE QUESTIONS (1 MARK EACH)";
+      case 2: return "SECTION B — VERY SHORT ANSWER QUESTIONS (2 MARKS EACH)";
+      case 3: return "SECTION C — SHORT ANSWER QUESTIONS (3 MARKS EACH)";
+      case 4: return "SECTION D — LONG ANSWER QUESTIONS (5 MARKS EACH)";
+      case 5: return "SECTION E — CASE-STUDY / SOURCE-BASED QUESTIONS";
+      default: return "SECTION A — OBJECTIVE TYPE QUESTIONS (1 MARK EACH)";
+    }
+  }
+}
+
 function robustParseJSON(rawText: string): any {
   let text = (rawText || '').replace(/^\uFEFF/, '').trim();
 
@@ -2044,6 +2094,24 @@ function parseAIResponseJSON(rawText: string, data: z.infer<typeof aiQuizInput>)
         estimatedTimeMinutes: q.estimatedTimeMinutes || (parsedMarks >= 4 ? 8 : parsedMarks === 3 ? 5 : parsedMarks === 2 ? 3 : 1),
         markingScheme: q.markingScheme || '',
       };
+    });
+
+    // Sort questions strictly by examination section: Section A -> Section B -> Section C -> Section D -> Section E
+    questions.sort((a: any, b: any) => getSectionRank(a) - getSectionRank(b));
+
+    // Re-number questions strictly consecutively: 1, 2, 3, ... N
+    questions.forEach((q: any, idx: number) => {
+      const num = idx + 1;
+      q.id = `Q${num}`;
+      q.questionNumber = num;
+      q.displayNum = num;
+      q.section = getSectionTitle(getSectionRank(q), isHindi);
+      if (Array.isArray(q.options)) {
+        q.options = q.options.map((opt: any) => {
+          if (typeof opt === 'string') return { text: cleanOptionText(opt), isCorrect: false };
+          return { ...opt, text: cleanOptionText(opt?.text ?? '') };
+        });
+      }
     });
 
     const fallbackTitle = isHindi
@@ -2338,7 +2406,17 @@ You MUST formulate an authentic, multi-section school examination paper containi
    - The "options" field MUST BE AN EMPTY ARRAY ([]).
    - "marks": 4 or 5.
 
-CRITICAL MANDATORY RULE: DO NOT generate all questions as MCQs! An actual question paper MUST have a balanced distribution across Section A (MCQs, Fill in Blanks, True/False), Section B (VSA 2M), Section C (SA 3M), Section D (LA 5M), and Section E (Case Study 4M/5M).`
+CRITICAL MANDATORY RULE: DO NOT generate all questions as MCQs! An actual question paper MUST have a balanced distribution across Section A (MCQs, Fill in Blanks, True/False), Section B (VSA 2M), Section C (SA 3M), Section D (LA 5M), and Section E (Case Study 4M/5M).
+
+CRITICAL MANDATORY SECTION ORDERING & CONSECUTIVE NUMBERING:
+All questions MUST be grouped and ordered strictly by Section from A to E, and consecutively numbered from 1 to ${data.questionCount}:
+- Group 1: ALL Section A questions together (numbered Q1, Q2, Q3...);
+- Group 2: ALL Section B questions together (numbered consecutively following Section A);
+- Group 3: ALL Section C questions together (numbered consecutively);
+- Group 4: ALL Section D questions together (numbered consecutively);
+- Group 5: ALL Section E questions together (numbered consecutively).
+DO NOT cycle or interleave sections (NEVER generate A, then B, then C, then D, then E, then repeat!).
+In MCQ options, provide ONLY the clean option text without redundant prefix letters (e.g. write "Skull", NOT "B. Skull" or "(B) Skull").`
 }
 
 ### 7. MULTIPLE CHOICE DISTRACTOR DESIGN (FOR MCQS ONLY)
@@ -6165,26 +6243,30 @@ app.post('/api/worksheets/ai-generate', adminOnly, async (req: AuthRequest, res:
       const diffMed = bp?.difficultyDistribution?.medium?.targetPercentage ?? (data.assessmentStandard === 'Advanced' ? 25 : 50);
       const diffDiff = bp?.difficultyDistribution?.difficult?.targetPercentage ?? (data.assessmentStandard === 'Advanced' ? 50 : 25);
 
-      // Group questions by section
-      const sectionsMap = new Map<string, any[]>();
+      // 1. Sort questions strictly by examination section: Section A -> Section B -> Section C -> Section D -> Section E
+      generated.questions.sort((a: any, b: any) => getSectionRank(a) - getSectionRank(b));
+
+      // 2. Re-number questions strictly consecutively: 1, 2, 3, ... N
       generated.questions.forEach((q: any, idx: number) => {
-        let sec = q.section || '';
-        if (!sec || (sec.toLowerCase().includes('section a') && (q.marks || 1) > 1)) {
-          const qType = (q.type || q.questionType || '').toUpperCase();
-          if (qType.includes('CASE') || qType.includes('SOURCE')) {
-            sec = isHindi ? "खंड 'ङ' — केस-स्टडी आधारित प्रश्न" : "SECTION E — CASE-STUDY / SOURCE-BASED QUESTIONS";
-          } else if ((q.marks || 1) >= 5 || qType.includes('LONG')) {
-            sec = isHindi ? "खंड 'घ' — दीर्घ उत्तरीय प्रश्न (5 अंक प्रत्येक)" : "SECTION D — LONG ANSWER QUESTIONS (5 MARKS EACH)";
-          } else if ((q.marks || 1) >= 3 || qType.includes('SHORT')) {
-            sec = isHindi ? "खंड 'ग' — लघु उत्तरीय प्रश्न (3 अंक प्रत्येक)" : "SECTION C — SHORT ANSWER QUESTIONS (3 MARKS EACH)";
-          } else if ((q.marks || 1) === 2 || qType.includes('VSA')) {
-            sec = isHindi ? "खंड 'ख' — अति लघु उत्तरीय प्रश्न (2 अंक प्रत्येक)" : "SECTION B — VERY SHORT ANSWER QUESTIONS (2 MARKS EACH)";
-          } else {
-            sec = isHindi ? "खंड 'क' — वस्तुनिष्ठ प्रश्न (1 अंक प्रत्येक)" : "SECTION A — OBJECTIVE TYPE QUESTIONS (1 MARK EACH)";
-          }
+        const num = idx + 1;
+        q.displayNum = num;
+        q.questionNumber = num;
+        q.id = `Q${num}`;
+        q.section = getSectionTitle(getSectionRank(q), isHindi);
+        if (Array.isArray(q.options)) {
+          q.options = q.options.map((opt: any) => {
+            if (typeof opt === 'string') return { text: cleanOptionText(opt), isCorrect: false };
+            return { ...opt, text: cleanOptionText(opt?.text ?? '') };
+          });
         }
+      });
+
+      // 3. Group questions by section
+      const sectionsMap = new Map<string, any[]>();
+      generated.questions.forEach((q: any) => {
+        const sec = q.section;
         if (!sectionsMap.has(sec)) sectionsMap.set(sec, []);
-        sectionsMap.get(sec)!.push({ ...q, displayNum: idx + 1 });
+        sectionsMap.get(sec)!.push(q);
       });
 
       if (isHindi) {
@@ -6209,7 +6291,7 @@ app.post('/api/worksheets/ai-generate', adminOnly, async (req: AuthRequest, res:
         <div>(ख) असत्य</div>
       </div>` : `
       <div style="margin-left: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 6px; font-size: 13.5px; color: #334155; margin-top: 4px;">
-        ${q.options.map((opt: any, oIdx: number) => `<div>${hindiOptionLabels[oIdx] || `(${String.fromCharCode(65 + oIdx)})`} ${opt.text}</div>`).join('')}
+        ${q.options.map((opt: any, oIdx: number) => `<div>${hindiOptionLabels[oIdx] || `(${String.fromCharCode(65 + oIdx)})`} ${cleanOptionText(opt.text ?? opt)}</div>`).join('')}
       </div>`
       ) : ''}
     </div>`).join('')}
@@ -6265,10 +6347,10 @@ app.post('/api/worksheets/ai-generate', adminOnly, async (req: AuthRequest, res:
     </div>
 
     <div style="display: flex; flex-direction: column; gap: 12px; font-size: 13.5px;">
-${generated.questions.map((q: any, idx: number) => `
+${generated.questions.map((q: any) => `
       <div style="padding: 10px 14px; background: #f8fafc; border-left: 3px solid #10b981; border-radius: 4px;">
         <div style="font-weight: 600; color: #0f172a; margin-bottom: 4px;">
-          प्र. ${idx + 1} (${q.section || 'प्रश्न'} - ${q.marks ?? 1} अंक):
+          प्र. ${q.displayNum} (${q.section || 'प्रश्न'} - ${q.marks ?? 1} अंक):
           <span style="color: #059669; margin-left: 8px;">सही उत्तर: ${q.answer || 'निर्दिष्ट हल'}</span>
         </div>
         ${q.markingScheme ? `<div style="margin-top: 4px; color: #0f766e; font-size: 13px;"><strong>अंकन योजना एवं अंक वितरण:</strong> ${q.markingScheme}</div>` : ''}
@@ -6300,7 +6382,7 @@ ${generated.questions.map((q: any, idx: number) => `
         <div>(B) False</div>
       </div>` : `
       <div style="margin-left: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 6px; font-size: 13.5px; color: #334155; margin-top: 4px;">
-        ${q.options.map((opt: any, oIdx: number) => `<div>(${String.fromCharCode(65 + oIdx)}) ${opt.text}</div>`).join('')}
+        ${q.options.map((opt: any, oIdx: number) => `<div>(${String.fromCharCode(65 + oIdx)}) ${cleanOptionText(opt.text ?? opt)}</div>`).join('')}
       </div>`
       ) : ''}
     </div>`).join('')}
@@ -6356,10 +6438,10 @@ ${generated.questions.map((q: any, idx: number) => `
     </div>
 
     <div style="display: flex; flex-direction: column; gap: 12px; font-size: 13.5px;">
-${generated.questions.map((q: any, idx: number) => `
+${generated.questions.map((q: any) => `
       <div style="padding: 10px 14px; background: #f8fafc; border-left: 3px solid #10b981; border-radius: 4px;">
         <div style="font-weight: 600; color: #0f172a; margin-bottom: 4px;">
-          Q${idx + 1} (${q.section || 'Question'} - ${q.marks ?? 1} Mark${(q.marks ?? 1) > 1 ? 's' : ''}):
+          Q${q.displayNum} (${q.section || 'Question'} - ${q.marks ?? 1} Mark${(q.marks ?? 1) > 1 ? 's' : ''}):
           <span style="color: #059669; margin-left: 8px;">Key/Answer: ${q.answer || 'Refer solution steps'}</span>
         </div>
         ${q.markingScheme ? `<div style="margin-top: 4px; color: #0f766e; font-size: 13px;"><strong>Marking Scheme & Value Points:</strong> ${q.markingScheme}</div>` : ''}
