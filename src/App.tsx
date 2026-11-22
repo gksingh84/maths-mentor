@@ -308,10 +308,15 @@ const emptyQuestion = (type: QuestionType = 'MCQ'): Question => {
 
 export function stripTeacherAnswerKey(html: string): string {
   if (!html) return '';
+  // 1. Remove delimited comment block
   let cleaned = html.replace(/<!--\s*TEACHER_ANSWER_KEY_START\s*-->[\s\S]*?<!--\s*TEACHER_ANSWER_KEY_END\s*-->/gi, '');
+  // 2. Remove by class name
   cleaned = cleaned.replace(/<div[^>]*class=["'][^"']*teacher-answer-key-section[^"']*["'][\s\S]*$/gi, '');
-  cleaned = cleaned.replace(/<div[^>]*style="[^"]*page-break-before:\s*always[^"]*"[^>]*>[\s\S]*?TEACHER ANSWER KEY[\s\S]*$/gi, '');
-  cleaned = cleaned.replace(/<div[^>]*>[\s\S]*?🔑\s*(?:TEACHER\s+)?ANSWER\s+KEY[\s\S]*$/gi, '');
+  // 3. Fallback: match any section with page-break-before and answer key keywords
+  cleaned = cleaned.replace(/<div[^>]*style="[^"]*page-break-before:\s*always[^"]*"[^>]*>[\s\S]*?(?:TEACHER\s+ANSWER\s+KEY|शिक्षक\s*उत्तर-कुंजी|उत्तर-कुंजी|Marking\s+Scheme)[\s\S]*$/gi, '');
+  // 4. Fallback: match any div containing the key icon followed by answer key keywords
+  cleaned = cleaned.replace(/<div[^>]*>[\s\S]*?🔑[\s\S]*?(?:TEACHER|ANSWER\s+KEY|शिक्षक|उत्तर-कुंजी|Marking\s+Scheme)[\s\S]*$/gi, '');
+  // Ensure the root container div is closed
   if (cleaned.startsWith('<div') && !cleaned.endsWith('</div>')) {
     cleaned += '</div>';
   }

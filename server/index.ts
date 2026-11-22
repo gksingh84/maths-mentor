@@ -1768,7 +1768,7 @@ function generateTopicQuestions(subject: string, topic: string, subtopics: strin
 type QuestionType = 'MCQ' | 'FILL_BLANK' | 'TRUE_FALSE' | 'SOLVE' | 'SHORT_ANSWER' | 'LONG_ANSWER' | 'CASE_STUDY';
 
 function robustParseJSON(rawText: string): any {
-  let text = (rawText || '').trim();
+  let text = (rawText || '').replace(/^\uFEFF/, '').trim();
 
   // 1. Strip markdown fences if present
   const fenceMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
@@ -1818,7 +1818,8 @@ function robustParseJSON(rawText: string): any {
     let inString = false;
     let escape = false;
     const stack: string[] = [];
-    let trimmed = text.slice(firstBrace !== -1 ? firstBrace : 0).trim();
+    const startIdx = (firstBrace !== -1 && firstBracket !== -1) ? Math.min(firstBrace, firstBracket) : (firstBrace !== -1 ? firstBrace : (firstBracket !== -1 ? firstBracket : 0));
+    let trimmed = text.slice(startIdx).trim();
 
     const lastObjectClose = trimmed.lastIndexOf('}');
     if (lastObjectClose !== -1) {
@@ -1860,55 +1861,84 @@ function robustParseJSON(rawText: string): any {
   }
 }
 
-function parseAIResponseJSON(rawText: string, data: z.infer<typeof aiQuizInput>) {
-  try {
-    const parsed = robustParseJSON(rawText);
-    if (!parsed) {
-      console.warn('parseAIResponseJSON: robustParseJSON returned null. Text preview:', (rawText || '').slice(0, 300));
-      return null;
+function extractQuestionsFromObject(obj: any): any[] {
+  if (!obj || typeof obj !== 'object') return [];
+  if (Array.isArray(obj)) {
+    if (obj.length > 0 && typeof obj[0] === 'object' && (obj[0].question || obj[0].prompt || obj[0].text || obj[0].questionNumber || obj[0].id)) {
+      return obj;
     }
-
-    let rawQuestions: any[] = [];
-    if (Array.isArray(parsed)) {
-      rawQuestions = parsed;
-    } else if (Array.isArray(parsed.questions)) {
-      rawQuestions = parsed.questions;
-    } else if (Array.isArray(parsed.paper?.questions)) {
-      rawQuestions = parsed.paper.questions;
-    } else if (Array.isArray(parsed.questionPaper?.questions)) {
-      rawQuestions = parsed.questionPaper.questions;
-    } else if (Array.isArray(parsed.question_paper?.questions)) {
-      rawQuestions = parsed.question_paper.questions;
-    } else if (Array.isArray(parsed.quiz?.questions)) {
-      rawQuestions = parsed.quiz.questions;
-    } else if (Array.isArray(parsed.exam?.questions)) {
-      rawQuestions = parsed.exam.questions;
-    } else if (Array.isArray(parsed.data?.questions)) {
-      rawQuestions = parsed.data.questions;
-    } else if (Array.isArray(parsed.sections)) {
-      for (const sec of parsed.sections) {
-        const secQuestions = Array.isArray(sec.questions) ? sec.questions : (Array.isArray(sec.items) ? sec.items : []);
-        for (const sq of secQuestions) {
-          rawQuestions.push({
-            ...sq,
-            section: sq.section || sec.section || sec.name || sec.title || '',
-          });
+    const collected: any[] = [];
+    for (const item of obj) {
+      if (item && typeof item === 'object') {
+        const itemQs = Array.isArray(item.questions) ? item.questions : (Array.isArray(item.items) ? item.items : []);
+        for (const q of itemQs) {
+          collected.push({ ...q, section: q.section || item.section || item.name || item.title || '' });
         }
       }
-    } else {
-      for (const key of Object.keys(parsed)) {
-        if (Array.isArray(parsed[key]) && parsed[key].length > 0) {
-          const first = parsed[key][0];
-          if (first && typeof first === 'object' && (first.question || first.prompt || first.text || first.questionNumber || first.id)) {
-            rawQuestions = parsed[key];
-            break;
+    }
+    if (collected.length > 0) return collected;
+    return [];
+  }
+
+  const knownKeys = ['questions', 'paper', 'questionPaper', 'question_paper', 'quiz', 'exam', 'data', 'test'];
+  for (const k of knownKeys) {
+    if (Array.isArray(obj[k]) && obj[k].length > 0) return obj[k];
+    if (obj[k] && typeof obj[k] === 'object' && Array.isArray(obj[k].questions) && obj[k].questions.length > 0) return obj[k].questions;
+  }
+
+  if (Array.isArray(obj.sections)) {
+    const collected: any[] = [];
+    for (const sec of obj.sections) {
+      const secQs = Array.isArray(sec.questions) ? sec.questions : (Array.isArray(sec.items) ? sec.items : []);
+      for (const sq of secQs) {
+        collected.push({ ...sq, section: sq.section || sec.section || sec.name || sec.title || '' });
+      }
+    }
+    if (collected.length > 0) return collected;
+  }
+
+  if (obj.sections && typeof obj.sections === 'object' && !Array.isArray(obj.sections)) {
+    const collected: any[] = [];
+    for (const [secKey, secVal] of Object.entries(obj.sections)) {
+      if (Array.isArray(secVal)) {
+        for (const sq of secVal) {
+          if (sq && typeof sq === 'object') {
+            collected.push({ ...sq, section: sq.section || secKey });
           }
         }
       }
     }
+    if (collected.length > 0) return collected;
+  }
 
+  const collected: any[] = [];
+  for (const [key, val] of Object.entries(obj)) {
+    if (Array.isArray(val) && val.length > 0) {
+      const first = val[0];
+      if (first && typeof first === 'object' && (first.question || first.prompt || first.text || first.questionNumber || first.id)) {
+        for (const item of val) {
+          collected.push({ ...item, section: item.section || (key.toLowerCase().includes('section') ? key : '') });
+        }
+      }
+    }
+  }
+  if (collected.length > 0) return collected;
+
+  return [];
+}
+
+function parseAIResponseJSON(rawText: string, data: z.infer<typeof aiQuizInput>) {
+  try {
+    const isHindi = isHindiSubject(data.subject);
+    const parsed = robustParseJSON(rawText);
+    if (!parsed) {
+      console.error('parseAIResponseJSON: robustParseJSON returned null. Text preview (first 400 chars):', (rawText || '').slice(0, 400));
+      return null;
+    }
+
+    const rawQuestions = extractQuestionsFromObject(parsed);
     if (!rawQuestions || rawQuestions.length === 0) {
-      console.warn('parseAIResponseJSON: parsed object has keys:', Object.keys(parsed), 'but no questions array found.');
+      console.error('parseAIResponseJSON: parsed object has keys:', Object.keys(parsed), 'but no questions array found.');
       return null;
     }
 
@@ -1946,7 +1976,7 @@ function parseAIResponseJSON(rawText: string, data: z.infer<typeof aiQuizInput>)
           if (typeof opt === 'string') {
             return { text: opt, isCorrect: optIdx === correctIdx };
           }
-          return { text: opt.text ?? String(opt), isCorrect: Boolean(opt.isCorrect ?? (optIdx === correctIdx)) };
+          return { text: opt?.text ?? String(opt ?? ''), isCorrect: Boolean(opt?.isCorrect ?? (optIdx === correctIdx)) };
         });
 
         if (!options.some((o: any) => o.isCorrect) && options.length > 0) {
@@ -2016,7 +2046,6 @@ function parseAIResponseJSON(rawText: string, data: z.infer<typeof aiQuizInput>)
       };
     });
 
-    const isHindi = isHindiSubject(data.subject);
     const fallbackTitle = isHindi
       ? `हिन्दी: ${data.topic} (कक्षा ${data.grade} - NCERT-PARAKH 2025)`
       : `${data.subject}: ${data.topic} (${data.grade} - NCERT-PARAKH 2025)`;
@@ -2084,7 +2113,7 @@ function parseAIResponseJSON(rawText: string, data: z.infer<typeof aiQuizInput>)
       questions,
     };
   } catch (err) {
-    console.warn('Failed to parse AI JSON response:', err);
+    console.error('parseAIResponseJSON unexpected processing error:', err);
     return null;
   }
 }
@@ -2991,12 +3020,20 @@ async function generateAIQuiz(data: z.infer<typeof aiQuizInput>) {
       const errMessage = jsonResult?.error?.message ?? response.statusText;
       throw new Error(`ChatGPT OpenAI Error: ${errMessage}`);
     }
-    const content = jsonResult.choices?.[0]?.message?.content;
+    const messageObj = jsonResult.choices?.[0]?.message;
+    if (messageObj?.refusal) {
+      throw new Error(`ChatGPT refused the request: ${messageObj.refusal}`);
+    }
+    const content = messageObj?.content;
     if (content) {
       const parsed = parseAIResponseJSON(content, data);
       if (parsed && parsed.questions.length > 0) return parsed;
       console.error('ChatGPT OpenAI returned unparseable content. First 1500 chars:');
       console.error(content.slice(0, 1500));
+    }
+    if (!jsonResult.choices || jsonResult.choices.length === 0) {
+      console.error('ChatGPT response had no choices:', JSON.stringify(jsonResult));
+      throw new Error('ChatGPT returned an empty response. Please verify your OpenAI API key and account quota.');
     }
     throw new Error('ChatGPT returned an unparseable response. Please try again.');
   }
@@ -5917,9 +5954,10 @@ function stripTeacherAnswerKey(html: string): string {
   let cleaned = html.replace(/<!--\s*TEACHER_ANSWER_KEY_START\s*-->[\s\S]*?<!--\s*TEACHER_ANSWER_KEY_END\s*-->/gi, '');
   // 2. Remove by class name
   cleaned = cleaned.replace(/<div[^>]*class=["'][^"']*teacher-answer-key-section[^"']*["'][\s\S]*$/gi, '');
-  // 3. Fallback: match any section with TEACHER ANSWER KEY heading
-  cleaned = cleaned.replace(/<div[^>]*style="[^"]*page-break-before:\s*always[^"]*"[^>]*>[\s\S]*?TEACHER ANSWER KEY[\s\S]*$/gi, '');
-  cleaned = cleaned.replace(/<div[^>]*>[\s\S]*?🔑\s*(?:TEACHER\s+)?ANSWER\s+KEY[\s\S]*$/gi, '');
+  // 3. Fallback: match any section with page-break-before and answer key keywords
+  cleaned = cleaned.replace(/<div[^>]*style="[^"]*page-break-before:\s*always[^"]*"[^>]*>[\s\S]*?(?:TEACHER\s+ANSWER\s+KEY|शिक्षक\s*उत्तर-कुंजी|उत्तर-कुंजी|Marking\s+Scheme)[\s\S]*$/gi, '');
+  // 4. Fallback: match any div containing the key icon followed by answer key keywords
+  cleaned = cleaned.replace(/<div[^>]*>[\s\S]*?🔑[\s\S]*?(?:TEACHER|ANSWER\s+KEY|शिक्षक|उत्तर-कुंजी|Marking\s+Scheme)[\s\S]*$/gi, '');
   // Ensure the root container div is closed
   if (cleaned.startsWith('<div') && !cleaned.endsWith('</div>')) {
     cleaned += '</div>';
@@ -6210,7 +6248,8 @@ app.post('/api/worksheets/ai-generate', adminOnly, async (req: AuthRequest, res:
 
   ${sectionsHtml}
 
-  <div style="margin-top: 40px; border-top: 2px solid #0f172a; padding-top: 20px; page-break-before: always;">
+  <!-- TEACHER_ANSWER_KEY_START -->
+  <div class="teacher-answer-key-section" style="margin-top: 40px; border-top: 2px solid #0f172a; padding-top: 20px; page-break-before: always;">
     <div style="text-align: center; margin-bottom: 18px; border-bottom: 1.5px solid #cbd5e1; padding-bottom: 10px;">
       <h2 style="font-size: 18px; color: #0f172a; margin: 0; text-transform: uppercase;">🔑 शिक्षक उत्तर-कुंजी एवं चरणबद्ध अंकन योजना (Marking Scheme)</h2>
       <p style="margin: 4px 0 0; font-size: 12px; color: #64748b; font-style: italic;">केवल परीक्षक / शिक्षक के उपयोग हेतु (Confidential — For Evaluator Use Only)</p>
@@ -6238,6 +6277,7 @@ ${generated.questions.map((q: any, idx: number) => `
 `).join('')}
     </div>
   </div>
+  <!-- TEACHER_ANSWER_KEY_END -->
 </div>`.trim();
       } else {
         let sectionsHtml = '';
