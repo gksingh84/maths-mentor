@@ -575,8 +575,39 @@ Teacher: Gaurav Kumar Singh`;
                 <h4 style={{ marginTop: '16px' }}>Live Quiz Sound Effects & Audio Countdown:</h4>
                 <p>Live classroom rounds feature energetic sound effects (ticking countdowns, suspense audio, and correct-answer celebrations). Teachers and students can mute or unmute audio at any time via the sound icon on the live monitor.</p>
 
-                <h4 style={{ marginTop: '16px' }}>Pure Hindi (हिन्दी माध्यम) & Bilingual Quiz Generation:</h4>
-                <p>When generating quizzes or lesson plans with the AI Assistant, select between <strong>English</strong>, <strong>Pure Hindi (हिन्दी माध्यम)</strong>, or <strong>Bilingual</strong>. For Hindi-medium schools, question prompts, mathematical instructions, theorems, and MCQ options are generated in clean Devanagari Hindi aligned with state boards and CBSE.</p>
+                <h4 style={{ marginTop: '16px' }}>Pure Hindi (हिन्दी माध्यम) & Sanskrit Generation:</h4>
+                <p>When generating quizzes or question papers, select between <strong>English</strong>, <strong>Pure Hindi (हिन्दी माध्यम - देवनागरी लिपि)</strong>, or <strong>Sanskrit</strong>. For Hindi and Sanskrit, all question prompts, grammar exercises, options, explanations, and hints are formulated strictly in pure Devanagari script aligned with CBSE and state board standards.</p>
+
+                <h4 style={{ marginTop: '16px' }}>NCERT-PARAKH 2025 Competency-Based Assessment Generator:</h4>
+                <p>EduAshram's AI generator is fully upgraded to follow the Ministry of Education & NCERT-PARAKH 2025 guidelines (<em>Guidelines for Setting Balanced Question Papers to Promote Equivalence in Assessment Practices of School Boards</em>):</p>
+                <ul>
+                  <li><strong>Two-Stage Blueprint Generation:</strong> The AI constructs an official <em>Assessment Blueprint Matrix</em> first before writing questions, ensuring balanced weightages rather than random questions.</li>
+                  <li><strong>Three Assessment Abilities:</strong>
+                    <ul>
+                      <li><strong>Awareness (50% Basic / 25% Advanced):</strong> Knowledge, recall, definitions, processes, and relationships.</li>
+                      <li><strong>Sensitivity (25% Basic / 25% Advanced):</strong> Multiple perspectives, conflict resolution, collaboration, environmental empathy, and critical decision-making.</li>
+                      <li><strong>Creativity (25% Basic / 50% Advanced):</strong> Innovative problem solving, exploring alternative solutions, cross-concept synthesis, and novel real-life application.</li>
+                    </ul>
+                  </li>
+                  <li><strong>Two Assessment Standards:</strong>
+                    <ul>
+                      <li><strong>Standard 1: Basic & Proficient (Default):</strong> 50% Awareness, 25% Sensitivity, 25% Creativity | 25% Easy, 50% Medium, 25% Difficult.</li>
+                      <li><strong>Standard 2: Advanced Assessment:</strong> 25% Awareness, 25% Sensitivity, 50% Creativity | 25% Easy, 25% Medium, 50% Difficult.</li>
+                    </ul>
+                  </li>
+                  <li><strong>Grade 5 to Grade 10 Progression:</strong>
+                    <ul>
+                      <li><em>Grade 5:</em> Concrete concepts, everyday home/school scenarios, visual clues, direct arithmetic operations. Strictly avoids abstract algebraic variables ($x, y$) or complex formulas.</li>
+                      <li><em>Grade 6:</em> Smooth transition to formal subject disciplines with clear foundational concepts.</li>
+                      <li><em>Grade 7:</em> Relational reasoning, explaining "how" and "why", multi-step calculations, graphical/tabular interpretations.</li>
+                      <li><em>Grade 8:</em> Analytical thinking, case studies, cross-chapter concept integration.</li>
+                      <li><em>Grade 9:</em> Secondary stage rigour, experimental variable analysis, source-based inquiry.</li>
+                      <li><em>Grade 10:</em> Advanced Board competency, complex real-world application, HOTS, and structured justifications.</li>
+                    </ul>
+                  </li>
+                  <li><strong>All Academic Subjects:</strong> Mathematics (100% verified calculations), Environmental Studies / EVS (NCERT core themes), Science (Physics, Chemistry, Biology), Social Science (History, Geography, Civics, Economics), Languages (English, Pure Devanagari Hindi, Sanskrit), Computer Science & IT (Scratch to Python & cyber ethics), and Moral Science / GK.</li>
+                  <li><strong>Interactive Blueprint Card:</strong> Inspect planned vs actual questions, marks, and percentages across abilities and difficulty tiers directly in the quiz draft editor.</li>
+                </ul>
               </div>
 
               {/* 2.5 Word-Style Question Papers */}
@@ -593,10 +624,12 @@ Teacher: Gaurav Kumar Singh`;
                   <li>Click <strong>"Save as Draft"</strong> or <strong>"Publish"</strong>.</li>
                 </ol>
 
-                <h4 style={{ marginTop: '16px' }}>2. Printing A4 Physical Papers for Photocopying:</h4>
+                <h4 style={{ marginTop: '16px' }}>2. Printing A4 Physical Papers (PARAKH Blueprint & Marking Scheme):</h4>
                 <ol className="step-list">
                   <li>Click <strong>"View Paper"</strong> on any published paper card.</li>
                   <li>A formatted A4 layout opens with school header, student fill-in blanks (<code>Name: _________</code>, <code>Roll No: _________</code>), and clean question margins.</li>
+                  <li><strong>Official PARAKH 2025 Blueprint Table:</strong> Displays the planned breakdown across Awareness, Sensitivity, and Creativity, plus Easy, Medium, and Difficult cognitive difficulty tiers.</li>
+                  <li><strong>Teacher Answer Key & Step-Wise Marking Scheme:</strong> Appended at the end of the printable paper (with automatic page break) to ensure uniform, objective grading for offline exams.</li>
                   <li>Click <strong>"Print Paper"</strong>. The browser automatically strips menus and prints a sharp, black-and-white exam paper ready for the photocopier.</li>
                 </ol>
 
@@ -783,6 +816,8 @@ Teacher: Gaurav Kumar Singh`;
                   <li><strong>Geometry & Drawing Instruments</strong>: Virtual Ruler with millimeter/inch scales, angle lock, and instant Trace Line (controls positioned above the ruler to never hide text), Compass with radius lock, 180°/360° Protractor, and Set Squares.</li>
                   <li><strong>Instant Math Shorthand</strong>: Quickly convert handwritten math notations into clean LaTeX equations with the ergonomically placed conversion button below the text.</li>
                   <li><strong>Single-Page Infinite Canvas for PDF & PPT Imports</strong>: Import multi-page PDF worksheets, question papers, or PowerPoint presentations (PPT/PPTX). All slides and pages are automatically placed and vertically stacked on a <em>Single Continuous Page with Infinite Scroll enabled</em>, allowing you to scroll down smoothly and annotate without switching tabs.</li>
+                  <li><strong>Classroom Digital Clocks (12-Hour & 24-Hour Modes)</strong>: Add live digital clock widgets to the whiteboard canvas. Toggle between 12-Hour (AM/PM) and 24-Hour railway formats with dedicated buttons to keep students on pace during timed class exercises.</li>
+                  <li><strong>Modern Sticky Notes</strong>: Quick sticky notes with modern rounded corner radius and soft pastel backgrounds for problem prompts, reminders, and formula summaries.</li>
                   <li><strong>Synchronized Educational Video Widgets</strong>: Embed YouTube, Vimeo, or MP4 video files directly on the board. The teacher retains exclusive playback control (Play, Pause, Scrub timeline, 16:9 lock, Resize, Minimize, Remove).</li>
                   <li><strong>Sub-Second Real-Time Playback Synchronization</strong>: When playing or pausing a video, student screens sync in real time with sub-second accuracy. Pausing freezes student screens on the exact same frame, and any drift over 1.2s is automatically corrected.</li>
                   <li><strong>Live Broadcasting</strong>: Select your target grade or <em>All Grades</em> and click <strong>"Go Live"</strong>. Your strokes, flowcharts, connectors, pages, background grid changes, and vertical scroll coordinates broadcast in real time to connected students.</li>
@@ -933,6 +968,15 @@ Teacher: Gaurav Kumar Singh`;
                 </div>
 
                 <div className="faq-card">
+                  <h4>Q: What are the NCERT-PARAKH 2025 guidelines in EduAshram?</h4>
+                  <p><strong>A:</strong> EduAshram adheres to the Ministry of Education & NCERT-PARAKH 2025 guidelines (<em>Guidelines for Setting Balanced Question Papers to Promote Equivalence in Assessment Practices of School Boards</em>). Every question paper is constructed from an <strong>Assessment Blueprint prepared first</strong>, balancing the 3 core cognitive abilities (<strong>Awareness</strong>, <strong>Sensitivity</strong>, and <strong>Creativity</strong>) across <strong>Easy, Medium, and Difficult</strong> cognitive tiers.</p>
+
+                  <h4>Q: Which grades and subjects are supported by the AI Question Paper Generator?</h4>
+                  <p><strong>A:</strong> All grades from <strong>Grade 5 to Grade 10</strong> (and Grades 1-4, 11-12) and all academic subjects: Mathematics (100% calculation verified), Environmental Studies (EVS), Science (Physics, Chemistry, Biology), Social Science (History, Geography, Civics, Economics), Languages (English, pure Devanagari Hindi, Sanskrit), Computer Science & IT (Scratch & Python), and Moral Science / GK.</p>
+
+                  <h4>Q: What is the difference between Standard 1 and Standard 2 assessments?</h4>
+                  <p><strong>A:</strong> <strong>Standard 1 (Basic & Proficient)</strong> is the default balanced distribution (50% Awareness, 25% Sensitivity, 25% Creativity | 25% Easy, 50% Medium, 25% Difficult). <strong>Standard 2 (Advanced)</strong> is an optional challenging distribution emphasizing innovation and HOTS (25% Awareness, 25% Sensitivity, 50% Creativity | 25% Easy, 25% Medium, 50% Difficult).</p>
+
                   <h4>Q: How does video playback work on the Live Whiteboard?</h4>
                   <p><strong>A:</strong> Teachers can embed YouTube, Vimeo, or MP4 video files directly on the whiteboard canvas. Playback is synchronized across all students with sub-second precision. When you pause the video, all student screens freeze on the exact same frame. Students cannot interrupt playback, but have personal mute/unmute and volume controls.</p>
                 </div>

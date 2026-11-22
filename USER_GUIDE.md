@@ -153,16 +153,51 @@ EduAshram supports **three distinct test modes** to fit every teaching scenario:
    - *(Optional)* Add a diagram or image URL.
 6. Click **Save Quiz**.
 
-### Generating a Quiz Instantly with AI
+### Generating a Quiz Instantly with AI (PARAKH 2025 Aligned)
 1. Click **Generate with AI** in the top-right corner.
-2. Select:
-   - Grade / Class level.
-   - Academic Subject & Chapter Topic (e.g., *Linear Equations*).
-   - Difficulty Level (Easy, Medium, Challenging).
-   - Number of Questions (e.g., 10 questions).
-   - **Language Selection**: Choose **English**, **Pure Hindi (हिन्दी माध्यम)**, or **Bilingual**. When selecting Pure Hindi, mathematical terms, question instructions, and multiple-choice options are generated in clean Devanagari script suited for Hindi-medium state boards and CBSE curriculum.
+2. Select your test parameters:
+   - **Grade / Class level**: Supports Grades 1 through 12, with specialized pedagogical progressions for **Grade 5 to Grade 10**.
+   - **Academic Subject & Chapter Topic**: Select any academic subject (Mathematics, Science, EVS, Social Science, English, Hindi, Sanskrit, Computer Science/IT, GK).
+   - **Assessment Standard Selection**:
+     * **Standard 1: Basic & Proficient Assessment (Default)**: 50% Awareness, 25% Sensitivity, 25% Creativity | 25% Easy, 50% Medium, 25% Difficult.
+     * **Standard 2: Advanced Assessment**: 25% Awareness, 25% Sensitivity, 50% Creativity | 25% Easy, 25% Medium, 50% Difficult.
+   - **Target Difficulty & Question Count**: e.g., 10 or 25 questions.
+   - **Language Selection**: Choose **English**, **Pure Hindi (हिन्दी माध्यम - देवनागरी लिपि)**, or **Bilingual**. In Pure Hindi, all prompts, questions, options, explanations, and hints are strictly in Devanagari Hindi. Sanskrit generation is likewise rendered in pure Devanagari script.
+   - *(Optional)* Attach textbook scans, syllabus PDFs, or sample papers for Strict Source Content matching.
 3. Click **Generate Quiz with AI**.
-4. Review the generated questions, edit any wording if desired, and click **Publish Quiz**.
+4. The AI prepares an **Assessment Blueprint Matrix** first, then formulates questions strictly mapped to competencies.
+5. In the Quiz Draft editor, review the interactive **PARAKH 2025 Assessment Blueprint & Competency Matrix** card, edit any question wording, and click **Publish Quiz**.
+
+### 2.4.1 NCERT-PARAKH 2025 Competency-Based Assessment Engine
+EduAshram's AI question generator is built strictly on the Ministry of Education & NCERT-PARAKH 2025 guidelines (*Guidelines for Setting Balanced Question Papers to Promote Equivalence in Assessment Practices of School Boards*):
+
+#### A. Three Cognitive Assessment Abilities:
+- **A. Awareness (50% Basic / 25% Advanced)**: Assesses knowledge and recall, conceptual definitions, understanding of sequences and processes, recognition and identification, and foundational relationships.
+- **B. Sensitivity (25% Basic / 25% Advanced)**: Assesses perspective-taking, conflict resolution, collaborative thinking, empathy, environmental consciousness, critical evaluation of information, and logical decision-making.
+- **C. Creativity (25% Basic / 50% Advanced)**: Assesses innovative problem solving, fluency in generating relevant ideas, exploration of alternative solution paths, cross-chapter concept synthesis, and applying principles to novel real-world situations.
+
+#### B. Difficulty Tiers Based on Cognitive Demand:
+Difficulty is determined by actual cognitive effort, not simply marks or answer length:
+- **Easy (25%)**: Direct conceptual understanding, simple identification, single-step calculations, familiar examples.
+- **Medium (50% Basic / 25% Advanced)**: Application of concepts, logical reasoning, comparison and classification, 2-to-3 connected steps, interpreting diagrams, tables, and graphs.
+- **Difficult (25% Basic / 50% Advanced)**: Multi-step problem solving, higher-order reasoning (HOTS), analyzing unfamiliar scenarios, multi-concept integration, evaluation and justification.
+
+#### C. Age-Appropriate Progression (Grade 5 to Grade 10):
+- **Grade 5 (Preparatory Stage - NCERT Classes 3-5)**: Concrete conceptual understanding, experiential/observational learning, everyday real-life scenarios (home, school, nature, playground), visual/diagrammatic clues, direct single-step or straightforward two-step operations. **Strictly avoids:** abstract algebraic variables ($x, y$), complex formulas, or high-level academic jargon.
+- **Grade 6 (Middle Stage Transition)**: Smooth transition from primary EVS to structured subjects; foundational clarity with introductory competency questions.
+- **Grade 7 (Relational Reasoning)**: Explaining "how" and "why", multi-step calculations, interpreting diagrams and tables.
+- **Grade 8 (Analytical Thinking)**: Case-based questions, real-life problem solving, integrating concepts across chapters, formulating justifications.
+- **Grade 9 (Secondary Stage Competency)**: Disciplinary rigour, experimental variable analysis, source-based inquiry, multi-step problems in unfamiliar contexts.
+- **Grade 10 (Advanced Board Competency & HOTS)**: Comprehensive mastery, CBSE Board level complex problems, multi-concept synthesis, critical evaluation, and structured justification.
+
+#### D. Full Academic Subject Coverage:
+- **Mathematics**: Strict independent calculation verification ensuring 100% verified solutions, correct formulas and units, step-wise marking rubrics, and exactly one unambiguous correct option.
+- **Environmental Studies (EVS) for Grade 5**: Structured around the 6 core NCERT themes (*Family & Friends, Food, Shelter, Water, Travel, Things We Make & Do*) emphasizing observation, environmental sensitivity, conservation habits, and community empathy.
+- **Science (Physics, Chemistry, Biology)**: Scientific inquiry, hypothesis testing, experimental variables (independent, dependent, controlled), laboratory setups, ray diagrams, circuits, life cycle models, and balanced chemical equations with SI units.
+- **Social Science (History, Geography, Civics, Economics)**: Primary source interpretation, chronological understanding, map reading, environmental patterns, constitutional principles, democratic values, and economic development concepts.
+- **Languages (English, Pure Devanagari Hindi, Sanskrit)**: Reading comprehension (factual/inferential), contextual grammar applied in real sentences, and structured creative expression.
+- **Computer Science & IT**: Algorithmic thinking, flowcharting, block-based programming (Scratch) for lower grades; Python syntax, data representation, and cyber safety/ethics for higher grades.
+- **Moral Science & General Knowledge**: Ethical dilemmas, civic responsibilities, environmental stewardship, empathy, and current affairs.
 
 ### Running a Live Classroom Quiz
 1. On the quiz card, click **Start Live Quiz**.
@@ -193,9 +228,14 @@ For formal exams, descriptive math tests, and printable physical worksheets, Edu
    - Type or paste your questions with section headers (Section A: 1-mark MCQs, Section B: 3-mark descriptive proofs, etc.).
 4. Click **Save as Draft** while working, or **Publish** when ready for students.
 
-### Viewing & Printing Physical Papers
+### Viewing & Printing Physical Papers (PARAKH Blueprint & Marking Scheme)
 1. On any paper card, click **View Paper**.
-2. A formal, printable examination paper is displayed on an A4-proportioned paper layout with school header and student details lines (`Name: _________`, `Roll No: _________`).
+2. A formal, printable examination paper is displayed on an A4-proportioned paper layout:
+   - **School & Exam Header**: Clean school title, grade, topic, time allowed, and total marks.
+   - **Student Details Lines**: `Name: _________`, `Roll No: _________`.
+   - **PARAKH 2025 Assessment Blueprint Table**: Displays the planned weightage across Awareness, Sensitivity, and Creativity, plus cognitive difficulty distribution (Easy/Medium/Difficult).
+   - **Instructions for Students**: Clear guidelines on writing step-by-step solutions neatly.
+   - **Teacher Answer Key & Step-Wise Marking Scheme**: At the end of the printable paper (with automatic page break), a comprehensive teacher key provides the exact solution and step-wise marks distribution for uniform, objective grading.
 3. Click **Print Paper** in the top-right corner:
    - The browser print preview automatically strips all website menus and prints a clean, black-and-white exam paper ready for classroom photocopying.
 
@@ -401,6 +441,13 @@ The built-in **EduAshram Whiteboard** is a modern, infinite vertical digital can
 - **Single-Page Infinite Canvas for PDF & PPT Imports**:
   - When importing multi-page documents (PDF worksheets, exam papers, textbooks) or PowerPoint presentations (PPT / PPTX slides), all pages and slides are automatically imported onto a **Single Continuous Page with Infinite Scroll enabled**.
   - Pages and slides are arranged and stacked vertically in sequential order. You can smoothly scroll down the whiteboard, annotate problems, and solve equations right alongside the slide content without having to switch tabs.
+- **Classroom Digital Clocks (12-Hour & 24-Hour Modes)**:
+  - Add live digital clock widgets directly to the whiteboard canvas.
+  - Toggle between **12-Hour Clock** (with AM/PM indicators) and **24-Hour Clock** (railway time) with dedicated single-click buttons.
+  - Keeps teacher and students synchronized on lecture pacing and exercise time limits.
+- **Modern Sticky Notes (Curved Corner Radius)**:
+  - Place sticky notes on the whiteboard for quick problem prompts, homework reminders, or theorem summaries.
+  - Features modern rounded corners and soft pastel colors with smooth text editing.
 - **Embedded Educational Video Widgets**:
   - Embed YouTube, Vimeo, or direct MP4/local video files directly into the whiteboard.
   - The teacher retains complete playback control (Play, Pause, Scrub/Seek timeline, 16:9 ratio lock, Resize, Minimize, and Close).
@@ -582,6 +629,12 @@ When your teacher conducts a live lecture using the digital whiteboard, students
 # Frequently Asked Questions (FAQ)
 
 ### For Teachers:
+- **Q: What are the NCERT-PARAKH 2025 guidelines in EduAshram?**
+  - *A:* EduAshram adheres to the Ministry of Education & NCERT-PARAKH 2025 document (*Guidelines for Setting Balanced Question Papers to Promote Equivalence in Assessment Practices of School Boards*). Every question paper is built on an **Assessment Blueprint prepared first**, balancing the 3 core cognitive abilities (**Awareness**, **Sensitivity**, and **Creativity**) across **Easy, Medium, and Difficult** cognitive demand tiers rather than simple rote memorisation.
+- **Q: Which grades and subjects are supported by the AI Question Paper Generator?**
+  - *A:* All grades from **Grade 5 to Grade 10** (plus Grades 1-4 and 11-12) and all core academic subjects: **Mathematics** (with 100% calculation verification), **Environmental Studies (EVS)** (Grade 5 NCERT themes), **Science** (Physics, Chemistry, Biology), **Social Science** (History, Geography, Civics, Economics), **Languages** (English, 100% pure Devanagari Hindi, Sanskrit), **Computer Science & IT** (Scratch & Python), and **Moral Science / GK**.
+- **Q: What is the difference between Standard 1 and Standard 2 assessments?**
+  - *A:* **Standard 1 (Basic & Proficient)** is the balanced default (50% Awareness, 25% Sensitivity, 25% Creativity; 25% Easy, 50% Medium, 25% Difficult). **Standard 2 (Advanced)** is an optional rigorous configuration emphasizing innovation and higher-order thinking (25% Awareness, 25% Sensitivity, 50% Creativity; 25% Easy, 25% Medium, 50% Difficult).
 - **Q: What if I forget my teacher password?**
   - *A:* Click **"Teacher Login"** and tap **"Forgot Password?"**. Enter your registered email address to receive an instant 6-digit OTP verification code via SMTP email (valid for 15 minutes). Type the code and your new password to restore access immediately. School SuperAdmins can also reset teacher passwords or verify accounts in the SuperAdmin Console.
 - **Q: How does video playback work on the Live Whiteboard?**
