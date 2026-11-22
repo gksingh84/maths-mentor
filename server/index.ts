@@ -6274,23 +6274,23 @@ app.post('/api/worksheets/ai-generate', adminOnly, async (req: AuthRequest, res:
         let sectionsHtml = '';
         sectionsMap.forEach((qList, secTitle) => {
           sectionsHtml += `
-  <div style="margin-top: 24px; margin-bottom: 12px; padding: 6px 12px; background: #f1f5f9; border-left: 4px solid #0f172a; font-weight: 700; font-size: 14.5px; color: #0f172a;">
+  <div class="exam-section-header" style="margin-top: 24px; margin-bottom: 12px; padding: 6px 12px; background: #f1f5f9; border-left: 4px solid #0f172a; font-weight: 700; font-size: 14.5px; color: #0f172a; page-break-after: avoid !important; break-after: avoid !important; page-break-inside: avoid !important; break-inside: avoid !important; display: block !important;">
     ${secTitle}
   </div>
-  <div style="display: flex; flex-direction: column; gap: 14px;">
+  <div class="exam-questions-list" style="display: block;">
     ${qList.map((q: any) => `
-    <div style="margin: 0 0 10px 0; font-size: 14.5px; border-bottom: 1px dashed #cbd5e1; padding-bottom: 10px;">
+    <div class="exam-question-card" style="display: block; margin: 0 0 14px 0; font-size: 14.5px; border-bottom: 1px dashed #cbd5e1; padding-bottom: 12px; page-break-inside: avoid !important; break-inside: avoid !important;">
       <p style="margin: 0 0 6px 0; line-height: 1.6;">
         <strong>प्रश्न ${q.displayNum}.</strong> ${q.prompt}
         <span style="float: right; font-weight: 600; color: #475569;">[${q.marks ?? 1} अंक]</span>
       </p>
       ${(q.options && q.options.length > 0) ? (
         q.type === 'TRUE_FALSE' ? `
-      <div style="margin-left: 20px; display: flex; gap: 24px; font-size: 13.5px; color: #334155; margin-top: 4px;">
-        <div>(क) सत्य</div>
-        <div>(ख) असत्य</div>
+      <div style="margin-left: 20px; display: block; font-size: 13.5px; color: #334155; margin-top: 6px;">
+        <span style="display: inline-block; min-width: 120px;">(क) सत्य</span>
+        <span style="display: inline-block; min-width: 120px;">(ख) असत्य</span>
       </div>` : `
-      <div style="margin-left: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 6px; font-size: 13.5px; color: #334155; margin-top: 4px;">
+      <div style="margin-left: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 6px; font-size: 13.5px; color: #334155; margin-top: 6px;">
         ${q.options.map((opt: any, oIdx: number) => `<div>${hindiOptionLabels[oIdx] || `(${String.fromCharCode(65 + oIdx)})`} ${cleanOptionText(opt.text ?? opt)}</div>`).join('')}
       </div>`
       ) : ''}
@@ -6365,23 +6365,23 @@ ${generated.questions.map((q: any) => `
         let sectionsHtml = '';
         sectionsMap.forEach((qList, secTitle) => {
           sectionsHtml += `
-  <div style="margin-top: 24px; margin-bottom: 12px; padding: 6px 12px; background: #f1f5f9; border-left: 4px solid #0f172a; font-weight: 700; font-size: 14px; color: #0f172a; text-transform: uppercase;">
+  <div class="exam-section-header" style="margin-top: 24px; margin-bottom: 12px; padding: 6px 12px; background: #f1f5f9; border-left: 4px solid #0f172a; font-weight: 700; font-size: 14px; color: #0f172a; text-transform: uppercase; page-break-after: avoid !important; break-after: avoid !important; page-break-inside: avoid !important; break-inside: avoid !important; display: block !important;">
     ${secTitle}
   </div>
-  <div style="display: flex; flex-direction: column; gap: 14px;">
+  <div class="exam-questions-list" style="display: block;">
     ${qList.map((q: any) => `
-    <div style="margin: 0 0 10px 0; font-size: 14.5px; border-bottom: 1px dashed #cbd5e1; padding-bottom: 10px;">
+    <div class="exam-question-card" style="display: block; margin: 0 0 14px 0; font-size: 14.5px; border-bottom: 1px dashed #cbd5e1; padding-bottom: 12px; page-break-inside: avoid !important; break-inside: avoid !important;">
       <p style="margin: 0 0 6px 0; line-height: 1.6;">
         <strong>Q${q.displayNum}.</strong> ${q.prompt}
         <span style="float: right; font-weight: 600; color: #475569;">[${q.marks ?? 1} Mark${(q.marks ?? 1) > 1 ? 's' : ''}]</span>
       </p>
       ${(q.options && q.options.length > 0) ? (
         q.type === 'TRUE_FALSE' ? `
-      <div style="margin-left: 20px; display: flex; gap: 24px; font-size: 13.5px; color: #334155; margin-top: 4px;">
-        <div>(A) True</div>
-        <div>(B) False</div>
+      <div style="margin-left: 20px; display: block; font-size: 13.5px; color: #334155; margin-top: 6px;">
+        <span style="display: inline-block; min-width: 120px;">(A) True</span>
+        <span style="display: inline-block; min-width: 120px;">(B) False</span>
       </div>` : `
-      <div style="margin-left: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 6px; font-size: 13.5px; color: #334155; margin-top: 4px;">
+      <div style="margin-left: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 6px; font-size: 13.5px; color: #334155; margin-top: 6px;">
         ${q.options.map((opt: any, oIdx: number) => `<div>(${String.fromCharCode(65 + oIdx)}) ${cleanOptionText(opt.text ?? opt)}</div>`).join('')}
       </div>`
       ) : ''}

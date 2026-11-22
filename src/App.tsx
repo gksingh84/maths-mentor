@@ -326,10 +326,47 @@ export function stripTeacherAnswerKey(html: string): string {
 function printHtmlContent(content: string) {
   const win = window.open('', '_blank');
   if (!win) return;
-  win.document.write(`<!DOCTYPE html><html><head><title>EduAshram Question Paper</title><style>
+
+  // Preprocess HTML content to ensure older/existing papers and flex containers format cleanly for pagination:
+  let processedContent = content || '';
+
+  // 1. Convert flex containers of question items to block layout for reliable CSS page fragmentation in Chromium
+  processedContent = processedContent.replace(/<div\s+style="display:\s*flex;\s*flex-direction:\s*column;\s*gap:\s*1[24]px;"/gi,
+    '<div class="exam-questions-list" style="display: block;">');
+  processedContent = processedContent.replace(/<div\s+style="display:\s*flex;\s*flex-direction:\s*column;/gi,
+    '<div class="exam-questions-list" style="display: block;');
+
+  // 2. Ensure every question card has the exam-question-card class and page-break-inside: avoid
+  processedContent = processedContent.replace(/(<div[^>]*style="[^"]*border-bottom:\s*1px\s*dashed[^"]*")/gi, (match) => {
+    let m = match;
+    if (!m.includes('exam-question-card')) {
+      m = m.replace('<div', '<div class="exam-question-card"');
+    }
+    if (!m.includes('break-inside')) {
+      m = m.replace('style="', 'style="display: block !important; break-inside: avoid !important; page-break-inside: avoid !important; ');
+    }
+    return m;
+  });
+
+  // 3. Ensure section headers have exam-section-header class and break-after: avoid
+  processedContent = processedContent.replace(/(<div[^>]*style="[^"]*border-left:\s*4px\s*solid[^"]*")/gi, (match) => {
+    let m = match;
+    if (!m.includes('exam-section-header')) {
+      m = m.replace('<div', '<div class="exam-section-header"');
+    }
+    if (!m.includes('break-after')) {
+      m = m.replace('style="', 'style="display: block !important; break-after: avoid !important; page-break-after: avoid !important; break-inside: avoid !important; page-break-inside: avoid !important; ');
+    }
+    return m;
+  });
+
+  win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>EduAshram Question Paper</title><style>
     @page {
       size: A4 portrait;
-      margin: 18mm 15mm 18mm 15mm;
+      margin-top: 10mm;
+      margin-bottom: 10mm;
+      margin-left: 15mm;
+      margin-right: 15mm;
     }
     @media print {
       html, body {
@@ -339,19 +376,52 @@ function printHtmlContent(content: string) {
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
       }
+      .print-layout-table {
+        width: 100% !important;
+        border-collapse: collapse !important;
+        border: none !important;
+        margin: 0 !important;
+        padding: 0 !important;
+      }
+      thead {
+        display: table-header-group !important;
+      }
+      tfoot {
+        display: table-footer-group !important;
+      }
+      .print-page-header-spacer {
+        height: 10mm !important;
+        display: block !important;
+      }
+      .print-page-footer-spacer {
+        height: 10mm !important;
+        display: block !important;
+      }
+      .exam-questions-list {
+        display: block !important;
+      }
+      .exam-question-card,
       div[style*="border-bottom: 1px dashed"],
       div[style*="border-bottom:1px dashed"],
+      div[style*="dashed #cbd5e1"],
+      div[style*="dashed#cbd5e1"],
       .question-item {
+        display: block !important;
         break-inside: avoid !important;
         page-break-inside: avoid !important;
       }
+      .exam-section-header,
       .section-header, h1, h2, h3, h4 {
+        display: block !important;
         break-after: avoid !important;
         page-break-after: avoid !important;
+        break-inside: avoid !important;
+        page-break-inside: avoid !important;
       }
       .teacher-answer-key-section,
       div[style*="page-break-before: always"],
       div[style*="page-break-before:always"] {
+        display: block !important;
         break-before: page !important;
         page-break-before: always !important;
       }
@@ -360,9 +430,33 @@ function printHtmlContent(content: string) {
       font-family: 'Segoe UI', 'Nirmala UI', Arial, sans-serif;
       line-height: 1.6;
       color: #1e293b;
-      padding: 16px 20px;
+      padding: 0;
       margin: 0;
       background: #ffffff;
+    }
+    .print-layout-table {
+      width: 100%;
+      border-collapse: collapse;
+      border: none;
+      margin: 0;
+      padding: 0;
+    }
+    .print-header-space {
+      height: 10mm;
+      border: none !important;
+      padding: 0 !important;
+      margin: 0 !important;
+    }
+    .print-footer-space {
+      height: 10mm;
+      border: none !important;
+      padding: 0 !important;
+      margin: 0 !important;
+    }
+    .print-content-cell {
+      border: none !important;
+      padding: 0 15mm !important;
+      vertical-align: top;
     }
     ul { list-style-type: disc !important; padding-left: 20px !important; margin: 12px 0 !important; }
     ol { list-style-type: decimal !important; margin: 12px 0 !important; padding-left: 20px !important; }
@@ -370,15 +464,37 @@ function printHtmlContent(content: string) {
     p { margin: 0 0 8px 0; }
     h1, h2, h3 { margin: 14px 0 8px 0; color: #0f172a; }
     img { max-width: 100% !important; height: auto !important; margin: 14px auto; display: block; border-radius: 4px; }
-    table { width: 100% !important; border-collapse: collapse !important; margin: 14px 0 !important; table-layout: fixed !important; }
-    th, td { border: 1px solid #cbd5e1 !important; padding: 6px 10px !important; text-align: left; }
-    th { background: #f1f5f9 !important; font-weight: 600; }
-  </style></head><body>${content}</body></html>`);
+    table:not(.print-layout-table) { width: 100% !important; border-collapse: collapse !important; margin: 14px 0 !important; table-layout: fixed !important; }
+    table:not(.print-layout-table) th, table:not(.print-layout-table) td { border: 1px solid #cbd5e1 !important; padding: 6px 10px !important; text-align: left; }
+    table:not(.print-layout-table) th { background: #f1f5f9 !important; font-weight: 600; }
+  </style></head>
+  <body>
+    <table class="print-layout-table">
+      <thead>
+        <tr>
+          <td class="print-header-space"><div class="print-page-header-spacer"></div></td>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="print-content-cell">
+            ${processedContent}
+          </td>
+        </tr>
+      </tbody>
+      <tfoot>
+        <tr>
+          <td class="print-footer-space"><div class="print-page-footer-spacer"></div></td>
+        </tr>
+      </tfoot>
+    </table>
+  </body>
+  </html>`);
   win.document.close();
   win.focus();
   setTimeout(() => {
     win.print();
-  }, 350);
+  }, 400);
 }
 
 function QuestionTypeBadge({ type }: { type?: string }) {
@@ -10787,14 +10903,14 @@ function WorksheetsPanel({ setNotice, teacherName, onNavigateToAISettings, onNav
     </ul>
   </div>
 
-  <div style="display: flex; flex-direction: column; gap: 12px;">
-    <p style="margin: 0 0 12px 0; font-size: 15px; border-bottom: 1px dashed #cbd5e1; padding-bottom: 8px;">
-      <strong>Q1.</strong> Explain the process of photosynthesis in plants. <span style="color: #64748b; font-size: 13px;">[10 Marks]</span>
-    </p>
+  <div class="exam-questions-list" style="display: block;">
+    <div class="exam-question-card" style="display: block; margin: 0 0 14px 0; font-size: 15px; border-bottom: 1px dashed #cbd5e1; padding-bottom: 10px; page-break-inside: avoid !important; break-inside: avoid !important;">
+      <p style="margin: 0 0 6px 0;"><strong>Q1.</strong> Explain the process of photosynthesis in plants. <span style="color: #64748b; font-size: 13px;">[10 Marks]</span></p>
+    </div>
 
-    <p style="margin: 0 0 12px 0; font-size: 15px; border-bottom: 1px dashed #cbd5e1; padding-bottom: 8px;">
-      <strong>Q2.</strong> List three key differences between physical and chemical changes. <span style="color: #64748b; font-size: 13px;">[10 Marks]</span>
-    </p>
+    <div class="exam-question-card" style="display: block; margin: 0 0 14px 0; font-size: 15px; border-bottom: 1px dashed #cbd5e1; padding-bottom: 10px; page-break-inside: avoid !important; break-inside: avoid !important;">
+      <p style="margin: 0 0 6px 0;"><strong>Q2.</strong> List three key differences between physical and chemical changes. <span style="color: #64748b; font-size: 13px;">[10 Marks]</span></p>
+    </div>
   </div>
 </div>`.trim(),
               });
