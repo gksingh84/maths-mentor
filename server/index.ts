@@ -3089,8 +3089,13 @@ Ensure the questions array contains EXACTLY ${data.questionCount} questions stri
 }
 
 
+function cleanApiKey(key?: string | null): string {
+  if (!key) return '';
+  return String(key).trim().replace(/^["'`\s]+|["'`\s]+$/g, '').trim();
+}
+
 async function generateAIQuiz(data: z.infer<typeof aiQuizInput>) {
-  const customKey = data.apiKey?.trim();
+  const customKey = cleanApiKey(data.apiKey);
   let selectedProvider = data.provider || 'auto';
 
   // Smart provider auto-detection if teacher's key format is unambiguous
@@ -3104,17 +3109,32 @@ async function generateAIQuiz(data: z.infer<typeof aiQuizInput>) {
     }
   }
 
-  const geminiKey = selectedProvider === 'gemini'
-    ? (customKey?.startsWith('AIza') ? customKey : process.env.GEMINI_API_KEY)
-    : (selectedProvider === 'auto' ? (customKey?.startsWith('AIza') ? customKey : process.env.GEMINI_API_KEY) : undefined);
+  let geminiKey = process.env.GEMINI_API_KEY ? cleanApiKey(process.env.GEMINI_API_KEY) : undefined;
+  let openaiKey = process.env.OPENAI_API_KEY ? cleanApiKey(process.env.OPENAI_API_KEY) : undefined;
+  let deepseekKey = process.env.DEEPSEEK_API_KEY ? cleanApiKey(process.env.DEEPSEEK_API_KEY) : undefined;
 
-  const openaiKey = selectedProvider === 'openai'
-    ? (customKey?.startsWith('sk-') ? customKey : (process.env.OPENAI_API_KEY || customKey))
-    : (selectedProvider === 'auto' ? (customKey?.startsWith('sk-') ? customKey : process.env.OPENAI_API_KEY) : undefined);
+  if (customKey) {
+    if (customKey.startsWith('sk-')) {
+      openaiKey = customKey;
+    } else if (customKey.startsWith('AIza')) {
+      geminiKey = customKey;
+    } else {
+      if (selectedProvider === 'openai') {
+        openaiKey = customKey;
+      } else if (selectedProvider === 'deepseek') {
+        deepseekKey = customKey;
+      } else {
+        geminiKey = customKey;
+      }
+    }
+  }
 
-  const deepseekKey = selectedProvider === 'deepseek'
-    ? (customKey || process.env.DEEPSEEK_API_KEY)
-    : undefined;
+  // Cross-provider auto-switch if user selected Gemini but key is OpenAI (or vice versa)
+  if (selectedProvider === 'gemini' && !geminiKey && openaiKey) {
+    selectedProvider = 'openai';
+  } else if (selectedProvider === 'openai' && !openaiKey && geminiKey) {
+    selectedProvider = 'gemini';
+  }
 
   // Enforce API Key requirements per provider selection
   if (selectedProvider === 'gemini' && !geminiKey) {
@@ -3347,10 +3367,16 @@ app.post('/api/ai/generate-quiz', adminOnly, async (req: AuthRequest, res: Respo
 
     // Load teacher's own saved apiKey from database if not supplied
     if (!data.apiKey && req.session?.id) {
-      const teacher = await db.teacher.findUnique({ where: { id: req.session.id }, select: { apiKey: true } });
-      if (teacher?.apiKey) {
-        data.apiKey = teacher.apiKey;
+      let teacher = await db.teacher.findUnique({ where: { id: req.session.id }, select: { apiKey: true } });
+      if (!teacher && req.session.email) {
+        teacher = await db.teacher.findUnique({ where: { email: req.session.email.toLowerCase() }, select: { apiKey: true } });
       }
+      if (teacher?.apiKey) {
+        data.apiKey = cleanApiKey(teacher.apiKey);
+      }
+    }
+    if (data.apiKey) {
+      data.apiKey = cleanApiKey(data.apiKey);
     }
 
     // Require each teacher to have their own API key configured
@@ -3667,7 +3693,7 @@ Always prioritize educational accuracy, student understanding, teacher control a
 }
 
 async function generateAITeachingAssistance(data: z.infer<typeof aiTeachingAssistantInput>) {
-  const customKey = data.apiKey?.trim();
+  const customKey = cleanApiKey(data.apiKey);
   let selectedProvider = data.provider || 'auto';
 
   // Smart provider auto-detection if teacher's key format is unambiguous
@@ -3681,17 +3707,31 @@ async function generateAITeachingAssistance(data: z.infer<typeof aiTeachingAssis
     }
   }
 
-  const geminiKey = selectedProvider === 'gemini'
-    ? (customKey?.startsWith('AIza') ? customKey : process.env.GEMINI_API_KEY)
-    : (selectedProvider === 'auto' ? (customKey?.startsWith('AIza') ? customKey : process.env.GEMINI_API_KEY) : undefined);
+  let geminiKey = process.env.GEMINI_API_KEY ? cleanApiKey(process.env.GEMINI_API_KEY) : undefined;
+  let openaiKey = process.env.OPENAI_API_KEY ? cleanApiKey(process.env.OPENAI_API_KEY) : undefined;
+  let deepseekKey = process.env.DEEPSEEK_API_KEY ? cleanApiKey(process.env.DEEPSEEK_API_KEY) : undefined;
 
-  const openaiKey = selectedProvider === 'openai'
-    ? (customKey?.startsWith('sk-') ? customKey : (process.env.OPENAI_API_KEY || customKey))
-    : (selectedProvider === 'auto' ? (customKey?.startsWith('sk-') ? customKey : process.env.OPENAI_API_KEY) : undefined);
+  if (customKey) {
+    if (customKey.startsWith('sk-')) {
+      openaiKey = customKey;
+    } else if (customKey.startsWith('AIza')) {
+      geminiKey = customKey;
+    } else {
+      if (selectedProvider === 'openai') {
+        openaiKey = customKey;
+      } else if (selectedProvider === 'deepseek') {
+        deepseekKey = customKey;
+      } else {
+        geminiKey = customKey;
+      }
+    }
+  }
 
-  const deepseekKey = selectedProvider === 'deepseek'
-    ? (customKey || process.env.DEEPSEEK_API_KEY)
-    : undefined;
+  if (selectedProvider === 'gemini' && !geminiKey && openaiKey) {
+    selectedProvider = 'openai';
+  } else if (selectedProvider === 'openai' && !openaiKey && geminiKey) {
+    selectedProvider = 'gemini';
+  }
 
   const systemRole = buildEduAshramAITeachingAssistantPrompt(data);
 
@@ -3810,10 +3850,16 @@ app.post('/api/ai/teaching-assistant', adminOnly, async (req: AuthRequest, res: 
 
     // Load teacher's own saved apiKey from database if not supplied
     if (!data.apiKey && req.session?.id) {
-      const teacher = await db.teacher.findUnique({ where: { id: req.session.id }, select: { apiKey: true } });
-      if (teacher?.apiKey) {
-        data.apiKey = teacher.apiKey;
+      let teacher = await db.teacher.findUnique({ where: { id: req.session.id }, select: { apiKey: true } });
+      if (!teacher && req.session.email) {
+        teacher = await db.teacher.findUnique({ where: { email: req.session.email.toLowerCase() }, select: { apiKey: true } });
       }
+      if (teacher?.apiKey) {
+        data.apiKey = cleanApiKey(teacher.apiKey);
+      }
+    }
+    if (data.apiKey) {
+      data.apiKey = cleanApiKey(data.apiKey);
     }
 
     const result = await generateAITeachingAssistance(data);
@@ -6284,10 +6330,16 @@ app.post('/api/worksheets/ai-generate', adminOnly, async (req: AuthRequest, res:
 
     // Load teacher's own saved apiKey from database if not supplied
     if (!data.apiKey && req.session?.id) {
-      const teacher = await db.teacher.findUnique({ where: { id: req.session.id }, select: { apiKey: true } });
-      if (teacher?.apiKey) {
-        data.apiKey = teacher.apiKey;
+      let teacher = await db.teacher.findUnique({ where: { id: req.session.id }, select: { apiKey: true } });
+      if (!teacher && req.session.email) {
+        teacher = await db.teacher.findUnique({ where: { email: req.session.email.toLowerCase() }, select: { apiKey: true } });
       }
+      if (teacher?.apiKey) {
+        data.apiKey = cleanApiKey(teacher.apiKey);
+      }
+    }
+    if (data.apiKey) {
+      data.apiKey = cleanApiKey(data.apiKey);
     }
 
     // Require each teacher to have their own API key configured

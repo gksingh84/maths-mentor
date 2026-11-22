@@ -12658,6 +12658,7 @@ function AIWorksheetModal({ onClose, onGenerated, onNavigateToAISettings }: { on
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState('');
   const [hasTeacherKey, setHasTeacherKey] = useState<boolean | null>(null);
+  const [teacherApiKey, setTeacherApiKey] = useState<string>('');
 
   const [provider, setProvider] = useState(() => localStorage.getItem('livequiz_ai_provider') || 'auto');
   const activeSubject = selectedSubject === 'Other / Custom Subject' ? (customSubject.trim() || 'General') : selectedSubject;
@@ -12669,6 +12670,9 @@ function AIWorksheetModal({ onClose, onGenerated, onNavigateToAISettings }: { on
       .then((r) => r.json())
       .then((d) => {
         setHasTeacherKey(Boolean(d.teacher?.apiKey || d.teacher?.hasApiKey));
+        if (d.teacher?.apiKey) {
+          setTeacherApiKey(d.teacher.apiKey);
+        }
         const savedProv = localStorage.getItem('livequiz_ai_provider');
         if (!savedProv || savedProv === 'auto') {
           if (d.teacher?.apiKey?.startsWith('sk-')) {
@@ -12717,6 +12721,7 @@ function AIWorksheetModal({ onClose, onGenerated, onNavigateToAISettings }: { on
           assessmentStandard,
           details,
           provider,
+          apiKey: teacherApiKey ? teacherApiKey.trim() : undefined,
           strictSourceContent: strictMode,
           uploadedFiles: sourceFiles.length > 0 ? sourceFiles : undefined,
         }),
